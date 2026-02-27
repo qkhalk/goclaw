@@ -146,18 +146,31 @@ func (c *Channel) Send(_ context.Context, msg bus.OutboundMessage) error {
 		return nil
 	}
 
-	// Try to edit the placeholder "Thinking..." message
+	// Try to edit the placeholder "Thinking..." message with the first chunk,
+	// then send the rest as follow-up messages.
 	if pID, ok := c.placeholders.Load(placeholderKey); ok {
 		c.placeholders.Delete(placeholderKey)
 		msgID := pID.(string)
 
-		// Discord has a 2000-char message limit
+		const maxLen = 2000
 		editContent := content
-		if len(editContent) > 2000 {
-			editContent = editContent[:1997] + "..."
+		remaining := ""
+
+		if len(editContent) > maxLen {
+			// Break at a newline if possible
+			cutAt := maxLen
+			if idx := lastIndexByte(content[:maxLen], '\n'); idx > maxLen/2 {
+				cutAt = idx + 1
+			}
+			editContent = content[:cutAt]
+			remaining = content[cutAt:]
 		}
 
 		if _, editErr := c.session.ChannelMessageEdit(channelID, msgID, editContent); editErr == nil {
+			// Send remaining content as follow-up messages
+			if remaining != "" {
+				return c.sendChunked(channelID, remaining)
+			}
 			return nil
 		} else {
 			slog.Warn("discord: placeholder edit failed, sending new message",
