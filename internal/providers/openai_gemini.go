@@ -10,8 +10,11 @@ import (
 // thought_signature (required by Gemini 2.5+) into plain text. This handles old
 // session history stored before the thought_signature capture fix.
 // Tool call cycles (assistant + tool results) are collapsed into:
-//   - assistant: original content + "[Called tool_name({args})]"
-//   - user: "[tool_name result]: content"
+//   - assistant: original content + summary
+//   - user: tool result content
+//
+// The collapsed format deliberately avoids looking like a tool call invocation
+// to prevent Gemini from imitating the pattern instead of using structured tool_calls.
 func collapseToolCallsWithoutSig(msgs []Message) []Message {
 	// Collect tool_call IDs that need collapsing.
 	collapseIDs := make(map[string]bool)
@@ -46,7 +49,7 @@ func collapseToolCallsWithoutSig(msgs []Message) []Message {
 			}
 			for _, tc := range m.ToolCalls {
 				argsJSON, _ := json.Marshal(tc.Arguments)
-				fmt.Fprintf(&sb, "[Called %s(%s)]\n", tc.Name, string(argsJSON))
+				fmt.Fprintf(&sb, "(Used tool \"%s\" with %s)\n", tc.Name, string(argsJSON))
 			}
 			result = append(result, Message{
 				Role:    "assistant",
@@ -68,7 +71,7 @@ func collapseToolCallsWithoutSig(msgs []Message) []Message {
 				if toolBuf.Len() > 0 {
 					toolBuf.WriteString("\n\n")
 				}
-				fmt.Fprintf(&toolBuf, "[%s result]: %s", toolName, toolMsg.Content)
+				fmt.Fprintf(&toolBuf, "Result from %s: %s", toolName, toolMsg.Content)
 			}
 			if toolBuf.Len() > 0 {
 				result = append(result, Message{
