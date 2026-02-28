@@ -11,7 +11,8 @@ import (
 
 func registerProviders(registry *providers.Registry, cfg *config.Config) {
 	if cfg.Providers.Anthropic.APIKey != "" {
-		registry.Register(providers.NewAnthropicProvider(cfg.Providers.Anthropic.APIKey))
+		registry.Register(providers.NewAnthropicProvider(cfg.Providers.Anthropic.APIKey,
+			providers.WithAnthropicBaseURL(cfg.Providers.Anthropic.APIBase)))
 		slog.Info("registered provider", "name", "anthropic")
 	}
 
@@ -81,7 +82,8 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			continue
 		}
 		if p.ProviderType == store.ProviderAnthropicNative {
-			registry.Register(providers.NewAnthropicProvider(p.APIKey))
+			registry.Register(providers.NewAnthropicProvider(p.APIKey,
+				providers.WithAnthropicBaseURL(p.APIBase)))
 		} else {
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
 			if p.ProviderType == store.ProviderMiniMax {

@@ -65,7 +65,8 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 		return
 	}
 	if p.ProviderType == store.ProviderAnthropicNative {
-		h.providerReg.Register(providers.NewAnthropicProvider(p.APIKey))
+		h.providerReg.Register(providers.NewAnthropicProvider(p.APIKey,
+			providers.WithAnthropicBaseURL(p.APIBase)))
 	} else {
 		prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
 		if p.ProviderType == store.ProviderMiniMax {

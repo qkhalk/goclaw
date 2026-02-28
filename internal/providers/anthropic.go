@@ -21,6 +21,7 @@ const (
 // AnthropicProvider implements Provider using the Anthropic Claude API via net/http.
 type AnthropicProvider struct {
 	apiKey       string
+	baseURL      string
 	defaultModel string
 	client       *http.Client
 	retryConfig  RetryConfig
@@ -30,6 +31,7 @@ type AnthropicProvider struct {
 func NewAnthropicProvider(apiKey string, opts ...AnthropicOption) *AnthropicProvider {
 	p := &AnthropicProvider{
 		apiKey:       apiKey,
+		baseURL:      anthropicAPIBase,
 		defaultModel: defaultClaudeModel,
 		client:       &http.Client{Timeout: 120 * time.Second},
 		retryConfig:  DefaultRetryConfig(),
@@ -44,6 +46,14 @@ type AnthropicOption func(*AnthropicProvider)
 
 func WithAnthropicModel(model string) AnthropicOption {
 	return func(p *AnthropicProvider) { p.defaultModel = model }
+}
+
+func WithAnthropicBaseURL(baseURL string) AnthropicOption {
+	return func(p *AnthropicProvider) {
+		if baseURL != "" {
+			p.baseURL = strings.TrimRight(baseURL, "/")
+		}
+	}
 }
 
 func (p *AnthropicProvider) Name() string        { return "anthropic" }
@@ -331,7 +341,7 @@ func (p *AnthropicProvider) doRequest(ctx context.Context, body interface{}) (io
 		return nil, fmt.Errorf("anthropic: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", anthropicAPIBase+"/messages", bytes.NewReader(data))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/messages", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: create request: %w", err)
 	}
