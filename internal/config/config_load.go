@@ -108,10 +108,11 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GOCLAW_TELEGRAM_TOKEN", &c.Channels.Telegram.Token)
 	envStr("GOCLAW_DISCORD_TOKEN", &c.Channels.Discord.Token)
 	envStr("GOCLAW_ZALO_TOKEN", &c.Channels.Zalo.Token)
-	envStr("GOCLAW_FEISHU_APP_ID", &c.Channels.Feishu.AppID)
-	envStr("GOCLAW_FEISHU_APP_SECRET", &c.Channels.Feishu.AppSecret)
-	envStr("GOCLAW_FEISHU_ENCRYPT_KEY", &c.Channels.Feishu.EncryptKey)
-	envStr("GOCLAW_FEISHU_VERIFICATION_TOKEN", &c.Channels.Feishu.VerificationToken)
+	envStr("GOCLAW_LARK_APP_ID", &c.Channels.Feishu.AppID)
+	envStr("GOCLAW_LARK_APP_SECRET", &c.Channels.Feishu.AppSecret)
+	envStr("GOCLAW_LARK_ENCRYPT_KEY", &c.Channels.Feishu.EncryptKey)
+	envStr("GOCLAW_LARK_VERIFICATION_TOKEN", &c.Channels.Feishu.VerificationToken)
+	envStr("GOCLAW_WHATSAPP_BRIDGE_URL", &c.Channels.WhatsApp.BridgeURL)
 
 	// TTS secrets
 	envStr("GOCLAW_TTS_OPENAI_API_KEY", &c.Tts.OpenAI.APIKey)
@@ -131,6 +132,9 @@ func (c *Config) applyEnvOverrides() {
 	}
 	if c.Channels.Feishu.AppID != "" && c.Channels.Feishu.AppSecret != "" {
 		c.Channels.Feishu.Enabled = true
+	}
+	if c.Channels.WhatsApp.BridgeURL != "" {
+		c.Channels.WhatsApp.Enabled = true
 	}
 
 	// Allow overriding default provider/model
