@@ -47,8 +47,9 @@ func (p *OpenAIProvider) WithChatPath(path string) *OpenAIProvider {
 	return p
 }
 
-func (p *OpenAIProvider) Name() string        { return p.name }
-func (p *OpenAIProvider) DefaultModel() string { return p.defaultModel }
+func (p *OpenAIProvider) Name() string            { return p.name }
+func (p *OpenAIProvider) DefaultModel() string     { return p.defaultModel }
+func (p *OpenAIProvider) SupportsThinking() bool   { return true }
 func (p *OpenAIProvider) APIKey() string       { return p.apiKey }
 func (p *OpenAIProvider) APIBase() string      { return p.apiBase }
 
@@ -140,12 +141,12 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, req ChatRequest, onChun
 			acc, ok := accumulators[tc.Index]
 			if !ok {
 				acc = &toolCallAccumulator{
-					ToolCall: ToolCall{ID: tc.ID, Name: tc.Function.Name},
+					ToolCall: ToolCall{ID: tc.ID, Name: strings.TrimSpace(tc.Function.Name)},
 				}
 				accumulators[tc.Index] = acc
 			}
 			if tc.Function.Name != "" {
-				acc.Name = tc.Function.Name
+				acc.Name = strings.TrimSpace(tc.Function.Name)
 			}
 			acc.rawArgs += tc.Function.Arguments
 			if tc.Function.ThoughtSignature != "" {
@@ -356,7 +357,7 @@ func (p *OpenAIProvider) parseResponse(resp *openAIResponse) *ChatResponse {
 			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
 			call := ToolCall{
 				ID:        tc.ID,
-				Name:      tc.Function.Name,
+				Name:      strings.TrimSpace(tc.Function.Name),
 				Arguments: args,
 			}
 			if tc.Function.ThoughtSignature != "" {

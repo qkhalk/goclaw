@@ -32,6 +32,12 @@ type Provider interface {
 	Name() string
 }
 
+// ThinkingCapable is optionally implemented by providers that support extended thinking.
+// Used to gate thinking_level injection so it's not sent to providers that ignore it.
+type ThinkingCapable interface {
+	SupportsThinking() bool
+}
+
 // ChatRequest contains the input for a Chat/ChatStream call.
 type ChatRequest struct {
 	Messages []Message              `json:"messages"`

@@ -60,7 +60,14 @@ func BuildSubagentSessionKey(agentID, label string) string {
 // BuildCronSessionKey builds the session key for a cron job run.
 //
 //	agent:{agentId}:cron:{jobID}:run:{runID}
+//
+// Guards against double-prefixing: if jobID is already a canonical session key
+// (e.g. "agent:X:..."), only the rest part is used to prevent
+// "agent:X:cron:agent:X:cron:..." duplication.
 func BuildCronSessionKey(agentID, jobID, runID string) string {
+	if _, rest := ParseSessionKey(jobID); rest != "" {
+		jobID = rest
+	}
 	return fmt.Sprintf("agent:%s:cron:%s:run:%s", agentID, jobID, runID)
 }
 

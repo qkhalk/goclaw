@@ -56,8 +56,9 @@ func WithAnthropicBaseURL(baseURL string) AnthropicOption {
 	}
 }
 
-func (p *AnthropicProvider) Name() string        { return "anthropic" }
-func (p *AnthropicProvider) DefaultModel() string { return p.defaultModel }
+func (p *AnthropicProvider) Name() string            { return "anthropic" }
+func (p *AnthropicProvider) DefaultModel() string     { return p.defaultModel }
+func (p *AnthropicProvider) SupportsThinking() bool   { return true }
 
 func (p *AnthropicProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
 	model := req.Model
@@ -150,7 +151,7 @@ func (p *AnthropicProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 				if ev.ContentBlock.Type == "tool_use" {
 					result.ToolCalls = append(result.ToolCalls, ToolCall{
 						ID:        ev.ContentBlock.ID,
-						Name:      ev.ContentBlock.Name,
+						Name:      strings.TrimSpace(ev.ContentBlock.Name),
 						Arguments: make(map[string]interface{}),
 					})
 				}
@@ -529,7 +530,7 @@ func (p *AnthropicProvider) parseResponse(resp *anthropicResponse) *ChatResponse
 			_ = json.Unmarshal(block.Input, &args)
 			result.ToolCalls = append(result.ToolCalls, ToolCall{
 				ID:        block.ID,
-				Name:      block.Name,
+				Name:      strings.TrimSpace(block.Name),
 				Arguments: args,
 			})
 		}

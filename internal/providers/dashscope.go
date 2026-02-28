@@ -29,7 +29,8 @@ func NewDashScopeProvider(apiKey, apiBase, defaultModel string) *DashScopeProvid
 	}
 }
 
-func (p *DashScopeProvider) Name() string { return "dashscope" }
+func (p *DashScopeProvider) Name() string          { return "dashscope" }
+func (p *DashScopeProvider) SupportsThinking() bool { return true }
 
 // ChatStream handles DashScope's limitation: tools + streaming cannot coexist.
 // When tools are present, falls back to non-streaming Chat() and synthesizes

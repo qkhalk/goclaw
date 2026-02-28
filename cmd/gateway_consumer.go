@@ -655,7 +655,7 @@ func makeCronJobHandler(agents *agent.Router, msgBus *bus.MessageBus, cfg *confi
 			return nil, fmt.Errorf("agent %s not found: %w", agentID, err)
 		}
 
-		sessionKey := sessions.BuildCronSessionKey(agentID, job.ID, fmt.Sprintf("cron-%s", job.ID))
+		sessionKey := sessions.BuildCronSessionKey(agentID, job.ID, job.ID)
 		channel := job.Payload.Channel
 		if channel == "" {
 			channel = "cron"
@@ -667,7 +667,7 @@ func makeCronJobHandler(agents *agent.Router, msgBus *bus.MessageBus, cfg *confi
 			Channel:    channel,
 			ChatID:     job.Payload.To,
 			UserID:     job.UserID,
-			RunID:      fmt.Sprintf("cron-%s", job.ID),
+			RunID:      fmt.Sprintf("cron:%s", job.ID),
 			Stream:     false,
 			TraceName:  fmt.Sprintf("Cron [%s] - %s", job.Name, agentID),
 			TraceTags:  []string{"cron"},

@@ -552,7 +552,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			},
 		}
 		if l.thinkingLevel != "" && l.thinkingLevel != "off" {
-			chatReq.Options[providers.OptThinkingLevel] = l.thinkingLevel
+			if tc, ok := l.provider.(providers.ThinkingCapable); ok && tc.SupportsThinking() {
+				chatReq.Options[providers.OptThinkingLevel] = l.thinkingLevel
+			} else {
+				slog.Debug("thinking_level ignored: provider does not support thinking",
+					"provider", l.provider.Name(), "level", l.thinkingLevel)
+			}
 		}
 
 		// Call LLM (streaming or non-streaming)
