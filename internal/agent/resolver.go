@@ -281,6 +281,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			SandboxContainerDir:    sandboxContainerDir,
 			SandboxWorkspaceAccess: sandboxWorkspaceAccess,
 			BuiltinToolSettings:    builtinSettings,
+			ThinkingLevel:         ag.ParseThinkingLevel(),
 		})
 
 		slog.Info("resolved agent from DB", "agent", agentKey, "model", ag.Model, "provider", ag.Provider)

@@ -100,6 +100,9 @@ type Loop struct {
 
 	// Global builtin tool settings (from builtin_tools table, managed mode)
 	builtinToolSettings tools.BuiltinToolSettings
+
+	// Thinking level for extended thinking support
+	thinkingLevel string
 }
 
 // AgentEvent is emitted during agent execution for WS broadcasting.
@@ -162,6 +165,9 @@ type LoopConfig struct {
 
 	// Global builtin tool settings (from builtin_tools table, managed mode)
 	BuiltinToolSettings tools.BuiltinToolSettings
+
+	// Thinking level: "off", "low", "medium", "high" (from agent other_config)
+	ThinkingLevel string
 }
 
 func NewLoop(cfg LoopConfig) *Loop {
@@ -220,6 +226,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		injectionAction:       action,
 		maxMessageChars:       cfg.MaxMessageChars,
 		builtinToolSettings:   cfg.BuiltinToolSettings,
+		thinkingLevel:         cfg.ThinkingLevel,
 	}
 }
 
@@ -540,9 +547,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			Tools:    toolDefs,
 			Model:    l.model,
 			Options: map[string]interface{}{
-				"max_tokens":  8192,
-				"temperature": 0.7,
+				providers.OptMaxTokens:   8192,
+				providers.OptTemperature: 0.7,
 			},
+		}
+		if l.thinkingLevel != "" && l.thinkingLevel != "off" {
+			chatReq.Options[providers.OptThinkingLevel] = l.thinkingLevel
 		}
 
 		// Call LLM (streaming or non-streaming)
@@ -585,6 +595,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			totalUsage.PromptTokens += resp.Usage.PromptTokens
 			totalUsage.CompletionTokens += resp.Usage.CompletionTokens
 			totalUsage.TotalTokens += resp.Usage.TotalTokens
+			totalUsage.ThinkingTokens += resp.Usage.ThinkingTokens
 		}
 
 		// No tool calls → done
@@ -595,9 +606,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		// Build assistant message with tool calls
 		assistantMsg := providers.Message{
-			Role:      "assistant",
-			Content:   resp.Content,
-			ToolCalls: resp.ToolCalls,
+			Role:                "assistant",
+			Content:             resp.Content,
+			ToolCalls:           resp.ToolCalls,
+			RawAssistantContent: resp.RawAssistantContent, // preserve thinking blocks for Anthropic passback
 		}
 		messages = append(messages, assistantMsg)
 		pendingMsgs = append(pendingMsgs, assistantMsg)

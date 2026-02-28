@@ -50,7 +50,7 @@ export interface SpanData {
   tool_call_id: string;
   input_preview: string;
   output_preview: string;
-  metadata?: { cache_creation_tokens?: number; cache_read_tokens?: number };
+  metadata?: { cache_creation_tokens?: number; cache_read_tokens?: number; thinking_tokens?: number };
 }
 
 interface TraceFilters {

@@ -166,6 +166,9 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, req ChatRequest, onChun
 			if chunk.Usage.PromptTokensDetails != nil {
 				result.Usage.CacheReadTokens = chunk.Usage.PromptTokensDetails.CachedTokens
 			}
+			if chunk.Usage.CompletionTokensDetails != nil && chunk.Usage.CompletionTokensDetails.ReasoningTokens > 0 {
+				result.Usage.ThinkingTokens = chunk.Usage.CompletionTokensDetails.ReasoningTokens
+			}
 		}
 
 	}
@@ -283,11 +286,24 @@ func (p *OpenAIProvider) buildRequestBody(model string, req ChatRequest, stream 
 	}
 
 	// Merge options
-	if v, ok := req.Options["max_tokens"]; ok {
+	if v, ok := req.Options[OptMaxTokens]; ok {
 		body["max_tokens"] = v
 	}
-	if v, ok := req.Options["temperature"]; ok {
+	if v, ok := req.Options[OptTemperature]; ok {
 		body["temperature"] = v
+	}
+
+	// Inject reasoning_effort for o-series models (ignored by models that don't support it)
+	if level, ok := req.Options[OptThinkingLevel].(string); ok && level != "" && level != "off" {
+		body[OptReasoningEffort] = level
+	}
+
+	// DashScope-specific passthrough keys
+	if v, ok := req.Options[OptEnableThinking]; ok {
+		body[OptEnableThinking] = v
+	}
+	if v, ok := req.Options[OptThinkingBudget]; ok {
+		body[OptThinkingBudget] = v
 	}
 
 	return body
@@ -362,6 +378,9 @@ func (p *OpenAIProvider) parseResponse(resp *openAIResponse) *ChatResponse {
 		}
 		if resp.Usage.PromptTokensDetails != nil {
 			result.Usage.CacheReadTokens = resp.Usage.PromptTokensDetails.CachedTokens
+		}
+		if resp.Usage.CompletionTokensDetails != nil && resp.Usage.CompletionTokensDetails.ReasoningTokens > 0 {
+			result.Usage.ThinkingTokens = resp.Usage.CompletionTokensDetails.ReasoningTokens
 		}
 	}
 

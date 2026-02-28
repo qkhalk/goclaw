@@ -32,14 +32,19 @@ type openAIFunctionCall struct {
 }
 
 type openAIUsage struct {
-	PromptTokens        int                  `json:"prompt_tokens"`
-	CompletionTokens    int                  `json:"completion_tokens"`
-	TotalTokens         int                  `json:"total_tokens"`
-	PromptTokensDetails *openAIPromptDetails `json:"prompt_tokens_details,omitempty"`
+	PromptTokens            int                      `json:"prompt_tokens"`
+	CompletionTokens        int                      `json:"completion_tokens"`
+	TotalTokens             int                      `json:"total_tokens"`
+	PromptTokensDetails     *openAIPromptDetails     `json:"prompt_tokens_details,omitempty"`
+	CompletionTokensDetails *openAICompletionDetails `json:"completion_tokens_details,omitempty"`
 }
 
 type openAIPromptDetails struct {
 	CachedTokens int `json:"cached_tokens"`
+}
+
+type openAICompletionDetails struct {
+	ReasoningTokens int `json:"reasoning_tokens"`
 }
 
 // Streaming types

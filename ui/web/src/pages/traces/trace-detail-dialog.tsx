@@ -217,6 +217,11 @@ function SpanTreeNode({ node, depth }: { node: SpanNode; depth: number }) {
                     ({formatTokens(span.metadata!.cache_read_tokens!)} cached)
                   </span>
                 )}
+                {(span.metadata?.thinking_tokens ?? 0) > 0 && (
+                  <span className="ml-1 text-purple-400" title="Thinking tokens">
+                    ({formatTokens(span.metadata!.thinking_tokens!)} thinking)
+                  </span>
+                )}
               </span>
             )}
             <span className="shrink-0 text-xs text-muted-foreground">
@@ -248,6 +253,11 @@ function SpanTreeNode({ node, depth }: { node: SpanNode; depth: number }) {
                       <span className="ml-1 text-yellow-400">{formatTokens(span.metadata!.cache_creation_tokens!)} write</span>
                     )}
                     )
+                  </span>
+                )}
+                {(span.metadata?.thinking_tokens ?? 0) > 0 && (
+                  <span className="ml-2 text-muted-foreground">
+                    (<span className="text-purple-400">{formatTokens(span.metadata!.thinking_tokens!)} thinking</span>)
                   </span>
                 )}
               </div>

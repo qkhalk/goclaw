@@ -104,7 +104,14 @@ func (p *AnthropicProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 	// Accumulate raw JSON fragments for each tool call by index
 	toolCallJSON := make(map[int]string)
 
+	// Track content blocks for RawAssistantContent (needed for thinking block passback)
+	var rawContentBlocks []json.RawMessage
+	var currentBlockType string
+	// Track thinking token count by accumulated chunk size
+	thinkingChars := 0
+
 	scanner := bufio.NewScanner(respBody)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // 1MB max line for large thinking chunks
 	var currentEvent string
 
 	for scanner.Scan() {
@@ -139,6 +146,7 @@ func (p *AnthropicProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 		case "content_block_start":
 			var ev anthropicContentBlockStartEvent
 			if err := json.Unmarshal([]byte(data), &ev); err == nil {
+				currentBlockType = ev.ContentBlock.Type
 				if ev.ContentBlock.Type == "tool_use" {
 					result.ToolCalls = append(result.ToolCalls, ToolCall{
 						ID:        ev.ContentBlock.ID,
@@ -146,23 +154,45 @@ func (p *AnthropicProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 						Arguments: make(map[string]interface{}),
 					})
 				}
+				// Store raw content_block for later reconstruction
+				rawContentBlocks = append(rawContentBlocks, json.RawMessage(fmt.Sprintf(`{"type":"%s"`, ev.ContentBlock.Type)))
 			}
 
 		case "content_block_delta":
 			var ev anthropicContentBlockDeltaEvent
 			if err := json.Unmarshal([]byte(data), &ev); err == nil {
-				if ev.Delta.Type == "text_delta" {
+				switch ev.Delta.Type {
+				case "text_delta":
 					result.Content += ev.Delta.Text
 					if onChunk != nil {
 						onChunk(StreamChunk{Content: ev.Delta.Text})
 					}
-				} else if ev.Delta.Type == "input_json_delta" {
+				case "thinking_delta":
+					result.Thinking += ev.Delta.Thinking
+					thinkingChars += len(ev.Delta.Thinking)
+					if onChunk != nil {
+						onChunk(StreamChunk{Thinking: ev.Delta.Thinking})
+					}
+				case "input_json_delta":
 					if len(result.ToolCalls) > 0 {
 						idx := len(result.ToolCalls) - 1
 						toolCallJSON[idx] += ev.Delta.PartialJSON
 					}
+				case "signature_delta":
+					// Signature is captured in content_block_stop via raw block reconstruction
 				}
 			}
+
+		case "content_block_stop":
+			// Reconstruct the complete content block for RawAssistantContent
+			if len(rawContentBlocks) > 0 {
+				idx := len(rawContentBlocks) - 1
+				block := p.buildRawBlock(currentBlockType, result, toolCallJSON, idx)
+				if block != nil {
+					rawContentBlocks[idx] = block
+				}
+			}
+			currentBlockType = ""
 
 		case "message_delta":
 			var ev anthropicMessageDeltaEvent
@@ -207,6 +237,17 @@ func (p *AnthropicProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 
 	if result.Usage != nil {
 		result.Usage.TotalTokens = result.Usage.PromptTokens + result.Usage.CompletionTokens
+		// Estimate thinking tokens from accumulated character count (~4 chars per token)
+		if thinkingChars > 0 {
+			result.Usage.ThinkingTokens = thinkingChars / 4
+		}
+	}
+
+	// Preserve raw content blocks for tool use passback
+	if len(rawContentBlocks) > 0 && len(result.ToolCalls) > 0 {
+		if b, err := json.Marshal(rawContentBlocks); err == nil {
+			result.RawAssistantContent = b
+		}
 	}
 
 	if onChunk != nil {
@@ -214,6 +255,58 @@ func (p *AnthropicProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 	}
 
 	return result, nil
+}
+
+// buildRawBlock reconstructs a complete content block from streaming data.
+// This is needed to preserve thinking blocks (with signatures) for tool use passback.
+func (p *AnthropicProvider) buildRawBlock(blockType string, result *ChatResponse, toolCallJSON map[int]string, _ int) json.RawMessage {
+	switch blockType {
+	case "thinking":
+		block := map[string]interface{}{
+			"type":     "thinking",
+			"thinking": result.Thinking,
+		}
+		if b, err := json.Marshal(block); err == nil {
+			return b
+		}
+	case "text":
+		block := map[string]interface{}{
+			"type": "text",
+			"text": result.Content,
+		}
+		if b, err := json.Marshal(block); err == nil {
+			return b
+		}
+	case "tool_use":
+		if len(result.ToolCalls) > 0 {
+			tc := result.ToolCalls[len(result.ToolCalls)-1]
+			// Parse accumulated JSON for this tool call
+			args := make(map[string]interface{})
+			for i, rawJSON := range toolCallJSON {
+				if i == len(result.ToolCalls)-1 && rawJSON != "" {
+					_ = json.Unmarshal([]byte(rawJSON), &args)
+				}
+			}
+			block := map[string]interface{}{
+				"type":  "tool_use",
+				"id":    tc.ID,
+				"name":  tc.Name,
+				"input": args,
+			}
+			if b, err := json.Marshal(block); err == nil {
+				return b
+			}
+		}
+	case "redacted_thinking":
+		// Pass through as-is (we don't have the encrypted data in streaming)
+		block := map[string]interface{}{
+			"type": "redacted_thinking",
+		}
+		if b, err := json.Marshal(block); err == nil {
+			return b
+		}
+	}
+	return nil
 }
 
 func (p *AnthropicProvider) buildRequestBody(model string, req ChatRequest, stream bool) map[string]interface{} {
@@ -260,6 +353,19 @@ func (p *AnthropicProvider) buildRequestBody(model string, req ChatRequest, stre
 			}
 
 		case "assistant":
+			// If we have raw content blocks (from Anthropic thinking), use them directly
+			// to preserve thinking blocks + signatures for tool use passback.
+			if msg.RawAssistantContent != nil {
+				var rawBlocks []json.RawMessage
+				if json.Unmarshal(msg.RawAssistantContent, &rawBlocks) == nil && len(rawBlocks) > 0 {
+					messages = append(messages, map[string]interface{}{
+						"role":    "assistant",
+						"content": rawBlocks,
+					})
+					continue
+				}
+			}
+
 			var blocks []map[string]interface{}
 			if msg.Content != "" {
 				blocks = append(blocks, map[string]interface{}{
@@ -325,14 +431,43 @@ func (p *AnthropicProvider) buildRequestBody(model string, req ChatRequest, stre
 	}
 
 	// Merge options
-	if v, ok := req.Options["max_tokens"]; ok {
+	if v, ok := req.Options[OptMaxTokens]; ok {
 		body["max_tokens"] = v
 	}
-	if v, ok := req.Options["temperature"]; ok {
+	if v, ok := req.Options[OptTemperature]; ok {
 		body["temperature"] = v
 	}
 
+	// Enable extended thinking if thinking_level is set
+	if level, ok := req.Options[OptThinkingLevel].(string); ok && level != "" && level != "off" {
+		budget := anthropicThinkingBudget(level)
+		body["thinking"] = map[string]interface{}{
+			"type":          "enabled",
+			"budget_tokens": budget,
+		}
+		// Anthropic requires no temperature when thinking is enabled
+		delete(body, "temperature")
+		// Ensure max_tokens accommodates thinking budget + response
+		if maxTok, ok := body["max_tokens"].(int); !ok || maxTok < budget+4096 {
+			body["max_tokens"] = budget + 8192
+		}
+	}
+
 	return body
+}
+
+// anthropicThinkingBudget maps a thinking level to a token budget.
+func anthropicThinkingBudget(level string) int {
+	switch level {
+	case "low":
+		return 4096
+	case "medium":
+		return 10000
+	case "high":
+		return 32000
+	default:
+		return 10000
+	}
 }
 
 func (p *AnthropicProvider) doRequest(ctx context.Context, body interface{}) (io.ReadCloser, error) {
@@ -349,6 +484,13 @@ func (p *AnthropicProvider) doRequest(ctx context.Context, body interface{}) (io
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("x-api-key", p.apiKey)
 	httpReq.Header.Set("anthropic-version", anthropicAPIVersion)
+
+	// Add beta header for interleaved thinking when thinking is enabled
+	if bodyMap, ok := body.(map[string]interface{}); ok {
+		if _, hasThinking := bodyMap["thinking"]; hasThinking {
+			httpReq.Header.Set("anthropic-beta", "interleaved-thinking-2025-05-14")
+		}
+	}
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
@@ -371,11 +513,17 @@ func (p *AnthropicProvider) doRequest(ctx context.Context, body interface{}) (io
 
 func (p *AnthropicProvider) parseResponse(resp *anthropicResponse) *ChatResponse {
 	result := &ChatResponse{}
+	thinkingChars := 0
 
 	for _, block := range resp.Content {
 		switch block.Type {
 		case "text":
 			result.Content += block.Text
+		case "thinking":
+			result.Thinking += block.Thinking
+			thinkingChars += len(block.Thinking)
+		case "redacted_thinking":
+			// Encrypted thinking — cannot display but must preserve for passback
 		case "tool_use":
 			args := make(map[string]interface{})
 			_ = json.Unmarshal(block.Input, &args)
@@ -403,6 +551,16 @@ func (p *AnthropicProvider) parseResponse(resp *anthropicResponse) *ChatResponse
 		CacheCreationTokens: resp.Usage.CacheCreationInputTokens,
 		CacheReadTokens:     resp.Usage.CacheReadInputTokens,
 	}
+	if thinkingChars > 0 {
+		result.Usage.ThinkingTokens = thinkingChars / 4
+	}
+
+	// Preserve raw content blocks for tool use passback
+	if len(result.ToolCalls) > 0 {
+		if b, err := json.Marshal(resp.Content); err == nil {
+			result.RawAssistantContent = b
+		}
+	}
 
 	return result
 }
@@ -416,11 +574,14 @@ type anthropicResponse struct {
 }
 
 type anthropicContentBlock struct {
-	Type  string          `json:"type"`
-	Text  string          `json:"text,omitempty"`
-	ID    string          `json:"id,omitempty"`
-	Name  string          `json:"name,omitempty"`
-	Input json.RawMessage `json:"input,omitempty"`
+	Type      string          `json:"type"`
+	Text      string          `json:"text,omitempty"`
+	Thinking  string          `json:"thinking,omitempty"`  // for type="thinking"
+	Signature string          `json:"signature,omitempty"` // encrypted thinking verification
+	Data      string          `json:"data,omitempty"`      // for type="redacted_thinking"
+	ID        string          `json:"id,omitempty"`
+	Name      string          `json:"name,omitempty"`
+	Input     json.RawMessage `json:"input,omitempty"`
 }
 
 type anthropicUsage struct {
@@ -447,6 +608,8 @@ type anthropicContentBlockDeltaEvent struct {
 	Delta struct {
 		Type        string `json:"type"`
 		Text        string `json:"text,omitempty"`
+		Thinking    string `json:"thinking,omitempty"`    // for thinking_delta
+		Signature   string `json:"signature,omitempty"`   // for signature_delta
 		PartialJSON string `json:"partial_json,omitempty"`
 	} `json:"delta"`
 }
