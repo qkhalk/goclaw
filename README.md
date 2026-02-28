@@ -765,11 +765,28 @@ docker compose -f docker-compose.yml \
 curl http://localhost:18790/health
 ```
 
-### Upgrading (Managed Mode)
+### Upgrading (Docker Compose)
 
-When upgrading to a new version, the entrypoint automatically runs `goclaw upgrade` before starting. For explicit control, use the upgrade overlay:
+**Simple upgrade** — pull the latest code, rebuild, and restart. The entrypoint automatically runs `goclaw upgrade` (schema migrations + data hooks) before starting:
 
 ```bash
+# Pull latest code
+git pull
+
+# Rebuild and restart (auto-upgrades database on start)
+docker compose -f docker-compose.yml -f docker-compose.managed.yml \
+  -f docker-compose.selfservice.yml up -d --build
+```
+
+Replace the compose files with whichever overlays you use (e.g. add `-f docker-compose.otel.yml` for OTel).
+
+**Explicit upgrade** — if you want to preview changes or run the upgrade separately before restarting:
+
+```bash
+# Check current schema status
+docker compose -f docker-compose.yml -f docker-compose.managed.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade --status
+
 # Preview pending changes (dry-run)
 docker compose -f docker-compose.yml -f docker-compose.managed.yml \
   -f docker-compose.upgrade.yml run --rm upgrade --dry-run
@@ -778,11 +795,7 @@ docker compose -f docker-compose.yml -f docker-compose.managed.yml \
 docker compose -f docker-compose.yml -f docker-compose.managed.yml \
   -f docker-compose.upgrade.yml run --rm upgrade
 
-# Check current schema status
-docker compose -f docker-compose.yml -f docker-compose.managed.yml \
-  -f docker-compose.upgrade.yml run --rm upgrade --status
-
-# Then restart the gateway with the new image
+# Then rebuild and restart the gateway with the new image
 docker compose -f docker-compose.yml -f docker-compose.managed.yml up -d --build
 ```
 
