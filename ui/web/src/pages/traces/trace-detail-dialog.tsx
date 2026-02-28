@@ -6,7 +6,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, Copy, Check } from "lucide-react";
+import { useClipboard } from "@/hooks/use-clipboard";
 import { formatDate, formatDuration, formatTokens, computeDurationMs } from "@/lib/format";
 import type { TraceData, SpanData } from "./hooks/use-traces";
 
@@ -48,6 +49,7 @@ export function TraceDetailDialog({ traceId, onClose, getTrace, onNavigateTrace 
   const [trace, setTrace] = useState<TraceData | null>(null);
   const [spans, setSpans] = useState<SpanData[]>([]);
   const [loading, setLoading] = useState(true);
+  const { copied, copy } = useClipboard();
 
   useEffect(() => {
     setLoading(true);
@@ -67,7 +69,17 @@ export function TraceDetailDialog({ traceId, onClose, getTrace, onNavigateTrace 
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-h-[85vh] w-[95vw] overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
-          <DialogTitle>Trace Detail</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Trace Detail
+            <button
+              type="button"
+              onClick={() => copy(traceId)}
+              className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title="Copy trace ID"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+          </DialogTitle>
         </DialogHeader>
 
         {loading && !trace ? (
