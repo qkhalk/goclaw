@@ -98,6 +98,9 @@ func (s *PGCronStore) recomputeStaleJobs() {
 		if intervalMS != nil {
 			schedule.EveryMS = intervalMS
 		}
+		if tz != nil {
+			schedule.TZ = *tz
+		}
 
 		next := computeNextRun(&schedule, now)
 		if next == nil {

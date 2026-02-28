@@ -239,6 +239,8 @@ type RunRequest struct {
 	HistoryLimit     int    // max user turns to keep in context (0=unlimited, from channel config)
 	ParentTraceID    uuid.UUID // if set, reuse parent trace instead of creating new (announce runs)
 	ParentRootSpanID uuid.UUID // if set, nest announce agent span under this parent span
+	TraceName        string    // override trace name (default: "chat <agentID>")
+	TraceTags        []string  // additional tags for the trace (e.g. "cron")
 }
 
 // RunResult is the output of a completed agent run.
@@ -282,17 +284,22 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 	} else if l.traceCollector != nil {
 		traceID = store.GenNewID()
 		now := time.Now().UTC()
+		traceName := "chat " + l.id
+		if req.TraceName != "" {
+			traceName = req.TraceName
+		}
 		trace := &store.TraceData{
 			ID:           traceID,
 			RunID:        req.RunID,
 			SessionKey:   req.SessionKey,
 			UserID:       req.UserID,
 			Channel:      req.Channel,
-			Name:         "chat " + l.id,
+			Name:         traceName,
 			InputPreview: truncateStr(req.Message, 500),
 			Status:       store.TraceStatusRunning,
 			StartTime:    now,
 			CreatedAt:    now,
+			Tags:         req.TraceTags,
 		}
 		if l.agentUUID != uuid.Nil {
 			trace.AgentID = &l.agentUUID

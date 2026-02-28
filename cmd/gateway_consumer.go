@@ -669,6 +669,8 @@ func makeCronJobHandler(agents *agent.Router, msgBus *bus.MessageBus, cfg *confi
 			UserID:     job.UserID,
 			RunID:      fmt.Sprintf("cron-%s", job.ID),
 			Stream:     false,
+			TraceName:  fmt.Sprintf("Cron [%s] - %s", job.Name, agentID),
+			TraceTags:  []string{"cron"},
 		})
 		if err != nil {
 			return nil, err
