@@ -30,6 +30,7 @@ type ChatRequest struct {
 // ChatResponse is the result from an LLM call.
 type ChatResponse struct {
 	Content      string     `json:"content"`
+	Thinking     string     `json:"thinking,omitempty"`
 	ToolCalls    []ToolCall `json:"tool_calls,omitempty"`
 	FinishReason string     `json:"finish_reason"` // "stop", "tool_calls", "length"
 	Usage        *Usage     `json:"usage,omitempty"`

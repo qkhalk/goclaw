@@ -105,6 +105,8 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GOCLAW_MINIMAX_API_KEY", &c.Providers.MiniMax.APIKey)
 	envStr("GOCLAW_COHERE_API_KEY", &c.Providers.Cohere.APIKey)
 	envStr("GOCLAW_PERPLEXITY_API_KEY", &c.Providers.Perplexity.APIKey)
+	envStr("GOCLAW_DASHSCOPE_API_KEY", &c.Providers.DashScope.APIKey)
+	envStr("GOCLAW_BAILIAN_API_KEY", &c.Providers.Bailian.APIKey)
 	envStr("GOCLAW_GATEWAY_TOKEN", &c.Gateway.Token)
 	envStr("GOCLAW_TELEGRAM_TOKEN", &c.Channels.Telegram.Token)
 	envStr("GOCLAW_DISCORD_TOKEN", &c.Channels.Discord.Token)

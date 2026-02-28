@@ -13,9 +13,10 @@ type openAIChoice struct {
 }
 
 type openAIMessage struct {
-	Role      string           `json:"role"`
-	Content   string           `json:"content"`
-	ToolCalls []openAIToolCall `json:"tool_calls,omitempty"`
+	Role             string           `json:"role"`
+	Content          string           `json:"content"`
+	ReasoningContent string           `json:"reasoning_content,omitempty"`
+	ToolCalls        []openAIToolCall `json:"tool_calls,omitempty"`
 }
 
 type openAIToolCall struct {
@@ -54,8 +55,9 @@ type openAIStreamChoice struct {
 }
 
 type openAIStreamDelta struct {
-	Content   string                 `json:"content,omitempty"`
-	ToolCalls []openAIStreamToolCall `json:"tool_calls,omitempty"`
+	Content          string                 `json:"content,omitempty"`
+	ReasoningContent string                 `json:"reasoning_content,omitempty"`
+	ToolCalls        []openAIStreamToolCall `json:"tool_calls,omitempty"`
 }
 
 type openAIStreamToolCall struct {

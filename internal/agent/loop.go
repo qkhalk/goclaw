@@ -553,6 +553,14 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		if req.Stream {
 			resp, err = l.provider.ChatStream(ctx, chatReq, func(chunk providers.StreamChunk) {
+				if chunk.Thinking != "" {
+					l.emit(AgentEvent{
+						Type:    protocol.ChatEventThinking,
+						AgentID: l.id,
+						RunID:   req.RunID,
+						Payload: map[string]string{"content": chunk.Thinking},
+					})
+				}
 				if chunk.Content != "" {
 					l.emit(AgentEvent{
 						Type:    protocol.ChatEventChunk,

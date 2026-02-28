@@ -110,6 +110,8 @@ type ProvidersConfig struct {
 	MiniMax    ProviderConfig `json:"minimax"`
 	Cohere     ProviderConfig `json:"cohere"`
 	Perplexity ProviderConfig `json:"perplexity"`
+	DashScope  ProviderConfig `json:"dashscope"`
+	Bailian    ProviderConfig `json:"bailian"`
 }
 
 type ProviderConfig struct {
@@ -130,7 +132,9 @@ func (c *Config) HasAnyProvider() bool {
 		p.XAI.APIKey != "" ||
 		p.MiniMax.APIKey != "" ||
 		p.Cohere.APIKey != "" ||
-		p.Perplexity.APIKey != ""
+		p.Perplexity.APIKey != "" ||
+		p.DashScope.APIKey != "" ||
+		p.Bailian.APIKey != ""
 }
 
 // GatewayConfig controls the gateway server.
