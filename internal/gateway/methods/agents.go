@@ -13,22 +13,24 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // AgentsMethods handles agents.list, agents.create, agents.update, agents.delete,
 // agents.files.list/get/set, agent.identity.get.
 type AgentsMethods struct {
-	agents     *agent.Router
-	cfg        *config.Config
-	cfgPath    string
-	workspace  string
-	agentStore store.AgentStore // nil in standalone mode
-	isManaged  bool
+	agents      *agent.Router
+	cfg         *config.Config
+	cfgPath     string
+	workspace   string
+	agentStore  store.AgentStore             // nil in standalone mode
+	interceptor *tools.ContextFileInterceptor // nil in standalone mode; invalidated on file writes
+	isManaged   bool
 }
 
-func NewAgentsMethods(agents *agent.Router, cfg *config.Config, cfgPath, workspace string, agentStore store.AgentStore, isManaged bool) *AgentsMethods {
-	return &AgentsMethods{agents: agents, cfg: cfg, cfgPath: cfgPath, workspace: workspace, agentStore: agentStore, isManaged: isManaged}
+func NewAgentsMethods(agents *agent.Router, cfg *config.Config, cfgPath, workspace string, agentStore store.AgentStore, isManaged bool, interceptor *tools.ContextFileInterceptor) *AgentsMethods {
+	return &AgentsMethods{agents: agents, cfg: cfg, cfgPath: cfgPath, workspace: workspace, agentStore: agentStore, isManaged: isManaged, interceptor: interceptor}
 }
 
 func (m *AgentsMethods) Register(router *gateway.MethodRouter) {
@@ -330,6 +332,10 @@ func (m *AgentsMethods) handleUpdate(_ context.Context, client *gateway.Client, 
 			content := buildIdentityContent(params.Name, "", params.Avatar)
 			if err := m.agentStore.SetAgentContextFile(ctx, ag.ID, "IDENTITY.md", content); err != nil {
 				slog.Warn("failed to update IDENTITY.md", "agent", params.AgentID, "error", err)
+			}
+			// Invalidate interceptor cache so updated IDENTITY.md is served immediately
+			if m.interceptor != nil {
+				m.interceptor.InvalidateAgent(ag.ID)
 			}
 		}
 

@@ -25,6 +25,8 @@ import (
 // agent resolver (lazy-creates Loops from DB), virtual FS interceptors, memory tools,
 // and cache invalidation event subscribers.
 // PG store creation and tracing are handled in gateway.go before this is called.
+// Returns the ContextFileInterceptor so callers can pass it to AgentsMethods
+// for immediate cache invalidation on agents.files.set.
 func wireManagedExtras(
 	stores *store.Stores,
 	agentRouter *agent.Router,
@@ -41,7 +43,7 @@ func wireManagedExtras(
 	appCfg *config.Config,
 	sandboxMgr sandbox.Manager,
 	dynamicLoader *tools.DynamicToolLoader,
-) {
+) *tools.ContextFileInterceptor {
 	// 1. Context file interceptor (created before resolver so callbacks can reference it)
 	var contextFileInterceptor *tools.ContextFileInterceptor
 	if stores.Agents != nil {
@@ -354,6 +356,7 @@ func wireManagedExtras(
 	}
 
 	slog.Info("managed mode: resolver + interceptors + cache subscribers wired")
+	return contextFileInterceptor
 }
 
 // wireManagedHTTP creates managed-mode HTTP handlers (agents + skills + traces + MCP + custom tools + channel instances + providers + delegations + builtin tools).

@@ -579,6 +579,11 @@ func runGateway() {
 	server.SetPolicyEngine(permPE)
 	server.SetPairingService(pairingStore)
 
+	// contextFileInterceptor is created inside wireManagedExtras (managed mode only).
+	// Declared here so it can be passed to registerAllMethods → AgentsMethods
+	// for immediate cache invalidation on agents.files.set.
+	var contextFileInterceptor *tools.ContextFileInterceptor
+
 	// Managed mode: set agent store for tools_invoke context injection + wire extras
 	if managedStores != nil && managedStores.Agents != nil {
 		server.SetAgentStore(managedStores.Agents)
@@ -593,7 +598,7 @@ func runGateway() {
 			}
 		}
 
-		wireManagedExtras(managedStores, agentRouter, providerRegistry, msgBus, sessStore, toolsReg, toolPE, skillsLoader, hasMemory, traceCollector, workspace, cfg.Gateway.InjectionAction, cfg, sandboxMgr, dynamicLoader)
+		contextFileInterceptor = wireManagedExtras(managedStores, agentRouter, providerRegistry, msgBus, sessStore, toolsReg, toolPE, skillsLoader, hasMemory, traceCollector, workspace, cfg.Gateway.InjectionAction, cfg, sandboxMgr, dynamicLoader)
 		agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH := wireManagedHTTP(managedStores, cfg.Gateway.Token, msgBus, toolsReg, providerRegistry, permPE.IsOwner)
 		if agentsH != nil {
 			server.SetAgentsHandler(agentsH)
@@ -654,7 +659,7 @@ func runGateway() {
 		teamStoreForRPC = managedStores.Teams
 	}
 
-	pairingMethods := registerAllMethods(server, agentRouter, sessStore, cronStore, pairingStore, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, agentStoreForRPC, isManaged, skillStore, configSecretsStore, teamStoreForRPC)
+	pairingMethods := registerAllMethods(server, agentRouter, sessStore, cronStore, pairingStore, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, agentStoreForRPC, isManaged, skillStore, configSecretsStore, teamStoreForRPC, contextFileInterceptor)
 
 	// Channel manager
 	channelMgr := channels.NewManager(msgBus)
