@@ -277,10 +277,14 @@ func wireManagedExtras(
 			if err != nil {
 				return nil, err
 			}
-			return &tools.DelegateRunResult{
+			dr := &tools.DelegateRunResult{
 				Content:    result.Content,
 				Iterations: result.Iterations,
-			}, nil
+			}
+			for _, m := range result.Media {
+				dr.MediaPaths = append(dr.MediaPaths, m.Path)
+			}
+			return dr, nil
 		}
 		delegateMgr := tools.NewDelegateManager(runAgentFn, stores.AgentLinks, stores.Agents, msgBus)
 		if stores.Teams != nil {
@@ -309,7 +313,13 @@ func wireManagedExtras(
 		// Handoff tool (agent-to-agent conversation transfer)
 		toolsReg.Register(tools.NewHandoffTool(delegateMgr, stores.Teams, stores.Sessions, msgBus))
 
-		toolsReg.Register(tools.NewDelegateTool(delegateMgr))
+		// Inject delegation capability into existing SpawnTool
+		if st, ok := toolsReg.Get("spawn"); ok {
+			if spawnTool, ok := st.(*tools.SpawnTool); ok {
+				spawnTool.SetDelegateManager(delegateMgr)
+				slog.Info("spawn tool: delegation enabled")
+			}
+		}
 
 		// Register delegate_search tool (hybrid FTS + semantic agent discovery)
 		var delegateEmbProvider store.EmbeddingProvider

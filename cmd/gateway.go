@@ -252,8 +252,7 @@ func runGateway() {
 		subagentMgr.SetAnnounceQueue(announceQueue)
 
 		toolsReg.Register(tools.NewSpawnTool(subagentMgr, "default", 0))
-		toolsReg.Register(tools.NewSubagentTool(subagentMgr, "default", 0))
-		slog.Info("subagent system enabled", "tools", []string{"spawn", "subagent"})
+		slog.Info("subagent system enabled", "tools", []string{"spawn"})
 	}
 
 	// Exec approval system — always active (deny patterns + safe bins + configurable ask mode)
