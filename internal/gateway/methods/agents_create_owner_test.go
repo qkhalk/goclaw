@@ -38,6 +38,9 @@ func (s *createCaptureStore) Delete(_ context.Context, _ uuid.UUID) error { retu
 func (s *createCaptureStore) List(_ context.Context, _ string) ([]store.AgentData, error) {
 	return nil, nil
 }
+func (s *createCaptureStore) GetDefault(_ context.Context) (*store.AgentData, error) {
+	return nil, nil
+}
 func (s *createCaptureStore) ShareAgent(_ context.Context, _ uuid.UUID, _, _, _ string) error {
 	return nil
 }

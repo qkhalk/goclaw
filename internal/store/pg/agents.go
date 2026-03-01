@@ -206,6 +206,14 @@ func (s *PGAgentStore) List(ctx context.Context, ownerID string) ([]store.AgentD
 	return scanAgentRows(rows)
 }
 
+func (s *PGAgentStore) GetDefault(ctx context.Context) (*store.AgentData, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+agentSelectCols+`
+		 FROM agents WHERE deleted_at IS NULL
+		 ORDER BY is_default DESC, created_at ASC LIMIT 1`)
+	return scanAgentRow(row)
+}
+
 // --- Access Control ---
 
 func (s *PGAgentStore) ShareAgent(ctx context.Context, agentID uuid.UUID, userID, role, grantedBy string) error {

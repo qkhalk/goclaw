@@ -451,19 +451,10 @@ func resolveDefaultAgentManaged(cfg *config.Config, managedStores *store.Stores)
 		return agentID
 	}
 
-	agents, err := managedStores.Agents.List(context.Background(), "")
+	agent, err := managedStores.Agents.GetDefault(context.Background())
 	if err != nil {
-		slog.Warn("resolveDefaultAgentManaged: failed to list agents", "error", err)
+		slog.Warn("resolveDefaultAgentManaged: no default agent in DB", "error", err)
 		return agentID
 	}
-	for _, a := range agents {
-		if a.IsDefault {
-			return a.AgentKey
-		}
-	}
-	// No agent marked as default — use first available
-	if len(agents) > 0 {
-		return agents[0].AgentKey
-	}
-	return agentID
+	return agent.AgentKey
 }
