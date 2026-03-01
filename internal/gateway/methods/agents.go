@@ -103,11 +103,12 @@ func (m *AgentsMethods) handleList(_ context.Context, client *gateway.Client, re
 
 func (m *AgentsMethods) handleCreate(_ context.Context, client *gateway.Client, req *protocol.RequestFrame) {
 	var params struct {
-		Name      string `json:"name"`
-		Workspace string `json:"workspace"`
-		Emoji     string `json:"emoji"`
-		Avatar    string `json:"avatar"`
-		AgentType string `json:"agent_type"` // "open" (default) or "predefined"
+		Name      string   `json:"name"`
+		Workspace string   `json:"workspace"`
+		Emoji     string   `json:"emoji"`
+		Avatar    string   `json:"avatar"`
+		AgentType string   `json:"agent_type"`              // "open" (default) or "predefined"
+		OwnerIDs  []string `json:"owner_ids,omitempty"`     // first entry used as DB owner_id; falls back to "system"
 		// Per-agent config overrides (managed mode only)
 		ToolsConfig      json.RawMessage `json:"tools_config,omitempty"`
 		SubagentsConfig  json.RawMessage `json:"subagents_config,omitempty"`
@@ -155,10 +156,17 @@ func (m *AgentsMethods) handleCreate(_ context.Context, client *gateway.Client, 
 			return
 		}
 
+		// Resolve owner: use first provided ID so external provisioning tools (e.g. goclaw-wizards)
+		// can set a real user as owner at creation time. Falls back to "system" for backward compat.
+		ownerID := "system"
+		if len(params.OwnerIDs) > 0 && params.OwnerIDs[0] != "" {
+			ownerID = params.OwnerIDs[0]
+		}
+
 		agentData := &store.AgentData{
 			AgentKey:         agentID,
 			DisplayName:      params.Name,
-			OwnerID:          "system",
+			OwnerID:          ownerID,
 			AgentType:        agentType,
 			Provider:         m.cfg.Agents.Defaults.Provider,
 			Model:            m.cfg.Agents.Defaults.Model,

@@ -283,7 +283,22 @@ func (s *PGAgentStore) ListAccessible(ctx context.Context, userID string) ([]sto
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+agentSelectCols+`
 		 FROM agents
-		 WHERE deleted_at IS NULL AND (owner_id = $1 OR is_default = true OR id IN (SELECT agent_id FROM agent_shares WHERE user_id = $1))
+		 WHERE deleted_at IS NULL AND (
+		     owner_id = $1
+		     OR is_default = true
+		     OR id IN (SELECT agent_id FROM agent_shares WHERE user_id = $1)
+		     OR (
+		         agent_type = 'predefined'
+		         AND id IN (
+		             SELECT agent_id FROM channel_instances ci
+		             WHERE ci.enabled = true
+		             AND EXISTS (
+		                 SELECT 1 FROM jsonb_array_elements_text(ci.config->'allow_from') af
+		                 WHERE af = $1
+		             )
+		         )
+		     )
+		 )
 		 ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, err
