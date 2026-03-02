@@ -88,6 +88,15 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			}
 		}
 
+		// DM thread: override session key to isolate per-thread history in private chats.
+		if msg.Metadata["dm_thread_id"] != "" && peerKind == string(sessions.PeerDirect) {
+			var threadID int
+			fmt.Sscanf(msg.Metadata["dm_thread_id"], "%d", &threadID)
+			if threadID > 0 {
+				sessionKey = sessions.BuildDMThreadSessionKey(agentID, msg.Channel, msg.ChatID, threadID)
+			}
+		}
+
 		// Group-scoped UserID: treat the group as a single "virtual user" for
 		// context files, memory, traces, and seeding. Individual senderID is
 		// preserved in the InboundMessage for pairing/dedup/mention gate.
@@ -152,6 +161,20 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 				"- Address the group naturally. If the history shows a multi-person conversation, consider the full context before answering."
 		}
 
+		// Append per-topic system prompt (from group/topic config hierarchy).
+		if tsp := msg.Metadata["topic_system_prompt"]; tsp != "" {
+			if extraPrompt != "" {
+				extraPrompt += "\n\n"
+			}
+			extraPrompt += tsp
+		}
+
+		// Per-topic skill filter override (from group/topic config hierarchy).
+		var skillFilter []string
+		if ts := msg.Metadata["topic_skills"]; ts != "" {
+			skillFilter = strings.Split(ts, ",")
+		}
+
 		// Delegation announces carry media as ForwardMedia (not deleted, forwarded to output).
 		// User-uploaded media goes in Media (loaded as images for LLM, then deleted).
 		var reqMedia, fwdMedia []string
@@ -176,6 +199,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			Stream:            enableStream,
 			HistoryLimit:      msg.HistoryLimit,
 			ExtraSystemPrompt: extraPrompt,
+			SkillFilter:       skillFilter,
 		}, scheduler.ScheduleOpts{
 			MaxConcurrent: maxConcurrent,
 		})
@@ -627,6 +651,13 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 				fmt.Sscanf(msg.Metadata["message_thread_id"], "%d", &topicID)
 				if topicID > 0 {
 					sessionKey = sessions.BuildGroupTopicSessionKey(agentID, msg.Channel, msg.ChatID, topicID)
+				}
+			}
+			if msg.Metadata["dm_thread_id"] != "" && peerKind == string(sessions.PeerDirect) {
+				var threadID int
+				fmt.Sscanf(msg.Metadata["dm_thread_id"], "%d", &threadID)
+				if threadID > 0 {
+					sessionKey = sessions.BuildDMThreadSessionKey(agentID, msg.Channel, msg.ChatID, threadID)
 				}
 			}
 

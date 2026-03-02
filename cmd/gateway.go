@@ -737,6 +737,20 @@ func runGateway() {
 		}
 	}
 
+	// Register create_forum_topic tool (lazy bot resolution via channel manager).
+	toolsReg.Register(tools.NewCreateForumTopicTool(func() tools.ForumTopicCreator {
+		for _, name := range channelMgr.GetEnabledChannels() {
+			ch, ok := channelMgr.GetChannel(name)
+			if !ok {
+				continue
+			}
+			if fc, ok := ch.(tools.ForumTopicCreator); ok {
+				return fc
+			}
+		}
+		return nil
+	}))
+
 	// Register channels RPC methods (after channelMgr is initialized with all channels)
 	methods.NewChannelsMethods(channelMgr).Register(server.Router())
 

@@ -22,6 +22,7 @@ import type { AgentData } from "@/types/agent";
 import { slugify, isValidSlug } from "@/lib/slug";
 import { credentialsSchema, configSchema } from "./channel-schemas";
 import { ChannelFields } from "./channel-fields";
+import { TelegramGroupOverrides } from "./telegram-group-overrides";
 import { CHANNEL_TYPES } from "@/constants/channels";
 
 interface ChannelInstanceFormDialogProps {
@@ -233,6 +234,19 @@ export function ChannelInstanceFormDialog({
                 idPrefix="ci-cfg"
               />
             </fieldset>
+          )}
+
+          {/* Telegram group/topic overrides */}
+          {channelType === "telegram" && (
+            <TelegramGroupOverrides
+              groups={(configValues.groups as Record<string, Record<string, unknown>>) ?? {}}
+              onChange={(groups) => {
+                setConfigValues((prev) => ({
+                  ...prev,
+                  groups: Object.keys(groups).length > 0 ? groups : undefined,
+                }));
+              }}
+            />
           )}
 
           <div className="flex items-center gap-2">

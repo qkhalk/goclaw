@@ -244,8 +244,9 @@ type RunRequest struct {
 	UserID           string // external user ID (TEXT, free-form) for multi-tenant scoping
 	SenderID         string // original individual sender ID (preserved in group chats for permission checks)
 	Stream           bool   // whether to stream response chunks
-	ExtraSystemPrompt string // optional: injected into system prompt (skills, subagent context, etc.)
-	HistoryLimit     int    // max user turns to keep in context (0=unlimited, from channel config)
+	ExtraSystemPrompt string   // optional: injected into system prompt (skills, subagent context, etc.)
+	SkillFilter       []string // per-request skill override: nil=use agent default, []=no skills, ["x","y"]=whitelist
+	HistoryLimit      int      // max user turns to keep in context (0=unlimited, from channel config)
 	ParentTraceID    uuid.UUID // if set, reuse parent trace instead of creating new (announce runs)
 	ParentRootSpanID uuid.UUID // if set, nest announce agent span under this parent span
 	TraceName        string    // override trace name (default: "chat <agentID>")
@@ -495,7 +496,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 	// buildMessages resolves context files once and also detects BOOTSTRAP.md presence
 	// (hadBootstrap) — no extra DB roundtrip needed for bootstrap detection.
-	messages, hadBootstrap := l.buildMessages(ctx, history, summary, req.Message, req.ExtraSystemPrompt, req.SessionKey, req.Channel, req.UserID, req.HistoryLimit)
+	messages, hadBootstrap := l.buildMessages(ctx, history, summary, req.Message, req.ExtraSystemPrompt, req.SessionKey, req.Channel, req.UserID, req.HistoryLimit, req.SkillFilter)
 
 	// 2. Attach vision images to the current user message (last in messages slice).
 	// Images are only attached to the live request, NOT persisted in session history.
