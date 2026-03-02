@@ -22,6 +22,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/cron"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway/methods"
+	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
 	"github.com/nextlevelbuilder/goclaw/internal/pairing"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -32,7 +33,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/file"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
-	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	"github.com/nextlevelbuilder/goclaw/internal/tracing"
 	"github.com/nextlevelbuilder/goclaw/pkg/browser"
@@ -229,20 +229,24 @@ func runGateway() {
 				if len(items) > 1 {
 					label = fmt.Sprintf("%d tasks", len(items))
 				}
+				batchMeta := map[string]string{
+					"origin_channel":      meta.OriginChannel,
+					"origin_peer_kind":    meta.OriginPeerKind,
+					"parent_agent":        meta.ParentAgent,
+					"subagent_label":      label,
+					"origin_trace_id":     meta.OriginTraceID,
+					"origin_root_span_id": meta.OriginRootSpanID,
+				}
+				if meta.OriginLocalKey != "" {
+					batchMeta["origin_local_key"] = meta.OriginLocalKey
+				}
 				msgBus.PublishInbound(bus.InboundMessage{
 					Channel:  "system",
 					SenderID: senderID,
 					ChatID:   meta.OriginChatID,
 					Content:  content,
 					UserID:   meta.OriginUserID,
-					Metadata: map[string]string{
-						"origin_channel":      meta.OriginChannel,
-						"origin_peer_kind":    meta.OriginPeerKind,
-						"parent_agent":        meta.ParentAgent,
-						"subagent_label":      label,
-						"origin_trace_id":     meta.OriginTraceID,
-						"origin_root_span_id": meta.OriginRootSpanID,
-					},
+					Metadata: batchMeta,
 				})
 			},
 			func(parentID string) int {
@@ -737,19 +741,15 @@ func runGateway() {
 		}
 	}
 
-	// Register create_forum_topic tool (lazy bot resolution via channel manager).
-	toolsReg.Register(tools.NewCreateForumTopicTool(func() tools.ForumTopicCreator {
-		for _, name := range channelMgr.GetEnabledChannels() {
-			ch, ok := channelMgr.GetChannel(name)
-			if !ok {
-				continue
-			}
-			if fc, ok := ch.(tools.ForumTopicCreator); ok {
-				return fc
-			}
-		}
-		return nil
-	}))
+	// TODO: create_forum_topic tool — disabled for now, re-enable when needed.
+	// toolsReg.Register(tools.NewCreateForumTopicTool(func() tools.ForumTopicCreator {
+	// 	for _, name := range channelMgr.GetEnabledChannels() {
+	// 		ch, ok := channelMgr.GetChannel(name)
+	// 		if !ok { continue }
+	// 		if fc, ok := ch.(tools.ForumTopicCreator); ok { return fc }
+	// 	}
+	// 	return nil
+	// }))
 
 	// Register channels RPC methods (after channelMgr is initialized with all channels)
 	methods.NewChannelsMethods(channelMgr).Register(server.Router())

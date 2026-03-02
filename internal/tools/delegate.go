@@ -36,6 +36,7 @@ type DelegationTask struct {
 	OriginChannel  string `json:"-"`
 	OriginChatID   string `json:"-"`
 	OriginPeerKind string `json:"-"`
+	OriginLocalKey string `json:"-"` // composite key with topic/thread suffix for routing
 
 	// Trace context for announce linking (same pattern as SubagentTask)
 	OriginTraceID    uuid.UUID `json:"-"`
@@ -296,22 +297,26 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 					})
 				}
 
+				announceMeta := map[string]string{
+					"origin_channel":      task.OriginChannel,
+					"origin_peer_kind":    task.OriginPeerKind,
+					"parent_agent":        task.SourceAgentKey,
+					"delegation_id":       task.ID,
+					"target_agent":        task.TargetAgentKey,
+					"origin_trace_id":     task.OriginTraceID.String(),
+					"origin_root_span_id": task.OriginRootSpanID.String(),
+				}
+				if task.OriginLocalKey != "" {
+					announceMeta["origin_local_key"] = task.OriginLocalKey
+				}
 				announceMsg := bus.InboundMessage{
 					Channel:  "system",
 					SenderID: fmt.Sprintf("delegate:%s", task.ID),
 					ChatID:   task.OriginChatID,
 					Content:  formatDelegateAnnounce(task, artifacts, runErr, elapsed),
 					UserID:   task.UserID,
-					Metadata: map[string]string{
-						"origin_channel":      task.OriginChannel,
-						"origin_peer_kind":    task.OriginPeerKind,
-						"parent_agent":        task.SourceAgentKey,
-						"delegation_id":       task.ID,
-						"target_agent":        task.TargetAgentKey,
-						"origin_trace_id":     task.OriginTraceID.String(),
-						"origin_root_span_id": task.OriginRootSpanID.String(),
-					},
-					Media: artifacts.Media,
+					Metadata: announceMeta,
+					Media:    artifacts.Media,
 				}
 				dm.msgBus.PublishInbound(announceMsg)
 			}
@@ -436,6 +441,7 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 	channel := ToolChannelFromCtx(ctx)
 	chatID := ToolChatIDFromCtx(ctx)
 	peerKind := ToolPeerKindFromCtx(ctx)
+	localKey := ToolLocalKeyFromCtx(ctx)
 
 	delegationID := uuid.NewString()[:12]
 	task := &DelegationTask{
@@ -454,6 +460,7 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 		OriginChannel:    channel,
 		OriginChatID:     chatID,
 		OriginPeerKind:   peerKind,
+		OriginLocalKey:   localKey,
 		OriginTraceID:    tracing.TraceIDFromContext(ctx),
 		OriginRootSpanID: tracing.ParentSpanIDFromContext(ctx),
 		TeamTaskID:       opts.TeamTaskID,

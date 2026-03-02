@@ -247,6 +247,7 @@ type RunRequest struct {
 	ExtraSystemPrompt string   // optional: injected into system prompt (skills, subagent context, etc.)
 	SkillFilter       []string // per-request skill override: nil=use agent default, []=no skills, ["x","y"]=whitelist
 	HistoryLimit      int      // max user turns to keep in context (0=unlimited, from channel config)
+	LocalKey         string    // composite key with topic/thread suffix for routing (e.g. "-100123:topic:42")
 	ParentTraceID    uuid.UUID // if set, reuse parent trace instead of creating new (announce runs)
 	ParentRootSpanID uuid.UUID // if set, nest announce agent span under this parent span
 	TraceName        string    // override trace name (default: "chat <agentID>")
@@ -329,6 +330,12 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 			// The span itself is emitted after runLoop completes (with full timing data).
 			ctx = tracing.WithParentSpanID(ctx, store.GenNewID())
 		}
+	}
+
+	// Inject local key into tool context so delegation/subagent tools can
+	// propagate topic/thread routing info back through announce messages.
+	if req.LocalKey != "" {
+		ctx = tools.WithToolLocalKey(ctx, req.LocalKey)
 	}
 
 	runStart := time.Now().UTC()

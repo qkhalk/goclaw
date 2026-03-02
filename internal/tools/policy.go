@@ -17,7 +17,7 @@ var toolGroups = map[string][]string{
 	"sessions":   {"sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status"},
 	"ui":         {"browser", "canvas"},
 	"automation": {"cron", "gateway"},
-	"messaging":  {"message"},
+	"messaging":  {"message", "create_forum_topic"},
 	"nodes":      {"nodes"},
 	// Composite group: all goclaw native tools (excludes provider plugins).
 	// Matching TS group:goclaw.
@@ -26,6 +26,7 @@ var toolGroups = map[string][]string{
 		"agents_list", "sessions_list", "sessions_history", "sessions_send",
 		"sessions_spawn", "session_status",
 		"memory_search", "memory_get", "web_search", "web_fetch", "read_image", "create_image",
+		"create_forum_topic",
 	},
 }
 
