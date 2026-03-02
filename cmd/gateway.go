@@ -114,6 +114,9 @@ func runGateway() {
 		}
 	}
 
+	// Detect server IPs for output scrubbing (prevents IP leaks via web_fetch, exec, etc.)
+	tools.DetectServerIPs(context.Background())
+
 	// Create tool registry with all tools
 	toolsReg := tools.NewRegistry()
 	agentCfg := cfg.ResolveAgent("default")

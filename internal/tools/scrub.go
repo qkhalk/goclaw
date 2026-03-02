@@ -1,6 +1,10 @@
 package tools
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+	"sync"
+)
 
 // Credential patterns to scrub from tool output before returning to the LLM.
 // Inspired by zeroclaw's credential scrubbing system.
@@ -33,11 +37,60 @@ var credentialPatterns = []*regexp.Regexp{
 }
 
 const redactedPlaceholder = "[REDACTED]"
+const serverIPPlaceholder = "[SERVER_IP]"
 
-// ScrubCredentials replaces known credential patterns in text with [REDACTED].
+// dynamicScrubValues holds runtime-discovered values to scrub (e.g., server IPs).
+var (
+	dynamicScrubMu     sync.RWMutex
+	dynamicScrubValues []string
+)
+
+// AddDynamicScrubValues adds exact string values to the dynamic scrub list.
+// Thread-safe. Deduplicates. Empty strings are ignored.
+func AddDynamicScrubValues(values ...string) {
+	dynamicScrubMu.Lock()
+	defer dynamicScrubMu.Unlock()
+
+	existing := make(map[string]bool, len(dynamicScrubValues))
+	for _, v := range dynamicScrubValues {
+		existing[v] = true
+	}
+	for _, v := range values {
+		if v != "" && !existing[v] {
+			dynamicScrubValues = append(dynamicScrubValues, v)
+			existing[v] = true
+		}
+	}
+}
+
+// DynamicScrubCount returns the number of dynamic scrub values registered.
+func DynamicScrubCount() int {
+	dynamicScrubMu.RLock()
+	defer dynamicScrubMu.RUnlock()
+	return len(dynamicScrubValues)
+}
+
+// ResetDynamicScrubValues clears all dynamic scrub values. For testing only.
+func ResetDynamicScrubValues() {
+	dynamicScrubMu.Lock()
+	defer dynamicScrubMu.Unlock()
+	dynamicScrubValues = nil
+}
+
+// ScrubCredentials replaces known credential patterns and dynamic values in text.
 func ScrubCredentials(text string) string {
 	for _, pat := range credentialPatterns {
 		text = pat.ReplaceAllString(text, redactedPlaceholder)
 	}
+
+	// Dynamic values (server IPs, etc.)
+	dynamicScrubMu.RLock()
+	vals := dynamicScrubValues
+	dynamicScrubMu.RUnlock()
+
+	for _, v := range vals {
+		text = strings.ReplaceAll(text, v, serverIPPlaceholder)
+	}
+
 	return text
 }
