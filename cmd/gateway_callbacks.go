@@ -17,13 +17,13 @@ import (
 // Used by both managed and standalone modes — no mode-specific logic.
 // Seeds per-user context files on first chat (new user profile).
 func buildEnsureUserFiles(as store.AgentStore) agent.EnsureUserFilesFunc {
-	return func(ctx context.Context, agentID uuid.UUID, userID, agentType, workspace string) error {
-		isNew, err := as.GetOrCreateUserProfile(ctx, agentID, userID, workspace)
+	return func(ctx context.Context, agentID uuid.UUID, userID, agentType, workspace, channel string) (string, error) {
+		isNew, effectiveWs, err := as.GetOrCreateUserProfile(ctx, agentID, userID, workspace, channel)
 		if err != nil {
-			return err
+			return effectiveWs, err
 		}
 		if !isNew {
-			return nil // already profiled = already seeded
+			return effectiveWs, nil // already profiled = already seeded
 		}
 
 		// Auto-add first group member as a file writer (bootstrap the allowlist).
@@ -43,7 +43,7 @@ func buildEnsureUserFiles(as store.AgentStore) agent.EnsureUserFilesFunc {
 		}
 
 		_, err = bootstrap.SeedUserFiles(ctx, as, agentID, userID, agentType)
-		return err
+		return effectiveWs, err
 	}
 }
 

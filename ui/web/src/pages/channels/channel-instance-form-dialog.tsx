@@ -22,14 +22,7 @@ import type { AgentData } from "@/types/agent";
 import { slugify, isValidSlug } from "@/lib/slug";
 import { credentialsSchema, configSchema } from "./channel-schemas";
 import { ChannelFields } from "./channel-fields";
-
-const CHANNEL_TYPES = [
-  { value: "telegram", label: "Telegram" },
-  { value: "discord", label: "Discord" },
-  { value: "feishu", label: "Feishu / Lark" },
-  { value: "zalo_oa", label: "Zalo OA" },
-  { value: "whatsapp", label: "WhatsApp" },
-] as const;
+import { CHANNEL_TYPES } from "@/constants/channels";
 
 interface ChannelInstanceFormDialogProps {
   open: boolean;

@@ -82,6 +82,22 @@ func (t *TeamMessageTool) executeSend(ctx context.Context, args map[string]inter
 		return ErrorResult(err.Error())
 	}
 
+	// Validate recipient is in the same team (prevent cross-team messaging).
+	members, err := t.manager.teamStore.ListMembers(ctx, team.ID)
+	if err != nil {
+		return ErrorResult("failed to verify team membership: " + err.Error())
+	}
+	isMember := false
+	for _, m := range members {
+		if m.AgentID == toAgentID {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return ErrorResult(fmt.Sprintf("agent %q is not a member of your team", toKey))
+	}
+
 	// Persist to DB
 	msg := &store.TeamMessageData{
 		TeamID:      team.ID,

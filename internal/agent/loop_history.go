@@ -28,10 +28,15 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	_, hasSpawn := l.tools.Get("spawn")
 	_, hasSkillSearch := l.tools.Get("skill_search")
 
-	// Per-user workspace: show the user's subdirectory in the system prompt (managed mode)
+	// Per-user workspace: show the user's subdirectory in the system prompt (managed mode).
+	// Uses cached workspace from user_agent_profiles (includes channel isolation).
 	promptWorkspace := l.workspace
 	if l.agentUUID != uuid.Nil && userID != "" && l.workspace != "" {
-		promptWorkspace = filepath.Join(l.workspace, sanitizePathSegment(userID))
+		if cachedWs, ok := l.userWorkspaces.Load(userID); ok {
+			promptWorkspace = filepath.Join(cachedWs.(string), sanitizePathSegment(userID))
+		} else {
+			promptWorkspace = filepath.Join(l.workspace, sanitizePathSegment(userID))
+		}
 	}
 
 	// Resolve context files once — also detect BOOTSTRAP.md presence.

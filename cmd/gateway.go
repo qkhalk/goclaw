@@ -747,24 +747,24 @@ func runGateway() {
 
 	// Register agent links WS RPC methods (managed mode only)
 	if managedStores != nil && managedStores.AgentLinks != nil && managedStores.Agents != nil {
-		methods.NewAgentLinksMethods(managedStores.AgentLinks, managedStores.Agents, agentRouter).Register(server.Router())
+		methods.NewAgentLinksMethods(managedStores.AgentLinks, managedStores.Agents, agentRouter, msgBus).Register(server.Router())
 	}
 
 	// Register agent teams WS RPC methods (managed mode only)
 	if managedStores != nil && managedStores.Teams != nil {
-		methods.NewTeamsMethods(managedStores.Teams, managedStores.Agents, managedStores.AgentLinks, agentRouter).Register(server.Router())
+		methods.NewTeamsMethods(managedStores.Teams, managedStores.Agents, managedStores.AgentLinks, agentRouter, msgBus).Register(server.Router())
 	}
 
 	// Cache invalidation: reload channel instances on changes.
 	// Runs in a goroutine because Reload() is heavy (stops channels, waits for polling exit,
 	// sleeps 500ms, reloads from DB, starts new channels) and Broadcast handlers must be non-blocking.
 	if instanceLoader != nil {
-		msgBus.Subscribe("cache:channel_instances", func(event bus.Event) {
+		msgBus.Subscribe(bus.TopicCacheChannelInstances, func(event bus.Event) {
 			if event.Name != protocol.EventCacheInvalidate {
 				return
 			}
 			payload, ok := event.Payload.(bus.CacheInvalidatePayload)
-			if !ok || payload.Kind != "channel_instances" {
+			if !ok || payload.Kind != bus.CacheKindChannelInstances {
 				return
 			}
 			go instanceLoader.Reload(context.Background())
@@ -843,7 +843,7 @@ func runGateway() {
 	// Subscribe to agent events for channel streaming/reaction forwarding.
 	// Events emitted by agent loops are broadcast to the bus; we forward them
 	// to the channel manager which routes to StreamingChannel/ReactionChannel.
-	msgBus.Subscribe("channel-streaming", func(event bus.Event) {
+	msgBus.Subscribe(bus.TopicChannelStreaming, func(event bus.Event) {
 		if event.Name != protocol.EventAgent {
 			return
 		}

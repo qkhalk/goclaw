@@ -277,12 +277,14 @@ func resolvePath(path, workspace string, restrict bool) (string, error) {
 				}
 				real = resolved
 			} else {
-				// Truly non-existent file (not a symlink): resolve parent and re-validate.
-				parentReal, parentErr := filepath.EvalSymlinks(filepath.Dir(absResolved))
-				if parentErr != nil {
+				// Truly non-existent file (not a symlink): walk up to find the
+				// deepest existing ancestor so nested new dirs (e.g. posts/file.md)
+				// are allowed as long as an ancestor is inside the workspace.
+				ancestorReal, ancestorErr := resolveThroughExistingAncestors(absResolved)
+				if ancestorErr != nil {
 					return "", fmt.Errorf("access denied: cannot resolve path")
 				}
-				real = filepath.Join(parentReal, filepath.Base(absResolved))
+				real = ancestorReal
 			}
 		} else {
 			// Permission error or other — reject.

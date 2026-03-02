@@ -241,10 +241,11 @@ func (c *Channel) sendMediaMessage(ctx context.Context, chatID int64, msg bus.Ou
 		// Only reply to the first media item
 		replyTo = 0
 
-		// Send follow-up text if caption was split
+		// Send follow-up text if caption was split.
+		// followUpText is already HTML (from markdownToTelegramHTML above), so
+		// just chunk and send — do NOT convert again (double-escaping breaks entities).
 		if followUpText != "" {
-			htmlContent := markdownToTelegramHTML(followUpText)
-			chunks := chunkHTML(htmlContent, telegramMaxMessageLen)
+			chunks := chunkHTML(followUpText, telegramMaxMessageLen)
 			for _, chunk := range chunks {
 				if err := c.sendHTML(ctx, chatID, chunk, 0, threadID); err != nil {
 					return err

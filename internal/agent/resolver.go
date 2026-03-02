@@ -340,6 +340,9 @@ func buildDelegateAgentsMD(targets []store.AgentLinkData) string {
 		if t.TargetDisplayName != "" {
 			sb.WriteString(fmt.Sprintf(" (%s)", t.TargetDisplayName))
 		}
+		if t.TargetIsTeamLead && t.TargetTeamName != "" {
+			sb.WriteString(fmt.Sprintf(" [Team Lead: %s]", t.TargetTeamName))
+		}
 		sb.WriteString("\n")
 		if t.TargetDescription != "" {
 			sb.WriteString(t.TargetDescription + "\n")

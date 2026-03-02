@@ -124,6 +124,7 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]interface{}
 	}
 
 	result := SilentResult(fmt.Sprintf("File written: %s (%d bytes)", path, len(content)))
+	result.Deliverable = content
 	if deliver {
 		result.Media = []string{resolved}
 	}
@@ -141,6 +142,7 @@ func (t *WriteFileTool) executeInSandbox(ctx context.Context, path, content, san
 	}
 
 	result := SilentResult(fmt.Sprintf("File written: %s (%d bytes)", path, len(content)))
+	result.Deliverable = content
 	if deliver {
 		// Sandbox workspace is bind-mounted — resolve to host path for delivery
 		workspace := ToolWorkspaceFromCtx(ctx)
