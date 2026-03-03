@@ -25,11 +25,14 @@ func (s *PGTeamStore) CreateTask(ctx context.Context, task *store.TeamTaskData) 
 	task.UpdatedAt = now
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO team_tasks (id, team_id, subject, description, status, owner_agent_id, blocked_by, priority, result, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		`INSERT INTO team_tasks (id, team_id, subject, description, status, owner_agent_id, blocked_by, priority, result, user_id, channel, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
 		task.ID, task.TeamID, task.Subject, task.Description,
 		task.Status, task.OwnerAgentID, pq.Array(task.BlockedBy),
-		task.Priority, task.Result, now, now,
+		task.Priority, task.Result,
+		sql.NullString{String: task.UserID, Valid: task.UserID != ""},
+		sql.NullString{String: task.Channel, Valid: task.Channel != ""},
+		now, now,
 	)
 	return err
 }
@@ -42,7 +45,7 @@ func (s *PGTeamStore) UpdateTask(ctx context.Context, taskID uuid.UUID, updates 
 	return execMapUpdate(ctx, s.db, "team_tasks", taskID, updates)
 }
 
-func (s *PGTeamStore) ListTasks(ctx context.Context, teamID uuid.UUID, orderBy string, statusFilter string) ([]store.TeamTaskData, error) {
+func (s *PGTeamStore) ListTasks(ctx context.Context, teamID uuid.UUID, orderBy string, statusFilter string, userID string) ([]store.TeamTaskData, error) {
 	orderClause := "t.priority DESC, t.created_at"
 	if orderBy == "newest" {
 		orderClause = "t.created_at DESC"
@@ -57,12 +60,12 @@ func (s *PGTeamStore) ListTasks(ctx context.Context, teamID uuid.UUID, orderBy s
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT t.id, t.team_id, t.subject, t.description, t.status, t.owner_agent_id, t.blocked_by, t.priority, t.result, t.created_at, t.updated_at,
+		`SELECT t.id, t.team_id, t.subject, t.description, t.status, t.owner_agent_id, t.blocked_by, t.priority, t.result, t.user_id, t.channel, t.created_at, t.updated_at,
 		 COALESCE(a.agent_key, '') AS owner_agent_key
 		 FROM team_tasks t
 		 LEFT JOIN agents a ON a.id = t.owner_agent_id
-		 WHERE t.team_id = $1 `+statusWhere+`
-		 ORDER BY `+orderClause, teamID)
+		 WHERE t.team_id = $1 AND ($2 = '' OR t.user_id = $2) `+statusWhere+`
+		 ORDER BY `+orderClause, teamID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +75,7 @@ func (s *PGTeamStore) ListTasks(ctx context.Context, teamID uuid.UUID, orderBy s
 
 func (s *PGTeamStore) GetTask(ctx context.Context, taskID uuid.UUID) (*store.TeamTaskData, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT t.id, t.team_id, t.subject, t.description, t.status, t.owner_agent_id, t.blocked_by, t.priority, t.result, t.created_at, t.updated_at,
+		`SELECT t.id, t.team_id, t.subject, t.description, t.status, t.owner_agent_id, t.blocked_by, t.priority, t.result, t.user_id, t.channel, t.created_at, t.updated_at,
 		 COALESCE(a.agent_key, '') AS owner_agent_key
 		 FROM team_tasks t
 		 LEFT JOIN agents a ON a.id = t.owner_agent_id
@@ -91,18 +94,18 @@ func (s *PGTeamStore) GetTask(ctx context.Context, taskID uuid.UUID) (*store.Tea
 	return &tasks[0], nil
 }
 
-func (s *PGTeamStore) SearchTasks(ctx context.Context, teamID uuid.UUID, query string, limit int) ([]store.TeamTaskData, error) {
+func (s *PGTeamStore) SearchTasks(ctx context.Context, teamID uuid.UUID, query string, limit int, userID string) ([]store.TeamTaskData, error) {
 	if limit <= 0 {
 		limit = 20
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT t.id, t.team_id, t.subject, t.description, t.status, t.owner_agent_id, t.blocked_by, t.priority, t.result, t.created_at, t.updated_at,
+		`SELECT t.id, t.team_id, t.subject, t.description, t.status, t.owner_agent_id, t.blocked_by, t.priority, t.result, t.user_id, t.channel, t.created_at, t.updated_at,
 		 COALESCE(a.agent_key, '') AS owner_agent_key
 		 FROM team_tasks t
 		 LEFT JOIN agents a ON a.id = t.owner_agent_id
-		 WHERE t.team_id = $1 AND t.tsv @@ plainto_tsquery('simple', $2)
+		 WHERE t.team_id = $1 AND t.tsv @@ plainto_tsquery('simple', $2) AND ($4 = '' OR t.user_id = $4)
 		 ORDER BY ts_rank(t.tsv, plainto_tsquery('simple', $2)) DESC
-		 LIMIT $3`, teamID, query, limit)
+		 LIMIT $3`, teamID, query, limit, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -173,12 +176,13 @@ func scanTaskRowsJoined(rows *sql.Rows) ([]store.TeamTaskData, error) {
 	var tasks []store.TeamTaskData
 	for rows.Next() {
 		var d store.TeamTaskData
-		var desc, result sql.NullString
+		var desc, result, userID, channel sql.NullString
 		var ownerID *uuid.UUID
 		var blockedBy []uuid.UUID
 		if err := rows.Scan(
 			&d.ID, &d.TeamID, &d.Subject, &desc, &d.Status,
 			&ownerID, pq.Array(&blockedBy), &d.Priority, &result,
+			&userID, &channel,
 			&d.CreatedAt, &d.UpdatedAt,
 			&d.OwnerAgentKey,
 		); err != nil {
@@ -189,6 +193,12 @@ func scanTaskRowsJoined(rows *sql.Rows) ([]store.TeamTaskData, error) {
 		}
 		if result.Valid {
 			d.Result = &result.String
+		}
+		if userID.Valid {
+			d.UserID = userID.String
+		}
+		if channel.Valid {
+			d.Channel = channel.String
 		}
 		d.OwnerAgentID = ownerID
 		d.BlockedBy = blockedBy

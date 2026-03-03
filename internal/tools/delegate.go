@@ -71,6 +71,7 @@ type DelegateRunRequest struct {
 	RunID             string
 	Stream            bool
 	ExtraSystemPrompt string
+	MaxIterations     int // per-delegation override (0 = use agent default)
 }
 
 // DelegateRunResult is the result from AgentRunFunc.
@@ -394,7 +395,7 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 			// (common case: LLM called team_tasks create + spawn in parallel,
 			// hallucinated the task_id, uuid.Parse failed → uuid.Nil).
 			hint := ""
-			if tasks, err := dm.teamStore.ListTasks(ctx, team.ID, "newest", ""); err == nil {
+			if tasks, err := dm.teamStore.ListTasks(ctx, team.ID, "newest", "", ""); err == nil {
 				var pendingIDs []string
 				for _, t := range tasks {
 					if t.Status == store.TeamTaskStatusPending {

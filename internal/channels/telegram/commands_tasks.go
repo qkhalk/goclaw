@@ -72,7 +72,7 @@ func (c *Channel) handleTasksList(ctx context.Context, chatID int64, setThread f
 		return
 	}
 
-	tasks, err := c.teamStore.ListTasks(ctx, team.ID, "newest", store.TeamTaskFilterAll)
+	tasks, err := c.teamStore.ListTasks(ctx, team.ID, "newest", store.TeamTaskFilterAll, "")
 	if err != nil {
 		slog.Warn("tasks command: ListTasks failed", "error", err)
 		send("Failed to list tasks. Please try again.")
@@ -164,7 +164,7 @@ func (c *Channel) handleTaskDetail(ctx context.Context, chatID int64, text strin
 		return
 	}
 
-	tasks, err := c.teamStore.ListTasks(ctx, team.ID, "newest", store.TeamTaskFilterAll)
+	tasks, err := c.teamStore.ListTasks(ctx, team.ID, "newest", store.TeamTaskFilterAll, "")
 	if err != nil {
 		slog.Warn("task_detail command: ListTasks failed", "error", err)
 		send("Failed to list tasks. Please try again.")
@@ -225,7 +225,7 @@ func (c *Channel) handleCallbackQuery(ctx context.Context, query *telego.Callbac
 		return
 	}
 
-	tasks, err := c.teamStore.ListTasks(ctx, team.ID, "newest", store.TeamTaskFilterAll)
+	tasks, err := c.teamStore.ListTasks(ctx, team.ID, "newest", store.TeamTaskFilterAll, "")
 	if err != nil {
 		send("Failed to list tasks.")
 		return

@@ -298,7 +298,7 @@ func (m *TeamsMethods) handleTaskList(_ context.Context, client *gateway.Client,
 	}
 
 	ctx := context.Background()
-	tasks, err := m.teamStore.ListTasks(ctx, teamID, "newest", store.TeamTaskFilterAll)
+	tasks, err := m.teamStore.ListTasks(ctx, teamID, "newest", store.TeamTaskFilterAll, "")
 	if err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
 		return

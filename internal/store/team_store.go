@@ -80,6 +80,8 @@ type TeamTaskData struct {
 	Priority     int                    `json:"priority"`
 	Result       *string                `json:"result,omitempty"`
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+	UserID       string                 `json:"user_id,omitempty"`
+	Channel      string                 `json:"channel,omitempty"`
 
 	// Joined fields
 	OwnerAgentKey string `json:"owner_agent_key,omitempty"`
@@ -178,11 +180,13 @@ type TeamStore interface {
 	UpdateTask(ctx context.Context, taskID uuid.UUID, updates map[string]any) error
 	// ListTasks returns tasks for a team. orderBy: "priority" or "newest".
 	// statusFilter: "" = non-completed (default), "completed", "all".
-	ListTasks(ctx context.Context, teamID uuid.UUID, orderBy string, statusFilter string) ([]TeamTaskData, error)
+	// userID: if non-empty, filter to tasks created by this user.
+	ListTasks(ctx context.Context, teamID uuid.UUID, orderBy string, statusFilter string, userID string) ([]TeamTaskData, error)
 	// GetTask returns a single task by ID with joined agent info.
 	GetTask(ctx context.Context, taskID uuid.UUID) (*TeamTaskData, error)
 	// SearchTasks performs FTS search over task subject+description.
-	SearchTasks(ctx context.Context, teamID uuid.UUID, query string, limit int) ([]TeamTaskData, error)
+	// userID: if non-empty, filter to tasks created by this user.
+	SearchTasks(ctx context.Context, teamID uuid.UUID, query string, limit int, userID string) ([]TeamTaskData, error)
 
 	// ClaimTask atomically transitions a task from pending to in_progress.
 	// Only one agent can claim a given task (row-level lock, race-safe).

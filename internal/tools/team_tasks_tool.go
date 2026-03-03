@@ -104,7 +104,14 @@ func (t *TeamTasksTool) executeList(ctx context.Context, args map[string]interfa
 
 	statusFilter, _ := args["status"].(string)
 
-	tasks, err := t.manager.teamStore.ListTasks(ctx, team.ID, "priority", statusFilter)
+	// Delegate/system channels see all tasks; end users only see their own.
+	filterUserID := ""
+	channel := ToolChannelFromCtx(ctx)
+	if channel != "delegate" && channel != "system" {
+		filterUserID = store.UserIDFromContext(ctx)
+	}
+
+	tasks, err := t.manager.teamStore.ListTasks(ctx, team.ID, "priority", statusFilter, filterUserID)
 	if err != nil {
 		return ErrorResult("failed to list tasks: " + err.Error())
 	}
@@ -180,7 +187,14 @@ func (t *TeamTasksTool) executeSearch(ctx context.Context, args map[string]inter
 		return ErrorResult("query is required for search action")
 	}
 
-	tasks, err := t.manager.teamStore.SearchTasks(ctx, team.ID, query, 20)
+	// Delegate/system channels see all tasks; end users only see their own.
+	filterUserID := ""
+	channel := ToolChannelFromCtx(ctx)
+	if channel != "delegate" && channel != "system" {
+		filterUserID = store.UserIDFromContext(ctx)
+	}
+
+	tasks, err := t.manager.teamStore.SearchTasks(ctx, team.ID, query, 20, filterUserID)
 	if err != nil {
 		return ErrorResult("failed to search tasks: " + err.Error())
 	}
@@ -244,6 +258,8 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]inter
 		Status:      status,
 		BlockedBy:   blockedBy,
 		Priority:    priority,
+		UserID:      store.UserIDFromContext(ctx),
+		Channel:     ToolChannelFromCtx(ctx),
 	}
 
 	if err := t.manager.teamStore.CreateTask(ctx, task); err != nil {

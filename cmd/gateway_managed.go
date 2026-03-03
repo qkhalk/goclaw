@@ -308,6 +308,7 @@ func wireManagedExtras(
 				RunID:             req.RunID,
 				Stream:            req.Stream,
 				ExtraSystemPrompt: req.ExtraSystemPrompt,
+				MaxIterations:     req.MaxIterations,
 			})
 			if err != nil {
 				return nil, err
