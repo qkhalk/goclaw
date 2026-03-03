@@ -43,6 +43,8 @@ The Anthropic provider uses `x-api-key` header authentication and the `anthropic
 | minimax | OpenAI-compatible | `https://api.minimax.chat/v1` | `MiniMax-M2.5` |
 | cohere | OpenAI-compatible | `https://api.cohere.com/v2` | `command-a` |
 | perplexity | OpenAI-compatible | `https://api.perplexity.ai` | `sonar-pro` |
+| dashscope | OpenAI-compatible | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen3-max` |
+| bailian | OpenAI-compatible | `https://coding-intl.dashscope.aliyuncs.com/v1` | `qwen3.5-plus` |
 
 ---
 
@@ -116,6 +118,7 @@ Key difference: non-streaming wraps the entire request in `RetryDo`. Streaming r
 
 | Aspect | Anthropic | OpenAI-Compatible |
 |--------|-----------|-------------------|
+| Base URL override | `WithAnthropicBaseURL()` option | Via config `api_base` field |
 | Implementation | Native `net/http` | Generic HTTP client |
 | System messages | Separate `system` field (array of text blocks) | Inline in `messages` array with `role: "system"` |
 | Tool definitions | `name` + `description` + `input_schema` | Standard OpenAI function schema |
@@ -236,7 +239,57 @@ flowchart LR
 
 ---
 
-## 8. Agent Evaluators (Hook System)
+## 8. Extended Thinking
+
+Extended thinking allows LLMs to generate internal reasoning tokens before producing a response, improving quality for complex tasks. GoClaw supports this across multiple providers with a unified `thinking_level` configuration. See [12-extended-thinking.md](./12-extended-thinking.md) for full details.
+
+### Provider Mapping
+
+```mermaid
+flowchart TD
+    LEVEL["thinking_level"] --> CHECK{"Provider<br/>supports thinking?"}
+    CHECK -->|No| SKIP["Skip — normal request"]
+    CHECK -->|Yes| TYPE{"Provider type?"}
+
+    TYPE -->|Anthropic| ANTH["Budget tokens:<br/>low=4K, medium=10K, high=32K<br/>+ anthropic-beta header<br/>+ strip temperature"]
+    TYPE -->|OpenAI-compat| OAI["reasoning_effort:<br/>low / medium / high"]
+    TYPE -->|DashScope| DASH["enable_thinking: true<br/>Budget: low=4K, medium=16K, high=32K<br/>⚠ No streaming with tools"]
+```
+
+### Streaming
+
+- **Anthropic**: `thinking_delta` events accumulate into `StreamChunk.Thinking`
+- **OpenAI-compat**: `reasoning_content` in response delta
+- **DashScope**: Falls back to non-streaming when tools are present, synthesizes chunk callbacks
+
+### Tool Loop Handling
+
+Anthropic requires thinking blocks (including cryptographic signatures) to be echoed back in subsequent tool-use turns. `RawAssistantContent` preserves these raw blocks for API passback. Other providers handle reasoning content as independent per-turn metadata.
+
+---
+
+## 9. DashScope and Bailian Providers
+
+Two providers for the Alibaba Cloud AI ecosystem.
+
+### DashScope (Alibaba Qwen)
+
+Wraps the OpenAI-compatible provider with a critical override: when tools are present, streaming is disabled. The provider falls back to a single `Chat()` call and synthesizes chunk callbacks to maintain the event flow.
+
+- **Default model**: `qwen3-max`
+- **Thinking support**: Custom budget mapping (low=4,096, medium=16,384, high=32,768)
+- **Known limitation**: No simultaneous streaming + tools
+
+### Bailian Coding
+
+Standard OpenAI-compatible provider targeting the Alibaba Coding API.
+
+- **Default model**: `qwen3.5-plus`
+- **Base URL**: `https://coding-intl.dashscope.aliyuncs.com/v1`
+
+---
+
+## 10. Agent Evaluators (Hook System)
 
 Agent evaluators in the quality gate / hook system (see [03-tools-system.md](./03-tools-system.md)) use the same provider resolution as normal agent runs. When a quality gate is configured with `"type": "agent"`, the hook engine delegates to the specified reviewer agent, which resolves its own provider through the standard provider registry. No separate provider configuration is needed for evaluator agents.
 
@@ -251,4 +304,14 @@ Agent evaluators in the quality gate / hook system (see [03-tools-system.md](./0
 | `internal/providers/openai.go` | OpenAI-compatible provider implementation (generic HTTP) |
 | `internal/providers/retry.go` | RetryDo[T] generic function, RetryConfig, IsRetryableError, backoff computation |
 | `internal/providers/schema_cleaner.go` | CleanSchemaForProvider, CleanToolSchemas, recursive schema field removal |
+| `internal/providers/dashscope.go` | DashScope provider: thinking budget, tools+streaming fallback |
 | `cmd/gateway_providers.go` | Provider registration from config and database during gateway startup |
+
+---
+
+## Cross-References
+
+| Document | Relevant Content |
+|----------|-----------------|
+| [12-extended-thinking.md](./12-extended-thinking.md) | Full extended thinking documentation |
+| [01-agent-loop.md](./01-agent-loop.md) | LLM iteration loop, streaming chunk handling |

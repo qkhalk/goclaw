@@ -91,7 +91,8 @@ All four filesystem tools (`read_file`, `write_file`, `list_files`, `edit`) impl
 
 | Mechanism | Detail |
 |-----------|--------|
-| Credential scrubbing | Regex detection of: OpenAI (`sk-...`), Anthropic (`sk-ant-...`), GitHub (`ghp_/gho_/ghu_/ghs_/ghr_`), AWS (`AKIA...`), generic key-value patterns. All replaced with `[REDACTED]`. |
+| Credential scrubbing | Static regex detection of: OpenAI (`sk-...`), Anthropic (`sk-ant-...`), GitHub (`ghp_/gho_/ghu_/ghs_/ghr_`), AWS (`AKIA...`), generic key-value patterns, connection strings (`postgres://`, `mysql://`), env var patterns (`KEY=`, `SECRET=`, `DSN=`), long hex strings (64+ chars). All replaced with `[REDACTED]`. |
+| Dynamic credential scrubbing | Runtime-registered values (e.g., server IPs) scrubbed alongside static patterns via `AddDynamicScrubValues()` |
 | Web content wrapping | Fetched content wrapped in `<<<EXTERNAL_UNTRUSTED_CONTENT>>>` tags with security warning |
 
 ### Layer 5: Isolation
@@ -292,7 +293,39 @@ A context flag `hooks.WithSkipHooks(ctx, true)` prevents this. Three injection p
 
 ---
 
-## 8. Delegation Security
+## 8. Group File Writer Restrictions
+
+In group chats (Telegram), write-sensitive operations are restricted to designated writers. This prevents unauthorized users from modifying agent files or resetting sessions in shared groups.
+
+```mermaid
+flowchart TD
+    CMD["Write-sensitive command<br/>(/reset, /addwriter, file writes)"] --> GROUP{"In group chat?"}
+    GROUP -->|No| ALLOW["Allow (DM = no restriction)"]
+    GROUP -->|Yes| CHECK["Check IsGroupFileWriter()<br/>(agentID, groupID, senderID)"]
+    CHECK -->|Writer| ALLOW
+    CHECK -->|Not writer| DENY["Deny operation"]
+    CHECK -->|DB error| FALLBACK["Fail-open: Allow<br/>(log security.reset_writer_check_failed)"]
+```
+
+### Group ID Format
+
+`group:{channel}:{chatID}` — for example, `group:telegram:-1001234567`.
+
+### Managed Commands
+
+| Command | Restriction |
+|---------|-------------|
+| `/reset` | Writers only in groups |
+| `/addwriter` | Writers only (reply to target user to add) |
+| `/removewriter` | Writers only |
+| `/writers` | No restriction (informational) |
+| File writes (exec) | Writers only in groups |
+
+Writers are managed via `/addwriter` (reply to a user's message) and `/removewriter` commands. The writer list is stored per-agent per-group in the agent store.
+
+---
+
+## 9. Delegation Security
 
 Agent delegation uses directed permissions via the `agent_links` table.
 

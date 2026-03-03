@@ -344,6 +344,42 @@ flowchart TD
 
 ---
 
+## 12.5. Per-Agent Skill Filtering
+
+In addition to visibility grants, agents can restrict which skills they have access to through a per-agent skill allow list.
+
+```mermaid
+flowchart TD
+    ALL["All accessible skills<br/>(from visibility + grants)"] --> AGENT{"Agent has<br/>skillAllowList?"}
+    AGENT -->|"nil (default)"| ALL_PASS["All accessible skills available"]
+    AGENT -->|"[] (empty)"| NONE["No skills available"]
+    AGENT -->|'["x", "y"]'| FILTER["Only named skills available"]
+
+    FILTER --> REQUEST{"Per-request<br/>SkillFilter?"}
+    ALL_PASS --> REQUEST
+    REQUEST -->|"nil"| USE["Use agent-level filter"]
+    REQUEST -->|"Set"| OVERRIDE["Override with request filter"]
+
+    USE --> MODE{"Count + tokens?"}
+    OVERRIDE --> MODE
+    MODE -->|"≤20 skills, ≤3500 tokens"| INLINE["Inline mode<br/>(XML in system prompt)"]
+    MODE -->|"Too many"| SEARCH["Search mode<br/>(agent uses skill_search tool)"]
+```
+
+### Configuration
+
+| Setting | Value | Behavior |
+|---------|-------|----------|
+| `skillAllowList = nil` | Default | All accessible skills available |
+| `skillAllowList = []` | Empty list | No skills — agent has no skill access |
+| `skillAllowList = ["billing-faq", "returns"]` | Named skills | Only these specific skills are available |
+
+### Per-Request Override
+
+Channels can override the skill allow list per request via message metadata. For example, Telegram forum topics can configure different skills per topic (see [05-channels-messaging.md](./05-channels-messaging.md) Section 5). The per-request filter takes priority over the agent-level setting.
+
+---
+
 ## 13. Hot-Reload
 
 An fsnotify-based watcher monitors all skill directories for changes to SKILL.md files.

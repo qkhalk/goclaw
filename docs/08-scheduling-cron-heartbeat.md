@@ -18,25 +18,28 @@ Named worker pools (semaphore-based) with configurable concurrency limits. Each 
 
 ```mermaid
 flowchart TD
-    subgraph "Lane: main (concurrency = 2)"
+    subgraph "Lane: main (concurrency = 30)"
         M1["User chat 1"]
         M2["User chat 2"]
+        M3["..."]
     end
 
-    subgraph "Lane: subagent (concurrency = 4)"
+    subgraph "Lane: subagent (concurrency = 50)"
         S1["Subagent 1"]
         S2["Subagent 2"]
-        S3["Subagent 3"]
-        S4["Subagent 4"]
+        S3["..."]
     end
 
     subgraph "Lane: delegate (concurrency = 100)"
         D1["Delegation 1"]
         D2["Delegation 2"]
+        D3["..."]
     end
 
-    subgraph "Lane: cron (concurrency = 1)"
-        C1["Cron job"]
+    subgraph "Lane: cron (concurrency = 30)"
+        C1["Cron job 1"]
+        C2["Cron job 2"]
+        C3["..."]
     end
 
     REQ["Incoming request"] --> SCHED["Scheduler.Schedule(ctx, lane, req)"]
@@ -49,10 +52,10 @@ flowchart TD
 
 | Lane | Concurrency | Env Override | Purpose |
 |------|:-----------:|-------------|---------|
-| `main` | 2 | `GOCLAW_LANE_MAIN` | Primary user chat sessions |
-| `subagent` | 4 | `GOCLAW_LANE_SUBAGENT` | Sub-agents spawned by the main agent |
+| `main` | 30 | `GOCLAW_LANE_MAIN` | Primary user chat sessions |
+| `subagent` | 50 | `GOCLAW_LANE_SUBAGENT` | Sub-agents spawned by the main agent |
 | `delegate` | 100 | `GOCLAW_LANE_DELEGATE` | Agent delegation executions |
-| `cron` | 1 | `GOCLAW_LANE_CRON` | Scheduled cron jobs (sequential to avoid conflicts) |
+| `cron` | 30 | `GOCLAW_LANE_CRON` | Scheduled cron jobs (per-session serialization prevents same-job races) |
 
 `GetOrCreate()` allows creating new lanes on demand with custom concurrency. All lane concurrency values are configurable via environment variables.
 
@@ -166,6 +169,8 @@ Jobs can be `active` or `paused`. Paused jobs skip execution during the due chec
 
 Periodically wakes the agent to check on events (calendar, inbox, alerts) and surfaces anything that needs attention.
 
+> **Standalone mode only in practice**: HEARTBEAT.md is seeded from bootstrap templates only in standalone mode. In managed mode, HEARTBEAT.md is excluded from seeding (replaced by cron jobs). The heartbeat service still runs in both modes, but without a HEARTBEAT.md file with content, Step 2 skips execution.
+
 ```mermaid
 flowchart TD
     TICK["tick() -- every interval (default 30 min)"] --> S1{"Step 1:<br/>Within Active Hours?"}
@@ -184,9 +189,13 @@ flowchart TD
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| Interval | 30 minutes | Time between heartbeat wakes |
+| Interval (`every`) | 30 minutes | Time between heartbeat wakes (`"0m"` to disable) |
 | ActiveHours | (none) | Time window restriction, supports wrap-around midnight |
 | Target | `"last"` | `"last"` (last-used channel), `"none"`, or explicit channel name |
+| To | (empty) | Explicit chat ID (overrides target resolver) |
+| Prompt | (default) | Custom system prompt for heartbeat runs |
+| Model | (agent default) | Override LLM model for heartbeat runs |
+| Session | `agent:{id}:heartbeat:main` | Custom session key |
 | AckMaxChars | 300 | Content alongside HEARTBEAT_OK up to this length is still treated as OK |
 
 ### HEARTBEAT_OK Detection
@@ -205,7 +214,12 @@ Recognizes multiple formatting variants: `HEARTBEAT_OK`, `**HEARTBEAT_OK**`, `` 
 | `internal/cron/retry.go` | Retry with exponential backoff + jitter |
 | `internal/heartbeat/service.go` | Heartbeat loop, HEARTBEAT_OK detection, active hours |
 | `internal/store/cron_store.go` | CronStore interface (jobs + run logs) |
+| `internal/store/file/cron.go` | File-based cron implementation (standalone mode) |
 | `internal/store/pg/cron.go` | PostgreSQL cron implementation |
+| `internal/store/pg/cron_scheduler.go` | PG job cache, due-job detection, execution |
+| `cmd/gateway_cron.go` | makeCronJobHandler (routes cron execution to scheduler) |
+| `cmd/gateway_agents.go` | setupHeartbeat, agent initialization |
+| `internal/gateway/methods/cron.go` | RPC method handlers (list, create, update, delete, toggle, run, runs) |
 
 ---
 

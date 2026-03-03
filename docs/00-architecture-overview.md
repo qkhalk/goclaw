@@ -19,7 +19,8 @@ flowchart TD
         TG[Telegram]
         DC[Discord]
         FS[Feishu / Lark]
-        ZL[Zalo]
+        ZL[Zalo OA]
+        ZLP[Zalo Personal]
         WA[WhatsApp]
     end
 
@@ -45,7 +46,7 @@ flowchart TD
 
     subgraph Providers["LLM Providers"]
         ANTH[Anthropic -- Native HTTP + SSE]
-        OAI[OpenAI-Compatible -- HTTP + SSE]
+        OAI["OpenAI-Compatible -- HTTP + SSE<br/>(OpenAI, Gemini, DeepSeek, DashScope, +8)"]
     end
 
     subgraph Tools["Tool Registry"]
@@ -87,7 +88,7 @@ flowchart TD
 
     WS --> WSS
     HTTP --> HTTPS
-    TG & DC & FS & ZL & WA --> CM
+    TG & DC & FS & ZL & ZLP & WA --> CM
 
     WSS --> MR
     HTTPS --> MR
@@ -113,7 +114,7 @@ flowchart TD
 | `internal/gateway/` | WebSocket + HTTP server, client handling, method router |
 | `internal/gateway/methods/` | RPC method handlers: chat, agents, agent_links, teams, delegations, sessions, config, skills, cron, pairing, exec approval, usage, send |
 | `internal/agent/` | Agent loop (think, act, observe), router, resolver, system prompt builder, sanitization, pruning, tracing, memory flush, DELEGATION.md + TEAM.md injection |
-| `internal/providers/` | LLM providers: Anthropic (native HTTP + SSE streaming), OpenAI-compatible (HTTP + SSE), retry logic |
+| `internal/providers/` | LLM providers: Anthropic (native HTTP + SSE streaming), OpenAI-compatible (HTTP + SSE, 12+ providers), DashScope (Qwen), extended thinking support, retry logic |
 | `internal/tools/` | Tool registry, filesystem ops, exec/shell, policy engine, subagent, delegation manager, team tools, evaluate loop, handoff, context file + memory interceptors, credential scrubbing, rate limiting, PathDenyable |
 | `internal/tools/dynamic_loader.go` | Custom tool loader: LoadGlobal (startup), LoadForAgent (per-agent clone), ReloadGlobal (cache invalidation) |
 | `internal/tools/dynamic_tool.go` | Custom tool executor: command template rendering, shell escaping, encrypted env vars |
@@ -124,7 +125,7 @@ flowchart TD
 | `internal/bootstrap/` | System prompt files (AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, HEARTBEAT.md, BOOTSTRAP.md) + seeding + truncation |
 | `internal/config/` | Config loading (JSON5) + env var overlay |
 | `internal/skills/` | SKILL.md loader (5-tier hierarchy) + BM25 search + hot-reload via fsnotify |
-| `internal/channels/` | Channel manager + adapters: Telegram, Feishu/Lark, Zalo, Discord, WhatsApp |
+| `internal/channels/` | Channel manager + adapters: Telegram (forum topics, STT, bot commands), Feishu/Lark (streaming cards, media), Zalo OA, Zalo Personal, Discord, WhatsApp |
 | `internal/mcp/` | MCP server bridge (stdio, SSE, streamable-HTTP transports) |
 | `internal/scheduler/` | Lane-based concurrency control (main, subagent, cron, delegate lanes) with per-session serialization |
 | `internal/memory/` | Memory system (SQLite FTS5 + embeddings for standalone mode) |
@@ -474,3 +475,5 @@ flowchart TD
 | [08-scheduling-cron-heartbeat.md](./08-scheduling-cron-heartbeat.md) | Scheduler lanes, cron lifecycle, heartbeat |
 | [09-security.md](./09-security.md) | Defense layers, encryption, rate limiting, RBAC, sandbox |
 | [10-tracing-observability.md](./10-tracing-observability.md) | Tracing collector, span hierarchy, OTel export, trace API |
+| [11-agent-teams.md](./11-agent-teams.md) | Agent teams, task board, mailbox, delegation integration |
+| [12-extended-thinking.md](./12-extended-thinking.md) | Extended thinking, per-provider support, streaming |

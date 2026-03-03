@@ -43,6 +43,8 @@ Context values (traceID, collector) survive cancellation -- only `ctx.Done()` an
 | `llm_call` | LLM provider call | Client |
 | `tool_call` | Tool execution | Internal |
 | `agent` | Root agent span (parents all child spans) | Internal |
+| `embedding` | Embedding generation (vector store operations) | Internal |
+| `event` | Discrete event marker (no duration) | Internal |
 
 ```mermaid
 flowchart TD
@@ -50,6 +52,7 @@ flowchart TD
     AGENT --> TOOL1["Tool Span: exec<br/>(tool_name, duration)"]
     AGENT --> LLM2["LLM Call Span 2"]
     AGENT --> TOOL2["Tool Span: read_file"]
+    AGENT --> EMB["Embedding Span<br/>(vector store operation)"]
     AGENT --> LLM3["LLM Call Span 3"]
 ```
 

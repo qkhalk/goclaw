@@ -86,8 +86,7 @@ Context keys ensure each tool call receives the correct per-call values without 
 | `sessions_list` | List active sessions |
 | `sessions_history` | View session message history |
 | `sessions_send` | Send a message to a session |
-| `sessions_spawn` | Spawn an async subagent task |
-| `subagents` | Manage subagent tasks (list, cancel, steer) |
+| `spawn` | Spawn subagent or delegate to another agent |
 | `session_status` | Get current session status |
 
 ### UI (group: `ui`)
@@ -109,6 +108,7 @@ Context keys ensure each tool call receives the correct per-call values without 
 | Tool | Description |
 |------|-------------|
 | `message` | Send a message to a channel |
+| `create_forum_topic` | Create a Telegram forum topic |
 
 ### Delegation (group: `delegation`)
 
@@ -130,10 +130,11 @@ Context keys ensure each tool call receives the correct per-call values without 
 
 | Tool | Description |
 |------|-------------|
-| `skill_search` | Search available skills (BM25) |
+| `skill_search` | Search available skills (BM25 + vector) |
 | `image` | Generate images |
+| `read_image` | Read/analyze an image file |
+| `create_image` | Create an image from description |
 | `tts` | Text-to-speech synthesis (OpenAI, ElevenLabs, Edge, MiniMax) |
-| `spawn` | Spawn subagent (alternative to sessions_spawn) |
 | `nodes` | Node graph operations |
 
 ---
@@ -274,27 +275,31 @@ flowchart TD
 | Profile | Tools Included |
 |---------|---------------|
 | `full` | All registered tools (no restriction) |
-| `coding` | `group:fs`, `group:runtime`, `group:sessions`, `group:memory`, `image` |
-| `messaging` | `group:messaging`, `sessions_list`, `sessions_history`, `sessions_send`, `session_status` |
+| `coding` | `group:fs`, `group:runtime`, `group:sessions`, `group:memory`, `group:web`, `read_image`, `create_image`, `skill_search` |
+| `messaging` | `group:messaging`, `group:web`, `group:sessions`, `read_image`, `skill_search` |
 | `minimal` | `session_status` only |
 
 ### Tool Groups
 
 | Group | Members |
 |-------|---------|
-| `fs` | `read_file`, `write_file`, `list_files`, `edit_file`, `search`, `glob` |
-| `runtime` | `exec`, `process` |
+| `fs` | `read_file`, `write_file`, `list_files`, `edit`, `search`, `glob` |
+| `runtime` | `exec` |
 | `web` | `web_search`, `web_fetch` |
 | `memory` | `memory_search`, `memory_get` |
-| `sessions` | `sessions_list`, `sessions_history`, `sessions_send`, `sessions_spawn`, `subagents`, `session_status` |
-| `ui` | `browser`, `canvas` |
-| `automation` | `cron`, `gateway` |
-| `messaging` | `message` |
-| `delegation` | `delegate`, `delegate_search`, `evaluate_loop`, `handoff` |
-| `teams` | `team_tasks`, `team_message` |
+| `sessions` | `sessions_list`, `sessions_history`, `sessions_send`, `spawn`, `session_status` |
+| `ui` | `browser` |
+| `automation` | `cron` |
+| `messaging` | `message`, `create_forum_topic` |
+| `delegation` | `handoff`, `delegate_search`, `evaluate_loop` |
+| `team` | `team_tasks`, `team_message` |
 | `goclaw` | All native tools (composite group) |
 
 Groups can be referenced in allow/deny lists with the `group:` prefix (e.g., `group:fs`). The MCP manager dynamically registers `mcp` and `mcp:{serverName}` groups at runtime.
+
+### Per-Request Tool Allow List
+
+In addition to the static policy pipeline, channels can inject a per-request tool allow list via message metadata. For example, Telegram forum topics can restrict tools per-topic (see [05-channels-messaging.md](./05-channels-messaging.md) Section 5). The allow list is applied as a final intersection step after the policy pipeline completes.
 
 ---
 
@@ -662,7 +667,7 @@ flowchart TD
 
 Tool output is automatically scrubbed before being returned to the LLM. Enabled by default in the registry.
 
-### Detected Patterns
+### Static Patterns
 
 | Type | Pattern |
 |------|---------|
@@ -670,9 +675,16 @@ Tool output is automatically scrubbed before being returned to the LLM. Enabled 
 | Anthropic | `sk-ant-[a-zA-Z0-9-]{20,}` |
 | GitHub PAT | `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` + 36 alphanumeric characters |
 | AWS | `AKIA[A-Z0-9]{16}` |
-| Generic | `(api_key\|token\|secret\|password\|bearer\|authorization)[:=]value` (case-insensitive) |
+| Generic key-value | `(api_key\|token\|secret\|password\|bearer\|authorization)[:=]value` (case-insensitive) |
+| Connection strings | `postgres://`, `mysql://`, `mongodb://`, `redis://` patterns |
+| Env var patterns | `KEY=`, `SECRET=`, `CREDENTIAL=`, `DSN=`, `VIRTUAL_*=` patterns |
+| Long hex strings | 64+ character hex strings (potential encryption keys) |
 
 All matches are replaced with `[REDACTED]`.
+
+### Dynamic Scrubbing
+
+In addition to static patterns, values can be registered at runtime for scrubbing. This is used for server IPs and other deployment-specific secrets that are not known at compile time. The `AddDynamicScrubValues()` function thread-safely adds values to a scrub list that is checked alongside static patterns.
 
 ---
 
