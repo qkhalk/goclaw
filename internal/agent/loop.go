@@ -542,7 +542,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// so only truly un-spawned tasks remain pending.
 	if l.teamStore != nil && l.agentUUID != uuid.Nil {
 		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil && team.LeadAgentID == l.agentUUID {
-			if tasks, err := l.teamStore.ListTasks(ctx, team.ID, "newest", "", ""); err == nil {
+			if tasks, err := l.teamStore.ListTasks(ctx, team.ID, "newest", "", req.UserID); err == nil {
 				var stale []string
 				for _, t := range tasks {
 					if t.Status == store.TeamTaskStatusPending {

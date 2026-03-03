@@ -503,7 +503,7 @@ func buildDelegateMessage(opts DelegateOpts) string {
 // pendingTasksHint returns a formatted hint listing pending team tasks,
 // so the LLM can self-correct a hallucinated team_task_id.
 func (dm *DelegateManager) pendingTasksHint(ctx context.Context, teamID uuid.UUID) string {
-	tasks, err := dm.teamStore.ListTasks(ctx, teamID, "newest", "", "")
+	tasks, err := dm.teamStore.ListTasks(ctx, teamID, "newest", "", store.UserIDFromContext(ctx))
 	if err != nil {
 		return ""
 	}

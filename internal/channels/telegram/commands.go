@@ -190,11 +190,11 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 		return true
 
 	case "/tasks":
-		c.handleTasksList(ctx, chatID, setThread)
+		c.handleTasksList(ctx, chatID, isGroup, setThread)
 		return true
 
 	case "/task_detail":
-		c.handleTaskDetail(ctx, chatID, text, setThread)
+		c.handleTaskDetail(ctx, chatID, text, isGroup, setThread)
 		return true
 
 	case "/addwriter":
