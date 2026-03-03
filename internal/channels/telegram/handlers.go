@@ -256,17 +256,19 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 		}
 	}
 
+	// Handle bot commands BEFORE enriching with reply/forward context.
+	// Command parsing (SplitN on spaces) breaks when reply context is appended with newlines,
+	// e.g. "/addwriter@bot\n\n[Replying to ...]" — the bot-username check fails.
+	if handled := c.handleBotCommand(ctx, message, chatID, chatIDStr, localKey, content, senderID, isGroup, isForum, messageThreadID); handled {
+		return
+	}
+
 	// Enrich content with forward/reply/location context
 	msgCtx := buildMessageContext(message, c.bot.Username())
 	content = enrichContentWithContext(content, msgCtx)
 
 	if content == "" {
 		content = "[empty message]"
-	}
-
-	// Handle bot commands (/start, /help, /reset, /status, /addwriter, /removewriter, /writers).
-	if handled := c.handleBotCommand(ctx, message, chatID, chatIDStr, localKey, content, senderID, isGroup, isForum, messageThreadID); handled {
-		return
 	}
 
 	// Compute sender label for group context (used in history + current message annotation)
