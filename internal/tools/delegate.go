@@ -184,10 +184,13 @@ func (dm *DelegateManager) Delegate(ctx context.Context, opts DelegateOpts) (*De
 	dm.emitEvent("delegation.started", task)
 	slog.Info("delegation started", "id", task.ID, "target", opts.TargetAgentKey, "mode", "sync")
 
-	// Propagate parent trace ID so the delegate trace links back
-	delegateCtx := ctx
+	// Propagate parent trace ID so the delegate trace links back.
+	// Clear senderID — delegations are system-initiated, the delegate agent
+	// should not inherit the caller's group writer permissions (the delegate
+	// agent has its own writer list, and would incorrectly deny writes).
+	delegateCtx := store.WithSenderID(ctx, "")
 	if parentTraceID := tracing.TraceIDFromContext(ctx); parentTraceID != uuid.Nil {
-		delegateCtx = tracing.WithDelegateParentTraceID(ctx, parentTraceID)
+		delegateCtx = tracing.WithDelegateParentTraceID(delegateCtx, parentTraceID)
 	}
 
 	startTime := time.Now()
