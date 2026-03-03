@@ -87,6 +87,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "render_mode", label: "Render Mode", type: "select", options: [{ value: "auto", label: "Auto" }, { value: "raw", label: "Raw" }, { value: "card", label: "Card" }], defaultValue: "auto" },
     { key: "text_chunk_limit", label: "Text Chunk Limit", type: "number", defaultValue: 4000, help: "Max characters per message" },
     { key: "media_max_mb", label: "Max Media Size (MB)", type: "number", defaultValue: 30, help: "Max inbound media download size" },
+    { key: "reaction_level", label: "Reaction Level", type: "select", options: [{ value: "off", label: "Off" }, { value: "minimal", label: "Minimal" }, { value: "full", label: "Full" }], defaultValue: "off", help: "Typing emoji reaction on user messages while bot is processing" },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Lark open_ids (ou_...)" },
     { key: "group_allow_from", label: "Group Allowed Users", type: "tags", help: "Separate allowlist for group senders" },
   ],

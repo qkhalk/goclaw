@@ -679,15 +679,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		messages = append(messages, assistantMsg)
 		pendingMsgs = append(pendingMsgs, assistantMsg)
 
-		// Track team_tasks create vs spawn for orphan detection
+		// Track team_tasks create for orphan detection (argument-based, pre-execution).
+		// Spawn counting is done post-execution so failed spawns don't get counted.
 		for _, tc := range resp.ToolCalls {
 			if tc.Name == "team_tasks" {
 				if action, _ := tc.Arguments["action"].(string); action == "create" {
 					teamTaskCreates++
-				}
-			} else if tc.Name == "spawn" {
-				if tid, _ := tc.Arguments["team_task_id"].(string); tid != "" {
-					teamTaskSpawns++
 				}
 			}
 		}
@@ -732,6 +729,13 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					errMsg = errMsg[:200] + "..."
 				}
 				slog.Warn("tool error", "agent", l.id, "tool", tc.Name, "error", errMsg)
+			}
+
+			// Count successful spawn calls for orphan detection (post-execution).
+			if tc.Name == "spawn" && !result.IsError {
+				if tid, _ := tc.Arguments["team_task_id"].(string); tid != "" {
+					teamTaskSpawns++
+				}
 			}
 
 			l.emit(AgentEvent{
@@ -852,6 +856,13 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 						errMsg = errMsg[:200] + "..."
 					}
 					slog.Warn("tool error", "agent", l.id, "tool", r.tc.Name, "error", errMsg)
+				}
+
+				// Count successful spawn calls for orphan detection (post-execution).
+				if r.tc.Name == "spawn" && !r.result.IsError {
+					if tid, _ := r.tc.Arguments["team_task_id"].(string); tid != "" {
+						teamTaskSpawns++
+					}
 				}
 
 				l.emit(AgentEvent{

@@ -108,7 +108,8 @@ export function AppRoutes() {
           <Route path={ROUTES.TRACE_DETAIL} element={<TracesPage key="detail" />} />
           <Route path={ROUTES.DELEGATIONS} element={<DelegationsPage />} />
           <Route path={ROUTES.USAGE} element={<UsagePage />} />
-          <Route path={ROUTES.CHANNELS} element={<ChannelsPage />} />
+          <Route path={ROUTES.CHANNELS} element={<ChannelsPage key="list" />} />
+          <Route path={ROUTES.CHANNEL_DETAIL} element={<ChannelsPage key="detail" />} />
           <Route path={ROUTES.APPROVALS} element={<ApprovalsPage />} />
           <Route path={ROUTES.NODES} element={<NodesPage />} />
           <Route path={ROUTES.LOGS} element={<LogsPage />} />

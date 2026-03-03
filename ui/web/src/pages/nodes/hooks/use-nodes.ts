@@ -64,6 +64,14 @@ export function useNodes() {
     [ws, load],
   );
 
+  const denyPairing = useCallback(
+    async (code: string) => {
+      await ws.call(Methods.PAIRING_DENY, { code });
+      load();
+    },
+    [ws, load],
+  );
+
   const revokePairing = useCallback(
     async (senderId: string, channel: string) => {
       await ws.call(Methods.PAIRING_REVOKE, { senderId, channel });
@@ -72,5 +80,5 @@ export function useNodes() {
     [ws, load],
   );
 
-  return { pendingPairings, pairedDevices, loading, refresh: load, approvePairing, revokePairing };
+  return { pendingPairings, pairedDevices, loading, refresh: load, approvePairing, denyPairing, revokePairing };
 }

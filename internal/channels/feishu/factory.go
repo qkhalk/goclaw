@@ -34,6 +34,7 @@ type feishuInstanceConfig struct {
 	MediaMaxMB       int      `json:"media_max_mb,omitempty"`
 	RenderMode       string   `json:"render_mode,omitempty"`
 	Streaming        *bool    `json:"streaming,omitempty"`
+	ReactionLevel    string   `json:"reaction_level,omitempty"`
 	HistoryLimit     int      `json:"history_limit,omitempty"`
 }
 
@@ -78,6 +79,7 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 		MediaMaxMB:        ic.MediaMaxMB,
 		RenderMode:        ic.RenderMode,
 		Streaming:         ic.Streaming,
+		ReactionLevel:     ic.ReactionLevel,
 		HistoryLimit:      ic.HistoryLimit,
 	}
 

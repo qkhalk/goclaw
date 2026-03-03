@@ -139,10 +139,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 		// Register run with channel manager for streaming/reaction event forwarding.
 		// Use localKey (composite key with topic suffix) so streaming/reaction events
 		// route to the correct per-topic state in the channel.
-		messageID := 0
-		if mid := msg.Metadata["message_id"]; mid != "" {
-			fmt.Sscanf(mid, "%d", &messageID)
-		}
+		messageID := msg.Metadata["message_id"]
 		chatIDForRun := msg.ChatID
 		if lk := msg.Metadata["local_key"]; lk != "" {
 			chatIDForRun = lk

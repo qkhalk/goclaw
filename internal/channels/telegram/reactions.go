@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 
@@ -231,9 +232,9 @@ func (rc *StatusReactionController) cancelStall() {
 // --- ReactionChannel implementation ---
 
 // OnReactionEvent handles agent status change events and updates the reaction emoji.
-// messageID is the original user message that triggered the agent run.
+// messageID is the original user message that triggered the agent run (string for cross-platform compat).
 // chatID here is the localKey (composite key with :topic:N suffix for forum topics).
-func (c *Channel) OnReactionEvent(ctx context.Context, chatID string, messageID int, status string) error {
+func (c *Channel) OnReactionEvent(ctx context.Context, chatID string, messageID string, status string) error {
 	if c.config.ReactionLevel == "" || c.config.ReactionLevel == "off" {
 		return nil
 	}
@@ -243,6 +244,11 @@ func (c *Channel) OnReactionEvent(ctx context.Context, chatID string, messageID 
 		return nil
 	}
 
+	msgID, err := strconv.Atoi(messageID)
+	if err != nil || msgID == 0 {
+		return nil // not a Telegram message ID
+	}
+
 	id, err := parseRawChatID(chatID)
 	if err != nil {
 		return err
@@ -250,8 +256,8 @@ func (c *Channel) OnReactionEvent(ctx context.Context, chatID string, messageID 
 
 	// Get or create reaction controller for this message.
 	// Key by messageID so concurrent runs in the same chat don't clash.
-	key := fmt.Sprintf("%s:%d", chatID, messageID)
-	val, _ := c.reactions.LoadOrStore(key, newStatusReactionController(c.bot, id, messageID))
+	key := fmt.Sprintf("%s:%s", chatID, messageID)
+	val, _ := c.reactions.LoadOrStore(key, newStatusReactionController(c.bot, id, msgID))
 	rc := val.(*StatusReactionController)
 
 	rc.SetStatus(ctx, status)
@@ -265,14 +271,19 @@ func (c *Channel) OnReactionEvent(ctx context.Context, chatID string, messageID 
 }
 
 // ClearReaction removes the reaction from a message.
-func (c *Channel) ClearReaction(ctx context.Context, chatID string, messageID int) error {
+func (c *Channel) ClearReaction(ctx context.Context, chatID string, messageID string) error {
+	msgID, err := strconv.Atoi(messageID)
+	if err != nil || msgID == 0 {
+		return nil
+	}
+
 	id, err := parseRawChatID(chatID)
 	if err != nil {
 		return err
 	}
 
 	// Stop and remove controller if exists
-	key := fmt.Sprintf("%s:%d", chatID, messageID)
+	key := fmt.Sprintf("%s:%s", chatID, messageID)
 	if val, ok := c.reactions.LoadAndDelete(key); ok {
 		rc := val.(*StatusReactionController)
 		rc.Stop()
@@ -281,7 +292,7 @@ func (c *Channel) ClearReaction(ctx context.Context, chatID string, messageID in
 	// Clear reaction on the message
 	return c.bot.SetMessageReaction(ctx, &telego.SetMessageReactionParams{
 		ChatID:    tu.ID(id),
-		MessageID: messageID,
+		MessageID: msgID,
 		Reaction:  []telego.ReactionType{},
 	})
 }

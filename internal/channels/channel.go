@@ -99,10 +99,11 @@ type WebhookChannel interface {
 // ReactionChannel extends Channel with status reaction support.
 // Channels that implement this interface can show emoji reactions on user messages
 // to indicate agent status (thinking, tool call, done, error, stall).
+// messageID is a string to support platforms with non-integer IDs (e.g., Feishu "om_xxx").
 type ReactionChannel interface {
 	Channel
-	OnReactionEvent(ctx context.Context, chatID string, messageID int, status string) error
-	ClearReaction(ctx context.Context, chatID string, messageID int) error
+	OnReactionEvent(ctx context.Context, chatID string, messageID string, status string) error
+	ClearReaction(ctx context.Context, chatID string, messageID string) error
 }
 
 // BaseChannel provides shared functionality for all channel implementations.

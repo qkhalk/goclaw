@@ -27,6 +27,7 @@ export const queryKeys = {
   channels: {
     all: ["channels"] as const,
     list: (params: Record<string, unknown>) => ["channels", params] as const,
+    detail: (id: string) => ["channels", "detail", id] as const,
   },
   skills: {
     all: ["skills"] as const,

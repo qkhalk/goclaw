@@ -123,6 +123,7 @@ type FeishuConfig struct {
 	MediaMaxMB        int                 `json:"media_max_mb,omitempty"`       // default 30
 	RenderMode        string              `json:"render_mode,omitempty"`        // "auto", "raw", "card"
 	Streaming         *bool               `json:"streaming,omitempty"`          // default true
+	ReactionLevel     string              `json:"reaction_level,omitempty"`     // "off" (default), "minimal", "full" — typing emoji reactions
 	HistoryLimit      int                 `json:"history_limit,omitempty"`
 }
 

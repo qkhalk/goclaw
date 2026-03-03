@@ -46,7 +46,7 @@ func (c *Channel) fetchSenderName(ctx context.Context, openID string) string {
 
 // --- Policy checks ---
 
-func (c *Channel) checkGroupPolicy(senderID string) bool {
+func (c *Channel) checkGroupPolicy(senderID, chatID string) bool {
 	groupPolicy := c.cfg.GroupPolicy
 	if groupPolicy == "" {
 		groupPolicy = "open"
@@ -64,6 +64,26 @@ func (c *Channel) checkGroupPolicy(senderID string) bool {
 				return true
 			}
 		}
+		return false
+	case "pairing":
+		paired := false
+		if c.pairingService != nil {
+			paired = c.pairingService.IsPaired(senderID, c.Name())
+		}
+		inAllowList := c.HasAllowList() && c.IsAllowed(senderID)
+		inGroupAllowList := false
+		for _, allowed := range c.groupAllowList {
+			if senderID == allowed || strings.TrimPrefix(allowed, "@") == senderID {
+				inGroupAllowList = true
+				break
+			}
+		}
+
+		if paired || inAllowList || inGroupAllowList {
+			return true
+		}
+
+		c.sendPairingReply(senderID, chatID)
 		return false
 	default: // "open"
 		return true

@@ -38,6 +38,27 @@ func (s *PGAgentStore) RemoveGroupFileWriter(ctx context.Context, agentID uuid.U
 	return err
 }
 
+func (s *PGAgentStore) ListGroupFileWriterGroups(ctx context.Context, agentID uuid.UUID) ([]store.GroupWriterGroupInfo, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT group_id, COUNT(*) as writer_count FROM group_file_writers WHERE agent_id=$1 GROUP BY group_id ORDER BY group_id`,
+		agentID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var groups []store.GroupWriterGroupInfo
+	for rows.Next() {
+		var g store.GroupWriterGroupInfo
+		if err := rows.Scan(&g.GroupID, &g.WriterCount); err != nil {
+			return nil, err
+		}
+		groups = append(groups, g)
+	}
+	return groups, rows.Err()
+}
+
 func (s *PGAgentStore) ListGroupFileWriters(ctx context.Context, agentID uuid.UUID, groupID string) ([]store.GroupFileWriterData, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT user_id, display_name, username FROM group_file_writers WHERE agent_id=$1 AND group_id=$2 ORDER BY created_at`,

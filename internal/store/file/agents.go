@@ -326,6 +326,27 @@ func (s *FileAgentStore) RemoveGroupFileWriter(_ context.Context, agentID uuid.U
 	return err
 }
 
+func (s *FileAgentStore) ListGroupFileWriterGroups(_ context.Context, agentID uuid.UUID) ([]store.GroupWriterGroupInfo, error) {
+	rows, err := s.db.Query(
+		`SELECT group_id, COUNT(*) as writer_count FROM group_file_writers WHERE agent_id = ? GROUP BY group_id ORDER BY group_id`,
+		agentID.String(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var groups []store.GroupWriterGroupInfo
+	for rows.Next() {
+		var g store.GroupWriterGroupInfo
+		if err := rows.Scan(&g.GroupID, &g.WriterCount); err != nil {
+			return nil, err
+		}
+		groups = append(groups, g)
+	}
+	return groups, rows.Err()
+}
+
 func (s *FileAgentStore) ListGroupFileWriters(_ context.Context, agentID uuid.UUID, groupID string) ([]store.GroupFileWriterData, error) {
 	rows, err := s.db.Query(
 		`SELECT user_id, display_name, username FROM group_file_writers WHERE agent_id = ? AND group_id = ?`,

@@ -18,7 +18,7 @@ import (
 type RunContext struct {
 	ChannelName  string
 	ChatID       string
-	MessageID    int
+	MessageID    string // platform message ID (string to support Feishu "om_xxx", Telegram "12345", etc.)
 	mu           sync.Mutex
 	streamBuffer string // accumulated streaming text (chunks are deltas)
 	inToolPhase  bool   // true after tool.call, reset on next chunk (new LLM iteration)
@@ -260,7 +260,7 @@ func (m *Manager) SendToChannel(ctx context.Context, channelName, chatID, conten
 
 // RegisterRun associates a run ID with a channel context so agent events
 // (chunks, tool calls, completion) can be forwarded to the originating channel.
-func (m *Manager) RegisterRun(runID, channelName, chatID string, messageID int) {
+func (m *Manager) RegisterRun(runID, channelName, chatID, messageID string) {
 	m.runs.Store(runID, &RunContext{
 		ChannelName: channelName,
 		ChatID:      chatID,

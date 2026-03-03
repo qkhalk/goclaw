@@ -24,6 +24,7 @@ type PairedDeviceData struct {
 type PairingStore interface {
 	RequestPairing(senderID, channel, chatID, accountID string) (string, error)
 	ApprovePairing(code, approvedBy string) (*PairedDeviceData, error)
+	DenyPairing(code string) error
 	RevokePairing(senderID, channel string) error
 	IsPaired(senderID, channel string) bool
 	ListPending() []PairingRequestData

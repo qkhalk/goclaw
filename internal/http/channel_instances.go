@@ -15,14 +15,15 @@ import (
 
 // ChannelInstancesHandler handles channel instance CRUD endpoints (managed mode).
 type ChannelInstancesHandler struct {
-	store  store.ChannelInstanceStore
-	token  string
-	msgBus *bus.MessageBus
+	store      store.ChannelInstanceStore
+	agentStore store.AgentStore
+	token      string
+	msgBus     *bus.MessageBus
 }
 
 // NewChannelInstancesHandler creates a handler for channel instance management endpoints.
-func NewChannelInstancesHandler(s store.ChannelInstanceStore, token string, msgBus *bus.MessageBus) *ChannelInstancesHandler {
-	return &ChannelInstancesHandler{store: s, token: token, msgBus: msgBus}
+func NewChannelInstancesHandler(s store.ChannelInstanceStore, agentStore store.AgentStore, token string, msgBus *bus.MessageBus) *ChannelInstancesHandler {
+	return &ChannelInstancesHandler{store: s, agentStore: agentStore, token: token, msgBus: msgBus}
 }
 
 // RegisterRoutes registers all channel instance routes on the given mux.
@@ -32,6 +33,14 @@ func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/channels/instances/{id}", h.auth(h.handleGet))
 	mux.HandleFunc("PUT /v1/channels/instances/{id}", h.auth(h.handleUpdate))
 	mux.HandleFunc("DELETE /v1/channels/instances/{id}", h.auth(h.handleDelete))
+
+	// Group file writers (nested under channel instances)
+	if h.agentStore != nil {
+		mux.HandleFunc("GET /v1/channels/instances/{id}/writers/groups", h.auth(h.handleWriterGroups))
+		mux.HandleFunc("GET /v1/channels/instances/{id}/writers", h.auth(h.handleListWriters))
+		mux.HandleFunc("POST /v1/channels/instances/{id}/writers", h.auth(h.handleAddWriter))
+		mux.HandleFunc("DELETE /v1/channels/instances/{id}/writers/{userId}", h.auth(h.handleRemoveWriter))
+	}
 }
 
 func (h *ChannelInstancesHandler) auth(next http.HandlerFunc) http.HandlerFunc {
@@ -261,6 +270,108 @@ func maskInstanceHTTP(inst store.ChannelInstanceData) map[string]interface{} {
 	}
 
 	return result
+}
+
+// --- Group file writers ---
+
+// resolveAgentID looks up the channel instance and returns its agent_id.
+func (h *ChannelInstancesHandler) resolveAgentID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	instID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid instance ID"})
+		return uuid.Nil, false
+	}
+	inst, err := h.store.Get(r.Context(), instID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "instance not found"})
+		return uuid.Nil, false
+	}
+	return inst.AgentID, true
+}
+
+func (h *ChannelInstancesHandler) handleWriterGroups(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := h.resolveAgentID(w, r)
+	if !ok {
+		return
+	}
+	groups, err := h.agentStore.ListGroupFileWriterGroups(r.Context(), agentID)
+	if err != nil {
+		slog.Error("channel_instances.writer_groups", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list writer groups"})
+		return
+	}
+	if groups == nil {
+		groups = []store.GroupWriterGroupInfo{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"groups": groups})
+}
+
+func (h *ChannelInstancesHandler) handleListWriters(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := h.resolveAgentID(w, r)
+	if !ok {
+		return
+	}
+	groupID := r.URL.Query().Get("group_id")
+	if groupID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "group_id query parameter is required"})
+		return
+	}
+	writers, err := h.agentStore.ListGroupFileWriters(r.Context(), agentID, groupID)
+	if err != nil {
+		slog.Error("channel_instances.list_writers", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list writers"})
+		return
+	}
+	if writers == nil {
+		writers = []store.GroupFileWriterData{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"writers": writers})
+}
+
+func (h *ChannelInstancesHandler) handleAddWriter(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := h.resolveAgentID(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		GroupID     string `json:"group_id"`
+		UserID      string `json:"user_id"`
+		DisplayName string `json:"display_name"`
+		Username    string `json:"username"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	if body.GroupID == "" || body.UserID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "group_id and user_id are required"})
+		return
+	}
+	if err := h.agentStore.AddGroupFileWriter(r.Context(), agentID, body.GroupID, body.UserID, body.DisplayName, body.Username); err != nil {
+		slog.Error("channel_instances.add_writer", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to add writer"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "added"})
+}
+
+func (h *ChannelInstancesHandler) handleRemoveWriter(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := h.resolveAgentID(w, r)
+	if !ok {
+		return
+	}
+	userID := r.PathValue("userId")
+	groupID := r.URL.Query().Get("group_id")
+	if groupID == "" || userID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "group_id query parameter and userId path parameter are required"})
+		return
+	}
+	if err := h.agentStore.RemoveGroupFileWriter(r.Context(), agentID, groupID, userID); err != nil {
+		slog.Error("channel_instances.remove_writer", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to remove writer"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
 }
 
 // isValidChannelType checks if the channel type is supported.

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link as LinkIcon, RefreshCw, Check, Trash2 } from "lucide-react";
+import { Link as LinkIcon, RefreshCw, Check, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
@@ -16,12 +16,13 @@ import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 
 export function NodesPage() {
-  const { pendingPairings, pairedDevices, loading, refresh, approvePairing, revokePairing } = useNodes();
+  const { pendingPairings, pairedDevices, loading, refresh, approvePairing, denyPairing, revokePairing } = useNodes();
   const spinning = useMinLoading(loading);
   const isEmpty = pendingPairings.length === 0 && pairedDevices.length === 0;
   const showSkeleton = useDeferredLoading(loading && isEmpty);
   const [revokeTarget, setRevokeTarget] = useState<PairedDevice | null>(null);
   const [approveTarget, setApproveTarget] = useState<PendingPairing | null>(null);
+  const [denyTarget, setDenyTarget] = useState<PendingPairing | null>(null);
 
   return (
     <div className="p-6">
@@ -67,13 +68,23 @@ export function NodesPage() {
                           {formatRelativeTime(new Date(p.created_at))}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => setApproveTarget(p)}
-                        className="gap-1"
-                      >
-                        <Check className="h-3.5 w-3.5" /> Approve
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDenyTarget(p)}
+                          className="gap-1"
+                        >
+                          <X className="h-3.5 w-3.5" /> Deny
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setApproveTarget(p)}
+                          className="gap-1"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Approve
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -139,6 +150,21 @@ export function NodesPage() {
           onConfirm={async () => {
             await approvePairing(approveTarget.code);
             setApproveTarget(null);
+          }}
+        />
+      )}
+
+      {denyTarget && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setDenyTarget(null)}
+          title="Deny Pairing"
+          description={`Deny pairing request from ${denyTarget.channel}:${denyTarget.sender_id} (code: ${denyTarget.code})? The request will be removed.`}
+          confirmLabel="Deny"
+          variant="destructive"
+          onConfirm={async () => {
+            await denyPairing(denyTarget.code);
+            setDenyTarget(null);
           }}
         />
       )}

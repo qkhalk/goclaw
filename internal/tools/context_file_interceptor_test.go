@@ -80,6 +80,9 @@ func (s *stubAgentStore) RemoveGroupFileWriter(_ context.Context, _ uuid.UUID, _
 func (s *stubAgentStore) ListGroupFileWriters(_ context.Context, _ uuid.UUID, _ string) ([]store.GroupFileWriterData, error) {
 	return nil, nil
 }
+func (s *stubAgentStore) ListGroupFileWriterGroups(_ context.Context, _ uuid.UUID) ([]store.GroupWriterGroupInfo, error) {
+	return nil, nil
+}
 
 // ---- Tests ----
 

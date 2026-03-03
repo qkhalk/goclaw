@@ -60,7 +60,7 @@ func (c *Channel) handleMessageEvent(ctx context.Context, event *MessageEvent) {
 
 	// 4. Group policy
 	if mc.ChatType == "group" {
-		if !c.checkGroupPolicy(mc.SenderID) {
+		if !c.checkGroupPolicy(mc.SenderID, mc.ChatID) {
 			slog.Debug("feishu group message rejected by policy", "sender_id", mc.SenderID, "chat_id", mc.ChatID)
 			return
 		}

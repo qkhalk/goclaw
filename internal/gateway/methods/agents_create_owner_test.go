@@ -92,6 +92,9 @@ func (s *createCaptureStore) RemoveGroupFileWriter(_ context.Context, _ uuid.UUI
 func (s *createCaptureStore) ListGroupFileWriters(_ context.Context, _ uuid.UUID, _ string) ([]store.GroupFileWriterData, error) {
 	return nil, nil
 }
+func (s *createCaptureStore) ListGroupFileWriterGroups(_ context.Context, _ uuid.UUID) ([]store.GroupWriterGroupInfo, error) {
+	return nil, nil
+}
 
 // ---- helpers ----
 

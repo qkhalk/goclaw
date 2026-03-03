@@ -143,6 +143,46 @@ func (c *LarkClient) UpdateCardElement(ctx context.Context, cardID, elementID, c
 	return nil
 }
 
+// --- IM API: Reactions ---
+
+// AddMessageReaction adds an emoji reaction to a message.
+// Returns the reaction_id for later removal. emojiType: e.g. "Typing", "THUMBSUP".
+// Lark API: POST /open-apis/im/v1/messages/{message_id}/reactions
+func (c *LarkClient) AddMessageReaction(ctx context.Context, messageID, emojiType string) (string, error) {
+	path := fmt.Sprintf("/open-apis/im/v1/messages/%s/reactions", messageID)
+	body := map[string]interface{}{
+		"reaction_type": map[string]string{
+			"emoji_type": emojiType,
+		},
+	}
+	resp, err := c.doJSON(ctx, "POST", path, body)
+	if err != nil {
+		return "", err
+	}
+	if resp.Code != 0 {
+		return "", fmt.Errorf("add reaction: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	var result struct {
+		ReactionID string `json:"reaction_id"`
+	}
+	json.Unmarshal(resp.Data, &result)
+	return result.ReactionID, nil
+}
+
+// DeleteMessageReaction removes a reaction from a message.
+// Lark API: DELETE /open-apis/im/v1/messages/{message_id}/reactions/{reaction_id}
+func (c *LarkClient) DeleteMessageReaction(ctx context.Context, messageID, reactionID string) error {
+	path := fmt.Sprintf("/open-apis/im/v1/messages/%s/reactions/%s", messageID, reactionID)
+	resp, err := c.doJSON(ctx, "DELETE", path, nil)
+	if err != nil {
+		return err
+	}
+	if resp.Code != 0 {
+		return fmt.Errorf("delete reaction: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	return nil
+}
+
 // --- Bot API ---
 
 // GetBotInfo fetches the bot's identity from /open-apis/bot/v3/info.

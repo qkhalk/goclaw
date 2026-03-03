@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -389,11 +390,26 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 	// Enforce team_task_id for team members: every delegation must be tracked.
 	if dm.teamStore != nil && opts.TeamTaskID == uuid.Nil {
 		if team, _ := dm.teamStore.GetTeamForAgent(ctx, sourceAgentID); team != nil {
+			// List pending tasks so the LLM can retry with a correct task_id
+			// (common case: LLM called team_tasks create + spawn in parallel,
+			// hallucinated the task_id, uuid.Parse failed → uuid.Nil).
+			hint := ""
+			if tasks, err := dm.teamStore.ListTasks(ctx, team.ID, "newest", ""); err == nil {
+				var pendingIDs []string
+				for _, t := range tasks {
+					if t.Status == store.TeamTaskStatusPending {
+						pendingIDs = append(pendingIDs, fmt.Sprintf("%s (%s)", t.ID, t.Subject))
+					}
+				}
+				if len(pendingIDs) > 0 {
+					hint = fmt.Sprintf(" Pending tasks you already created: %s", strings.Join(pendingIDs, ", "))
+				}
+			}
 			return nil, nil, fmt.Errorf(
-				"you are part of team %q — create a team task first: "+
-					"team_tasks action=create, subject=<title>. "+
-					"Then pass the returned task_id as team_task_id parameter",
-				team.Name)
+				"spawn requires a valid team_task_id (UUID). "+
+					"Create a task first with team_tasks action=create, "+
+					"then pass the returned task id as team_task_id.%s",
+				hint)
 		}
 	}
 

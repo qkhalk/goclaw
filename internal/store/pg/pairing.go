@@ -94,6 +94,18 @@ func (s *PGPairingStore) ApprovePairing(code, approvedBy string) (*store.PairedD
 	}, nil
 }
 
+func (s *PGPairingStore) DenyPairing(code string) error {
+	result, err := s.db.Exec("DELETE FROM pairing_requests WHERE code = $1", code)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("pairing code %s not found or expired", code)
+	}
+	return nil
+}
+
 func (s *PGPairingStore) RevokePairing(senderID, channel string) error {
 	result, err := s.db.Exec("DELETE FROM paired_devices WHERE sender_id = $1 AND channel = $2", senderID, channel)
 	if err != nil {

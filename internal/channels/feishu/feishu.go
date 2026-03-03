@@ -38,12 +38,19 @@ type Channel struct {
 	senderCache     sync.Map // open_id → *senderCacheEntry
 	dedup           sync.Map // message_id → struct{}
 	pairingDebounce sync.Map // senderID → time.Time
+	reactions       sync.Map // chatID → *reactionState
 	groupAllowList  []string
 	groupHistory    *channels.PendingHistory
 	historyLimit    int
 	stopCh          chan struct{}
 	httpServer      *http.Server
 	wsClient        *WSClient
+}
+
+// reactionState tracks an active typing reaction on a user's message.
+type reactionState struct {
+	messageID  string // Lark message ID (om_xxx)
+	reactionID string // reaction ID returned by API for deletion
 }
 
 type senderCacheEntry struct {
@@ -429,6 +436,67 @@ func (c *Channel) isDuplicate(messageID string) bool {
 	return loaded
 }
 
-// Ensure Channel implements the channels.Channel and WebhookChannel interfaces at compile time.
+// --- ReactionChannel implementation ---
+
+const typingEmoji = "Typing" // Lark emoji type for typing indicator (matching TS)
+
+// OnReactionEvent handles agent status change events by adding/removing a typing reaction
+// on the user's original message. messageID is the Lark message ID (e.g. "om_xxx").
+func (c *Channel) OnReactionEvent(ctx context.Context, chatID string, messageID string, status string) error {
+	if c.cfg.ReactionLevel == "off" || messageID == "" {
+		return nil
+	}
+
+	// Minimal mode: only act on terminal states.
+	if c.cfg.ReactionLevel == "minimal" && status != "done" && status != "error" {
+		return nil
+	}
+
+	// Terminal states: remove typing reaction.
+	if status == "done" || status == "error" {
+		return c.removeTypingReaction(ctx, chatID)
+	}
+
+	// Active states (thinking, tool): add typing reaction if not already present.
+	if _, loaded := c.reactions.Load(chatID); loaded {
+		return nil // already has a reaction
+	}
+
+	reactionID, err := c.client.AddMessageReaction(ctx, messageID, typingEmoji)
+	if err != nil {
+		slog.Debug("feishu: add typing reaction failed", "message_id", messageID, "error", err)
+		return nil // non-critical, don't fail the run
+	}
+
+	c.reactions.Store(chatID, &reactionState{
+		messageID:  messageID,
+		reactionID: reactionID,
+	})
+	return nil
+}
+
+// ClearReaction removes the typing reaction from a message.
+func (c *Channel) ClearReaction(ctx context.Context, chatID string, _ string) error {
+	return c.removeTypingReaction(ctx, chatID)
+}
+
+// removeTypingReaction removes the stored typing reaction for a chatID.
+func (c *Channel) removeTypingReaction(ctx context.Context, chatID string) error {
+	val, ok := c.reactions.LoadAndDelete(chatID)
+	if !ok {
+		return nil
+	}
+	rs := val.(*reactionState)
+	if rs.reactionID == "" {
+		return nil
+	}
+	if err := c.client.DeleteMessageReaction(ctx, rs.messageID, rs.reactionID); err != nil {
+		slog.Debug("feishu: remove typing reaction failed", "message_id", rs.messageID, "error", err)
+	}
+	return nil
+}
+
+// Ensure Channel implements the channels.Channel, WebhookChannel, and ReactionChannel interfaces at compile time.
 var _ channels.Channel = (*Channel)(nil)
 var _ channels.WebhookChannel = (*Channel)(nil)
+var _ channels.ReactionChannel = (*Channel)(nil)

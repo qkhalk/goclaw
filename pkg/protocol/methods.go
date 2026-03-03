@@ -65,6 +65,7 @@ const (
 
 	MethodPairingRequest = "device.pair.request"
 	MethodPairingApprove = "device.pair.approve"
+	MethodPairingDeny    = "device.pair.deny"
 	MethodPairingList    = "device.pair.list"
 	MethodPairingRevoke  = "device.pair.revoke"
 

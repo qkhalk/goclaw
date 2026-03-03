@@ -16,6 +16,7 @@ export const ROUTES = {
   DELEGATIONS: "/delegations",
   USAGE: "/usage",
   CHANNELS: "/channels",
+  CHANNEL_DETAIL: "/channels/:id",
   APPROVALS: "/approvals",
   NODES: "/nodes",
   LOGS: "/logs",

@@ -167,6 +167,22 @@ func (s *Service) ApprovePairing(code, approvedBy string) (*PairedDevice, error)
 	return nil, fmt.Errorf("pairing code %s not found or expired", code)
 }
 
+// DenyPairing removes a pending pairing request by code.
+func (s *Service) DenyPairing(code string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i, req := range s.store.Pending {
+		if req.Code == code {
+			s.store.Pending = append(s.store.Pending[:i], s.store.Pending[i+1:]...)
+			s.save()
+			slog.Info("pairing denied", "code", code, "sender", req.SenderID, "channel", req.Channel)
+			return nil
+		}
+	}
+	return fmt.Errorf("pairing code %s not found or expired", code)
+}
+
 // RevokePairing removes a paired device.
 func (s *Service) RevokePairing(senderID, channel string) error {
 	s.mu.Lock()

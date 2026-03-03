@@ -103,6 +103,7 @@ export const Methods = {
 
   PAIRING_REQUEST: "device.pair.request",
   PAIRING_APPROVE: "device.pair.approve",
+  PAIRING_DENY: "device.pair.deny",
   PAIRING_LIST: "device.pair.list",
   PAIRING_REVOKE: "device.pair.revoke",
 

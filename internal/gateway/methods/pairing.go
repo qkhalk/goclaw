@@ -31,6 +31,7 @@ func (m *PairingMethods) SetOnApprove(cb PairingApproveCallback) {
 func (m *PairingMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodPairingRequest, m.handleRequest)
 	router.Register(protocol.MethodPairingApprove, m.handleApprove)
+	router.Register(protocol.MethodPairingDeny, m.handleDeny)
 	router.Register(protocol.MethodPairingList, m.handleList)
 	router.Register(protocol.MethodPairingRevoke, m.handleRevoke)
 	router.Register(protocol.MethodBrowserPairingStatus, m.handleBrowserPairingStatus)
@@ -98,6 +99,29 @@ func (m *PairingMethods) handleApprove(ctx context.Context, client *gateway.Clie
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
 		"paired": paired,
+	}))
+}
+
+func (m *PairingMethods) handleDeny(_ context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	var params struct {
+		Code string `json:"code"`
+	}
+	if req.Params != nil {
+		json.Unmarshal(req.Params, &params)
+	}
+
+	if params.Code == "" {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, "code is required"))
+		return
+	}
+
+	if err := m.service.DenyPairing(params.Code); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, err.Error()))
+		return
+	}
+
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
+		"denied": true,
 	}))
 }
 

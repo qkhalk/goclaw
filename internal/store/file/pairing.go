@@ -35,6 +35,10 @@ func (f *FilePairingStore) ApprovePairing(code, approvedBy string) (*store.Paire
 	}, nil
 }
 
+func (f *FilePairingStore) DenyPairing(code string) error {
+	return f.svc.DenyPairing(code)
+}
+
 func (f *FilePairingStore) RevokePairing(senderID, channel string) error {
 	return f.svc.RevokePairing(senderID, channel)
 }
