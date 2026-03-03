@@ -44,10 +44,9 @@ func (c *Channel) parseMessageEvent(event *MessageEvent) *messageContext {
 		}
 	}
 
-	// Strip bot mention from content
-	if mentionedBot && c.botOpenID != "" {
-		content = stripBotMention(content, mentions, c.botOpenID)
-	}
+	// Replace mention placeholders with readable names.
+	// Bot mention is stripped entirely; other user mentions become @Name.
+	content = resolveMentions(content, mentions, c.botOpenID)
 
 	return &messageContext{
 		ChatID:       chatID,
@@ -180,10 +179,19 @@ func parsePostContent(rawContent string) string {
 	return strings.Join(textParts, "\n")
 }
 
-func stripBotMention(text string, mentions []mentionInfo, botOpenID string) string {
+// resolveMentions replaces mention placeholders (@_user_1, @_user_2, etc.) in content.
+// Bot mention is stripped entirely; other user mentions become @Name.
+func resolveMentions(text string, mentions []mentionInfo, botOpenID string) string {
 	for _, m := range mentions {
-		if m.OpenID == botOpenID && m.Key != "" {
+		if m.Key == "" {
+			continue
+		}
+		if botOpenID != "" && m.OpenID == botOpenID {
+			// Strip bot mention
 			text = strings.ReplaceAll(text, m.Key, "")
+		} else if m.Name != "" {
+			// Replace with @Name
+			text = strings.ReplaceAll(text, m.Key, "@"+m.Name)
 		}
 	}
 	return strings.TrimSpace(text)
