@@ -144,14 +144,14 @@ export function TraceDetailDialog({ traceId, onClose, getTrace, onNavigateTrace 
             {trace.input_preview && (
               <div className="rounded-md border p-3">
                 <p className="mb-1 text-xs font-medium text-muted-foreground">Input</p>
-                <pre className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-all text-sm">{trace.input_preview}</pre>
+                <pre className="max-h-[20vh] overflow-y-auto whitespace-pre-wrap break-all text-sm">{trace.input_preview}</pre>
               </div>
             )}
 
             {trace.output_preview && (
               <div className="rounded-md border p-3">
                 <p className="mb-1 text-xs font-medium text-muted-foreground">Output</p>
-                <pre className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-all text-sm">{trace.output_preview}</pre>
+                <pre className="max-h-[20vh] overflow-y-auto whitespace-pre-wrap break-all text-sm">{trace.output_preview}</pre>
               </div>
             )}
 
@@ -245,7 +245,7 @@ function SpanTreeNode({ node, depth }: { node: SpanNode; depth: number }) {
 
         {/* Expanded detail panel */}
         {detailOpen && (
-          <div className="space-y-2 overflow-hidden border-t px-3 py-2">
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto border-t px-3 py-2">
             {span.model && (
               <div className="text-xs">
                 <span className="text-muted-foreground">Model:</span> {span.provider}/{span.model}
@@ -277,7 +277,7 @@ function SpanTreeNode({ node, depth }: { node: SpanNode; depth: number }) {
             {span.input_preview && (
               <div>
                 <p className="text-xs text-muted-foreground">Input:</p>
-                <pre className="mt-1 max-h-[40vh] overflow-y-auto break-all whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">
+                <pre className="mt-1 max-h-[20vh] overflow-y-auto break-all whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">
                   {span.input_preview}
                 </pre>
               </div>
@@ -285,7 +285,7 @@ function SpanTreeNode({ node, depth }: { node: SpanNode; depth: number }) {
             {span.output_preview && (
               <div>
                 <p className="text-xs text-muted-foreground">Output:</p>
-                <pre className="mt-1 max-h-[40vh] overflow-y-auto break-all whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">
+                <pre className="mt-1 max-h-[20vh] overflow-y-auto break-all whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">
                   {span.output_preview}
                 </pre>
               </div>

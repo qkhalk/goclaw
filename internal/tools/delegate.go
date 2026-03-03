@@ -86,8 +86,9 @@ type DelegateRunResult struct {
 // Used to accumulate artifacts from intermediate completions until the final
 // announce fires. New artifact types (files, voice, etc.) should be added here.
 type DelegateArtifacts struct {
-	Media   []string                // file paths to forward (images, documents, audio, etc.)
-	Results []DelegateResultSummary // result summaries from completed delegations
+	Media            []string                // file paths to forward (images, documents, audio, etc.)
+	Results          []DelegateResultSummary // result summaries from completed delegations
+	CompletedTaskIDs []string                // team task IDs auto-completed by delegations (for announce context)
 }
 
 // DelegateResultSummary is a compact representation of a delegation result
@@ -180,6 +181,7 @@ func (dm *DelegateManager) Delegate(ctx context.Context, opts DelegateOpts) (*De
 		dm.active.Delete(task.ID)
 	}()
 
+	dm.injectDependencyResults(ctx, &opts)
 	message := buildDelegateMessage(opts)
 	dm.emitEvent("delegation.started", task)
 	slog.Info("delegation started", "id", task.ID, "target", opts.TargetAgentKey, "mode", "sync")
@@ -238,6 +240,7 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 		taskCtx = tracing.WithDelegateParentTraceID(taskCtx, parentTraceID)
 	}
 
+	dm.injectDependencyResults(ctx, &opts)
 	message := buildDelegateMessage(opts)
 	dm.emitEvent("delegation.started", task)
 	slog.Info("delegation started (async)", "id", task.ID, "target", opts.TargetAgentKey)
@@ -286,6 +289,9 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 						Content:  fmt.Sprintf("[failed] %s", runErr.Error()),
 					}}
 				}
+				if task.TeamTaskID != uuid.Nil {
+					arts.CompletedTaskIDs = []string{task.TeamTaskID.String()}
+				}
 				dm.accumulateArtifacts(task.SourceAgentID, arts)
 				slog.Info("delegation announce suppressed (siblings still running)",
 					"id", task.ID, "target", task.TargetAgentKey, "siblings", siblingCount)
@@ -300,6 +306,9 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 						HasMedia:     len(result.MediaPaths) > 0,
 						Deliverables: result.Deliverables,
 					})
+				}
+				if task.TeamTaskID != uuid.Nil {
+					artifacts.CompletedTaskIDs = append(artifacts.CompletedTaskIDs, task.TeamTaskID.String())
 				}
 
 				announceMeta := map[string]string{
@@ -417,13 +426,47 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 			}
 			return nil, nil, fmt.Errorf("team_task_id %s not found.%s", opts.TeamTaskID, hint)
 		}
+
+		// Guard: scope task to current user_id (prevent cross-group task leak).
+		// user_id is the GROUP composite ID (e.g. "group:telegram:-1003701523276"), NOT the sender.
+		// Delegate/system channels skip this check — they operate cross-context by design.
+		currentUserID := store.UserIDFromContext(ctx)
+		channel := ToolChannelFromCtx(ctx)
+		if channel != "delegate" && channel != "system" &&
+			teamTask.UserID != "" && currentUserID != "" && teamTask.UserID != currentUserID {
+			hint := ""
+			if team != nil {
+				hint = dm.pendingTasksHint(ctx, team.ID)
+			}
+			return nil, nil, fmt.Errorf(
+				"team_task_id %s belongs to a different context. "+
+					"Create a new task with team_tasks action=create.%s",
+				opts.TeamTaskID, hint)
+		}
+
+		// Guard: reject completed/cancelled tasks — enforce "one task per delegation".
+		if teamTask.Status == store.TeamTaskStatusCompleted || teamTask.Status == "cancelled" {
+			hint := ""
+			if team != nil {
+				hint = dm.pendingTasksHint(ctx, team.ID)
+			}
+			ownerLabel := "another agent"
+			if teamTask.OwnerAgentKey != "" {
+				ownerLabel = teamTask.OwnerAgentKey
+			}
+			return nil, nil, fmt.Errorf(
+				"team_task_id %s is already %s (completed by %q). "+
+					"Create a new task with team_tasks action=create for this delegation.%s",
+				opts.TeamTaskID, teamTask.Status, ownerLabel, hint)
+		}
+
 		if team != nil {
 			if teamTask.TeamID != team.ID {
 				return nil, nil, fmt.Errorf("team_task_id does not belong to your team")
 			}
 			userID := store.UserIDFromContext(ctx)
-			channel := ToolChannelFromCtx(ctx)
-			if err := checkTeamAccess(team.Settings, userID, channel); err != nil {
+			ch := ToolChannelFromCtx(ctx)
+			if err := checkTeamAccess(team.Settings, userID, ch); err != nil {
 				return nil, nil, fmt.Errorf("team access denied: %w", err)
 			}
 		}
@@ -491,6 +534,47 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 	}
 
 	return task, link, nil
+}
+
+// injectDependencyResults fetches completed dependency results for a task's
+// blocked_by prerequisites and prepends them to opts.Context. This ensures the
+// delegate agent receives prior results without needing to search for them.
+func (dm *DelegateManager) injectDependencyResults(ctx context.Context, opts *DelegateOpts) {
+	if dm.teamStore == nil || opts.TeamTaskID == uuid.Nil {
+		return
+	}
+	teamTask, err := dm.teamStore.GetTask(ctx, opts.TeamTaskID)
+	if err != nil || len(teamTask.BlockedBy) == 0 {
+		return
+	}
+
+	var depContext []string
+	for _, depID := range teamTask.BlockedBy {
+		dep, err := dm.teamStore.GetTask(ctx, depID)
+		if err != nil || dep.Result == nil || *dep.Result == "" {
+			continue
+		}
+		result := *dep.Result
+		if len(result) > 8000 {
+			result = result[:8000] + "\n[...truncated]"
+		}
+		agentLabel := dep.OwnerAgentKey
+		if agentLabel == "" {
+			agentLabel = "unknown"
+		}
+		depContext = append(depContext, fmt.Sprintf(
+			"--- Result from dependency task %q (id=%s, by %s) ---\n%s",
+			dep.Subject, dep.ID, agentLabel, result))
+	}
+
+	if len(depContext) > 0 {
+		injected := strings.Join(depContext, "\n\n")
+		if opts.Context != "" {
+			opts.Context = injected + "\n\n" + opts.Context
+		} else {
+			opts.Context = injected
+		}
+	}
 }
 
 func buildDelegateMessage(opts DelegateOpts) string {

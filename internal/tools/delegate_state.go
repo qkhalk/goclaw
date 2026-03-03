@@ -81,6 +81,7 @@ func (dm *DelegateManager) accumulateArtifacts(sourceAgentID uuid.UUID, arts *De
 	}
 	merged.Media = append(merged.Media, arts.Media...)
 	merged.Results = append(merged.Results, arts.Results...)
+	merged.CompletedTaskIDs = append(merged.CompletedTaskIDs, arts.CompletedTaskIDs...)
 	dm.pendingArtifacts.Store(key, &merged)
 }
 
