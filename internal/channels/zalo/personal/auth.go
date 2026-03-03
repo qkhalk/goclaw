@@ -92,7 +92,7 @@ func saveCredentials(path string, cred *protocol.Credentials) error {
 	if cred == nil {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(cred, "", "  ")

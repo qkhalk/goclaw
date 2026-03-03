@@ -19,8 +19,7 @@ version:
 COMPOSE = docker compose -f docker-compose.yml -f docker-compose.managed.yml -f docker-compose.selfservice.yml
 
 up:
-	$(COMPOSE) build --no-cache
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --build
 
 down:
 	$(COMPOSE) down

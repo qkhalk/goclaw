@@ -50,7 +50,8 @@ func (c *Channel) checkDMPolicy(senderID, chatID string) bool {
 }
 
 func (c *Channel) sendPairingReply(senderID, chatID string) {
-	if c.pairingService == nil || c.sess == nil {
+	sess := c.session()
+	if c.pairingService == nil || sess == nil {
 		return
 	}
 
@@ -74,7 +75,7 @@ func (c *Channel) sendPairingReply(senderID, chatID string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := protocol.SendMessage(ctx, c.sess, chatID, protocol.ThreadTypeUser, replyText); err != nil {
+	if _, err := protocol.SendMessage(ctx, sess, chatID, protocol.ThreadTypeUser, replyText); err != nil {
 		slog.Warn("zalo_personal: failed to send pairing reply", "error", err)
 	} else {
 		c.pairingDebounce.Store(senderID, time.Now())
@@ -103,7 +104,12 @@ func (c *Channel) checkGroupPolicy(senderID, groupID string, mentions []*protoco
 
 	// @mention gating: only process group messages that @mention the bot.
 	if c.requireMention {
-		if !isBotMentioned(c.sess.UID, mentions) {
+		sess := c.session()
+		botUID := ""
+		if sess != nil {
+			botUID = sess.UID
+		}
+		if !isBotMentioned(botUID, mentions) {
 			slog.Debug("zalo_personal group message skipped: not mentioned",
 				"group_id", groupID,
 				"sender_id", senderID,
