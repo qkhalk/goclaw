@@ -216,10 +216,11 @@ func maskInstance(inst store.ChannelInstanceData) map[string]interface{} {
 		"agent_id":     inst.AgentID,
 		"config":       inst.Config,
 		"enabled":      inst.Enabled,
-		"is_default":   store.IsDefaultChannelInstance(inst.Name),
-		"created_by":   inst.CreatedBy,
-		"created_at":   inst.CreatedAt,
-		"updated_at":   inst.UpdatedAt,
+		"is_default":       store.IsDefaultChannelInstance(inst.Name),
+		"has_credentials":  len(inst.Credentials) > 0,
+		"created_by":       inst.CreatedBy,
+		"created_at":       inst.CreatedAt,
+		"updated_at":       inst.UpdatedAt,
 	}
 
 	// Mask credentials: show keys with "***" values

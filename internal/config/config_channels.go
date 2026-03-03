@@ -6,8 +6,9 @@ type ChannelsConfig struct {
 	Discord  DiscordConfig  `json:"discord"`
 	Slack    SlackConfig    `json:"slack"`
 	WhatsApp WhatsAppConfig `json:"whatsapp"`
-	Zalo     ZaloConfig     `json:"zalo"`
-	Feishu   FeishuConfig   `json:"feishu"`
+	Zalo         ZaloConfig         `json:"zalo"`
+	ZaloPersonal ZaloPersonalConfig `json:"zalo_personal"`
+	Feishu       FeishuConfig       `json:"feishu"`
 }
 
 type TelegramConfig struct {
@@ -101,6 +102,15 @@ type ZaloConfig struct {
 	WebhookURL    string              `json:"webhook_url,omitempty"`
 	WebhookSecret string              `json:"webhook_secret,omitempty"`
 	MediaMaxMB    int                 `json:"media_max_mb,omitempty"` // default 5
+}
+
+type ZaloPersonalConfig struct {
+	Enabled         bool                `json:"enabled"`
+	AllowFrom       FlexibleStringSlice `json:"allow_from"`
+	DMPolicy        string              `json:"dm_policy,omitempty"`        // "pairing" (default), "allowlist", "open", "disabled"
+	GroupPolicy     string              `json:"group_policy,omitempty"`     // "open" (default), "allowlist", "disabled"
+	RequireMention  *bool               `json:"require_mention,omitempty"`  // require @bot mention in groups (default true)
+	CredentialsPath string              `json:"credentials_path,omitempty"` // path to saved cookies JSON (standalone)
 }
 
 type FeishuConfig struct {

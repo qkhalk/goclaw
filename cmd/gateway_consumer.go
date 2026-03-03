@@ -209,7 +209,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 		if mid := msg.Metadata["message_id"]; mid != "" {
 			outMeta["reply_to_message_id"] = mid
 		}
-		for _, k := range []string{"message_thread_id", "local_key", "placeholder_key"} {
+		for _, k := range []string{"message_thread_id", "local_key", "placeholder_key", "group_id"} {
 			if v := msg.Metadata[k]; v != "" {
 				outMeta[k] = v
 			}

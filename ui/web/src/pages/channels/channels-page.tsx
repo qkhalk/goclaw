@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
-import { Radio, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Radio, Plus, RefreshCw, Pencil, Trash2, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useChannels } from "./hooks/use-channels";
 import { useChannelInstances, type ChannelInstanceData, type ChannelInstanceInput } from "./hooks/use-channel-instances";
 import { ChannelInstanceFormDialog } from "./channel-instance-form-dialog";
+import { channelsWithAuth, standaloneAuthDialogs } from "./channel-wizard-registry";
 import { ChannelsStatusView, channelTypeLabels } from "./channels-status-view";
 import { ChannelDetailPage } from "./channel-detail/channel-detail-page";
 import { useAgents } from "@/pages/agents/hooks/use-agents";
@@ -32,6 +33,8 @@ export function ChannelsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ChannelInstanceData | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editInstance, setEditInstance] = useState<ChannelInstanceData | null>(null);
+  const [qrTarget, setQrTarget] = useState<ChannelInstanceData | null>(null);
 
   const pendingSearchRef = useRef("");
   const flushSearch = useDebouncedCallback(() => {
@@ -47,7 +50,7 @@ export function ChannelsPage() {
 
   const {
     instances, total, loading: instancesLoading, supported,
-    refresh: refreshInstances, createInstance, deleteInstance,
+    refresh: refreshInstances, createInstance, updateInstance, deleteInstance,
   } = useChannelInstances({
     search: debouncedSearch || undefined,
     limit: pageSize,
@@ -76,7 +79,16 @@ export function ChannelsPage() {
   }
 
   const handleCreate = async (data: ChannelInstanceInput) => {
-    await createInstance(data);
+    return await createInstance(data);
+  };
+
+  const handleEdit = async (data: ChannelInstanceInput) => {
+    if (!editInstance) return;
+    await updateInstance(editInstance.id, data);
+  };
+
+  const handleUpdate = async (id: string, data: Partial<ChannelInstanceInput>) => {
+    await updateInstance(id, data);
   };
 
   const handleDelete = async () => {
@@ -196,6 +208,23 @@ export function ChannelsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {channelsWithAuth.has(inst.channel_type) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title={status?.running ? "Re-authenticate" : "Authenticate to start channel"}
+                              onClick={(e) => { e.stopPropagation(); setQrTarget(inst); }}
+                            >
+                              <QrCode className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); setEditInstance(inst); setFormOpen(true); }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
                           {!inst.is_default && (
                             <Button
                               variant="ghost"
@@ -227,10 +256,17 @@ export function ChannelsPage() {
 
       <ChannelInstanceFormDialog
         open={formOpen}
-        onOpenChange={setFormOpen}
-        instance={null}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) {
+            setEditInstance(null);
+            setTimeout(() => refresh(), 1500);
+          }
+        }}
+        instance={editInstance}
         agents={agents}
-        onSubmit={handleCreate}
+        onSubmit={editInstance ? handleEdit : handleCreate}
+        onUpdate={handleUpdate}
       />
 
       <ConfirmDialog
@@ -243,6 +279,24 @@ export function ChannelsPage() {
         onConfirm={handleDelete}
         loading={deleteLoading}
       />
+
+      {qrTarget && (() => {
+        const AuthDialog = standaloneAuthDialogs[qrTarget.channel_type];
+        return AuthDialog ? (
+          <AuthDialog
+            open={!!qrTarget}
+            onOpenChange={(v) => !v && setQrTarget(null)}
+            instanceId={qrTarget.id}
+            instanceName={qrTarget.display_name || qrTarget.name}
+            onSuccess={() => {
+              setQrTarget(null);
+              // Backend reload is async (~2-3s: stop → sleep → restart).
+              // Refresh after reload has time to complete.
+              setTimeout(() => refresh(), 3000);
+            }}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

@@ -166,6 +166,10 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 	if err != nil {
 		return err
 	}
+	if ch == nil {
+		slog.Info("channel instance not ready (missing credentials)", "name", inst.Name, "type", inst.ChannelType)
+		return nil
+	}
 
 	// Resolve agent_key from UUID — the routing system (Router, session keys) uses agent_key, not UUID.
 	if base, ok := ch.(interface{ SetAgentID(string) }); ok {

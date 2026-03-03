@@ -18,6 +18,8 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels/telegram"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/whatsapp"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo"
+	zalopersonal "github.com/nextlevelbuilder/goclaw/internal/channels/zalo/personal"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo/personal/zalomethods"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/cron"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
@@ -704,6 +706,7 @@ func runGateway() {
 		instanceLoader.RegisterFactory("discord", discord.Factory)
 		instanceLoader.RegisterFactory("feishu", feishu.Factory)
 		instanceLoader.RegisterFactory("zalo_oa", zalo.Factory)
+		instanceLoader.RegisterFactory("zalo_personal", zalopersonal.Factory)
 		instanceLoader.RegisterFactory("whatsapp", whatsapp.Factory)
 		if err := instanceLoader.LoadAll(context.Background()); err != nil {
 			slog.Error("failed to load channel instances from DB", "error", err)
@@ -752,6 +755,16 @@ func runGateway() {
 		}
 	}
 
+	if cfg.Channels.ZaloPersonal.Enabled && instanceLoader == nil {
+		zp, err := zalopersonal.New(cfg.Channels.ZaloPersonal, msgBus, pairingStore)
+		if err != nil {
+			slog.Error("failed to initialize zca channel", "error", err)
+		} else {
+			channelMgr.RegisterChannel("zalo_personal", zp)
+			slog.Info("zca (zalo personal) channel enabled (config)")
+		}
+	}
+
 	if cfg.Channels.Feishu.Enabled && cfg.Channels.Feishu.AppID != "" && instanceLoader == nil {
 		f, err := feishu.New(cfg.Channels.Feishu, msgBus, pairingStore)
 		if err != nil {
@@ -778,6 +791,8 @@ func runGateway() {
 	// Register channel instances WS RPC methods (managed mode only)
 	if managedStores != nil && managedStores.ChannelInstances != nil {
 		methods.NewChannelInstancesMethods(managedStores.ChannelInstances, msgBus).Register(server.Router())
+		zalomethods.NewQRMethods(managedStores.ChannelInstances, msgBus).Register(server.Router())
+		zalomethods.NewContactsMethods(managedStores.ChannelInstances).Register(server.Router())
 	}
 
 	// Register agent links WS RPC methods (managed mode only)

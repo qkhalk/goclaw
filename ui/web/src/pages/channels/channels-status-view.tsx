@@ -12,6 +12,7 @@ const channelTypeLabels: Record<string, string> = {
   discord: "Discord",
   feishu: "Feishu / Lark",
   zalo_oa: "Zalo OA",
+  zalo_personal: "Zalo Personal",
   whatsapp: "WhatsApp",
 };
 

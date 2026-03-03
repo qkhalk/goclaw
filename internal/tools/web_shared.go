@@ -159,9 +159,9 @@ func isPrivateIP(ipStr string) bool {
 	return false
 }
 
-// checkSSRF validates a URL against SSRF attacks.
+// CheckSSRF validates a URL against SSRF attacks.
 // Returns an error if the URL targets a private/blocked host.
-func checkSSRF(rawURL string) error {
+func CheckSSRF(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)

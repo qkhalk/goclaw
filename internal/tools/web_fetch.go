@@ -95,7 +95,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 	}
 
 	// SSRF protection
-	if err := checkSSRF(rawURL); err != nil {
+	if err := CheckSSRF(rawURL); err != nil {
 		return ErrorResult(fmt.Sprintf("SSRF protection: %v", err))
 	}
 
@@ -150,7 +150,7 @@ func (t *WebFetchTool) doFetch(ctx context.Context, rawURL, extractMode string, 
 				return fmt.Errorf("stopped after %d redirects", defaultFetchMaxRedirect)
 			}
 			// Check SSRF on redirect target
-			if err := checkSSRF(req.URL.String()); err != nil {
+			if err := CheckSSRF(req.URL.String()); err != nil {
 				return fmt.Errorf("redirect SSRF protection: %w", err)
 			}
 			return nil
