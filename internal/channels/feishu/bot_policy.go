@@ -66,10 +66,7 @@ func (c *Channel) checkGroupPolicy(senderID, chatID string) bool {
 		}
 		return false
 	case "pairing":
-		paired := false
-		if c.pairingService != nil {
-			paired = c.pairingService.IsPaired(senderID, c.Name())
-		}
+		// Allowlist bypass (per-user)
 		inAllowList := c.HasAllowList() && c.IsAllowed(senderID)
 		inGroupAllowList := false
 		for _, allowed := range c.groupAllowList {
@@ -78,12 +75,21 @@ func (c *Channel) checkGroupPolicy(senderID, chatID string) bool {
 				break
 			}
 		}
-
-		if paired || inAllowList || inGroupAllowList {
+		if inAllowList || inGroupAllowList {
 			return true
 		}
 
-		c.sendPairingReply(senderID, chatID)
+		// Group-level pairing (one approval per group, matching Telegram pattern)
+		if _, cached := c.approvedGroups.Load(chatID); cached {
+			return true
+		}
+		groupSenderID := fmt.Sprintf("group:%s", chatID)
+		if c.pairingService != nil && c.pairingService.IsPaired(groupSenderID, c.Name()) {
+			c.approvedGroups.Store(chatID, true)
+			return true
+		}
+
+		c.sendPairingReply(groupSenderID, chatID)
 		return false
 	default: // "open"
 		return true
