@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
@@ -211,6 +212,29 @@ func (m *Manager) UnregisterChannel(name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.channels, name)
+}
+
+// WebhookRoute holds a path and handler pair for mounting on the main gateway mux.
+type WebhookRoute struct {
+	Path    string
+	Handler http.Handler
+}
+
+// WebhookHandlers returns all webhook handlers from channels that implement WebhookChannel.
+// Used to mount webhook routes on the main gateway mux.
+func (m *Manager) WebhookHandlers() []WebhookRoute {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var routes []WebhookRoute
+	for _, ch := range m.channels {
+		if wh, ok := ch.(WebhookChannel); ok {
+			if path, handler := wh.WebhookHandler(); path != "" && handler != nil {
+				routes = append(routes, WebhookRoute{Path: path, Handler: handler})
+			}
+		}
+	}
+	return routes
 }
 
 // SendToChannel delivers a message to a specific channel by name.

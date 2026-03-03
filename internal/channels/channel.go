@@ -11,6 +11,7 @@ package channels
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
@@ -82,6 +83,17 @@ type StreamingChannel interface {
 	OnStreamStart(ctx context.Context, chatID string) error
 	OnChunkEvent(ctx context.Context, chatID string, fullText string) error
 	OnStreamEnd(ctx context.Context, chatID string, finalText string) error
+}
+
+// WebhookChannel extends Channel with an HTTP handler that can be mounted
+// on the main gateway mux instead of starting a separate HTTP server.
+// This allows webhook-based channels (e.g. Feishu/Lark) to share the main
+// server port, avoiding the need to expose additional ports in Docker.
+type WebhookChannel interface {
+	Channel
+	// WebhookHandler returns the HTTP handler and the path it should be mounted on.
+	// Returns ("", nil) if the channel doesn't use webhook mode.
+	WebhookHandler() (path string, handler http.Handler)
 }
 
 // ReactionChannel extends Channel with status reaction support.

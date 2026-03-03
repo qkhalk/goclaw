@@ -937,6 +937,14 @@ func runGateway() {
 	// so the same routes are served on both the main listener and Tailscale.
 	// Compiled via build tags: `go build -tags tsnet` to enable.
 	mux := server.BuildMux()
+
+	// Mount channel webhook handlers on the main mux (e.g. Feishu /feishu/events).
+	// This allows webhook-based channels to share the main server port.
+	for _, route := range channelMgr.WebhookHandlers() {
+		mux.Handle(route.Path, route.Handler)
+		slog.Info("webhook route mounted on gateway", "path", route.Path)
+	}
+
 	tsCleanup := initTailscale(ctx, cfg, mux)
 	if tsCleanup != nil {
 		defer tsCleanup()

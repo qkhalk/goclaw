@@ -77,8 +77,8 @@ export const configSchema: Record<string, FieldDef[]> = {
   feishu: [
     { key: "domain", label: "Domain", type: "select", options: [{ value: "lark", label: "Lark (global) — webhook only" }, { value: "feishu", label: "Feishu (China)" }], defaultValue: "lark" },
     { key: "connection_mode", label: "Connection Mode", type: "select", options: [{ value: "webhook", label: "Webhook" }, { value: "websocket", label: "WebSocket (Feishu only)" }], defaultValue: "webhook", help: "Lark Global only supports Webhook" },
-    { key: "webhook_port", label: "Webhook Port", type: "number", defaultValue: 3000, help: "Webhook mode only" },
-    { key: "webhook_path", label: "Webhook Path", type: "text", defaultValue: "/feishu/events", help: "Webhook mode only" },
+    { key: "webhook_port", label: "Webhook Port", type: "number", defaultValue: 0, help: "0 = share main gateway port (recommended)" },
+    { key: "webhook_path", label: "Webhook Path", type: "text", defaultValue: "/feishu/events", help: "Path on main server for Lark events" },
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
     { key: "group_policy", label: "Group Policy", type: "select", options: groupPolicyOptions, defaultValue: "open" },
     { key: "require_mention", label: "Require @mention in groups", type: "boolean", defaultValue: true },

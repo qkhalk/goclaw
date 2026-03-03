@@ -217,15 +217,40 @@ func (c *Channel) startWebSocket(ctx context.Context) error {
 	return nil
 }
 
-func (c *Channel) startWebhook(ctx context.Context) error {
-	port := c.cfg.WebhookPort
-	if port <= 0 {
-		port = defaultWebhookPort
+// WebhookHandler returns the webhook HTTP handler and path for mounting on the main gateway mux.
+// Returns ("", nil) if not in webhook mode or if webhook_port > 0 (separate server).
+func (c *Channel) WebhookHandler() (string, http.Handler) {
+	mode := c.cfg.ConnectionMode
+	if mode != "webhook" {
+		return "", nil
 	}
+	// Only mount on main mux when webhook_port is 0 (share main server port).
+	if c.cfg.WebhookPort > 0 {
+		return "", nil
+	}
+
 	path := c.cfg.WebhookPath
 	if path == "" {
 		path = defaultWebhookPath
 	}
+
+	handler := NewWebhookHandler(c.cfg.VerificationToken, c.cfg.EncryptKey, func(event *MessageEvent) {
+		c.handleMessageEvent(context.Background(), event)
+	})
+
+	return path, http.HandlerFunc(handler)
+}
+
+func (c *Channel) startWebhook(ctx context.Context) error {
+	// If webhook_port is 0, the handler is mounted on the main gateway mux
+	// via WebhookHandler() — no separate server needed.
+	if c.cfg.WebhookPort <= 0 {
+		slog.Info("feishu: webhook handler mounted on main gateway mux", "path", c.webhookPath())
+		return nil
+	}
+
+	port := c.cfg.WebhookPort
+	path := c.webhookPath()
 
 	slog.Info("feishu: starting Webhook server", "port", port, "path", path)
 
@@ -312,6 +337,14 @@ func (c *Channel) sendMarkdownCard(ctx context.Context, chatID, receiveIDType, t
 	return nil
 }
 
+// webhookPath returns the configured webhook path or the default.
+func (c *Channel) webhookPath() string {
+	if c.cfg.WebhookPath != "" {
+		return c.cfg.WebhookPath
+	}
+	return defaultWebhookPath
+}
+
 // --- Domain resolution ---
 
 func resolveDomain(domain string) string {
@@ -396,5 +429,6 @@ func (c *Channel) isDuplicate(messageID string) bool {
 	return loaded
 }
 
-// Ensure Channel implements the channels.Channel interface at compile time.
+// Ensure Channel implements the channels.Channel and WebhookChannel interfaces at compile time.
 var _ channels.Channel = (*Channel)(nil)
+var _ channels.WebhookChannel = (*Channel)(nil)
