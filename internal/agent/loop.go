@@ -107,6 +107,9 @@ type Loop struct {
 
 	// Group writer cache for system prompt injection (managed mode)
 	groupWriterCache *store.GroupWriterCache
+
+	// Team store for cross-session pending task detection (managed mode)
+	teamStore store.TeamStore
 }
 
 // AgentEvent is emitted during agent execution for WS broadcasting.
@@ -175,6 +178,9 @@ type LoopConfig struct {
 
 	// Group writer cache for system prompt injection (managed mode)
 	GroupWriterCache *store.GroupWriterCache
+
+	// Team store for cross-session pending task detection (managed mode)
+	TeamStore store.TeamStore
 }
 
 func NewLoop(cfg LoopConfig) *Loop {
@@ -235,6 +241,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		builtinToolSettings:   cfg.BuiltinToolSettings,
 		thinkingLevel:         cfg.ThinkingLevel,
 		groupWriterCache:      cfg.GroupWriterCache,
+		teamStore:             cfg.TeamStore,
 	}
 }
 
@@ -526,6 +533,33 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		for _, p := range req.Media {
 			if err := os.Remove(p); err != nil {
 				slog.Debug("vision: failed to clean temp media file", "path", p, "error", err)
+			}
+		}
+	}
+
+	// 2b. Cross-session recovery: notify team leads about orphaned pending tasks.
+	// Safe because Bước 1 (early ClaimTask) ensures running tasks are in_progress,
+	// so only truly un-spawned tasks remain pending.
+	if l.teamStore != nil && l.agentUUID != uuid.Nil {
+		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil && team.LeadAgentID == l.agentUUID {
+			if tasks, err := l.teamStore.ListTasks(ctx, team.ID, "newest", "", ""); err == nil {
+				var stale []string
+				for _, t := range tasks {
+					if t.Status == store.TeamTaskStatusPending {
+						age := time.Since(t.CreatedAt).Truncate(time.Minute)
+						stale = append(stale, fmt.Sprintf("- %s: \"%s\" (pending %s)", t.ID, t.Subject, age))
+					}
+				}
+				if len(stale) > 0 {
+					reminder := fmt.Sprintf(
+						"[System] You have %d pending team task(s) that were never spawned:\n%s\n"+
+							"Spawn each one, or cancel with team_tasks action=cancel if no longer needed.",
+						len(stale), strings.Join(stale, "\n"))
+					messages = append(messages,
+						providers.Message{Role: "user", Content: reminder},
+						providers.Message{Role: "assistant", Content: "I see the pending tasks. Let me handle them."},
+					)
+				}
 			}
 		}
 	}

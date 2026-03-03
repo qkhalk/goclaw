@@ -388,43 +388,36 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 		return nil, nil, err
 	}
 
+	// Resolve team once — used for task enforcement, validation, and access checks.
+	var team *store.TeamData
+	if dm.teamStore != nil {
+		team, _ = dm.teamStore.GetTeamForAgent(ctx, sourceAgentID)
+	}
+
 	// Enforce team_task_id for team members: every delegation must be tracked.
-	if dm.teamStore != nil && opts.TeamTaskID == uuid.Nil {
-		if team, _ := dm.teamStore.GetTeamForAgent(ctx, sourceAgentID); team != nil {
-			// List pending tasks so the LLM can retry with a correct task_id
-			// (common case: LLM called team_tasks create + spawn in parallel,
-			// hallucinated the task_id, uuid.Parse failed → uuid.Nil).
-			hint := ""
-			if tasks, err := dm.teamStore.ListTasks(ctx, team.ID, "newest", "", ""); err == nil {
-				var pendingIDs []string
-				for _, t := range tasks {
-					if t.Status == store.TeamTaskStatusPending {
-						pendingIDs = append(pendingIDs, fmt.Sprintf("%s (%s)", t.ID, t.Subject))
-					}
-				}
-				if len(pendingIDs) > 0 {
-					hint = fmt.Sprintf(" Pending tasks you already created: %s", strings.Join(pendingIDs, ", "))
-				}
-			}
-			return nil, nil, fmt.Errorf(
-				"spawn requires a valid team_task_id (UUID). "+
-					"Create a task first with team_tasks action=create, "+
-					"then pass the returned task id as team_task_id.%s",
-				hint)
-		}
+	if team != nil && opts.TeamTaskID == uuid.Nil {
+		hint := dm.pendingTasksHint(ctx, team.ID)
+		return nil, nil, fmt.Errorf(
+			"spawn requires a valid team_task_id (UUID). "+
+				"Create a task first with team_tasks action=create, "+
+				"then pass the returned task id as team_task_id.%s",
+			hint)
 	}
 
 	// Validate that team_task_id belongs to the agent's team (prevent cross-team task completion).
 	if dm.teamStore != nil && opts.TeamTaskID != uuid.Nil {
 		teamTask, err := dm.teamStore.GetTask(ctx, opts.TeamTaskID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("team_task_id not found: %w", err)
+			hint := ""
+			if team != nil {
+				hint = dm.pendingTasksHint(ctx, team.ID)
+			}
+			return nil, nil, fmt.Errorf("team_task_id %s not found.%s", opts.TeamTaskID, hint)
 		}
-		if team, _ := dm.teamStore.GetTeamForAgent(ctx, sourceAgentID); team != nil {
+		if team != nil {
 			if teamTask.TeamID != team.ID {
 				return nil, nil, fmt.Errorf("team_task_id does not belong to your team")
 			}
-			// Check team access for the end-user/channel
 			userID := store.UserIDFromContext(ctx)
 			channel := ToolChannelFromCtx(ctx)
 			if err := checkTeamAccess(team.Settings, userID, channel); err != nil {
@@ -440,6 +433,12 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 				"description": opts.Task,
 			})
 		}
+
+		// Claim task early so status moves to in_progress immediately.
+		// This prevents the pending reminder from re-triggering spawns for
+		// tasks that are already running. The ClaimTask in autoCompleteTeamTask()
+		// will harmlessly fail (WHERE status='pending' won't match).
+		_ = dm.teamStore.ClaimTask(ctx, opts.TeamTaskID, targetAgent.ID, teamTask.TeamID)
 	}
 
 	linkCount := dm.ActiveCountForLink(sourceAgentID, targetAgent.ID)
@@ -496,6 +495,25 @@ func buildDelegateMessage(opts DelegateOpts) string {
 		return fmt.Sprintf("[Additional Context]\n%s\n\n[Task]\n%s", opts.Context, opts.Task)
 	}
 	return opts.Task
+}
+
+// pendingTasksHint returns a formatted hint listing pending team tasks,
+// so the LLM can self-correct a hallucinated team_task_id.
+func (dm *DelegateManager) pendingTasksHint(ctx context.Context, teamID uuid.UUID) string {
+	tasks, err := dm.teamStore.ListTasks(ctx, teamID, "newest", "", "")
+	if err != nil {
+		return ""
+	}
+	var ids []string
+	for _, t := range tasks {
+		if t.Status == store.TeamTaskStatusPending {
+			ids = append(ids, fmt.Sprintf("%s (%s)", t.ID, t.Subject))
+		}
+	}
+	if len(ids) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" Pending tasks: %s", strings.Join(ids, ", "))
 }
 
 func (dm *DelegateManager) buildRunRequest(task *DelegationTask, message string) DelegateRunRequest {

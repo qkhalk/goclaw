@@ -297,6 +297,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			BuiltinToolSettings:    builtinSettings,
 			ThinkingLevel:         ag.ParseThinkingLevel(),
 			GroupWriterCache:      deps.GroupWriterCache,
+			TeamStore:             deps.TeamStore,
 		})
 
 		slog.Info("resolved agent from DB", "agent", agentKey, "model", ag.Model, "provider", ag.Provider)
@@ -459,7 +460,8 @@ func buildTeamMD(team *store.TeamData, members []store.TeamMemberData, selfID uu
 		sb.WriteString("- action=list, status=all → all tasks including completed\n")
 		sb.WriteString("- action=get, task_id=<id> → full task detail with result\n")
 		sb.WriteString("- action=search, query=<text> → search tasks by subject/description\n")
-		sb.WriteString("- action=complete, task_id=<id>, result=<summary> → manually complete a task\n\n")
+		sb.WriteString("- action=complete, task_id=<id>, result=<summary> → manually complete a task\n")
+		sb.WriteString("- action=cancel, task_id=<id>, reason=<why> → cancel a pending task that is no longer needed\n\n")
 		sb.WriteString("Use `team_message` to send updates to team members.\n\n")
 		sb.WriteString("For simple questions about team composition, answer directly from the member list above.\n")
 	} else {

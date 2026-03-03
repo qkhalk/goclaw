@@ -24,7 +24,7 @@ func NewTeamTasksTool(manager *TeamToolManager) *TeamTasksTool {
 func (t *TeamTasksTool) Name() string { return "team_tasks" }
 
 func (t *TeamTasksTool) Description() string {
-	return "Manage the shared team task list. Actions: list (active tasks overview), get (full task detail with result), create, claim, complete, search. See TEAM.md for your team context."
+	return "Manage the shared team task list. Actions: list (active tasks overview), get (full task detail with result), create, claim, complete, cancel, search. See TEAM.md for your team context."
 }
 
 func (t *TeamTasksTool) Parameters() map[string]interface{} {
@@ -33,7 +33,7 @@ func (t *TeamTasksTool) Parameters() map[string]interface{} {
 		"properties": map[string]interface{}{
 			"action": map[string]interface{}{
 				"type":        "string",
-				"description": "'list', 'get', 'create', 'claim', 'complete', or 'search'",
+				"description": "'list', 'get', 'create', 'claim', 'complete', 'cancel', or 'search'",
 			},
 			"status": map[string]interface{}{
 				"type":        "string",
@@ -62,11 +62,15 @@ func (t *TeamTasksTool) Parameters() map[string]interface{} {
 			},
 			"task_id": map[string]interface{}{
 				"type":        "string",
-				"description": "Task ID (required for action=get, claim, complete)",
+				"description": "Task ID (required for action=get, claim, complete, cancel)",
 			},
 			"result": map[string]interface{}{
 				"type":        "string",
 				"description": "Task result summary (required for action=complete)",
+			},
+			"reason": map[string]interface{}{
+				"type":        "string",
+				"description": "Cancellation reason (optional for action=cancel)",
 			},
 		},
 		"required": []string{"action"},
@@ -87,10 +91,12 @@ func (t *TeamTasksTool) Execute(ctx context.Context, args map[string]interface{}
 		return t.executeClaim(ctx, args)
 	case "complete":
 		return t.executeComplete(ctx, args)
+	case "cancel":
+		return t.executeCancel(ctx, args)
 	case "search":
 		return t.executeSearch(ctx, args)
 	default:
-		return ErrorResult(fmt.Sprintf("unknown action: %s (use list, get, create, claim, complete, or search)", action))
+		return ErrorResult(fmt.Sprintf("unknown action: %s (use list, get, create, claim, complete, cancel, or search)", action))
 	}
 }
 
@@ -333,4 +339,39 @@ func (t *TeamTasksTool) executeComplete(ctx context.Context, args map[string]int
 	})
 
 	return NewResult(fmt.Sprintf("Task %s completed. Dependent tasks have been unblocked.", taskIDStr))
+}
+
+func (t *TeamTasksTool) executeCancel(ctx context.Context, args map[string]interface{}) *Result {
+	team, _, err := t.manager.resolveTeam(ctx)
+	if err != nil {
+		return ErrorResult(err.Error())
+	}
+
+	taskIDStr, _ := args["task_id"].(string)
+	if taskIDStr == "" {
+		return ErrorResult("task_id is required for cancel action")
+	}
+	taskID, err := uuid.Parse(taskIDStr)
+	if err != nil {
+		return ErrorResult("invalid task_id")
+	}
+
+	reason, _ := args["reason"].(string)
+	if reason == "" {
+		reason = "Cancelled: task was not executed"
+	}
+
+	if err := t.manager.teamStore.UpdateTask(ctx, taskID, map[string]any{
+		"status": store.TeamTaskStatusCompleted,
+		"result": "CANCELLED: " + reason,
+	}); err != nil {
+		return ErrorResult("failed to cancel task: " + err.Error())
+	}
+
+	t.manager.broadcastTeamEvent(protocol.EventTeamTaskCompleted, map[string]string{
+		"team_id": team.ID.String(),
+		"task_id": taskIDStr,
+	})
+
+	return NewResult(fmt.Sprintf("Task %s cancelled.", taskIDStr))
 }
