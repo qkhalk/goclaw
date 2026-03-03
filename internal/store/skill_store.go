@@ -1,10 +1,15 @@
 package store
 
-import "context"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 // SkillInfo describes a discovered skill.
 type SkillInfo struct {
 	Name        string `json:"name"`
+	Slug        string `json:"slug"`
 	Path        string `json:"path"`
 	BaseDir     string `json:"baseDir"`
 	Source      string `json:"source"`
@@ -33,6 +38,12 @@ type SkillStore interface {
 	Version() int64
 	BumpVersion()
 	Dirs() []string
+}
+
+// SkillAccessStore is an optional interface for stores that support
+// per-agent skill access filtering (managed mode).
+type SkillAccessStore interface {
+	ListAccessible(ctx context.Context, agentID uuid.UUID, userID string) ([]SkillInfo, error)
 }
 
 // EmbeddingSkillSearcher is an optional interface for stores that support

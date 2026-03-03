@@ -63,6 +63,7 @@ func (f *FileSkillStore) Dirs() []string   { return f.loader.Dirs() }
 func skillInfoToStore(s skills.Info) store.SkillInfo {
 	return store.SkillInfo{
 		Name:        s.Name,
+		Slug:        s.Slug,
 		Path:        s.Path,
 		BaseDir:     s.BaseDir,
 		Source:      s.Source,

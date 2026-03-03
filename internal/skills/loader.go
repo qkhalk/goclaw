@@ -30,6 +30,7 @@ type Metadata struct {
 // Info describes a discovered skill.
 type Info struct {
 	Name        string `json:"name"`
+	Slug        string `json:"slug"`    // directory name (unique identifier)
 	Path        string `json:"path"`    // absolute path to SKILL.md
 	BaseDir     string `json:"baseDir"` // skill directory (parent of SKILL.md)
 	Source      string `json:"source"`  // "workspace", "global", "builtin"
@@ -121,6 +122,7 @@ func (l *Loader) ListSkills() []Info {
 
 			info := Info{
 				Name:    d.Name(),
+				Slug:    d.Name(),
 				Path:    skillFile,
 				BaseDir: filepath.Join(src.dir, d.Name()),
 				Source:  src.source,
@@ -213,7 +215,7 @@ func (l *Loader) BuildSummary(allowList []string) string {
 			allowed[name] = true
 		}
 		for _, s := range allSkills {
-			if allowed[s.Name] {
+			if allowed[s.Slug] {
 				filtered = append(filtered, s)
 			}
 		}
@@ -275,7 +277,7 @@ func (l *Loader) FilterSkills(allowList []string) []Info {
 	}
 	var filtered []Info
 	for _, s := range all {
-		if allowed[s.Name] {
+		if allowed[s.Slug] {
 			filtered = append(filtered, s)
 		}
 	}

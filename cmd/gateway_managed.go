@@ -107,6 +107,7 @@ func wireManagedExtras(
 		TeamStore:              stores.Teams,
 		BuiltinToolStore:       stores.BuiltinTools,
 		GroupWriterCache:       groupWriterCache,
+		SkillAccessStore:       skillAccessStore(stores.Skills),
 		OnEvent: func(event agent.AgentEvent) {
 			msgBus.Broadcast(bus.Event{
 				Name:    protocol.EventAgent,
@@ -426,7 +427,7 @@ func wireManagedExtras(
 }
 
 // wireManagedHTTP creates managed-mode HTTP handlers (agents + skills + traces + MCP + custom tools + channel instances + providers + delegations + builtin tools).
-func wireManagedHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus, toolsReg *tools.Registry, providerReg *providers.Registry, isOwner func(string) bool) (*httpapi.AgentsHandler, *httpapi.SkillsHandler, *httpapi.TracesHandler, *httpapi.MCPHandler, *httpapi.CustomToolsHandler, *httpapi.ChannelInstancesHandler, *httpapi.ProvidersHandler, *httpapi.DelegationsHandler, *httpapi.BuiltinToolsHandler) {
+func wireManagedHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus, toolsReg *tools.Registry, providerReg *providers.Registry, isOwner func(string) bool, onSkillGrantChange func()) (*httpapi.AgentsHandler, *httpapi.SkillsHandler, *httpapi.TracesHandler, *httpapi.MCPHandler, *httpapi.CustomToolsHandler, *httpapi.ChannelInstancesHandler, *httpapi.ProvidersHandler, *httpapi.DelegationsHandler, *httpapi.BuiltinToolsHandler) {
 	var agentsH *httpapi.AgentsHandler
 	var skillsH *httpapi.SkillsHandler
 	var tracesH *httpapi.TracesHandler
@@ -449,7 +450,7 @@ func wireManagedHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus,
 		if pgSkills, ok := stores.Skills.(*pg.PGSkillStore); ok {
 			dirs := pgSkills.Dirs()
 			if len(dirs) > 0 {
-				skillsH = httpapi.NewSkillsHandler(pgSkills, dirs[0], token)
+				skillsH = httpapi.NewSkillsHandler(pgSkills, dirs[0], token, onSkillGrantChange)
 			}
 		}
 	}
@@ -483,4 +484,15 @@ func wireManagedHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus,
 	}
 
 	return agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH
+}
+
+// skillAccessStore returns a SkillAccessStore if the SkillStore implements it (PGSkillStore does).
+func skillAccessStore(ss store.SkillStore) store.SkillAccessStore {
+	if ss == nil {
+		return nil
+	}
+	if sas, ok := ss.(store.SkillAccessStore); ok {
+		return sas
+	}
+	return nil
 }

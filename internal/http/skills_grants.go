@@ -46,6 +46,9 @@ func (h *SkillsHandler) handleGrantAgent(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.skills.BumpVersion()
+	if h.onGrantChange != nil {
+		h.onGrantChange()
+	}
 	writeJSON(w, http.StatusCreated, map[string]string{"ok": "true"})
 }
 
@@ -70,6 +73,9 @@ func (h *SkillsHandler) handleRevokeAgent(w http.ResponseWriter, r *http.Request
 	}
 
 	h.skills.BumpVersion()
+	if h.onGrantChange != nil {
+		h.onGrantChange()
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
 
@@ -104,6 +110,9 @@ func (h *SkillsHandler) handleGrantUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 	h.skills.BumpVersion()
+	if h.onGrantChange != nil {
+		h.onGrantChange()
+	}
 	writeJSON(w, http.StatusCreated, map[string]string{"ok": "true"})
 }
 
@@ -126,6 +135,9 @@ func (h *SkillsHandler) handleRevokeUser(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.skills.BumpVersion()
+	if h.onGrantChange != nil {
+		h.onGrantChange()
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
 

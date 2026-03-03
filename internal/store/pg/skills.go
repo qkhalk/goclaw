@@ -173,7 +173,7 @@ func (s *PGSkillStore) FilterSkills(allowList []string) []store.SkillInfo {
 	}
 	var filtered []store.SkillInfo
 	for _, sk := range all {
-		if allowed[sk.Name] {
+		if allowed[sk.Slug] {
 			filtered = append(filtered, sk)
 		}
 	}
@@ -399,6 +399,7 @@ func buildSkillInfo(name, slug string, desc *string, version int, baseDir string
 	}
 	return store.SkillInfo{
 		Name:        name,
+		Slug:        slug,
 		Path:        fmt.Sprintf("%s/%s/%d/SKILL.md", baseDir, slug, version),
 		BaseDir:     fmt.Sprintf("%s/%s/%d", baseDir, slug, version),
 		Source:      "managed",

@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS  = -s -w -X github.com/nextlevelbuilder/goclaw/cmd.Version=$(VERSION)
 BINARY   = goclaw
 
-.PHONY: build run clean version up down logs
+.PHONY: build run clean version up down logs init
 
 build:
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o $(BINARY) .
@@ -26,3 +26,7 @@ down:
 
 logs:
 	$(COMPOSE) logs -f goclaw
+
+init:
+	$(COMPOSE) down -v
+	$(COMPOSE) up -d --build

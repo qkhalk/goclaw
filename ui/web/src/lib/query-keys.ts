@@ -30,6 +30,7 @@ export const queryKeys = {
   },
   skills: {
     all: ["skills"] as const,
+    agentGrants: (agentId: string) => ["skills", "agent", agentId] as const,
   },
   cron: {
     all: ["cron"] as const,

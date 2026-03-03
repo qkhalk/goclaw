@@ -102,7 +102,7 @@ func (s *PGSkillStore) ListAccessible(ctx context.Context, agentID uuid.UUID, us
 		}
 		result = append(result, buildSkillInfo(name, slug, desc, version, s.baseDir))
 	}
-	return result, nil
+	return result, rows.Err()
 }
 
 // SkillGrantInfo is a simplified grant record for API responses.
@@ -110,4 +110,42 @@ type SkillGrantInfo struct {
 	SkillID       uuid.UUID `json:"skill_id"`
 	PinnedVersion int       `json:"pinned_version"`
 	GrantedBy     string    `json:"granted_by"`
+}
+
+// SkillWithGrantStatus represents a skill with its grant status for a specific agent.
+type SkillWithGrantStatus struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Slug        string    `json:"slug"`
+	Description string    `json:"description"`
+	Visibility  string    `json:"visibility"`
+	Version     int       `json:"version"`
+	Granted     bool      `json:"granted"`
+	PinnedVer   *int      `json:"pinned_version,omitempty"`
+}
+
+// ListWithGrantStatus returns all active skills with grant status for a specific agent.
+func (s *PGSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid.UUID) ([]SkillWithGrantStatus, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT s.id, s.name, s.slug, COALESCE(s.description, ''), s.visibility, s.version,
+		        (sag.id IS NOT NULL) AS granted,
+		        sag.pinned_version
+		 FROM skills s
+		 LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = $1
+		 WHERE s.status = 'active'
+		 ORDER BY s.name`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []SkillWithGrantStatus
+	for rows.Next() {
+		var r SkillWithGrantStatus
+		if err := rows.Scan(&r.ID, &r.Name, &r.Slug, &r.Description, &r.Visibility, &r.Version, &r.Granted, &r.PinnedVer); err != nil {
+			continue
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
 }

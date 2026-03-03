@@ -25,14 +25,15 @@ var slugRegexp = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$`)
 
 // SkillsHandler handles skill management HTTP endpoints (managed mode).
 type SkillsHandler struct {
-	skills   *pg.PGSkillStore
-	baseDir  string // filesystem base for skill content
-	token    string
+	skills        *pg.PGSkillStore
+	baseDir       string // filesystem base for skill content
+	token         string
+	onGrantChange func() // callback to invalidate agent caches on grant/revoke
 }
 
 // NewSkillsHandler creates a handler for skill management endpoints.
-func NewSkillsHandler(skills *pg.PGSkillStore, baseDir, token string) *SkillsHandler {
-	return &SkillsHandler{skills: skills, baseDir: baseDir, token: token}
+func NewSkillsHandler(skills *pg.PGSkillStore, baseDir, token string, onGrantChange func()) *SkillsHandler {
+	return &SkillsHandler{skills: skills, baseDir: baseDir, token: token, onGrantChange: onGrantChange}
 }
 
 // RegisterRoutes registers all skill management routes on the given mux.
@@ -46,6 +47,7 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/skills/{id}/grants/agent/{agentID}", h.authMiddleware(h.handleRevokeAgent))
 	mux.HandleFunc("POST /v1/skills/{id}/grants/user", h.authMiddleware(h.handleGrantUser))
 	mux.HandleFunc("DELETE /v1/skills/{id}/grants/user/{userID}", h.authMiddleware(h.handleRevokeUser))
+	mux.HandleFunc("GET /v1/agents/{agentID}/skills", h.authMiddleware(h.handleListAgentSkills))
 }
 
 func (h *SkillsHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -262,5 +264,23 @@ func (h *SkillsHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		"version": version,
 		"name":    name,
 	})
+}
+
+func (h *SkillsHandler) handleListAgentSkills(w http.ResponseWriter, r *http.Request) {
+	agentIDStr := r.PathValue("agentID")
+	agentID, err := uuid.Parse(agentIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid agent ID"})
+		return
+	}
+
+	skills, err := h.skills.ListWithGrantStatus(r.Context(), agentID)
+	if err != nil {
+		slog.Error("failed to list skills with grant status", "agent_id", agentID, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list skills"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"skills": skills})
 }
 

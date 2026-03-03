@@ -509,13 +509,17 @@ func runGateway() {
 	slog.Info("session + message tools registered")
 
 	// Allow read_file to access skills directories (outside workspace).
-	// Skills can live in ~/.goclaw/skills/, ~/.agents/skills/, etc.
+	// Skills can live in ~/.goclaw/skills/, ~/.agents/skills/, ~/.goclaw/skills-store/, etc.
 	homeDir, _ := os.UserHomeDir()
 	if readTool, ok := toolsReg.Get("read_file"); ok {
 		if pa, ok := readTool.(tools.PathAllowable); ok {
 			pa.AllowPaths(globalSkillsDir)
 			if homeDir != "" {
 				pa.AllowPaths(filepath.Join(homeDir, ".agents", "skills"))
+			}
+			// Managed mode: also allow the skills store directory (uploaded skill content).
+			if managedStores != nil && managedStores.Skills != nil {
+				pa.AllowPaths(managedStores.Skills.Dirs()...)
 			}
 		}
 	}
@@ -617,7 +621,7 @@ func runGateway() {
 		}
 
 		contextFileInterceptor = wireManagedExtras(managedStores, agentRouter, providerRegistry, msgBus, sessStore, toolsReg, toolPE, skillsLoader, hasMemory, traceCollector, workspace, cfg.Gateway.InjectionAction, cfg, sandboxMgr, dynamicLoader)
-		agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH := wireManagedHTTP(managedStores, cfg.Gateway.Token, msgBus, toolsReg, providerRegistry, permPE.IsOwner)
+		agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH := wireManagedHTTP(managedStores, cfg.Gateway.Token, msgBus, toolsReg, providerRegistry, permPE.IsOwner, agentRouter.InvalidateAll)
 		if agentsH != nil {
 			server.SetAgentsHandler(agentsH)
 		}
