@@ -36,8 +36,10 @@ func (c *Channel) parseMessageEvent(event *MessageEvent) *messageContext {
 		}
 		mentions = append(mentions, mi)
 
-		// Check if bot is mentioned
-		if c.botOpenID != "" && mi.OpenID == c.botOpenID {
+		// Check if bot is mentioned.
+		// If botOpenID is known, match exactly; otherwise treat any mention as bot mention
+		// (fallback when probeBotInfo fails — better to process than silently drop).
+		if c.botOpenID == "" || mi.OpenID == c.botOpenID {
 			mentionedBot = true
 		}
 	}
