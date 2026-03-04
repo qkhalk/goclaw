@@ -149,7 +149,10 @@ func bootstrapStandaloneAgent(cfg *config.Config, agentName string) (*agent.Loop
 	if webSearchTool != nil {
 		toolsReg.Register(webSearchTool)
 	}
-	toolsReg.Register(tools.NewWebFetchTool(tools.WebFetchConfig{}))
+	toolsReg.Register(tools.NewWebFetchTool(tools.WebFetchConfig{
+		Policy:         cfg.Tools.WebFetch.Policy,
+		AllowedDomains: cfg.Tools.WebFetch.AllowedDomains,
+	}))
 
 	// 4. Bootstrap files
 	rawFiles := bootstrap.LoadWorkspaceFiles(workspace)

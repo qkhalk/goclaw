@@ -183,9 +183,12 @@ func runGateway() {
 		toolsReg.Register(webSearchTool)
 		slog.Info("web_search tool enabled")
 	}
-	webFetchTool := tools.NewWebFetchTool(tools.WebFetchConfig{})
+	webFetchTool := tools.NewWebFetchTool(tools.WebFetchConfig{
+		Policy:         cfg.Tools.WebFetch.Policy,
+		AllowedDomains: cfg.Tools.WebFetch.AllowedDomains,
+	})
 	toolsReg.Register(webFetchTool)
-	slog.Info("web_fetch tool enabled")
+	slog.Info("web_fetch tool enabled", "policy", cfg.Tools.WebFetch.Policy)
 
 	// Vision fallback tool (for non-vision providers like MiniMax)
 	toolsReg.Register(tools.NewReadImageTool(providerRegistry))
@@ -939,6 +942,18 @@ func runGateway() {
 			slog.Info("quota config reloaded via pub/sub")
 		})
 	}
+
+	// Reload web_fetch domain policy on config changes via pub/sub.
+	msgBus.Subscribe("webfetch-config-reload", func(evt bus.Event) {
+		if evt.Name != bus.TopicConfigChanged {
+			return
+		}
+		updatedCfg, ok := evt.Payload.(*config.Config)
+		if !ok {
+			return
+		}
+		webFetchTool.UpdatePolicy(updatedCfg.Tools.WebFetch.Policy, updatedCfg.Tools.WebFetch.AllowedDomains)
+	})
 
 	go consumeInboundMessages(ctx, msgBus, agentRouter, cfg, sched, channelMgr, consumerTeamStore, quotaChecker)
 

@@ -221,6 +221,7 @@ type ToolsConfig struct {
 	AlsoAllow        []string                      `json:"alsoAllow,omitempty"`          // additive: adds without removing existing
 	ByProvider       map[string]*ToolPolicySpec    `json:"byProvider,omitempty"`         // per-provider overrides
 	ExecApproval     ExecApprovalCfg               `json:"execApproval,omitempty"`       // exec command approval settings
+	WebFetch         WebFetchPolicyConfig          `json:"web_fetch"`                     // domain policy for URL fetching
 	Web              WebToolsConfig                `json:"web"`
 	Browser          BrowserToolConfig             `json:"browser"`
 	RateLimitPerHour int                           `json:"rate_limit_per_hour,omitempty"` // max tool executions per hour per session (0 = disabled)
@@ -251,6 +252,12 @@ type ExecApprovalCfg struct {
 	Security  string   `json:"security,omitempty"`  // "deny", "allowlist", "full" (default "full")
 	Ask       string   `json:"ask,omitempty"`       // "off", "on-miss", "always" (default "off")
 	Allowlist []string `json:"allowlist,omitempty"` // glob patterns for allowed commands
+}
+
+// WebFetchPolicyConfig controls domain filtering for the web_fetch tool.
+type WebFetchPolicyConfig struct {
+	Policy         string   `json:"policy,omitempty"`          // "allow_all" (default), "allowlist"
+	AllowedDomains []string `json:"allowed_domains,omitempty"` // e.g. ["github.com", "*.example.com"]
 }
 
 // BrowserToolConfig controls the browser automation tool.

@@ -47,6 +47,7 @@ export function ToolsSection({ data, onSave, saving }: Props) {
   if (!data) return null;
 
   const exec = draft.execApproval ?? {};
+  const webFetch = draft.web_fetch ?? {};
   const web = draft.web ?? {};
   const brave = web.brave ?? {};
   const ddg = web.duckduckgo ?? {};
@@ -218,6 +219,46 @@ export function ToolsSection({ data, onSave, saving }: Props) {
                 />
               </div>
             </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Web Fetch */}
+        <div>
+          <h4 className="mb-3 text-sm font-medium">Web Fetch</h4>
+          <div className="grid gap-3">
+            <div className="grid gap-1.5 max-w-xs">
+              <InfoLabel tip="Domain policy for URL fetching. Allow All = fetch any domain. Allowlist = only fetch from specified domains.">Policy</InfoLabel>
+              <Select
+                value={webFetch.policy ?? "allow_all"}
+                onValueChange={(v) => updateNested("web_fetch", { ...webFetch, policy: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="allow_all">Allow All</SelectItem>
+                  <SelectItem value="allowlist">Allowlist</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {webFetch.policy === "allowlist" && (
+              <div className="grid gap-1.5">
+                <Label>Allowed Domains (one per line, supports *.example.com)</Label>
+                <Textarea
+                  value={(webFetch.allowed_domains ?? []).join("\n")}
+                  onChange={(e) =>
+                    updateNested("web_fetch", {
+                      ...webFetch,
+                      allowed_domains: e.target.value.split("\n").filter(Boolean),
+                    })
+                  }
+                  className="min-h-[80px] font-mono text-xs"
+                  placeholder={"github.com\n*.wikipedia.org\ndocs.google.com"}
+                />
+              </div>
+            )}
           </div>
         </div>
 

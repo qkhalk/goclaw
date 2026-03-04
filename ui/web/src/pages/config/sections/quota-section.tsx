@@ -282,6 +282,18 @@ export function QuotaSection({ data, onSave, saving }: Props) {
     ).entries(),
   ].map(([value]) => ({ value, label: value }));
 
+  // Build group options from channel instance configs (e.g., telegram groups)
+  const groupOptions = instances.flatMap((inst) => {
+    const groups = (inst.config as Record<string, unknown>)?.groups as
+      | Record<string, unknown>
+      | undefined;
+    if (!groups) return [];
+    return Object.keys(groups).map((gid) => ({
+      value: `group:${inst.channel_type}:${gid}`,
+      label: `${inst.channel_type} / ${gid}`,
+    }));
+  });
+
   useEffect(() => {
     setDraft(data?.quota ?? DEFAULT_QUOTA);
     setDirty(false);
@@ -346,7 +358,8 @@ export function QuotaSection({ data, onSave, saving }: Props) {
               tip="Per-user or group quota limits (e.g., group:telegram:-100123)"
               entries={draft.groups ?? {}}
               onChange={(v) => update({ groups: v })}
-              keyPlaceholder="group:telegram:-100123"
+              keyPlaceholder="Select group"
+              options={groupOptions.length > 0 ? groupOptions : undefined}
             />
           </>
         )}
