@@ -43,9 +43,10 @@ func wireManagedExtras(
 	appCfg *config.Config,
 	sandboxMgr sandbox.Manager,
 	dynamicLoader *tools.DynamicToolLoader,
-) *tools.ContextFileInterceptor {
+) (*tools.ContextFileInterceptor, *tools.DelegateManager) {
 	// 1. Context file interceptor (created before resolver so callbacks can reference it)
 	var contextFileInterceptor *tools.ContextFileInterceptor
+	var delegateMgr *tools.DelegateManager
 	if stores.Agents != nil {
 		contextFileInterceptor = tools.NewContextFileInterceptor(stores.Agents, workspace)
 	}
@@ -323,7 +324,7 @@ func wireManagedExtras(
 			}
 			return dr, nil
 		}
-		delegateMgr := tools.NewDelegateManager(runAgentFn, stores.AgentLinks, stores.Agents, msgBus)
+		delegateMgr = tools.NewDelegateManager(runAgentFn, stores.AgentLinks, stores.Agents, msgBus)
 		if stores.Teams != nil {
 			delegateMgr.SetTeamStore(stores.Teams)
 		}
@@ -435,7 +436,7 @@ func wireManagedExtras(
 	}
 
 	slog.Info("managed mode: resolver + interceptors + cache subscribers wired")
-	return contextFileInterceptor
+	return contextFileInterceptor, delegateMgr
 }
 
 // wireManagedHTTP creates managed-mode HTTP handlers (agents + skills + traces + MCP + custom tools + channel instances + providers + delegations + builtin tools).

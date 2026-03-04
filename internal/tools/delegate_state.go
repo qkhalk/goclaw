@@ -12,6 +12,29 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+// CancelForOrigin cancels all active async delegations originating from a given channel + chatID.
+// Used by /stopall to stop delegate tasks that bypass the scheduler.
+func (dm *DelegateManager) CancelForOrigin(channel, chatID string) int {
+	count := 0
+	dm.active.Range(func(key, val any) bool {
+		t := val.(*DelegationTask)
+		if t.Status == "running" && t.OriginChannel == channel && t.OriginChatID == chatID {
+			if t.cancelFunc != nil {
+				t.cancelFunc()
+			}
+			t.Status = "cancelled"
+			now := time.Now()
+			t.CompletedAt = &now
+			dm.active.Delete(key)
+			dm.emitEvent("delegation.cancelled", t)
+			slog.Info("delegation cancelled by /stopall", "id", t.ID, "target", t.TargetAgentKey)
+			count++
+		}
+		return true
+	})
+	return count
+}
+
 // Cancel cancels a running delegation by ID.
 func (dm *DelegateManager) Cancel(delegationID string) bool {
 	val, ok := dm.active.Load(delegationID)
