@@ -26,7 +26,7 @@ type Client struct {
 	mu            sync.Mutex
 
 	connectedAt time.Time // when the client connected
-	remoteAddr  string    // peer IP:port from websocket
+	remoteAddr  string    // peer IP (extracted from proxy headers or RemoteAddr)
 
 	// Browser pairing state
 	pairingCode    string // 8-char code if pending approval

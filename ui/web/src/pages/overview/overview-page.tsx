@@ -621,7 +621,7 @@ export function OverviewPage() {
                           className={`border-b last:border-0 ${isYou ? "bg-muted/50" : ""}`}
                         >
                           <td className="py-2 pr-3 font-mono text-xs">
-                            {c.remoteAddr.replace(/:\d+$/, "")}
+                            {c.remoteAddr}
                             {isYou && (
                               <Badge
                                 variant="info"

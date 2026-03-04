@@ -265,6 +265,9 @@ func (qc *QuotaChecker) Usage(ctx context.Context) QuotaUsageResult {
 // QueryTodaySummary fills today's aggregate stats into the result.
 // Exported so QuotaMethods can call it directly when QuotaChecker is nil.
 func QueryTodaySummary(ctx context.Context, db *sql.DB, result *QuotaUsageResult) {
+	if db == nil {
+		return
+	}
 	now := time.Now().UTC()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
