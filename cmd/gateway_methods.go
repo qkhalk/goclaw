@@ -19,7 +19,7 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	methods.NewChatMethods(agents, sessStore, isManaged, server.RateLimiter()).Register(router)
 	methods.NewAgentsMethods(agents, cfg, cfgPath, workspace, agentStore, isManaged, contextFileInterceptor).Register(router)
 	methods.NewSessionsMethods(sessStore).Register(router)
-	methods.NewConfigMethods(cfg, cfgPath, isManaged, configSecretsStore).Register(router)
+	methods.NewConfigMethods(cfg, cfgPath, isManaged, configSecretsStore, msgBus).Register(router)
 
 	// Phase 2: Skills (uses SkillStore interface — PG or File)
 	methods.NewSkillsMethods(skillStore).Register(router)

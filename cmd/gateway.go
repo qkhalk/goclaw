@@ -909,7 +909,38 @@ func runGateway() {
 	if managedStores != nil {
 		consumerTeamStore = managedStores.Teams
 	}
-	go consumeInboundMessages(ctx, msgBus, agentRouter, cfg, sched, channelMgr, consumerTeamStore)
+
+	// Quota checker (managed mode only): enforces per-user/group request limits.
+	// Merge per-group quotas from channel configs into gateway.quota.groups.
+	config.MergeChannelGroupQuotas(cfg)
+	var quotaChecker *channels.QuotaChecker
+	if managedStores != nil && cfg.Gateway.Quota != nil && cfg.Gateway.Quota.Enabled {
+		quotaChecker = channels.NewQuotaChecker(managedStores.DB, *cfg.Gateway.Quota)
+		defer quotaChecker.Stop()
+		slog.Info("channel quota enabled",
+			"default_hour", cfg.Gateway.Quota.Default.Hour,
+			"default_day", cfg.Gateway.Quota.Default.Day,
+			"default_week", cfg.Gateway.Quota.Default.Week,
+		)
+	}
+
+	// Reload quota config on config changes via pub/sub.
+	if quotaChecker != nil {
+		msgBus.Subscribe("quota-config-reload", func(evt bus.Event) {
+			if evt.Name != bus.TopicConfigChanged {
+				return
+			}
+			updatedCfg, ok := evt.Payload.(*config.Config)
+			if !ok || updatedCfg.Gateway.Quota == nil {
+				return
+			}
+			config.MergeChannelGroupQuotas(updatedCfg)
+			quotaChecker.UpdateConfig(*updatedCfg.Gateway.Quota)
+			slog.Info("quota config reloaded via pub/sub")
+		})
+	}
+
+	go consumeInboundMessages(ctx, msgBus, agentRouter, cfg, sched, channelMgr, consumerTeamStore, quotaChecker)
 
 	go func() {
 		sig := <-sigCh

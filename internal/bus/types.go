@@ -69,6 +69,7 @@ const (
 	TopicCacheGroupFileWriters    = "cache:group_file_writers"
 	TopicCacheSkillGrants         = "cache:skill_grants"
 	TopicChannelStreaming          = "channel-streaming"
+	TopicConfigChanged             = "config:changed"
 )
 
 // CacheInvalidatePayload signals cache layers to evict stale entries.

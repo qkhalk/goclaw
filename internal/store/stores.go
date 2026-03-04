@@ -1,8 +1,11 @@
 package store
 
+import "database/sql"
+
 // Stores is the top-level container for all storage backends.
 // In standalone mode, managed-only stores (Agents, Providers, Tracing, MCP) are nil.
 type Stores struct {
+	DB        *sql.DB          // underlying connection (nil in standalone mode)
 	Sessions  SessionStore
 	Memory    MemoryStore
 	Cron      CronStore

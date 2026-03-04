@@ -52,6 +52,7 @@ type Loop struct {
 	model         string
 	contextWindow int
 	maxIterations int
+	maxToolCalls  int
 	workspace     string
 
 	eventPub   bus.EventPublisher // currently unused by Loop; kept for future use
@@ -127,6 +128,7 @@ type LoopConfig struct {
 	Model         string
 	ContextWindow int
 	MaxIterations int
+	MaxToolCalls  int
 	Workspace     string
 	Bus           bus.EventPublisher
 	Sessions      store.SessionStore
@@ -214,6 +216,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		model:         cfg.Model,
 		contextWindow: cfg.ContextWindow,
 		maxIterations: cfg.MaxIterations,
+		maxToolCalls:  cfg.MaxToolCalls,
 		workspace:     cfg.Workspace,
 		eventPub:      cfg.Bus,
 		sessions:      cfg.Sessions,
@@ -593,6 +596,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	var loopDetector toolLoopState // detects repeated no-progress tool calls
 	var totalUsage providers.Usage
 	iteration := 0
+	totalToolCalls := 0
 	var finalContent string
 	var asyncToolCalls []string   // track async spawn tool names for fallback
 	var mediaResults []MediaResult // media files from tool MEDIA: results
@@ -777,6 +781,19 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					teamTaskCreates++
 				}
 			}
+		}
+
+		// Tool budget check: soft stop when total tool calls exceed the per-agent limit.
+		// Same pattern as maxIterations — no error thrown, LLM summarizes and returns.
+		totalToolCalls += len(resp.ToolCalls)
+		if l.maxToolCalls > 0 && totalToolCalls > l.maxToolCalls {
+			slog.Warn("security.tool_budget_exceeded",
+				"agent", l.id, "total", totalToolCalls, "limit", l.maxToolCalls)
+			messages = append(messages, providers.Message{
+				Role:    "user",
+				Content: fmt.Sprintf("[System] Tool call budget reached (%d/%d). Do NOT call any more tools. Summarize results so far and respond to the user.", totalToolCalls, l.maxToolCalls),
+			})
+			continue // one more LLM call for summarization, then loop exits (no tool calls)
 		}
 
 		// Execute tool calls (parallel when multiple, sequential when single)
@@ -1269,4 +1286,12 @@ func sanitizePathSegment(s string) string {
 // forcing the next request to re-read from user_agent_profiles.
 func (l *Loop) InvalidateUserWorkspace(userID string) {
 	l.userWorkspaces.Delete(userID)
+}
+
+// ProviderName returns the name of this agent's LLM provider (e.g. "anthropic", "openai").
+func (l *Loop) ProviderName() string {
+	if l.provider == nil {
+		return ""
+	}
+	return l.provider.Name()
 }

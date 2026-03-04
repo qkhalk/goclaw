@@ -94,6 +94,7 @@ func createAgentLoop(agentID string, cfg *config.Config, router *agent.Router, p
 		Model:          agentCfg.Model,
 		ContextWindow:  agentCfg.ContextWindow,
 		MaxIterations:  agentCfg.MaxToolIterations,
+		MaxToolCalls:   agentCfg.MaxToolCalls,
 		Workspace:      workspace,
 		Bus:            msgBus,
 		Sessions:       sess,

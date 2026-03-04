@@ -53,6 +53,7 @@ type TelegramGroupConfig struct {
 	Tools          []string                        `json:"tools,omitempty"`            // tool allow list (nil = all, supports "group:xxx")
 	SystemPrompt   string                          `json:"system_prompt,omitempty"`    // extra system prompt for this group
 	Topics         map[string]*TelegramTopicConfig `json:"topics,omitempty"`           // per-topic overrides (key: thread ID string)
+	Quota          *QuotaWindow                    `json:"quota,omitempty"`            // per-group quota override
 }
 
 // TelegramTopicConfig defines per-topic overrides within a Telegram group.
@@ -178,6 +179,26 @@ func (c *Config) HasAnyProvider() bool {
 		p.Bailian.APIKey != ""
 }
 
+// QuotaWindow defines request limits per time window. Zero means unlimited.
+type QuotaWindow struct {
+	Hour int `json:"hour,omitempty"` // max requests per hour (0 = unlimited)
+	Day  int `json:"day,omitempty"`  // max requests per day (0 = unlimited)
+	Week int `json:"week,omitempty"` // max requests per week (0 = unlimited)
+}
+
+// IsZero returns true if no limits are set.
+func (w QuotaWindow) IsZero() bool { return w.Hour == 0 && w.Day == 0 && w.Week == 0 }
+
+// QuotaConfig configures per-user/group request quotas (managed mode only).
+// Config merge priority: Groups > Channels > Providers > Default.
+type QuotaConfig struct {
+	Enabled   bool                   `json:"enabled"`
+	Default   QuotaWindow            `json:"default"`
+	Providers map[string]QuotaWindow `json:"providers,omitempty"` // key = provider name (e.g. "anthropic")
+	Channels  map[string]QuotaWindow `json:"channels,omitempty"`  // key = channel name (e.g. "telegram")
+	Groups    map[string]QuotaWindow `json:"groups,omitempty"`    // key = userID (e.g. "group:telegram:-100123")
+}
+
 // GatewayConfig controls the gateway server.
 type GatewayConfig struct {
 	Host            string   `json:"host"`
@@ -189,6 +210,7 @@ type GatewayConfig struct {
 	RateLimitRPM      int      `json:"rate_limit_rpm,omitempty"`       // rate limit: requests per minute per user (default 20, 0 = disabled)
 	InjectionAction   string   `json:"injection_action,omitempty"`     // prompt injection action: "log", "warn" (default), "block", "off"
 	InboundDebounceMs int      `json:"inbound_debounce_ms,omitempty"` // merge rapid messages from same sender (default 1000ms, -1 = disabled)
+	Quota             *QuotaConfig `json:"quota,omitempty"`               // per-user/group request quotas (managed mode only)
 }
 
 // ToolsConfig controls tool availability, policy, and web search.
@@ -331,4 +353,25 @@ type TtsMiniMaxConfig struct {
 	APIBase string `json:"api_base,omitempty"` // default "https://api.minimax.io/v1"
 	Model   string `json:"model,omitempty"`    // default "speech-02-hd"
 	VoiceID string `json:"voice_id,omitempty"` // default "Wise_Woman"
+}
+
+// MergeChannelGroupQuotas merges per-group quota overrides from channel configs
+// (e.g., channels.telegram.groups[chatID].quota) into gateway.quota.groups.
+// This allows per-group quotas to be set at the channel level and picked up
+// by the QuotaChecker at runtime.
+func MergeChannelGroupQuotas(cfg *Config) {
+	if cfg.Gateway.Quota == nil {
+		return
+	}
+	if cfg.Gateway.Quota.Groups == nil {
+		cfg.Gateway.Quota.Groups = make(map[string]QuotaWindow)
+	}
+
+	// Telegram per-group quotas
+	for chatID, groupCfg := range cfg.Channels.Telegram.Groups {
+		if groupCfg != nil && groupCfg.Quota != nil && !groupCfg.Quota.IsZero() {
+			key := "group:telegram:" + chatID
+			cfg.Gateway.Quota.Groups[key] = *groupCfg.Quota
+		}
+	}
 }

@@ -119,6 +119,7 @@ type AgentDefaults struct {
 	Temperature         float64         `json:"temperature"`
 	MaxToolIterations   int             `json:"max_tool_iterations"`
 	ContextWindow       int             `json:"context_window"`
+	MaxToolCalls        int             `json:"max_tool_calls,omitempty"` // max total tool calls per run (0 = unlimited, default 25)
 	AgentType           string          `json:"agent_type,omitempty"` // "open" (default) or "predefined"
 	Subagents           *SubagentsConfig `json:"subagents,omitempty"`
 	Sandbox             *SandboxConfig         `json:"sandbox,omitempty"`
@@ -376,6 +377,7 @@ type AgentSpec struct {
 	Temperature       float64         `json:"temperature,omitempty"`
 	MaxToolIterations int             `json:"max_tool_iterations,omitempty"`
 	ContextWindow     int             `json:"context_window,omitempty"`
+	MaxToolCalls      int             `json:"max_tool_calls,omitempty"` // per-agent override
 	AgentType         string          `json:"agent_type,omitempty"` // "open" or "predefined"
 	Skills            []string        `json:"skills,omitempty"`     // nil = all skills allowed
 	Tools             *ToolPolicySpec `json:"tools,omitempty"`      // per-agent tool policy

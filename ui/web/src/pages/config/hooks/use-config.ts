@@ -62,7 +62,11 @@ export function useConfig() {
       setSaving(true);
       setError(null);
       try {
-        await ws.call(Methods.CONFIG_PATCH, updates);
+        const res = await ws.call<{ hash: string }>(Methods.CONFIG_PATCH, {
+          raw: JSON.stringify(updates),
+          baseHash: hashRef.current,
+        });
+        hashRef.current = res.hash;
         await invalidate();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to patch config");

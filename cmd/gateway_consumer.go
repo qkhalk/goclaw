@@ -41,7 +41,7 @@ func makeSchedulerRunFunc(agents *agent.Router, cfg *config.Config) scheduler.Ru
 // and routes them through the scheduler/agent loop, then publishes the response back.
 // Also handles subagent announcements: routes them through the parent agent's session
 // (matching TS subagent-announce.ts pattern) so the agent can reformulate for the user.
-func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents *agent.Router, cfg *config.Config, sched *scheduler.Scheduler, channelMgr *channels.Manager, teamStore store.TeamStore) {
+func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents *agent.Router, cfg *config.Config, sched *scheduler.Scheduler, channelMgr *channels.Manager, teamStore store.TeamStore, quotaChecker *channels.QuotaChecker) {
 	slog.Info("inbound message consumer started")
 
 	// Inbound message deduplication (matching TS src/infra/dedupe.ts + inbound-dedupe.ts).
@@ -66,7 +66,8 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			}
 		}
 
-		if _, err := agents.Get(agentID); err != nil {
+		agentLoop, err := agents.Get(agentID)
+		if err != nil {
 			slog.Warn("inbound: agent not found", "agent", agentID, "channel", msg.Channel)
 			return
 		}
@@ -110,6 +111,28 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 				groupID = guildID
 			}
 			userID = fmt.Sprintf("group:%s:%s", msg.Channel, groupID)
+		}
+
+		// --- Quota check (managed mode only) ---
+		if quotaChecker != nil {
+			qResult := quotaChecker.Check(ctx, userID, msg.Channel, agentLoop.ProviderName())
+			if !qResult.Allowed {
+				slog.Warn("security.quota_exceeded",
+					"user_id", userID,
+					"channel", msg.Channel,
+					"window", qResult.Window,
+					"used", qResult.Used,
+					"limit", qResult.Limit,
+				)
+				msgBus.PublishOutbound(bus.OutboundMessage{
+					Channel:  msg.Channel,
+					ChatID:   msg.ChatID,
+					Content:  formatQuotaExceeded(qResult),
+					Metadata: msg.Metadata,
+				})
+				return
+			}
+			quotaChecker.Increment(userID)
 		}
 
 		slog.Info("inbound: scheduling message (main lane)",

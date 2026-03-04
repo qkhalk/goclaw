@@ -7,6 +7,7 @@ import (
 
 	"github.com/titanous/json5"
 
+	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -20,10 +21,11 @@ type ConfigMethods struct {
 	cfgPath      string
 	managedMode  bool
 	secretsStore store.ConfigSecretsStore // nil in standalone mode
+	eventBus     bus.EventPublisher       // nil-safe; broadcasts config change events
 }
 
-func NewConfigMethods(cfg *config.Config, cfgPath string, managedMode bool, secretsStore store.ConfigSecretsStore) *ConfigMethods {
-	return &ConfigMethods{cfg: cfg, cfgPath: cfgPath, managedMode: managedMode, secretsStore: secretsStore}
+func NewConfigMethods(cfg *config.Config, cfgPath string, managedMode bool, secretsStore store.ConfigSecretsStore, eventBus bus.EventPublisher) *ConfigMethods {
+	return &ConfigMethods{cfg: cfg, cfgPath: cfgPath, managedMode: managedMode, secretsStore: secretsStore, eventBus: eventBus}
 }
 
 func (m *ConfigMethods) Register(router *gateway.MethodRouter) {
@@ -94,6 +96,7 @@ func (m *ConfigMethods) handleApply(ctx context.Context, client *gateway.Client,
 		}
 	}
 	m.cfg.ApplyEnvOverrides()
+	m.broadcastChanged()
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
 		"ok":      true,
@@ -168,6 +171,7 @@ func (m *ConfigMethods) handlePatch(ctx context.Context, client *gateway.Client,
 		}
 	}
 	m.cfg.ApplyEnvOverrides()
+	m.broadcastChanged()
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
 		"ok":      true,
@@ -176,6 +180,13 @@ func (m *ConfigMethods) handlePatch(ctx context.Context, client *gateway.Client,
 		"hash":    m.cfg.Hash(),
 		"restart": false,
 	}))
+}
+
+// broadcastChanged notifies subscribers that config has been updated.
+func (m *ConfigMethods) broadcastChanged() {
+	if m.eventBus != nil {
+		m.eventBus.Broadcast(bus.Event{Name: bus.TopicConfigChanged, Payload: m.cfg})
+	}
 }
 
 // handleSchema returns the config JSON schema for UI form generation.

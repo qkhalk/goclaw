@@ -23,6 +23,7 @@ import { TtsSection } from "./sections/tts-section";
 import { CronSection } from "./sections/cron-section";
 import { TelemetrySection } from "./sections/telemetry-section";
 import { BindingsSection } from "./sections/bindings-section";
+import { QuotaSection } from "./sections/quota-section";
 
 export function ConfigPage() {
   const { config, hash, configPath, loading, saving, error, refresh, applyRaw, patch } = useConfig();
@@ -41,7 +42,7 @@ export function ConfigPage() {
     }
   }, [config]);
 
-  const handleSave = async () => {
+  const handleRawSave = async () => {
     setSaveError(null);
     try {
       await applyRaw(rawText);
@@ -82,6 +83,8 @@ export function ConfigPage() {
     );
   }
 
+  const isManaged = (config.database as any)?.mode === "managed";
+
   return (
     <div className="p-6">
       <PageHeader
@@ -114,17 +117,106 @@ export function ConfigPage() {
         </span>
       </div>
 
-      <Tabs defaultValue="ui" className="mt-4">
-        <TabsList>
-          <TabsTrigger value="ui">UI</TabsTrigger>
+      <Tabs orientation="vertical" defaultValue="general" className="mt-4 items-start">
+        <TabsList variant="line" className="w-44 shrink-0 sticky top-6 rounded-lg border bg-card p-3 shadow-sm">
+          <TabsTrigger value="general">General</TabsTrigger>
+          {isManaged && <TabsTrigger value="quota">Quota</TabsTrigger>}
+          <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="tools">Tools</TabsTrigger>
+          <TabsTrigger value="connections">Connections</TabsTrigger>
+          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <div className="my-2 h-px w-full bg-border" />
           <TabsTrigger value="raw">Raw Editor</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="ui" className="mt-4">
-          <ConfigUI config={config} onPatch={patch} saving={saving} />
+        <TabsContent value="general" className="space-y-4">
+          <GatewaySection
+            data={config.gateway as any}
+            onSave={(v) => patch({ gateway: v })}
+            saving={saving}
+          />
         </TabsContent>
 
-        <TabsContent value="raw" className="mt-4">
+        {isManaged && (
+          <TabsContent value="quota" className="space-y-4">
+            <QuotaSection
+              data={config.gateway as any}
+              onSave={(v) => patch({ gateway: v })}
+              saving={saving}
+            />
+          </TabsContent>
+        )}
+
+        <TabsContent value="agents" className="space-y-4">
+          {isManaged ? (
+            <ManagedRedirect
+              title="LLM Providers"
+              description="Managed via the Providers page in managed mode."
+              to={ROUTES.PROVIDERS}
+            />
+          ) : (
+            <ProvidersSection
+              data={config.providers as any}
+              onSave={(v) => patch({ providers: v })}
+              saving={saving}
+            />
+          )}
+          <AgentsDefaultsSection
+            data={config.agents as any}
+            onSave={(v) => patch({ agents: v })}
+            saving={saving}
+          />
+        </TabsContent>
+
+        <TabsContent value="tools" className="space-y-4">
+          <ToolsSection
+            data={config.tools as any}
+            onSave={(v) => patch({ tools: v })}
+            saving={saving}
+          />
+        </TabsContent>
+
+        <TabsContent value="connections" className="space-y-4">
+          <SessionsSection
+            data={config.sessions as any}
+            onSave={(v) => patch({ sessions: v })}
+            saving={saving}
+          />
+          {isManaged ? (
+            <ManagedRedirect
+              title="Channels"
+              description="Managed via the Channels page in managed mode."
+              to={ROUTES.CHANNELS}
+            />
+          ) : (
+            <ChannelsSection
+              data={config.channels as any}
+              onSave={(v) => patch({ channels: v })}
+              saving={saving}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="advanced" className="space-y-4">
+          <TtsSection data={config.tts as any} />
+          <CronSection
+            data={config.cron as any}
+            onSave={(v) => patch({ cron: v })}
+            saving={saving}
+          />
+          <TelemetrySection
+            data={config.telemetry as any}
+            onSave={(v) => patch({ telemetry: v })}
+            saving={saving}
+          />
+          <BindingsSection
+            data={config.bindings as any}
+            onSave={(v) => patch({ bindings: v })}
+            saving={saving}
+          />
+        </TabsContent>
+
+        <TabsContent value="raw">
           <div className="space-y-3">
             <Textarea
               value={rawText}
@@ -145,7 +237,7 @@ export function ConfigPage() {
 
             <div className="flex items-center gap-2">
               <Button
-                onClick={handleSave}
+                onClick={handleRawSave}
                 disabled={!dirty || saving}
                 className="gap-1"
               >
@@ -181,85 +273,5 @@ function ManagedRedirect({ title, description, to }: { title: string; descriptio
         </div>
       </CardHeader>
     </Card>
-  );
-}
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function ConfigUI({
-  config,
-  onPatch,
-  saving,
-}: {
-  config: Record<string, unknown>;
-  onPatch: (updates: Record<string, unknown>) => Promise<void>;
-  saving: boolean;
-}) {
-  const isManaged = (config.database as any)?.mode === "managed";
-
-  return (
-    <div className="space-y-4">
-      <GatewaySection
-        data={config.gateway as any}
-        onSave={(v) => onPatch({ gateway: v })}
-        saving={saving}
-      />
-      {isManaged ? (
-        <ManagedRedirect
-          title="LLM Providers"
-          description="Managed via the Providers page in managed mode."
-          to={ROUTES.PROVIDERS}
-        />
-      ) : (
-        <ProvidersSection
-          data={config.providers as any}
-          onSave={(v) => onPatch({ providers: v })}
-          saving={saving}
-        />
-      )}
-      <AgentsDefaultsSection
-        data={config.agents as any}
-        onSave={(v) => onPatch({ agents: v })}
-        saving={saving}
-      />
-      <ToolsSection
-        data={config.tools as any}
-        onSave={(v) => onPatch({ tools: v })}
-        saving={saving}
-      />
-      {isManaged ? (
-        <ManagedRedirect
-          title="Channels"
-          description="Managed via the Channels page in managed mode."
-          to={ROUTES.CHANNELS}
-        />
-      ) : (
-        <ChannelsSection
-          data={config.channels as any}
-          onSave={(v) => onPatch({ channels: v })}
-          saving={saving}
-        />
-      )}
-      <SessionsSection
-        data={config.sessions as any}
-        onSave={(v) => onPatch({ sessions: v })}
-        saving={saving}
-      />
-      <TtsSection data={config.tts as any} />
-      <CronSection
-        data={config.cron as any}
-        onSave={(v) => onPatch({ cron: v })}
-        saving={saving}
-      />
-      <TelemetrySection
-        data={config.telemetry as any}
-        onSave={(v) => onPatch({ telemetry: v })}
-        saving={saving}
-      />
-      <BindingsSection
-        data={config.bindings as any}
-        onSave={(v) => onPatch({ bindings: v })}
-        saving={saving}
-      />
-    </div>
   );
 }

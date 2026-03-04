@@ -23,6 +23,7 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 	skillsDir = config.ExpandHome(skillsDir)
 
 	return &store.Stores{
+		DB:        db,
 		Sessions:  NewPGSessionStore(db),
 		Memory:    NewPGMemoryStore(db, memCfg),
 		Cron:      NewPGCronStore(db),

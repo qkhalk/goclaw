@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/nextlevelbuilder/goclaw/internal/channels"
 )
 
 // Matching TS pi-embedded-helpers/errors.ts error classification.
@@ -94,4 +97,11 @@ func containsAny(s string, substrs ...string) bool {
 		}
 	}
 	return false
+}
+
+// formatQuotaExceeded formats a user-friendly quota exceeded message.
+func formatQuotaExceeded(result channels.QuotaResult) string {
+	labels := map[string]string{"hour": "Hourly", "day": "Daily", "week": "Weekly"}
+	return fmt.Sprintf("⚠️ %s request limit reached (%d/%d). Please try again later.",
+		labels[result.Window], result.Used, result.Limit)
 }
