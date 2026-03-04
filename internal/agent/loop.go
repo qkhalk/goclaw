@@ -569,7 +569,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				if len(inProgress) > 0 {
 					parts = append(parts, fmt.Sprintf(
 						"You have %d in-progress team task(s) being handled by delegates:\n%s\n"+
-							"Wait for their results before acting on these tasks.",
+							"Their results will arrive automatically. Do NOT cancel, re-create, or re-spawn these tasks.",
 						len(inProgress), strings.Join(inProgress, "\n")))
 				}
 				if len(parts) > 0 {
@@ -743,21 +743,35 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		// No tool calls → done
 		if len(resp.ToolCalls) == 0 {
 			// Guard: detect orphaned team_tasks create (created but not spawned).
-			// The LLM sometimes "forgets" step 2 (spawn) after creating a task.
-			// Inject a reminder and retry once so the task actually executes.
+			// Query DB for actual pending tasks instead of just counting tool calls,
+			// because auto-created tasks (from spawn without team_task_id) bypass the counter.
 			if teamTaskCreates > teamTaskSpawns && !teamTaskRetried {
-				teamTaskRetried = true
-				orphaned := teamTaskCreates - teamTaskSpawns
-				slog.Warn("team task orphan detected: created without spawn",
-					"agent", l.id, "orphaned", orphaned, "creates", teamTaskCreates, "spawns", teamTaskSpawns)
-				messages = append(messages,
-					providers.Message{Role: "assistant", Content: resp.Content},
-					providers.Message{
-						Role:    "user",
-						Content: fmt.Sprintf("[System] You created %d team task(s) but only spawned %d. Tasks without `spawn` will stay pending forever and never execute. Call `spawn` now for each pending task.", teamTaskCreates, teamTaskSpawns),
-					},
-				)
-				continue
+				if l.teamStore != nil && l.agentUUID != uuid.Nil {
+					if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil {
+						if tasks, err := l.teamStore.ListTasks(ctx, team.ID, "newest", "", req.UserID); err == nil {
+							var pendingIDs []string
+							for _, t := range tasks {
+								if t.Status == store.TeamTaskStatusPending {
+									pendingIDs = append(pendingIDs, t.ID.String())
+								}
+							}
+							if len(pendingIDs) > 0 {
+								teamTaskRetried = true
+								slog.Warn("team task orphan detected",
+									"agent", l.id, "pending", len(pendingIDs),
+									"creates", teamTaskCreates, "spawns", teamTaskSpawns)
+								messages = append(messages,
+									providers.Message{Role: "assistant", Content: resp.Content},
+									providers.Message{
+										Role:    "user",
+										Content: fmt.Sprintf("[System] You have %d pending task(s) that were never delegated: %s. Call `spawn` for each, or cancel with team_tasks action=cancel.", len(pendingIDs), strings.Join(pendingIDs, ", ")),
+									},
+								)
+								continue
+							}
+						}
+					}
+				}
 			}
 			finalContent = resp.Content
 			break
