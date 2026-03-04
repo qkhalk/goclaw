@@ -230,13 +230,15 @@ func (t *CronTool) handleAdd(ctx context.Context, args map[string]interface{}, a
 	channel, _ := jobObj["channel"].(string)
 	to, _ := jobObj["to"].(string)
 
-	// Auto-fill channel and to from context if deliver is requested but not specified
+	// Auto-fill channel and to from context when deliver is requested.
+	// Always prefer context values over LLM-provided values to prevent
+	// misrouted deliveries (e.g. LLM confusing guild ID with channel ID).
 	if deliver {
-		if channel == "" {
-			channel = ToolChannelFromCtx(ctx)
+		if ctxChannel := ToolChannelFromCtx(ctx); ctxChannel != "" {
+			channel = ctxChannel
 		}
-		if to == "" {
-			to = ToolChatIDFromCtx(ctx)
+		if ctxChatID := ToolChatIDFromCtx(ctx); ctxChatID != "" {
+			to = ctxChatID
 		}
 	}
 
