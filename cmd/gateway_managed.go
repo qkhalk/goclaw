@@ -386,6 +386,9 @@ func wireManagedExtras(
 	// Register team tools (team_tasks + team_message) if team store is available.
 	if stores.Teams != nil && stores.Agents != nil {
 		teamMgr := tools.NewTeamToolManager(stores.Teams, stores.Agents, msgBus)
+		if delegateMgr != nil {
+			teamMgr.SetDelegateManager(delegateMgr)
+		}
 		toolsReg.Register(tools.NewTeamTasksTool(teamMgr))
 		toolsReg.Register(tools.NewTeamMessageTool(teamMgr))
 

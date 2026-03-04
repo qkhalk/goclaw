@@ -25,14 +25,20 @@ type teamCacheEntry struct {
 // the team store, agent store, and message bus.
 // Includes a TTL cache for team data to avoid DB queries on every tool call.
 type TeamToolManager struct {
-	teamStore  store.TeamStore
-	agentStore store.AgentStore
-	msgBus     *bus.MessageBus
-	teamCache  sync.Map // agentID (uuid.UUID) → *teamCacheEntry
+	teamStore   store.TeamStore
+	agentStore  store.AgentStore
+	msgBus      *bus.MessageBus
+	delegateMgr *DelegateManager // optional: enables delegation cancellation on task cancel
+	teamCache   sync.Map         // agentID (uuid.UUID) → *teamCacheEntry
 }
 
 func NewTeamToolManager(teamStore store.TeamStore, agentStore store.AgentStore, msgBus *bus.MessageBus) *TeamToolManager {
 	return &TeamToolManager{teamStore: teamStore, agentStore: agentStore, msgBus: msgBus}
+}
+
+// SetDelegateManager enables delegation cancellation when team tasks are cancelled.
+func (m *TeamToolManager) SetDelegateManager(dm *DelegateManager) {
+	m.delegateMgr = dm
 }
 
 // resolveTeam returns the team that the calling agent belongs to.

@@ -305,6 +305,11 @@ func (t *TeamTasksTool) executeClaim(ctx context.Context, args map[string]interf
 }
 
 func (t *TeamTasksTool) executeComplete(ctx context.Context, args map[string]interface{}) *Result {
+	// Delegate agents cannot complete tasks — autoCompleteTeamTask handles it.
+	if ToolChannelFromCtx(ctx) == "delegate" {
+		return ErrorResult("delegate agents cannot complete team tasks directly — results are auto-completed when delegation finishes")
+	}
+
 	team, agentID, err := t.manager.resolveTeam(ctx)
 	if err != nil {
 		return ErrorResult(err.Error())
@@ -342,6 +347,11 @@ func (t *TeamTasksTool) executeComplete(ctx context.Context, args map[string]int
 }
 
 func (t *TeamTasksTool) executeCancel(ctx context.Context, args map[string]interface{}) *Result {
+	// Delegate agents cannot cancel tasks — only lead/user-facing agents can.
+	if ToolChannelFromCtx(ctx) == "delegate" {
+		return ErrorResult("delegate agents cannot cancel team tasks directly")
+	}
+
 	team, _, err := t.manager.resolveTeam(ctx)
 	if err != nil {
 		return ErrorResult(err.Error())
@@ -358,14 +368,17 @@ func (t *TeamTasksTool) executeCancel(ctx context.Context, args map[string]inter
 
 	reason, _ := args["reason"].(string)
 	if reason == "" {
-		reason = "Cancelled: task was not executed"
+		reason = "Cancelled by agent"
 	}
 
-	if err := t.manager.teamStore.UpdateTask(ctx, taskID, map[string]any{
-		"status": store.TeamTaskStatusCompleted,
-		"result": "CANCELLED: " + reason,
-	}); err != nil {
+	// CancelTask: guards against completed tasks, unblocks dependents, transitions blocked→pending.
+	if err := t.manager.teamStore.CancelTask(ctx, taskID, team.ID, reason); err != nil {
 		return ErrorResult("failed to cancel task: " + err.Error())
+	}
+
+	// Cancel any running delegation for this task.
+	if t.manager.delegateMgr != nil {
+		t.manager.delegateMgr.CancelByTeamTaskID(taskID)
 	}
 
 	t.manager.broadcastTeamEvent(protocol.EventTeamTaskCompleted, map[string]string{
@@ -373,5 +386,5 @@ func (t *TeamTasksTool) executeCancel(ctx context.Context, args map[string]inter
 		"task_id": taskIDStr,
 	})
 
-	return NewResult(fmt.Sprintf("Task %s cancelled.", taskIDStr))
+	return NewResult(fmt.Sprintf("Task %s cancelled. Any running delegation has been stopped and dependent tasks unblocked.", taskIDStr))
 }

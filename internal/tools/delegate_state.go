@@ -54,6 +54,31 @@ func (dm *DelegateManager) Cancel(delegationID string) bool {
 	return true
 }
 
+// CancelByTeamTaskID cancels a running delegation associated with a team task.
+// Returns true if a delegation was found and cancelled.
+func (dm *DelegateManager) CancelByTeamTaskID(teamTaskID uuid.UUID) bool {
+	found := false
+	dm.active.Range(func(key, val any) bool {
+		t := val.(*DelegationTask)
+		if t.TeamTaskID == teamTaskID && t.Status == "running" {
+			if t.cancelFunc != nil {
+				t.cancelFunc()
+			}
+			t.Status = "cancelled"
+			now := time.Now()
+			t.CompletedAt = &now
+			dm.active.Delete(key)
+			dm.emitEvent("delegation.cancelled", t)
+			slog.Info("delegation cancelled by team task cancel",
+				"delegation_id", t.ID, "team_task_id", teamTaskID, "target", t.TargetAgentKey)
+			found = true
+			return false // stop iteration
+		}
+		return true
+	})
+	return found
+}
+
 // ListActive returns all active delegations for a source agent.
 func (dm *DelegateManager) ListActive(sourceAgentID uuid.UUID) []*DelegationTask {
 	var tasks []*DelegationTask
