@@ -537,27 +537,43 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		}
 	}
 
-	// 2b. Cross-session recovery: notify team leads about orphaned pending tasks.
+	// 2b. Cross-session recovery: notify team leads about orphaned pending tasks
+	// and in-progress tasks being handled by delegates.
 	// Safe because Bước 1 (early ClaimTask) ensures running tasks are in_progress,
 	// so only truly un-spawned tasks remain pending.
 	if l.teamStore != nil && l.agentUUID != uuid.Nil {
 		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil && team.LeadAgentID == l.agentUUID {
 			if tasks, err := l.teamStore.ListTasks(ctx, team.ID, "newest", "", req.UserID); err == nil {
 				var stale []string
+				var inProgress []string
 				for _, t := range tasks {
 					if t.Status == store.TeamTaskStatusPending {
 						age := time.Since(t.CreatedAt).Truncate(time.Minute)
 						stale = append(stale, fmt.Sprintf("- %s: \"%s\" (pending %s)", t.ID, t.Subject, age))
 					}
+					if t.Status == store.TeamTaskStatusInProgress {
+						age := time.Since(t.UpdatedAt).Truncate(time.Minute)
+						inProgress = append(inProgress, fmt.Sprintf("- %s: \"%s\" (in progress %s)", t.ID, t.Subject, age))
+					}
 				}
+				var parts []string
 				if len(stale) > 0 {
-					reminder := fmt.Sprintf(
-						"[System] You have %d pending team task(s) that were never spawned:\n%s\n"+
+					parts = append(parts, fmt.Sprintf(
+						"You have %d pending team task(s) that were never spawned:\n%s\n"+
 							"Spawn each one, or cancel with team_tasks action=cancel if no longer needed.",
-						len(stale), strings.Join(stale, "\n"))
+						len(stale), strings.Join(stale, "\n")))
+				}
+				if len(inProgress) > 0 {
+					parts = append(parts, fmt.Sprintf(
+						"You have %d in-progress team task(s) being handled by delegates:\n%s\n"+
+							"Wait for their results before acting on these tasks.",
+						len(inProgress), strings.Join(inProgress, "\n")))
+				}
+				if len(parts) > 0 {
+					reminder := "[System] " + strings.Join(parts, "\n\n")
 					messages = append(messages,
 						providers.Message{Role: "user", Content: reminder},
-						providers.Message{Role: "assistant", Content: "I see the pending tasks. Let me handle them."},
+						providers.Message{Role: "assistant", Content: "I see the task status. Let me handle accordingly."},
 					)
 				}
 			}

@@ -17,6 +17,7 @@ import (
 )
 
 const defaultMaxDelegationLoad = 5
+const delegationProgressDelay = 45 * time.Second
 
 // DelegationTask tracks an active delegation for concurrency control and cancellation.
 type DelegationTask struct {
@@ -253,6 +254,12 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 			task.CompletedAt = &now
 			dm.active.Delete(task.ID)
 		}()
+
+		// Progress notification timer — fires once after delay if still running
+		progressTimer := time.AfterFunc(delegationProgressDelay, func() {
+			dm.sendProgressNotification(task)
+		})
+		defer progressTimer.Stop()
 
 		startTime := time.Now()
 		result, runErr := dm.runAgent(taskCtx, opts.TargetAgentKey, runReq)
@@ -575,6 +582,27 @@ func (dm *DelegateManager) injectDependencyResults(ctx context.Context, opts *De
 			opts.Context = injected
 		}
 	}
+}
+
+// sendProgressNotification sends a proactive "still working" message to the user
+// when an async delegation takes longer than delegationProgressDelay.
+func (dm *DelegateManager) sendProgressNotification(task *DelegationTask) {
+	if dm.msgBus == nil || task.OriginChannel == "" || task.OriginChatID == "" {
+		return
+	}
+	elapsed := time.Since(task.CreatedAt).Round(time.Second)
+	content := fmt.Sprintf("⏳ %s is still working on the task... (%s elapsed)",
+		task.TargetAgentKey, elapsed)
+
+	dm.msgBus.PublishOutbound(bus.OutboundMessage{
+		Channel: task.OriginChannel,
+		ChatID:  task.OriginChatID,
+		Content: content,
+		Metadata: map[string]string{
+			"local_key": task.OriginLocalKey,
+			"peer_kind": task.OriginPeerKind,
+		},
+	})
 }
 
 func buildDelegateMessage(opts DelegateOpts) string {
