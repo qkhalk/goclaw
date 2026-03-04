@@ -92,6 +92,10 @@ func (t *SpawnTool) Parameters() map[string]interface{} {
 			"type":        "string",
 			"description": "Team task ID to auto-complete when task finishes (for team workflows)",
 		}
+		props["estimated_duration"] = map[string]interface{}{
+			"type":        "number",
+			"description": "Estimated task duration in seconds. A progress notification is sent to the user if the task takes longer than this. Default 90.",
+		}
 	}
 
 	return map[string]interface{}{
@@ -220,12 +224,18 @@ func (t *SpawnTool) executeDelegation(ctx context.Context, args map[string]inter
 		teamTaskID, _ = uuid.Parse(ttID)
 	}
 
+	var estimatedDuration time.Duration
+	if ed, ok := args["estimated_duration"].(float64); ok && ed > 0 {
+		estimatedDuration = time.Duration(ed) * time.Second
+	}
+
 	opts := DelegateOpts{
-		TargetAgentKey: agentKey,
-		Task:           task,
-		Context:        extraContext,
-		Mode:           mode,
-		TeamTaskID:     teamTaskID,
+		TargetAgentKey:    agentKey,
+		Task:              task,
+		Context:           extraContext,
+		Mode:              mode,
+		TeamTaskID:        teamTaskID,
+		EstimatedDuration: estimatedDuration,
 	}
 
 	if mode == "async" {

@@ -17,7 +17,7 @@ import (
 )
 
 const defaultMaxDelegationLoad = 5
-const delegationProgressDelay = 45 * time.Second
+const defaultProgressDelay = 90 * time.Second
 
 // DelegationTask tracks an active delegation for concurrency control and cancellation.
 type DelegationTask struct {
@@ -25,7 +25,8 @@ type DelegationTask struct {
 	SourceAgentID  uuid.UUID  `json:"source_agent_id"`
 	SourceAgentKey string     `json:"source_agent_key"`
 	TargetAgentID  uuid.UUID  `json:"target_agent_id"`
-	TargetAgentKey string     `json:"target_agent_key"`
+	TargetAgentKey     string `json:"target_agent_key"`
+	TargetDisplayName  string `json:"-"`
 	UserID         string     `json:"user_id"`
 	Task           string     `json:"task"`
 	Status         string     `json:"status"` // "running", "completed", "failed", "cancelled"
@@ -53,11 +54,12 @@ type DelegationTask struct {
 
 // DelegateOpts configures a single delegation call.
 type DelegateOpts struct {
-	TargetAgentKey string
-	Task           string
-	Context        string    // optional extra context
-	Mode           string    // "sync" (default) or "async"
-	TeamTaskID     uuid.UUID // optional: auto-complete this team task on success
+	TargetAgentKey    string
+	Task              string
+	Context           string        // optional extra context
+	Mode              string        // "sync" (default) or "async"
+	TeamTaskID        uuid.UUID     // optional: auto-complete this team task on success
+	EstimatedDuration time.Duration // optional: progress notification fires after this delay (default 90s)
 }
 
 // DelegateRunRequest is the request passed to the AgentRunFunc callback.
@@ -134,6 +136,7 @@ type DelegateManager struct {
 
 	active            sync.Map // delegationID → *DelegationTask
 	pendingArtifacts  sync.Map // sourceAgentID string → *DelegateArtifacts
+	progressSent      sync.Map // "sourceAgentID:chatID" → true (dedup grouped notifications)
 	completedMu       sync.Mutex
 	completedSessions []string // session keys pending cleanup
 }
@@ -256,7 +259,11 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 		}()
 
 		// Progress notification timer — fires once after delay if still running
-		progressTimer := time.AfterFunc(delegationProgressDelay, func() {
+		progressDelay := opts.EstimatedDuration
+		if progressDelay <= 0 {
+			progressDelay = defaultProgressDelay
+		}
+		progressTimer := time.AfterFunc(progressDelay, func() {
 			dm.sendProgressNotification(task)
 		})
 		defer progressTimer.Stop()
@@ -303,6 +310,9 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 				slog.Info("delegation announce suppressed (siblings still running)",
 					"id", task.ID, "target", task.TargetAgentKey, "siblings", siblingCount)
 			} else {
+				// Last completion: clear progress dedup so next batch gets fresh notifications.
+				dm.progressSent.Delete(task.SourceAgentID.String() + ":" + task.OriginChatID)
+
 				// Last completion: collect all accumulated artifacts + own result
 				artifacts := dm.collectArtifacts(task.SourceAgentID)
 				if result != nil {
@@ -518,7 +528,8 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 		SourceAgentID:  sourceAgentID,
 		SourceAgentKey: sourceAgent.AgentKey,
 		TargetAgentID:  targetAgent.ID,
-		TargetAgentKey: opts.TargetAgentKey,
+		TargetAgentKey:    opts.TargetAgentKey,
+		TargetDisplayName: targetAgent.DisplayName,
 		UserID:         userID,
 		Task:           opts.Task,
 		Status:         "running",
@@ -584,15 +595,40 @@ func (dm *DelegateManager) injectDependencyResults(ctx context.Context, opts *De
 	}
 }
 
-// sendProgressNotification sends a proactive "still working" message to the user
-// when an async delegation takes longer than delegationProgressDelay.
+// sendProgressNotification sends a grouped "still working" message listing all
+// active delegations from the same source agent. Uses progressSent to dedup —
+// only the first timer that fires sends the notification; subsequent timers skip.
 func (dm *DelegateManager) sendProgressNotification(task *DelegationTask) {
-	if dm.msgBus == nil || task.OriginChannel == "" || task.OriginChatID == "" {
+	// Skip internal/delegate channels — only notify on real user-facing channels.
+	if dm.msgBus == nil || task.OriginChannel == "" || task.OriginChatID == "" ||
+		task.OriginChannel == "delegate" || task.OriginChannel == "system" {
 		return
 	}
-	elapsed := time.Since(task.CreatedAt).Round(time.Second)
-	content := fmt.Sprintf("⏳ %s is still working on the task... (%s elapsed)",
-		task.TargetAgentKey, elapsed)
+
+	// Dedup: one grouped notification per source agent per chat.
+	dedupKey := task.SourceAgentID.String() + ":" + task.OriginChatID
+	if _, loaded := dm.progressSent.LoadOrStore(dedupKey, true); loaded {
+		return
+	}
+
+	// Collect all active delegations from same source agent.
+	active := dm.ListActive(task.SourceAgentID)
+	if len(active) == 0 {
+		dm.progressSent.Delete(dedupKey)
+		return
+	}
+
+	var lines []string
+	for _, t := range active {
+		elapsed := time.Since(t.CreatedAt).Round(time.Second)
+		label := t.TargetAgentKey
+		if t.TargetDisplayName != "" {
+			label = fmt.Sprintf("%s (%s)", t.TargetDisplayName, t.TargetAgentKey)
+		}
+		lines = append(lines, fmt.Sprintf("- %s: %s", label, elapsed))
+	}
+
+	content := fmt.Sprintf("⏳ Your team is working on it...\n%s", strings.Join(lines, "\n"))
 
 	dm.msgBus.PublishOutbound(bus.OutboundMessage{
 		Channel: task.OriginChannel,
