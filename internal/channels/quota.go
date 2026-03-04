@@ -175,6 +175,113 @@ func (qc *QuotaChecker) queryDB(ctx context.Context, userID string) quotaCounts 
 	return counts
 }
 
+// QuotaUsage represents usage vs limit for a single time window.
+type QuotaUsage struct {
+	Used  int `json:"used"`
+	Limit int `json:"limit"` // 0 = unlimited
+}
+
+// QuotaUsageEntry represents a single user/group's quota consumption.
+type QuotaUsageEntry struct {
+	UserID string     `json:"userId"`
+	Hour   QuotaUsage `json:"hour"`
+	Day    QuotaUsage `json:"day"`
+	Week   QuotaUsage `json:"week"`
+}
+
+// QuotaUsageResult is the response for the quota.usage RPC method.
+type QuotaUsageResult struct {
+	Enabled           bool              `json:"enabled"`
+	RequestsToday     int               `json:"requestsToday"`
+	InputTokensToday  int64             `json:"inputTokensToday"`
+	OutputTokensToday int64             `json:"outputTokensToday"`
+	UniqueUsersToday  int               `json:"uniqueUsersToday"`
+	Entries           []QuotaUsageEntry `json:"entries"`
+}
+
+// Usage returns quota consumption for all users with recent activity.
+// Used by the dashboard to display quota usage with progress bars.
+func (qc *QuotaChecker) Usage(ctx context.Context) QuotaUsageResult {
+	qc.mu.RLock()
+	cfg := qc.config
+	qc.mu.RUnlock()
+
+	result := QuotaUsageResult{
+		Enabled: cfg.Enabled,
+		Entries: []QuotaUsageEntry{},
+	}
+	if !cfg.Enabled {
+		// Still return today's summary even when quota is disabled
+		qc.queryTodaySummary(ctx, &result)
+		return result
+	}
+
+	now := time.Now().UTC()
+	hourAgo := now.Add(-1 * time.Hour)
+	dayAgo := now.Add(-24 * time.Hour)
+	weekAgo := now.Add(-7 * 24 * time.Hour)
+
+	// Query per-user counts for the past week
+	rows, err := qc.db.QueryContext(ctx, `
+		SELECT
+			user_id,
+			COUNT(*) FILTER (WHERE created_at >= $1) AS hour_count,
+			COUNT(*) FILTER (WHERE created_at >= $2) AS day_count,
+			COUNT(*) AS week_count
+		FROM traces
+		WHERE parent_trace_id IS NULL AND created_at >= $3
+		GROUP BY user_id
+		ORDER BY week_count DESC
+		LIMIT 50`,
+		hourAgo, dayAgo, weekAgo,
+	)
+	if err != nil {
+		slog.Warn("quota.usage: failed to query user counts", "error", err)
+		qc.queryTodaySummary(ctx, &result)
+		return result
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var userID string
+		var hour, day, week int
+		if err := rows.Scan(&userID, &hour, &day, &week); err != nil {
+			continue
+		}
+
+		window := qc.resolveWindow(userID, "", "")
+		result.Entries = append(result.Entries, QuotaUsageEntry{
+			UserID: userID,
+			Hour:   QuotaUsage{Used: hour, Limit: window.Hour},
+			Day:    QuotaUsage{Used: day, Limit: window.Day},
+			Week:   QuotaUsage{Used: week, Limit: window.Week},
+		})
+	}
+
+	qc.queryTodaySummary(ctx, &result)
+	return result
+}
+
+// queryTodaySummary fills today's aggregate stats into the result.
+func (qc *QuotaChecker) queryTodaySummary(ctx context.Context, result *QuotaUsageResult) {
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	err := qc.db.QueryRowContext(ctx, `
+		SELECT
+			COUNT(*),
+			COALESCE(SUM(total_input_tokens), 0),
+			COALESCE(SUM(total_output_tokens), 0),
+			COUNT(DISTINCT user_id)
+		FROM traces
+		WHERE parent_trace_id IS NULL AND created_at >= $1`,
+		startOfDay,
+	).Scan(&result.RequestsToday, &result.InputTokensToday, &result.OutputTokensToday, &result.UniqueUsersToday)
+	if err != nil {
+		slog.Warn("quota.usage: failed to query today summary", "error", err)
+	}
+}
+
 // cleanupLoop periodically evicts stale cache entries.
 func (qc *QuotaChecker) cleanupLoop() {
 	ticker := time.NewTicker(2 * time.Minute)

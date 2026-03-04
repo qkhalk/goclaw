@@ -927,6 +927,9 @@ func runGateway() {
 		)
 	}
 
+	// Register quota usage RPC (nil-safe — returns {enabled: false} in standalone mode).
+	methods.NewQuotaMethods(quotaChecker).Register(server.Router())
+
 	// Reload quota config on config changes via pub/sub.
 	if quotaChecker != nil {
 		msgBus.Subscribe("quota-config-reload", func(evt bus.Event) {

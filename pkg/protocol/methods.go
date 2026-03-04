@@ -78,6 +78,8 @@ const (
 	MethodUsageGet     = "usage.get"
 	MethodUsageSummary = "usage.summary"
 
+	MethodQuotaUsage = "quota.usage"
+
 	MethodSend = "send"
 )
 

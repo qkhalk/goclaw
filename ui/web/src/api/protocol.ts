@@ -116,6 +116,8 @@ export const Methods = {
   USAGE_GET: "usage.get",
   USAGE_SUMMARY: "usage.summary",
 
+  QUOTA_USAGE: "quota.usage",
+
   SEND: "send",
 
   // Agent links (delegation)
