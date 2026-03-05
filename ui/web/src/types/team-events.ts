@@ -197,10 +197,12 @@ export interface EnrichedAgentEventPayload {
   runId: string;
   payload?: {
     content?: string;
+    message?: string;
     name?: string;
     id?: string;
     is_error?: boolean;
     error?: string;
+    arguments?: Record<string, unknown>;
   };
   delegationId?: string;
   teamId?: string;

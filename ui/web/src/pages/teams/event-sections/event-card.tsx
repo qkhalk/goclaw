@@ -49,15 +49,15 @@ export function EventCard({ entry }: EventCardProps) {
       <button
         type="button"
         onClick={() => setShowDetail(true)}
-        className="w-full cursor-pointer overflow-hidden rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary/20"
+        className="w-full cursor-pointer overflow-hidden rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:border-primary/20"
       >
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <EventTypeBadge event={event} />
-          <span className="shrink-0 text-xs text-muted-foreground">
+        <div className="flex min-w-0 items-start gap-2">
+          <EventTypeBadge event={event} payload={entry.payload} />
+          <div className="min-w-0 flex-1">{content}</div>
+          <span className="mt-0.5 shrink-0 text-xs text-muted-foreground">
             {formatRelativeTime(new Date(entry.timestamp))}
           </span>
         </div>
-        <div className="min-w-0">{content}</div>
       </button>
 
       {showDetail && (
@@ -67,19 +67,26 @@ export function EventCard({ entry }: EventCardProps) {
   );
 }
 
-function EventTypeBadge({ event }: { event: string }) {
+function EventTypeBadge({ event, payload }: { event: string; payload: unknown }) {
+  // For agent events, show the subtype (run.started, tool.call) instead of generic "agent"
+  let label = event;
+  if (event === "agent") {
+    const p = payload as { type?: string };
+    if (p?.type) label = p.type;
+  }
+
   const variant =
-    event.includes("failed") || event.includes("cancelled") || event.includes("deleted")
+    label.includes("failed") || label.includes("cancelled") || label.includes("deleted")
       ? "destructive"
-      : event.includes("completed") || event.includes("created") || event.includes("added")
+      : label.includes("completed") || label.includes("created") || label.includes("added")
         ? "success"
-        : event.includes("started") || event.includes("progress") || event.includes("claimed")
+        : label.includes("started") || label.includes("progress") || label.includes("claimed")
           ? "info"
           : "secondary";
 
   return (
-    <Badge variant={variant} className="shrink-0 font-mono text-xs">
-      {event}
+    <Badge variant={variant} className="mt-0.5 shrink-0 font-mono text-xs">
+      {label}
     </Badge>
   );
 }

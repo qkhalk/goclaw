@@ -20,28 +20,28 @@ export function AgentEventCard({ entry, resolveAgent }: Props) {
 
 /** run.started / run.completed / run.failed / run.retrying */
 function RunEventCard({ p, resolveAgent }: { p: EnrichedAgentEventPayload; resolveAgent: Props["resolveAgent"] }) {
-  const subtype = p.type;
-  const variant =
-    subtype === "run.completed"
-      ? ("success" as const)
-      : subtype === "run.failed"
-        ? ("destructive" as const)
-        : subtype === "run.retrying"
-          ? ("warning" as const)
-          : ("info" as const);
+  const message = p.payload?.message;
+  const content = p.payload?.content;
 
   return (
-    <div className="space-y-1 text-sm">
+    <div className="space-y-0.5 text-sm">
       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <Badge variant={variant} className="shrink-0 font-mono text-xs">
-          {subtype}
-        </Badge>
         <span className="truncate font-medium">{resolveAgent(p.agentId)}</span>
+        {p.channel && (
+          <Badge variant="outline" className="shrink-0 text-xs">{p.channel}</Badge>
+        )}
       </div>
+
+      {message && (
+        <p className="break-words text-xs text-muted-foreground line-clamp-2">{message}</p>
+      )}
+      {content && (
+        <p className="break-words text-xs text-muted-foreground line-clamp-2">{content}</p>
+      )}
 
       <ContextRow p={p} resolveAgent={resolveAgent} />
 
-      {subtype === "run.failed" && p.payload?.error && (
+      {p.type === "run.failed" && p.payload?.error && (
         <p className="break-words text-xs text-destructive line-clamp-2">{p.payload.error}</p>
       )}
     </div>
@@ -53,13 +53,14 @@ function ToolEventCard({ p, resolveAgent }: { p: EnrichedAgentEventPayload; reso
   const isResult = p.type === "tool.result";
   const toolName = p.payload?.name;
   const isError = isResult && p.payload?.is_error;
+  const args = p.payload?.arguments;
+  const argsPreview = args ? JSON.stringify(args) : null;
 
   return (
-    <div className="space-y-1 text-sm">
+    <div className="space-y-0.5 text-sm">
       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <Badge variant={isError ? "destructive" : "secondary"} className="shrink-0 font-mono text-xs">
-          {p.type}
-        </Badge>
+        <span className="truncate font-medium">{resolveAgent(p.agentId)}</span>
+        <span className="shrink-0 text-muted-foreground">&rarr;</span>
         {toolName && (
           <span className="truncate font-mono font-medium">{toolName}</span>
         )}
@@ -68,16 +69,21 @@ function ToolEventCard({ p, resolveAgent }: { p: EnrichedAgentEventPayload; reso
             {isError ? "error" : "ok"}
           </Badge>
         )}
-        <span className="shrink-0 text-muted-foreground">&rarr;</span>
-        <span className="truncate">{resolveAgent(p.agentId)}</span>
+        {p.channel && (
+          <Badge variant="outline" className="shrink-0 text-xs">{p.channel}</Badge>
+        )}
       </div>
+
+      {argsPreview && (
+        <p className="break-words font-mono text-xs text-muted-foreground line-clamp-2">{argsPreview}</p>
+      )}
 
       <ContextRow p={p} resolveAgent={resolveAgent} showCallId />
     </div>
   );
 }
 
-/** Shared context row: channel, delegation, parent, team task, call ID */
+/** Shared context row: runId, delegation, parent, team task, call ID, chatId */
 function ContextRow({
   p,
   resolveAgent,
@@ -87,14 +93,11 @@ function ContextRow({
   resolveAgent: Props["resolveAgent"];
   showCallId?: boolean;
 }) {
-  const hasContext = p.channel || p.delegationId || p.parentAgentId || p.teamTaskId || (showCallId && p.payload?.id);
+  const hasContext = p.runId || p.delegationId || p.parentAgentId || p.teamTaskId || p.chatId || (showCallId && p.payload?.id);
   if (!hasContext) return null;
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-      {p.channel && (
-        <Badge variant="outline" className="shrink-0 text-xs">{p.channel}</Badge>
-      )}
       {p.delegationId && (
         <ShortId label="deleg" id={p.delegationId} />
       )}
@@ -108,6 +111,12 @@ function ContextRow({
       )}
       {showCallId && p.payload?.id && (
         <ShortId label="call" id={p.payload.id} />
+      )}
+      {p.runId && (
+        <ShortId label="run" id={p.runId} />
+      )}
+      {p.chatId && (
+        <span className="shrink-0">chat: <span className="font-mono">{p.chatId}</span></span>
       )}
     </div>
   );

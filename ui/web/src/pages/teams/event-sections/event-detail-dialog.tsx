@@ -64,7 +64,7 @@ export function EventDetailDialog({ entry, onClose }: EventDetailDialogProps) {
 /** Simple JSON syntax highlighter — no external deps. */
 function JsonHighlight({ json }: { json: string }) {
   const parts = json.split(
-    /("(?:\\.|[^"\\])*")\s*(:)?|(\btrue\b|\bfalse\b|\bnull\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
+    /("(?:\\.|[^"\\])*") *(:)?|(\btrue\b|\bfalse\b|\bnull\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
   );
 
   return (

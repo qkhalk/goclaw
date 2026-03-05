@@ -40,7 +40,12 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		l.emit(event)
 	}
 
-	emitRun(AgentEvent{Type: protocol.AgentEventRunStarted, AgentID: l.id, RunID: req.RunID})
+	emitRun(AgentEvent{
+		Type:    protocol.AgentEventRunStarted,
+		AgentID: l.id,
+		RunID:   req.RunID,
+		Payload: map[string]interface{}{"message": req.Message},
+	})
 
 	// Create trace (managed mode only)
 	var traceID uuid.UUID
@@ -131,7 +136,12 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		return nil, err
 	}
 
-	emitRun(AgentEvent{Type: protocol.AgentEventRunCompleted, AgentID: l.id, RunID: req.RunID})
+	emitRun(AgentEvent{
+		Type:    protocol.AgentEventRunCompleted,
+		AgentID: l.id,
+		RunID:   req.RunID,
+		Payload: map[string]interface{}{"content": result.Content},
+	})
 	if !isChildTrace && l.traceCollector != nil && traceID != uuid.Nil {
 		l.traceCollector.FinishTrace(ctx, traceID, store.TraceStatusCompleted, "", truncateStr(result.Content, 500))
 	}
@@ -595,7 +605,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				Type:    protocol.AgentEventToolCall,
 				AgentID: l.id,
 				RunID:   req.RunID,
-				Payload: map[string]interface{}{"name": tc.Name, "id": tc.ID},
+				Payload: map[string]interface{}{"name": tc.Name, "id": tc.ID, "arguments": tc.Arguments},
 			})
 
 			argsJSON, _ := json.Marshal(tc.Arguments)
@@ -695,7 +705,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					Type:    protocol.AgentEventToolCall,
 					AgentID: l.id,
 					RunID:   req.RunID,
-					Payload: map[string]interface{}{"name": tc.Name, "id": tc.ID},
+					Payload: map[string]interface{}{"name": tc.Name, "id": tc.ID, "arguments": tc.Arguments},
 				})
 			}
 
