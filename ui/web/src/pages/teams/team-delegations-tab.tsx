@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DeferredSpinner } from "@/components/shared/loading-skeleton";
 import { formatDate, formatDuration } from "@/lib/format";
@@ -14,12 +15,12 @@ interface TeamDelegationsTabProps {
 }
 
 export function TeamDelegationsTab({ teamId }: TeamDelegationsTabProps) {
-  const { records, loading } = useTeamDelegations(teamId);
+  const { records, loading, refresh } = useTeamDelegations(teamId);
   const { getDelegation } = useDelegations();
   const { getTrace } = useTraces();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  if (loading) return <DeferredSpinner />;
+  if (loading && records.length === 0) return <DeferredSpinner />;
 
   if (records.length === 0) {
     return (
@@ -33,6 +34,12 @@ export function TeamDelegationsTab({ teamId }: TeamDelegationsTabProps) {
 
   return (
     <>
+      <div className="mb-4 flex justify-end">
+        <Button variant="ghost" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </div>
       <div className="rounded-md border overflow-x-auto">
         <table className="w-full min-w-[600px] text-sm">
           <thead>

@@ -105,9 +105,9 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
       </div>
 
       {/* Tabs */}
-      <div className="max-w-4xl rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+      <div className="max-w-4xl">
         <Tabs defaultValue="members">
-          <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
             <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="delegations">Delegations</TabsTrigger>

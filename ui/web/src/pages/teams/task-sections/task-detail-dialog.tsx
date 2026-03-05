@@ -17,7 +17,7 @@ interface TaskDetailDialogProps {
 export function TaskDetailDialog({ task, onClose }: TaskDetailDialogProps) {
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[85vh] w-[95vw] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Task Detail</DialogTitle>
         </DialogHeader>
