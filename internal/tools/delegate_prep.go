@@ -184,6 +184,12 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 		task.TeamID = *link.TeamID
 	}
 
+	// Resolve progress notifications: per-team setting overrides global default.
+	task.progressEnabled = dm.progressEnabled
+	if team != nil {
+		task.progressEnabled = parseProgressNotifications(team.Settings, dm.progressEnabled)
+	}
+
 	return task, link, nil
 }
 
@@ -232,6 +238,9 @@ func (dm *DelegateManager) injectDependencyResults(ctx context.Context, opts *De
 // active delegations from the same source agent. Uses progressSent to dedup —
 // concurrent tickers only send one notification per cycle, then release for next tick.
 func (dm *DelegateManager) sendProgressNotification(task *DelegationTask) {
+	if !task.progressEnabled {
+		return
+	}
 	// Skip internal/delegate channels — only notify on real user-facing channels.
 	if dm.msgBus == nil || task.OriginChannel == "" || task.OriginChatID == "" ||
 		task.OriginChannel == "delegate" || task.OriginChannel == "system" {

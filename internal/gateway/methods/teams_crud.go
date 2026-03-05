@@ -204,10 +204,11 @@ func (m *TeamsMethods) handleUpdate(_ context.Context, client *gateway.Client, r
 
 	// Validate settings against teamAccessSettings schema (strip unknown fields)
 	type teamAccessSettings struct {
-		AllowUserIDs  []string `json:"allow_user_ids"`
-		DenyUserIDs   []string `json:"deny_user_ids"`
-		AllowChannels []string `json:"allow_channels"`
-		DenyChannels  []string `json:"deny_channels"`
+		AllowUserIDs          []string `json:"allow_user_ids"`
+		DenyUserIDs           []string `json:"deny_user_ids"`
+		AllowChannels         []string `json:"allow_channels"`
+		DenyChannels          []string `json:"deny_channels"`
+		ProgressNotifications *bool    `json:"progress_notifications,omitempty"`
 	}
 	raw, _ := json.Marshal(params.Settings)
 	var access teamAccessSettings

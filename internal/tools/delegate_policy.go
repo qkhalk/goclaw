@@ -40,10 +40,11 @@ func checkUserPermission(settings json.RawMessage, userID string) error {
 // teamAccessSettings defines access control rules stored in agent_teams.settings JSONB.
 // Empty/nil lists mean "no restriction". Deny lists take precedence over allow lists.
 type teamAccessSettings struct {
-	AllowUserIDs  []string `json:"allow_user_ids"`
-	DenyUserIDs   []string `json:"deny_user_ids"`
-	AllowChannels []string `json:"allow_channels"`
-	DenyChannels  []string `json:"deny_channels"`
+	AllowUserIDs          []string `json:"allow_user_ids"`
+	DenyUserIDs           []string `json:"deny_user_ids"`
+	AllowChannels         []string `json:"allow_channels"`
+	DenyChannels          []string `json:"deny_channels"`
+	ProgressNotifications *bool    `json:"progress_notifications,omitempty"`
 }
 
 // checkTeamAccess validates whether a user/channel combination is authorized
@@ -133,6 +134,20 @@ func parseQualityGates(otherConfig json.RawMessage) []hooks.HookConfig {
 		return nil
 	}
 	return cfg.QualityGates
+}
+
+func parseProgressNotifications(settings json.RawMessage, globalDefault bool) bool {
+	if len(settings) == 0 {
+		return globalDefault
+	}
+	var s teamAccessSettings
+	if json.Unmarshal(settings, &s) != nil {
+		return globalDefault
+	}
+	if s.ProgressNotifications != nil {
+		return *s.ProgressNotifications
+	}
+	return globalDefault
 }
 
 // applyQualityGates evaluates quality gates on a delegation result.

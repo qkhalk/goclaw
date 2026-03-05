@@ -46,7 +46,8 @@ type DelegationTask struct {
 	TeamID     uuid.UUID `json:"-"` // from link.TeamID (for delegation history)
 	TeamTaskID uuid.UUID `json:"-"`
 
-	cancelFunc context.CancelFunc `json:"-"`
+	cancelFunc      context.CancelFunc `json:"-"`
+	progressEnabled bool               `json:"-"` // resolved from team settings or global default
 }
 
 // DelegateOpts configures a single delegation call.
@@ -143,6 +144,7 @@ type DelegateManager struct {
 	active            sync.Map // delegationID → *DelegationTask
 	pendingArtifacts  sync.Map // sourceAgentID string → *DelegateArtifacts
 	progressSent      sync.Map // "sourceAgentID:chatID" → true (dedup grouped notifications)
+	progressEnabled   bool     // send "Your team is working on it..." to chat (default: false/off)
 	completedMu       sync.Mutex
 	completedSessions []string // session keys pending cleanup
 }
@@ -175,5 +177,10 @@ func (dm *DelegateManager) SetSessionStore(ss store.SessionStore) {
 // SetHookEngine enables quality gate evaluation on delegation results.
 func (dm *DelegateManager) SetHookEngine(engine *hooks.Engine) {
 	dm.hookEngine = engine
+}
+
+// SetProgressEnabled toggles "Your team is working on it..." chat notifications.
+func (dm *DelegateManager) SetProgressEnabled(enabled bool) {
+	dm.progressEnabled = enabled
 }
 
