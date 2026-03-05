@@ -109,6 +109,7 @@ type AgentEvent struct {
 	Type    string      `json:"type"`    // "run.started", "run.completed", "run.failed", "chunk", "tool.call", "tool.result"
 	AgentID string      `json:"agentId"`
 	RunID   string      `json:"runId"`
+	RunKind string      `json:"runKind,omitempty"` // "delegation", "announce" — omitted for user-initiated runs
 	Payload interface{} `json:"payload,omitempty"`
 
 	// Delegation context (omitempty — only present when agent runs inside a delegation)
@@ -273,6 +274,9 @@ type RunRequest struct {
 	TraceName        string    // override trace name (default: "chat <agentID>")
 	TraceTags        []string  // additional tags for the trace (e.g. "cron")
 	MaxIterations    int       // per-request override (0 = use agent default, must be lower)
+
+	// Run classification
+	RunKind string // "delegation", "announce" — empty for user-initiated runs
 
 	// Delegation context (set when running as a delegate agent)
 	DelegationID  string // delegation ID for event correlation

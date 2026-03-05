@@ -27,6 +27,7 @@ function RunEventCard({ p, resolveAgent }: { p: EnrichedAgentEventPayload; resol
     <div className="space-y-1 text-sm">
       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
         <span className="truncate font-medium">{resolveAgent(p.agentId)}</span>
+        {p.runKind && <RunKindBadge kind={p.runKind} />}
       </div>
 
       {message && (
@@ -64,12 +65,14 @@ function ToolEventCard({ p, resolveAgent }: { p: EnrichedAgentEventPayload; reso
             <Badge variant={isError ? "destructive" : "success"} className="shrink-0 text-xs">
               {isError ? "error" : "ok"}
             </Badge>
+            {p.runKind && <RunKindBadge kind={p.runKind} />}
           </>
         ) : (
           <>
             <span className="truncate font-medium">{agentName}</span>
             <span className="shrink-0 text-muted-foreground">&rarr;</span>
             {toolName && <span className="truncate font-mono font-medium">{toolName}</span>}
+            {p.runKind && <RunKindBadge kind={p.runKind} />}
           </>
         )}
       </div>
@@ -140,6 +143,18 @@ function PillId({ label, id }: { label: string; id: string }) {
   return (
     <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
       {label}: {id.slice(0, 8)}
+    </span>
+  );
+}
+
+function RunKindBadge({ kind }: { kind: string }) {
+  const colors: Record<string, string> = {
+    delegation: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    announce: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  };
+  return (
+    <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${colors[kind] ?? "bg-muted text-muted-foreground"}`}>
+      {kind}
     </span>
   );
 }

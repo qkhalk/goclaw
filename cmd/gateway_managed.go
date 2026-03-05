@@ -336,6 +336,7 @@ func wireManagedExtras(
 				Stream:            req.Stream,
 				ExtraSystemPrompt: req.ExtraSystemPrompt,
 				MaxIterations:     req.MaxIterations,
+				RunKind:           "delegation",
 				DelegationID:      req.DelegationID,
 				TeamID:            req.TeamID,
 				TeamTaskID:        req.TeamTaskID,

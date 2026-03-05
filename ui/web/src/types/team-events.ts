@@ -195,6 +195,7 @@ export interface EnrichedAgentEventPayload {
   type: string;
   agentId: string;
   runId: string;
+  runKind?: string; // "delegation", "announce" — omitted for user-initiated runs
   payload?: {
     content?: string;
     message?: string;
