@@ -21,6 +21,7 @@ type DelegationTask struct {
 	SourceAgentID  uuid.UUID  `json:"source_agent_id"`
 	SourceAgentKey string     `json:"source_agent_key"`
 	TargetAgentID  uuid.UUID  `json:"target_agent_id"`
+	SourceDisplayName  string `json:"-"`
 	TargetAgentKey     string `json:"target_agent_key"`
 	TargetDisplayName  string `json:"-"`
 	UserID         string     `json:"user_id"`
@@ -72,6 +73,12 @@ type DelegateRunRequest struct {
 	Stream            bool
 	ExtraSystemPrompt string
 	MaxIterations     int // per-delegation override (0 = use agent default)
+
+	// Delegation context (bridged to agent.RunRequest for event enrichment)
+	DelegationID  string
+	TeamID        string
+	TeamTaskID    string
+	ParentAgentID string
 }
 
 // DelegateRunResult is the result from AgentRunFunc.
@@ -95,6 +102,7 @@ type DelegateArtifacts struct {
 // included in the final announce so the lead has all results in one message.
 type DelegateResultSummary struct {
 	AgentKey     string
+	DisplayName  string   // target agent display name
 	Content      string
 	HasMedia     bool
 	Deliverables []string // actual content from tool outputs

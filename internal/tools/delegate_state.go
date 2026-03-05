@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // CancelForOrigin cancels all active async delegations originating from a given channel + chatID.
@@ -26,7 +27,7 @@ func (dm *DelegateManager) CancelForOrigin(channel, chatID string) int {
 			now := time.Now()
 			t.CompletedAt = &now
 			dm.active.Delete(key)
-			dm.emitEvent("delegation.cancelled", t)
+			dm.emitDelegationEvent(protocol.EventDelegationCancelled, t)
 			slog.Info("delegation cancelled by /stopall", "id", t.ID, "target", t.TargetAgentKey)
 			count++
 		}
@@ -49,7 +50,7 @@ func (dm *DelegateManager) Cancel(delegationID string) bool {
 	now := time.Now()
 	task.CompletedAt = &now
 	dm.active.Delete(delegationID)
-	dm.emitEvent("delegation.cancelled", task)
+	dm.emitDelegationEvent(protocol.EventDelegationCancelled, task)
 	slog.Info("delegation cancelled", "id", delegationID, "target", task.TargetAgentKey)
 	return true
 }
@@ -68,7 +69,7 @@ func (dm *DelegateManager) CancelByTeamTaskID(teamTaskID uuid.UUID) bool {
 			now := time.Now()
 			t.CompletedAt = &now
 			dm.active.Delete(key)
-			dm.emitEvent("delegation.cancelled", t)
+			dm.emitDelegationEvent(protocol.EventDelegationCancelled, t)
 			slog.Info("delegation cancelled by team task cancel",
 				"delegation_id", t.ID, "team_task_id", teamTaskID, "target", t.TargetAgentKey)
 			found = true

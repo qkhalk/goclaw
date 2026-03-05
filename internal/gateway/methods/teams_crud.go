@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
@@ -90,7 +91,8 @@ func (m *TeamsMethods) handleDelete(_ context.Context, client *gateway.Client, r
 
 	ctx := context.Background()
 
-	// Fetch members before deleting for cache invalidation
+	// Fetch team and members before deleting for event + cache invalidation
+	team, _ := m.teamStore.GetTeam(ctx, teamID)
 	members, _ := m.teamStore.ListMembers(ctx, teamID)
 
 	if err := m.teamStore.DeleteTeam(ctx, teamID); err != nil {
@@ -106,6 +108,17 @@ func (m *TeamsMethods) handleDelete(_ context.Context, client *gateway.Client, r
 	}
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{"ok": true}))
+
+	// Emit team.deleted event
+	if m.msgBus != nil && team != nil {
+		m.msgBus.Broadcast(bus.Event{
+			Name: protocol.EventTeamDeleted,
+			Payload: protocol.TeamDeletedPayload{
+				TeamID:   teamID.String(),
+				TeamName: team.Name,
+			},
+		})
+	}
 }
 
 // --- Task List (admin view) ---
@@ -183,7 +196,8 @@ func (m *TeamsMethods) handleUpdate(_ context.Context, client *gateway.Client, r
 	ctx := context.Background()
 
 	// Validate team exists
-	if _, err := m.teamStore.GetTeam(ctx, teamID); err != nil {
+	team, err := m.teamStore.GetTeam(ctx, teamID)
+	if err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, "team not found: "+err.Error()))
 		return
 	}
@@ -212,6 +226,22 @@ func (m *TeamsMethods) handleUpdate(_ context.Context, client *gateway.Client, r
 	m.invalidateTeamCaches(ctx, teamID)
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{"ok": true}))
+
+	// Emit team.updated event
+	if m.msgBus != nil {
+		changes := make([]string, 0, len(updates))
+		for k := range updates {
+			changes = append(changes, k)
+		}
+		m.msgBus.Broadcast(bus.Event{
+			Name: protocol.EventTeamUpdated,
+			Payload: protocol.TeamUpdatedPayload{
+				TeamID:   teamID.String(),
+				TeamName: team.Name,
+				Changes:  changes,
+			},
+		})
+	}
 }
 
 // --- Known Users ---

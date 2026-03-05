@@ -28,7 +28,19 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 	l.activeRuns.Add(1)
 	defer l.activeRuns.Add(-1)
 
-	l.emit(AgentEvent{Type: protocol.AgentEventRunStarted, AgentID: l.id, RunID: req.RunID})
+	// Per-run emit wrapper: enriches every AgentEvent with delegation + routing context.
+	emitRun := func(event AgentEvent) {
+		event.DelegationID = req.DelegationID
+		event.TeamID = req.TeamID
+		event.TeamTaskID = req.TeamTaskID
+		event.ParentAgentID = req.ParentAgentID
+		event.UserID = req.UserID
+		event.Channel = req.Channel
+		event.ChatID = req.ChatID
+		l.emit(event)
+	}
+
+	emitRun(AgentEvent{Type: protocol.AgentEventRunStarted, AgentID: l.id, RunID: req.RunID})
 
 	// Create trace (managed mode only)
 	var traceID uuid.UUID
@@ -98,7 +110,7 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 	}
 
 	if err != nil {
-		l.emit(AgentEvent{
+		emitRun(AgentEvent{
 			Type:    protocol.AgentEventRunFailed,
 			AgentID: l.id,
 			RunID:   req.RunID,
@@ -119,7 +131,7 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		return nil, err
 	}
 
-	l.emit(AgentEvent{Type: protocol.AgentEventRunCompleted, AgentID: l.id, RunID: req.RunID})
+	emitRun(AgentEvent{Type: protocol.AgentEventRunCompleted, AgentID: l.id, RunID: req.RunID})
 	if !isChildTrace && l.traceCollector != nil && traceID != uuid.Nil {
 		l.traceCollector.FinishTrace(ctx, traceID, store.TraceStatusCompleted, "", truncateStr(result.Content, 500))
 	}
@@ -127,6 +139,18 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 }
 
 func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) {
+	// Per-run emit wrapper: enriches every AgentEvent with delegation + routing context.
+	emitRun := func(event AgentEvent) {
+		event.DelegationID = req.DelegationID
+		event.TeamID = req.TeamID
+		event.TeamTaskID = req.TeamTaskID
+		event.ParentAgentID = req.ParentAgentID
+		event.UserID = req.UserID
+		event.Channel = req.Channel
+		event.ChatID = req.ChatID
+		l.emit(event)
+	}
+
 	// Inject agent UUID into context for tool routing (managed mode)
 	if l.agentUUID != uuid.Nil {
 		ctx = store.WithAgentID(ctx, l.agentUUID)
@@ -346,7 +370,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 	// Inject retry hook so channels can update placeholder on LLM retries.
 	ctx = providers.WithRetryHook(ctx, func(attempt, maxAttempts int, err error) {
-		l.emit(AgentEvent{
+		emitRun(AgentEvent{
 			Type:    protocol.AgentEventRunRetrying,
 			AgentID: l.id,
 			RunID:   req.RunID,
@@ -408,7 +432,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		if req.Stream {
 			resp, err = l.provider.ChatStream(ctx, chatReq, func(chunk providers.StreamChunk) {
 				if chunk.Thinking != "" {
-					l.emit(AgentEvent{
+					emitRun(AgentEvent{
 						Type:    protocol.ChatEventThinking,
 						AgentID: l.id,
 						RunID:   req.RunID,
@@ -416,7 +440,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					})
 				}
 				if chunk.Content != "" {
-					l.emit(AgentEvent{
+					emitRun(AgentEvent{
 						Type:    protocol.ChatEventChunk,
 						AgentID: l.id,
 						RunID:   req.RunID,
@@ -434,6 +458,26 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		}
 
 		l.emitLLMSpan(ctx, llmSpanStart, iteration, messages, resp, nil)
+
+		// For non-streaming responses, emit thinking and content as single events
+		if !req.Stream {
+			if resp.Thinking != "" {
+				emitRun(AgentEvent{
+					Type:    protocol.ChatEventThinking,
+					AgentID: l.id,
+					RunID:   req.RunID,
+					Payload: map[string]string{"content": resp.Thinking},
+				})
+			}
+			if resp.Content != "" {
+				emitRun(AgentEvent{
+					Type:    protocol.ChatEventChunk,
+					AgentID: l.id,
+					RunID:   req.RunID,
+					Payload: map[string]string{"content": resp.Content},
+				})
+			}
+		}
 
 		if resp.Usage != nil {
 			totalUsage.PromptTokens += resp.Usage.PromptTokens
@@ -547,7 +591,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		if len(resp.ToolCalls) == 1 {
 			// Single tool: sequential — no goroutine overhead
 			tc := resp.ToolCalls[0]
-			l.emit(AgentEvent{
+			emitRun(AgentEvent{
 				Type:    protocol.AgentEventToolCall,
 				AgentID: l.id,
 				RunID:   req.RunID,
@@ -592,7 +636,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				}
 			}
 
-			l.emit(AgentEvent{
+			emitRun(AgentEvent{
 				Type:    protocol.AgentEventToolResult,
 				AgentID: l.id,
 				RunID:   req.RunID,
@@ -647,7 +691,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 			// 1. Emit all tool.call events upfront (client sees all calls starting)
 			for _, tc := range resp.ToolCalls {
-				l.emit(AgentEvent{
+				emitRun(AgentEvent{
 					Type:    protocol.AgentEventToolCall,
 					AgentID: l.id,
 					RunID:   req.RunID,
@@ -719,7 +763,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					}
 				}
 
-				l.emit(AgentEvent{
+				emitRun(AgentEvent{
 					Type:    protocol.AgentEventToolResult,
 					AgentID: l.id,
 					RunID:   req.RunID,

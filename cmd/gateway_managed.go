@@ -336,6 +336,10 @@ func wireManagedExtras(
 				Stream:            req.Stream,
 				ExtraSystemPrompt: req.ExtraSystemPrompt,
 				MaxIterations:     req.MaxIterations,
+				DelegationID:      req.DelegationID,
+				TeamID:            req.TeamID,
+				TeamTaskID:        req.TeamTaskID,
+				ParentAgentID:     req.ParentAgentID,
 			})
 			if err != nil {
 				return nil, err

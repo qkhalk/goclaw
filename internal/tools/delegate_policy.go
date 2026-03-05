@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/google/uuid"
+
+	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
+	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 func checkUserPermission(settings json.RawMessage, userID string) error {
@@ -203,6 +207,26 @@ func (dm *DelegateManager) applyQualityGates(
 			slog.Info("quality_gate: retrying delegation",
 				"type", gate.Type, "delegation", task.ID,
 				"attempt", attempt+1, "max_retries", retries)
+
+			// Emit quality gate retry event for WS visibility.
+			if dm.msgBus != nil {
+				dm.msgBus.Broadcast(bus.Event{
+					Name: protocol.EventQualityGateRetry,
+					Payload: protocol.QualityGateRetryPayload{
+						DelegationID:   task.ID,
+						TargetAgentKey: task.TargetAgentKey,
+						UserID:         task.UserID,
+						Channel:        task.OriginChannel,
+						ChatID:         task.OriginChatID,
+						TeamID:         func() string { if task.TeamID != uuid.Nil { return task.TeamID.String() }; return "" }(),
+						TeamTaskID:     func() string { if task.TeamTaskID != uuid.Nil { return task.TeamTaskID.String() }; return "" }(),
+						GateType:       string(gate.Type),
+						Attempt:        attempt + 1,
+						MaxRetries:     retries,
+						Feedback:       hookResult.Feedback,
+					},
+				})
+			}
 
 			feedbackMsg := fmt.Sprintf(
 				"[Quality Gate Feedback — Retry %d/%d]\n"+

@@ -167,4 +167,18 @@ func (m *TeamsMethods) handleCreate(_ context.Context, client *gateway.Client, r
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
 		"team": team,
 	}))
+
+	// Emit team.created event
+	if m.msgBus != nil {
+		m.msgBus.Broadcast(bus.Event{
+			Name: protocol.EventTeamCreated,
+			Payload: protocol.TeamCreatedPayload{
+				TeamID:          team.ID.String(),
+				TeamName:        params.Name,
+				LeadAgentKey:    leadAgent.AgentKey,
+				LeadDisplayName: leadAgent.DisplayName,
+				MemberCount:     len(memberAgents) + 1,
+			},
+		})
+	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
@@ -81,6 +82,21 @@ func (m *TeamsMethods) handleAddMember(_ context.Context, client *gateway.Client
 	m.invalidateTeamCaches(ctx, teamID)
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{"ok": true}))
+
+	// Emit team.member.added event
+	if m.msgBus != nil {
+		m.msgBus.Broadcast(bus.Event{
+			Name: protocol.EventTeamMemberAdded,
+			Payload: protocol.TeamMemberAddedPayload{
+				TeamID:      teamID.String(),
+				TeamName:    team.Name,
+				AgentID:     ag.ID.String(),
+				AgentKey:    ag.AgentKey,
+				DisplayName: ag.DisplayName,
+				Role:        store.TeamRoleMember,
+			},
+		})
+	}
 }
 
 // --- Remove Member ---
@@ -130,6 +146,9 @@ func (m *TeamsMethods) handleRemoveMember(_ context.Context, client *gateway.Cli
 		return
 	}
 
+	// Fetch agent info before removal for event emission
+	removedAgent, _ := m.agentStore.GetByID(ctx, agentID)
+
 	// Remove member
 	if err := m.teamStore.RemoveMember(ctx, teamID, agentID); err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, "failed to remove member: "+err.Error()))
@@ -153,6 +172,20 @@ func (m *TeamsMethods) handleRemoveMember(_ context.Context, client *gateway.Cli
 	}
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{"ok": true}))
+
+	// Emit team.member.removed event
+	if m.msgBus != nil && removedAgent != nil {
+		m.msgBus.Broadcast(bus.Event{
+			Name: protocol.EventTeamMemberRemoved,
+			Payload: protocol.TeamMemberRemovedPayload{
+				TeamID:      teamID.String(),
+				TeamName:    team.Name,
+				AgentID:     removedAgent.ID.String(),
+				AgentKey:    removedAgent.AgentKey,
+				DisplayName: removedAgent.DisplayName,
+			},
+		})
+	}
 }
 
 // autoCreateTeamLinks creates outbound agent_links from lead to each member.

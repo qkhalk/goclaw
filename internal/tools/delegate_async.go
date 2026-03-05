@@ -10,6 +10,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/tracing"
+	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // DelegateAsync spawns a delegation in the background and announces the result back.
@@ -31,7 +32,7 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 
 	dm.injectDependencyResults(ctx, &opts)
 	message := buildDelegateMessage(opts)
-	dm.emitEvent("delegation.started", task)
+	dm.emitDelegationEvent(protocol.EventDelegationStarted, task)
 	slog.Info("delegation started (async)", "id", task.ID, "target", opts.TargetAgentKey)
 
 	runReq := dm.buildRunRequest(task, message)
@@ -88,20 +89,44 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 					arts.Media = result.MediaPaths
 					arts.Results = []DelegateResultSummary{{
 						AgentKey:     task.TargetAgentKey,
+						DisplayName:  task.TargetDisplayName,
 						Content:      result.Content,
 						HasMedia:     len(result.MediaPaths) > 0,
 						Deliverables: result.Deliverables,
 					}}
 				} else if runErr != nil {
 					arts.Results = []DelegateResultSummary{{
-						AgentKey: task.TargetAgentKey,
-						Content:  fmt.Sprintf("[failed] %s", runErr.Error()),
+						AgentKey:    task.TargetAgentKey,
+						DisplayName: task.TargetDisplayName,
+						Content:     fmt.Sprintf("[failed] %s", runErr.Error()),
 					}}
 				}
 				if task.TeamTaskID != uuid.Nil {
 					arts.CompletedTaskIDs = []string{task.TeamTaskID.String()}
 				}
 				dm.accumulateArtifacts(task.SourceAgentID, arts)
+
+				// Emit accumulated event so WS clients know this delegation finished
+				// but results are being held until siblings complete.
+				if dm.msgBus != nil {
+					dm.msgBus.Broadcast(bus.Event{
+						Name: protocol.EventDelegationAccumulated,
+						Payload: protocol.DelegationAccumulatedPayload{
+							DelegationID:      task.ID,
+							SourceAgentID:     task.SourceAgentID.String(),
+							SourceAgentKey:    task.SourceAgentKey,
+							TargetAgentKey:    task.TargetAgentKey,
+							TargetDisplayName: task.TargetDisplayName,
+							UserID:            task.UserID,
+							Channel:           task.OriginChannel,
+							ChatID:            task.OriginChatID,
+							TeamID:            func() string { if task.TeamID != uuid.Nil { return task.TeamID.String() }; return "" }(),
+							TeamTaskID:        func() string { if task.TeamTaskID != uuid.Nil { return task.TeamTaskID.String() }; return "" }(),
+							SiblingsRemaining: siblingCount,
+							ElapsedMS:         int(time.Since(task.CreatedAt).Milliseconds()),
+						},
+					})
+				}
 				slog.Info("delegation announce suppressed (siblings still running)",
 					"id", task.ID, "target", task.TargetAgentKey, "siblings", siblingCount)
 			} else {
@@ -114,6 +139,7 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 					artifacts.Media = append(artifacts.Media, result.MediaPaths...)
 					artifacts.Results = append(artifacts.Results, DelegateResultSummary{
 						AgentKey:     task.TargetAgentKey,
+						DisplayName:  task.TargetDisplayName,
 						Content:      result.Content,
 						HasMedia:     len(result.MediaPaths) > 0,
 						Deliverables: result.Deliverables,
@@ -135,6 +161,41 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 				if task.OriginLocalKey != "" {
 					announceMeta["origin_local_key"] = task.OriginLocalKey
 				}
+				// Emit announce event so WS clients know all results are being sent to lead.
+				hasMedia := len(artifacts.Media) > 0
+				var announceSummaries []protocol.DelegationAnnounceResultSummary
+				for _, r := range artifacts.Results {
+					preview := r.Content
+					if len(preview) > 200 {
+						preview = preview[:200] + "..."
+					}
+					announceSummaries = append(announceSummaries, protocol.DelegationAnnounceResultSummary{
+						AgentKey:       r.AgentKey,
+						DisplayName:    r.DisplayName,
+						HasMedia:       r.HasMedia,
+						ContentPreview: preview,
+					})
+					if r.HasMedia {
+						hasMedia = true
+					}
+				}
+				dm.msgBus.Broadcast(bus.Event{
+					Name: protocol.EventDelegationAnnounce,
+					Payload: protocol.DelegationAnnouncePayload{
+						SourceAgentID:     task.SourceAgentID.String(),
+						SourceAgentKey:    task.SourceAgentKey,
+						SourceDisplayName: task.SourceDisplayName,
+						UserID:            task.UserID,
+						Channel:        task.OriginChannel,
+						ChatID:         task.OriginChatID,
+						TeamID:         func() string { if task.TeamID != uuid.Nil { return task.TeamID.String() }; return "" }(),
+						Results:        announceSummaries,
+						CompletedTaskIDs: artifacts.CompletedTaskIDs,
+						TotalElapsedMS: int(elapsed.Milliseconds()),
+						HasMedia:       hasMedia,
+					},
+				})
+
 				announceMsg := bus.InboundMessage{
 					Channel:  "system",
 					SenderID: fmt.Sprintf("delegate:%s", task.ID),
@@ -150,17 +211,17 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 
 		if runErr != nil {
 			task.Status = "failed"
-			dm.emitEvent("delegation.failed", task)
+			dm.emitDelegationEventWithError(task, runErr)
 			dm.saveDelegationHistory(task, "", runErr, duration)
 		} else {
 			// Apply quality gates before marking completed.
 			if result, runErr = dm.applyQualityGates(taskCtx, task, opts, result); runErr != nil {
 				task.Status = "failed"
-				dm.emitEvent("delegation.failed", task)
+				dm.emitDelegationEventWithError(task, runErr)
 				dm.saveDelegationHistory(task, "", runErr, duration)
 			} else {
 				task.Status = "completed"
-				dm.emitEvent("delegation.completed", task)
+				dm.emitDelegationEvent(protocol.EventDelegationCompleted, task)
 				dm.trackCompleted(task)
 				resultContent := ""
 				var deliverables []string

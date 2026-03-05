@@ -113,7 +113,7 @@ func (m *TeamToolManager) agentKeyFromID(ctx context.Context, id uuid.UUID) stri
 }
 
 // broadcastTeamEvent sends a real-time event via the message bus for team activity visibility.
-func (m *TeamToolManager) broadcastTeamEvent(name string, payload map[string]string) {
+func (m *TeamToolManager) broadcastTeamEvent(name string, payload interface{}) {
 	if m.msgBus == nil {
 		return
 	}
@@ -121,4 +121,13 @@ func (m *TeamToolManager) broadcastTeamEvent(name string, payload map[string]str
 		Name:    name,
 		Payload: payload,
 	})
+}
+
+// agentDisplayName returns the display name for an agent key, falling back to empty string.
+func (m *TeamToolManager) agentDisplayName(ctx context.Context, key string) string {
+	ag, err := m.agentStore.GetByKey(ctx, key)
+	if err != nil || ag.DisplayName == "" {
+		return ""
+	}
+	return ag.DisplayName
 }

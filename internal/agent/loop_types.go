@@ -110,6 +110,17 @@ type AgentEvent struct {
 	AgentID string      `json:"agentId"`
 	RunID   string      `json:"runId"`
 	Payload interface{} `json:"payload,omitempty"`
+
+	// Delegation context (omitempty — only present when agent runs inside a delegation)
+	DelegationID  string `json:"delegationId,omitempty"`
+	TeamID        string `json:"teamId,omitempty"`
+	TeamTaskID    string `json:"teamTaskId,omitempty"`
+	ParentAgentID string `json:"parentAgentId,omitempty"`
+
+	// Routing context (helps WS clients filter by user/channel)
+	UserID  string `json:"userId,omitempty"`
+	Channel string `json:"channel,omitempty"`
+	ChatID  string `json:"chatId,omitempty"`
 }
 
 // LoopConfig configures a new Loop.
@@ -262,6 +273,12 @@ type RunRequest struct {
 	TraceName        string    // override trace name (default: "chat <agentID>")
 	TraceTags        []string  // additional tags for the trace (e.g. "cron")
 	MaxIterations    int       // per-request override (0 = use agent default, must be lower)
+
+	// Delegation context (set when running as a delegate agent)
+	DelegationID  string // delegation ID for event correlation
+	TeamID        string // team ID (if delegation is team-scoped)
+	TeamTaskID    string // team task ID (if delegation has an associated task)
+	ParentAgentID string // parent agent key that initiated the delegation
 }
 
 // RunResult is the output of a completed agent run.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tracing"
+	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // Delegate executes a synchronous delegation to another agent.
@@ -28,7 +29,7 @@ func (dm *DelegateManager) Delegate(ctx context.Context, opts DelegateOpts) (*De
 
 	dm.injectDependencyResults(ctx, &opts)
 	message := buildDelegateMessage(opts)
-	dm.emitEvent("delegation.started", task)
+	dm.emitDelegationEvent(protocol.EventDelegationStarted, task)
 	slog.Info("delegation started", "id", task.ID, "target", opts.TargetAgentKey, "mode", "sync")
 
 	// Propagate parent trace ID so the delegate trace links back.
@@ -45,7 +46,7 @@ func (dm *DelegateManager) Delegate(ctx context.Context, opts DelegateOpts) (*De
 	duration := time.Since(startTime)
 	if err != nil {
 		task.Status = "failed"
-		dm.emitEvent("delegation.failed", task)
+		dm.emitDelegationEventWithError(task, err)
 		dm.saveDelegationHistory(task, "", err, duration)
 		return nil, fmt.Errorf("delegation to %q failed: %w", opts.TargetAgentKey, err)
 	}
@@ -53,13 +54,13 @@ func (dm *DelegateManager) Delegate(ctx context.Context, opts DelegateOpts) (*De
 	// Apply quality gates before marking completed.
 	if result, err = dm.applyQualityGates(delegateCtx, task, opts, result); err != nil {
 		task.Status = "failed"
-		dm.emitEvent("delegation.failed", task)
+		dm.emitDelegationEventWithError(task, err)
 		dm.saveDelegationHistory(task, "", err, duration)
 		return nil, fmt.Errorf("delegation to %q failed quality gate: %w", opts.TargetAgentKey, err)
 	}
 
 	task.Status = "completed"
-	dm.emitEvent("delegation.completed", task)
+	dm.emitDelegationEvent(protocol.EventDelegationCompleted, task)
 	dm.trackCompleted(task)
 	dm.autoCompleteTeamTask(task, result.Content, result.Deliverables)
 	dm.saveDelegationHistory(task, result.Content, nil, duration)
