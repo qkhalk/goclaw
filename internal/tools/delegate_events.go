@@ -42,10 +42,6 @@ func (dm *DelegateManager) emitDelegationEventWithError(task *DelegationTask, er
 
 // buildDelegationPayload creates a DelegationEventPayload from a DelegationTask.
 func buildDelegationPayload(task *DelegationTask) protocol.DelegationEventPayload {
-	taskPreview := task.Task
-	if len(taskPreview) > 200 {
-		taskPreview = taskPreview[:200] + "..."
-	}
 	payload := protocol.DelegationEventPayload{
 		DelegationID:      task.ID,
 		SourceAgentID:     task.SourceAgentID.String(),
@@ -58,7 +54,7 @@ func buildDelegationPayload(task *DelegationTask) protocol.DelegationEventPayloa
 		Channel:           task.OriginChannel,
 		ChatID:            task.OriginChatID,
 		Mode:              task.Mode,
-		Task:              taskPreview,
+		Task:              task.Task,
 		Status:            task.Status,
 		CreatedAt:         task.CreatedAt.UTC().Format(time.RFC3339),
 	}
