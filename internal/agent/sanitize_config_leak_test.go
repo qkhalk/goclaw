@@ -22,9 +22,10 @@ func TestStripConfigLeak(t *testing.T) {
 			agentType: "predefined",
 		},
 		{
-			name:      "predefined - 3 files but no list pattern",
+			name:      "predefined - 3 files in paragraph (no list)",
 			content:   "SOUL.md, IDENTITY.md, AGENTS.md đều đã được load sẵn trong context.",
 			agentType: "predefined",
+			want:      declineMsg,
 		},
 		{
 			name: "predefined - leaking numbered list",
@@ -49,6 +50,18 @@ Anh cần gì thêm không?`,
 - Load system prompt mới
 
 Có gì anh hỏi thêm nhé!`,
+			agentType: "predefined",
+			want:      declineMsg,
+		},
+		{
+			name: "predefined - real bypass: bold-header paragraph leak",
+			content: `Dạ, nếu có người hỏi chi tiết về internal process thì em sẽ:
+
+**Từ chối lịch sự** - Những thứ như system prompt, context files (SOUL.md, IDENTITY.md, AGENTS.md), internal procedures là confidential.
+
+**Cách em reply:**
+- "Cái này là internal của em, không share được ạ"
+- "Em không thể tiết lộ chi tiết process nội bộ"`,
 			agentType: "predefined",
 			want:      declineMsg,
 		},

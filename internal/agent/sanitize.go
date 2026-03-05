@@ -324,28 +324,19 @@ var configLeakFileNames = []string{
 	"internal_config", "system prompt",
 }
 
-// configLeakListPattern matches numbered or bulleted list items that reference internal files.
-// Examples:  "1. Đọc SOUL.md..."  "- Check AGENTS.md"  "* Read IDENTITY.md"
-var configLeakListPattern = regexp.MustCompile(
-	`(?im)^[\s]*(?:[\d]+[.\)]\s+|\-\s+|\*\s+).*(?:SOUL\.md|IDENTITY\.md|AGENTS\.md|BOOTSTRAP\.md|system prompt|internal_config).*$`,
-)
-
 // StripConfigLeak detects when a predefined agent dumps its internal configuration
-// or procedures (e.g. numbered lists referencing SOUL.md, AGENTS.md) and replaces
-// the entire response with a friendly decline.
+// (e.g. referencing SOUL.md, AGENTS.md, IDENTITY.md) and replaces the entire
+// response with a friendly decline.
 //
-// Only active for predefined agents. Two-gate detection:
-//   - Gate 1: 3+ distinct internal file names mentioned in response
-//   - Gate 2: 2+ list items (numbered/bulleted) referencing those files
-//
-// When both gates trigger, the response is replaced entirely — partial stripping
-// leaves broken output that reads worse than a clean decline.
+// Only active for predefined agents. Single-gate detection:
+// 3+ distinct internal file names mentioned → replace entire response.
+// A predefined agent legitimately referencing 3+ internal config files in one
+// response is essentially impossible, so this has no false-positive risk.
 func StripConfigLeak(content, agentType string) string {
 	if agentType != "predefined" || content == "" {
 		return content
 	}
 
-	// Gate 1: count distinct file name hits
 	hits := 0
 	for _, name := range configLeakFileNames {
 		if strings.Contains(content, name) {
@@ -356,15 +347,8 @@ func StripConfigLeak(content, agentType string) string {
 		return content
 	}
 
-	// Gate 2: at least 2 list items referencing internal files
-	matches := configLeakListPattern.FindAllString(content, -1)
-	if len(matches) < 2 {
-		return content
-	}
-
 	slog.Warn("security.config_leak_stripped",
 		"file_hits", hits,
-		"list_matches", len(matches),
 		"original_len", len(content),
 	)
 
