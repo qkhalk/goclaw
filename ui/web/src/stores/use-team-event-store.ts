@@ -11,6 +11,8 @@ export interface TeamEventEntry {
   payload: unknown;
   timestamp: number;
   teamId: string | null;
+  userId: string | null;
+  chatId: string | null;
 }
 
 interface TeamEventState {
@@ -31,6 +33,22 @@ function extractTeamId(payload: unknown): string | null {
   const p = payload as Record<string, unknown>;
   if (typeof p.team_id === "string" && p.team_id) return p.team_id;
   if (typeof p.teamId === "string" && p.teamId) return p.teamId;
+  return null;
+}
+
+function extractUserId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as Record<string, unknown>;
+  if (typeof p.user_id === "string" && p.user_id) return p.user_id;
+  if (typeof p.userId === "string" && p.userId) return p.userId;
+  return null;
+}
+
+function extractChatId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as Record<string, unknown>;
+  if (typeof p.chat_id === "string" && p.chat_id) return p.chat_id;
+  if (typeof p.chatId === "string" && p.chatId) return p.chatId;
   return null;
 }
 
@@ -71,6 +89,8 @@ export const useTeamEventStore = create<TeamEventState>((set) => ({
         payload,
         timestamp: Date.now(),
         teamId: extractTeamId(payload),
+        userId: extractUserId(payload),
+        chatId: extractChatId(payload),
       };
       const next = [...s.events, entry];
       const trimmed = next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next;

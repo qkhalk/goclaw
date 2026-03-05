@@ -28,6 +28,8 @@ export function EventsPage() {
 
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+  const [chatFilter, setChatFilter] = useState<string>("all");
   const [isAtBottom, setIsAtBottom] = useState(true);
   const feedRef = useRef<HTMLDivElement>(null);
 
@@ -65,17 +67,47 @@ export function EventsPage() {
     return Array.from(ids);
   }, [allEvents]);
 
+  // Unique user IDs from events for filter dropdown
+  const uniqueUsers = useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of allEvents) {
+      if (e.userId) ids.add(e.userId);
+    }
+    return Array.from(ids).sort();
+  }, [allEvents]);
+
+  // Unique chat IDs from events for filter dropdown
+  const uniqueChats = useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of allEvents) {
+      if (e.chatId) ids.add(e.chatId);
+    }
+    return Array.from(ids).sort();
+  }, [allEvents]);
+
   // Apply team filter
   const teamFilteredEvents = useMemo(() => {
     if (teamFilter === "all") return allEvents;
     return allEvents.filter((e) => e.teamId === teamFilter);
   }, [allEvents, teamFilter]);
 
+  // Apply user filter
+  const userFilteredEvents = useMemo(() => {
+    if (userFilter === "all") return teamFilteredEvents;
+    return teamFilteredEvents.filter((e) => e.userId === userFilter);
+  }, [teamFilteredEvents, userFilter]);
+
+  // Apply chat filter
+  const chatFilteredEvents = useMemo(() => {
+    if (chatFilter === "all") return userFilteredEvents;
+    return userFilteredEvents.filter((e) => e.chatId === chatFilter);
+  }, [userFilteredEvents, chatFilter]);
+
   // Apply category filter
   const filteredEvents = useMemo(() => {
-    if (categoryFilter === "all") return teamFilteredEvents;
+    if (categoryFilter === "all") return chatFilteredEvents;
     if (categoryFilter === "team.crud") {
-      return teamFilteredEvents.filter(
+      return chatFilteredEvents.filter(
         (e) =>
           e.event === "team.created" ||
           e.event === "team.updated" ||
@@ -83,8 +115,8 @@ export function EventsPage() {
           e.event.startsWith("team.member."),
       );
     }
-    return teamFilteredEvents.filter((e) => e.event.startsWith(categoryFilter));
-  }, [teamFilteredEvents, categoryFilter]);
+    return userFilteredEvents.filter((e) => e.event.startsWith(categoryFilter));
+  }, [chatFilteredEvents, categoryFilter]);
 
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -175,6 +207,34 @@ export function EventsPage() {
             ))}
           </select>
         )}
+
+        {/* User filter */}
+        <select
+          value={userFilter}
+          onChange={(e) => setUserFilter(e.target.value)}
+          className="h-7 rounded-md border bg-background px-2 text-xs"
+        >
+          <option value="all">All users</option>
+          {uniqueUsers.map((uid) => (
+            <option key={uid} value={uid}>
+              {uid}
+            </option>
+          ))}
+        </select>
+
+        {/* Chat filter */}
+        <select
+          value={chatFilter}
+          onChange={(e) => setChatFilter(e.target.value)}
+          className="h-7 rounded-md border bg-background px-2 text-xs"
+        >
+          <option value="all">All chats</option>
+          {uniqueChats.map((cid) => (
+            <option key={cid} value={cid}>
+              {cid}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Event feed */}
