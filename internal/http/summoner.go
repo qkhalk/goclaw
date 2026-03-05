@@ -285,6 +285,7 @@ func (s *AgentSummoner) buildCreatePrompt(description string) string {
    - "## Core Truths" — universal personality traits. KEEP the general advice. Do NOT inject agent-specific references here.
    - "## Boundaries" — rules and limits. CUSTOMIZE only if the description mentions specific boundaries.
    - "## Vibe" — communication style and personality ONLY. How the agent talks, its tone, its attitude. Do NOT put technical knowledge here.
+   - "## Style" — communication preferences: tone, humor level, emoji usage, opinion strength, response length, formality. Generate SPECIFIC values based on the description. E.g. a cute sweet bot → warm tone, frequent emoji, playful humor. A formal business bot → professional tone, no emoji, measured opinions. These are knobs the user can later customize per agent.
    - "## Expertise" — domain-specific knowledge, technical skills, specialized instructions, keywords, parameters. If the description mentions any specialized domain (e.g. image generation, coding, writing), put that knowledge HERE. Remove the placeholder text. If no domain expertise, omit this section entirely.
    - "## Continuity" — keep as-is (just translate if needed).
    - KEEP the exact English headings. Do NOT add the agent's name into Core Truths or Boundaries.
@@ -340,6 +341,7 @@ func (s *AgentSummoner) buildEditPrompt(existing []store.AgentContextFileData, e
    - "## Core Truths" — universal personality traits. Do NOT add domain-specific content here.
    - "## Boundaries" — rules and limits.
    - "## Vibe" — communication style and personality ONLY. Tone, attitude, how the agent talks. NOT technical knowledge.
+   - "## Style" — communication preferences (tone, humor, emoji, opinions, length, formality). Update if the edit changes personality or communication style.
    - "## Expertise" — domain-specific knowledge, technical skills, keywords, parameters, specialized instructions. If the edit adds domain knowledge (e.g. image generation techniques, coding standards, writing styles), it goes HERE. Create this section if it doesn't exist yet (between Vibe and Continuity).
    - "## Continuity" — memory/persistence rules. Usually unchanged.
 
