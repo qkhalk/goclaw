@@ -115,7 +115,7 @@ export function MCPGrantsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Agent Grants - {server.display_name || server.name}</DialogTitle>
         </DialogHeader>
@@ -126,9 +126,9 @@ export function MCPGrantsDialog({
             <Label>Current Grants</Label>
             <div className="rounded-md border">
               {grants.map((grant) => (
-                <div key={grant.id} className="flex items-center justify-between border-b px-3 py-2 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="font-mono text-xs">{grant.agent_id}</Badge>
+                <div key={grant.id} className="flex flex-wrap items-center gap-1 border-b px-3 py-2 last:border-0 sm:justify-between">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                    <Badge variant="outline" className="truncate font-mono text-xs">{grant.agent_id}</Badge>
                     {Array.isArray(grant.tool_allow) && grant.tool_allow.length > 0 && (
                       <span className="text-xs text-muted-foreground">allow: {grant.tool_allow.join(", ")}</span>
                     )}

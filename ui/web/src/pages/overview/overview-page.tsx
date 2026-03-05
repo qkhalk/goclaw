@@ -87,7 +87,7 @@ export function OverviewPage() {
   const clientList = health?.clients ?? [];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
       <PageHeader
         title="Dashboard"

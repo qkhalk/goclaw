@@ -1,39 +1,16 @@
-import { useState, useEffect } from "react";
 import { ArrowRightLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DeferredSpinner } from "@/components/shared/loading-skeleton";
-import { useHttp } from "@/hooks/use-ws";
 import { formatDate, formatDuration } from "@/lib/format";
-import type { DelegationHistoryRecord } from "@/types/delegation";
+import { useTeamDelegations } from "./hooks/use-team-delegations";
 
 interface TeamDelegationsTabProps {
   teamId: string;
 }
 
 export function TeamDelegationsTab({ teamId }: TeamDelegationsTabProps) {
-  const http = useHttp();
-  const [records, setRecords] = useState<DelegationHistoryRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await http.get<{ records: DelegationHistoryRecord[] }>("/v1/delegations", {
-          team_id: teamId,
-          limit: "50",
-        });
-        if (!cancelled) setRecords(res.records ?? []);
-      } catch {
-        // ignore
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [teamId, http]);
+  const { records, loading } = useTeamDelegations(teamId);
 
   if (loading) return <DeferredSpinner />;
 
@@ -48,8 +25,8 @@ export function TeamDelegationsTab({ teamId }: TeamDelegationsTabProps) {
   }
 
   return (
-    <div className="rounded-md border">
-      <table className="w-full text-sm">
+    <div className="rounded-md border overflow-x-auto">
+      <table className="w-full min-w-[600px] text-sm">
         <thead>
           <tr className="border-b bg-muted/50">
             <th className="px-4 py-3 text-left font-medium">Source / Target</th>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Plus, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { useHttp } from "@/hooks/use-ws";
-import type { AgentShareData } from "@/types/agent";
+import { useAgentShares } from "../hooks/use-agent-shares";
 
 interface AgentSharesTabProps {
   agentId: string;
@@ -33,41 +32,17 @@ function roleBadgeVariant(role: string) {
 }
 
 export function AgentSharesTab({ agentId }: AgentSharesTabProps) {
-  const http = useHttp();
-  const [shares, setShares] = useState<AgentShareData[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { shares, loading, addShare, revokeShare } = useAgentShares(agentId);
   const [newUserId, setNewUserId] = useState("");
   const [newRole, setNewRole] = useState("user");
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
 
-  const loadShares = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await http.get<{ shares: AgentShareData[] }>(
-        `/v1/agents/${agentId}/shares`,
-      );
-      setShares(res.shares ?? []);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [http, agentId]);
-
-  useEffect(() => {
-    loadShares();
-  }, [loadShares]);
-
-  const addShare = async () => {
+  const handleAddShare = async () => {
     if (!newUserId.trim()) return;
     try {
-      await http.post(`/v1/agents/${agentId}/shares`, {
-        user_id: newUserId.trim(),
-        role: newRole,
-      });
+      await addShare(newUserId.trim(), newRole);
       setNewUserId("");
       setNewRole("user");
-      loadShares();
     } catch {
       // ignore
     }
@@ -87,7 +62,7 @@ export function AgentSharesTab({ agentId }: AgentSharesTabProps) {
               onChange={(e) => setNewUserId(e.target.value)}
               placeholder="Enter user ID..."
               onKeyDown={(e) => {
-                if (e.key === "Enter" && newUserId.trim()) addShare();
+                if (e.key === "Enter" && newUserId.trim()) handleAddShare();
               }}
             />
           </div>
@@ -106,7 +81,7 @@ export function AgentSharesTab({ agentId }: AgentSharesTabProps) {
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={addShare} disabled={!newUserId.trim()} className="gap-1.5">
+          <Button onClick={handleAddShare} disabled={!newUserId.trim()} className="gap-1.5">
             <Plus className="h-4 w-4" />
             Share
           </Button>
@@ -168,8 +143,7 @@ export function AgentSharesTab({ agentId }: AgentSharesTabProps) {
         onConfirm={async () => {
           if (revokeTarget) {
             try {
-              await http.delete(`/v1/agents/${agentId}/shares/${revokeTarget}`);
-              loadShares();
+              await revokeShare(revokeTarget);
             } catch {
               // ignore
             }

@@ -63,7 +63,7 @@ export function MCPPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <PageHeader
         title="MCP Servers"
         description="Manage Model Context Protocol server connections"

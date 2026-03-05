@@ -54,7 +54,7 @@ export function ConfigPage() {
 
   if (showSkeleton) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PageHeader title="Config" description="Gateway configuration" />
         <div className="mt-6">
           <DetailSkeleton />
@@ -65,7 +65,7 @@ export function ConfigPage() {
 
   if (!config) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PageHeader title="Config" description="Gateway configuration" />
         <div className="mt-6">
           <EmptyState
@@ -86,7 +86,7 @@ export function ConfigPage() {
   const isManaged = (config.database as any)?.mode === "managed";
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <PageHeader
         title="Config"
         description="Gateway configuration"

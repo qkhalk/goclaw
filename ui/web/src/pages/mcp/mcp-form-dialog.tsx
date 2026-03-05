@@ -115,7 +115,7 @@ export function MCPFormDialog({ open, onOpenChange, server, onSubmit }: MCPFormD
 
   return (
     <Dialog open={open} onOpenChange={(v) => !loading && onOpenChange(v)}>
-      <DialogContent className="max-h-[85vh] max-w-lg flex flex-col">
+      <DialogContent className="max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{server ? "Edit MCP Server" : "Add MCP Server"}</DialogTitle>
         </DialogHeader>

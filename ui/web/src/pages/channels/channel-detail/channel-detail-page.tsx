@@ -35,7 +35,7 @@ export function ChannelDetailPage({ instanceId, onBack }: ChannelDetailPageProps
 
   if (loading || !instance) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Button variant="ghost" onClick={onBack} className="mb-4 gap-1">
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
@@ -53,7 +53,7 @@ export function ChannelDetailPage({ instanceId, onBack }: ChannelDetailPageProps
   const isTelegram = instance.channel_type === "telegram";
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Header */}
       <div className="mb-6 flex items-start gap-4">
         <Button variant="ghost" size="icon" onClick={onBack} className="mt-0.5 shrink-0">
