@@ -145,7 +145,6 @@ func buildTeamMD(team *store.TeamData, members []store.TeamMemberData, selfID uu
 		sb.WriteString("- action=search, query=<text> → search tasks by subject/description\n")
 		sb.WriteString("- action=complete, task_id=<id>, result=<summary> → manually complete a task\n")
 		sb.WriteString("- action=cancel, task_id=<id>, reason=<why> → cancel a pending task that is no longer needed\n\n")
-		sb.WriteString("Use `team_message` to send updates to team members.\n\n")
 		sb.WriteString("For simple questions about team composition, answer directly from the member list above.\n")
 	} else {
 		sb.WriteString("As a member, when you receive a delegated task, just do the work.\n")
@@ -156,11 +155,30 @@ func buildTeamMD(team *store.TeamData, members []store.TeamMemberData, selfID uu
 		sb.WriteString("- action=list → check team task board (active tasks)\n")
 		sb.WriteString("- action=get, task_id=<id> → read a completed task's full result\n")
 		sb.WriteString("- action=search, query=<text> → search tasks\n\n")
-		sb.WriteString("Use `team_message` to send updates to your team lead.\n\n")
+		sb.WriteString("Use `team_message` to send progress updates to your team lead (one-way, no response expected).\n\n")
 		sb.WriteString("For simple questions about team composition, answer directly from the member list above.\n")
 	}
 
 	return sb.String()
+}
+
+// agentToolPolicyForTeam denies team_message for team leads.
+// Leads should use spawn (which auto-announces results back) instead of team_message
+// (one-way notification that leaks raw responses to the output channel).
+func agentToolPolicyForTeam(policy *config.ToolPolicySpec, isLead bool) *config.ToolPolicySpec {
+	if !isLead {
+		return policy
+	}
+	if policy == nil {
+		policy = &config.ToolPolicySpec{}
+	}
+	for _, d := range policy.Deny {
+		if d == "team_message" {
+			return policy
+		}
+	}
+	policy.Deny = append(policy.Deny, "team_message")
+	return policy
 }
 
 // agentToolPolicyWithMCP injects "group:mcp" into the agent's alsoAllow list

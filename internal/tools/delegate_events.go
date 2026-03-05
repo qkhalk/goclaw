@@ -100,8 +100,8 @@ func formatDelegateAnnounce(task *DelegationTask, artifacts *DelegateArtifacts, 
 		if len(r.Deliverables) > 0 {
 			for _, d := range r.Deliverables {
 				preview := d
-				if len(preview) > 4000 {
-					preview = preview[:4000] + "\n[...truncated, full content in team_tasks]"
+				if runes := []rune(preview); len(runes) > 4000 {
+					preview = string(runes[:4000]) + "\n[...truncated, full content in team_tasks]"
 				}
 				msg += fmt.Sprintf("\n[Deliverable]\n%s\n", preview)
 			}

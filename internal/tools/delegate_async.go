@@ -166,8 +166,8 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 				var announceSummaries []protocol.DelegationAnnounceResultSummary
 				for _, r := range artifacts.Results {
 					preview := r.Content
-					if len(preview) > 200 {
-						preview = preview[:200] + "..."
+					if runes := []rune(preview); len(runes) > 200 {
+						preview = string(runes[:200]) + "..."
 					}
 					announceSummaries = append(announceSummaries, protocol.DelegationAnnounceResultSummary{
 						AgentKey:       r.AgentKey,

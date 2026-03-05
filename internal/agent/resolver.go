@@ -160,6 +160,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		// Inject TEAM.md for all team members (lead + members) so every agent
 		// knows the team workflow: create/claim/complete tasks via team_tasks tool.
 		hasTeam := false
+		isTeamLead := false
 		if deps.TeamStore != nil {
 			hasTeamMD := false
 			for _, cf := range contextFiles {
@@ -176,6 +177,13 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 							Path:    bootstrap.TeamFile,
 							Content: buildTeamMD(team, members, ag.ID),
 						})
+						// Detect lead role for tool policy
+						for _, m := range members {
+							if m.AgentID == ag.ID && m.Role == store.TeamRoleLead {
+								isTeamLead = true
+								break
+							}
+						}
 					}
 				}
 			} else {
@@ -325,7 +333,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			Sessions:               deps.Sessions,
 			Tools:                  toolsReg,
 			ToolPolicy:             deps.ToolPolicy,
-			AgentToolPolicy:        agentToolPolicyWithMCP(ag.ParseToolsConfig(), hasMCPTools),
+			AgentToolPolicy:        agentToolPolicyForTeam(agentToolPolicyWithMCP(ag.ParseToolsConfig(), hasMCPTools), isTeamLead),
 			SkillsLoader:           deps.Skills,
 			SkillAllowList:         skillAllowList,
 			HasMemory:              hasMemory,
