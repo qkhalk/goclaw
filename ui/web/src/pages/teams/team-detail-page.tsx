@@ -21,6 +21,7 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
   const [team, setTeam] = useState<TeamData | null>(null);
   const [members, setMembers] = useState<TeamMemberData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("members");
 
   const reload = useCallback(async () => {
     try {
@@ -106,7 +107,7 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
 
       {/* Tabs */}
       <div className="max-w-4xl">
-        <Tabs defaultValue="members">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
             <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
