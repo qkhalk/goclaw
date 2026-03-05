@@ -218,9 +218,6 @@ func buildRuntimeSection(cfg SystemPromptConfig) []string {
 	if cfg.AgentID != "" {
 		parts = append(parts, fmt.Sprintf("agent=%s", cfg.AgentID))
 	}
-	if cfg.Model != "" {
-		parts = append(parts, fmt.Sprintf("model=%s", cfg.Model))
-	}
 	if cfg.Channel != "" {
 		parts = append(parts, fmt.Sprintf("channel=%s", cfg.Channel))
 	}

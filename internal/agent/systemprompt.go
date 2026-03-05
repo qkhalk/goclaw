@@ -24,6 +24,7 @@ type SystemPromptConfig struct {
 	Model         string
 	Workspace     string
 	Channel       string                 // runtime channel (telegram, discord, etc.)
+	PeerKind      string                 // "direct" or "group"
 	OwnerIDs      []string               // owner sender IDs
 	Mode          PromptMode             // full or minimal
 	ToolNames     []string               // registered tool names
@@ -72,9 +73,15 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 	isMinimal := cfg.Mode == PromptMinimal
 	var lines []string
 
-	// 1. Identity
-	lines = append(lines, "You are a personal assistant running inside GoClaw.")
-	lines = append(lines, "")
+	// 1. Identity — channel-aware context
+	if cfg.Channel != "" {
+		chatType := "a direct chat"
+		if cfg.PeerKind == "group" {
+			chatType = "a group chat"
+		}
+		lines = append(lines, fmt.Sprintf("You are a personal assistant running in %s (%s).", cfg.Channel, chatType))
+		lines = append(lines, "")
+	}
 
 	// 1.5. First-run bootstrap override (must be early so model sees it first)
 	if hasBootstrapFile(cfg.ContextFiles) {
