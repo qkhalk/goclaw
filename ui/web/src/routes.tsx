@@ -65,6 +65,9 @@ const BuiltinToolsPage = lazy(() =>
 const TtsPage = lazy(() =>
   import("@/pages/tts/tts-page").then((m) => ({ default: m.TtsPage })),
 );
+const EventsPage = lazy(() =>
+  import("@/pages/events/events-page").then((m) => ({ default: m.EventsPage })),
+);
 const DelegationsPage = lazy(() =>
   import("@/pages/delegations/delegations-page").then((m) => ({ default: m.DelegationsPage })),
 );
@@ -106,6 +109,7 @@ export function AppRoutes() {
           <Route path={ROUTES.CONFIG} element={<ConfigPage />} />
           <Route path={ROUTES.TRACES} element={<TracesPage key="list" />} />
           <Route path={ROUTES.TRACE_DETAIL} element={<TracesPage key="detail" />} />
+          <Route path={ROUTES.EVENTS} element={<EventsPage />} />
           <Route path={ROUTES.DELEGATIONS} element={<DelegationsPage />} />
           <Route path={ROUTES.USAGE} element={<UsagePage />} />
           <Route path={ROUTES.CHANNELS} element={<ChannelsPage key="list" />} />

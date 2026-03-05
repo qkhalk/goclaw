@@ -1,6 +1,8 @@
 import { create } from "zustand";
 
 const MAX_EVENTS = 500;
+const PERSIST_KEY = "goclaw:recentEvents";
+const PERSIST_MAX = 20;
 
 /** A single captured WS event entry */
 export interface TeamEventEntry {
@@ -32,10 +34,32 @@ function extractTeamId(payload: unknown): string | null {
   return null;
 }
 
-let counter = 0;
+function loadPersistedEvents(): TeamEventEntry[] {
+  try {
+    const raw = localStorage.getItem(PERSIST_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as TeamEventEntry[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(-PERSIST_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function persistEvents(events: TeamEventEntry[]) {
+  try {
+    const recent = events.slice(-PERSIST_MAX);
+    localStorage.setItem(PERSIST_KEY, JSON.stringify(recent));
+  } catch {
+    // storage full or unavailable — ignore
+  }
+}
+
+const initialEvents = loadPersistedEvents();
+let counter = initialEvents.length > 0 ? initialEvents[initialEvents.length - 1]!.id : 0;
 
 export const useTeamEventStore = create<TeamEventState>((set) => ({
-  events: [],
+  events: initialEvents,
   paused: false,
 
   addEvent: (event, payload) => {
@@ -49,13 +73,15 @@ export const useTeamEventStore = create<TeamEventState>((set) => ({
         teamId: extractTeamId(payload),
       };
       const next = [...s.events, entry];
-      if (next.length > MAX_EVENTS) {
-        return { events: next.slice(next.length - MAX_EVENTS) };
-      }
-      return { events: next };
+      const trimmed = next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next;
+      persistEvents(trimmed);
+      return { events: trimmed };
     });
   },
 
-  clear: () => set({ events: [] }),
+  clear: () => {
+    localStorage.removeItem(PERSIST_KEY);
+    set({ events: [] });
+  },
   setPaused: (paused) => set({ paused }),
 }));

@@ -28,8 +28,8 @@ export function MessageEventCard({ entry, resolveAgent }: Props) {
         <p className="break-words text-xs text-muted-foreground line-clamp-2">{p.preview}</p>
       )}
       {p.task_id && (
-        <span className="text-xs text-muted-foreground">
-          task: <span className="font-mono">{p.task_id.slice(0, 8)}</span>
+        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+          task: {p.task_id.slice(0, 8)}
         </span>
       )}
     </div>

@@ -8,6 +8,7 @@ import {
   Activity,
   BarChart3,
   Radio,
+  Radar,
   Terminal,
   Settings,
   ShieldCheck,
@@ -78,6 +79,7 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
 
         <SidebarGroup label="Monitoring" collapsed={collapsed}>
           <SidebarItem to={ROUTES.TRACES} icon={Activity} label="Traces" collapsed={collapsed} />
+          <SidebarItem to={ROUTES.EVENTS} icon={Radar} label="Realtime Events" collapsed={collapsed} />
           <SidebarItem to={ROUTES.DELEGATIONS} icon={ArrowRightLeft} label="Delegations" collapsed={collapsed} />
           <SidebarItem to={ROUTES.USAGE} icon={BarChart3} label="Usage" collapsed={collapsed} />
           <SidebarItem to={ROUTES.LOGS} icon={Terminal} label="Logs" collapsed={collapsed} />

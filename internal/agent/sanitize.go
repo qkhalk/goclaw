@@ -315,6 +315,62 @@ func stripLeadingBlankLines(content string) string {
 	return leadingBlankLinesPattern.ReplaceAllString(content, "")
 }
 
+// --- 9. Config leak detection (predefined agents) ---
+
+// configLeakFileNames are internal file names that should not appear in user-facing output
+// when a predefined agent describes its procedures or configuration.
+var configLeakFileNames = []string{
+	"SOUL.md", "IDENTITY.md", "AGENTS.md", "BOOTSTRAP.md",
+	"internal_config", "system prompt",
+}
+
+// configLeakListPattern matches numbered or bulleted list items that reference internal files.
+// Examples:  "1. Đọc SOUL.md..."  "- Check AGENTS.md"  "* Read IDENTITY.md"
+var configLeakListPattern = regexp.MustCompile(
+	`(?im)^[\s]*(?:[\d]+[.\)]\s+|\-\s+|\*\s+).*(?:SOUL\.md|IDENTITY\.md|AGENTS\.md|BOOTSTRAP\.md|system prompt|internal_config).*$`,
+)
+
+// StripConfigLeak detects when a predefined agent dumps its internal configuration
+// or procedures (e.g. numbered lists referencing SOUL.md, AGENTS.md) and replaces
+// the entire response with a friendly decline.
+//
+// Only active for predefined agents. Two-gate detection:
+//   - Gate 1: 3+ distinct internal file names mentioned in response
+//   - Gate 2: 2+ list items (numbered/bulleted) referencing those files
+//
+// When both gates trigger, the response is replaced entirely — partial stripping
+// leaves broken output that reads worse than a clean decline.
+func StripConfigLeak(content, agentType string) string {
+	if agentType != "predefined" || content == "" {
+		return content
+	}
+
+	// Gate 1: count distinct file name hits
+	hits := 0
+	for _, name := range configLeakFileNames {
+		if strings.Contains(content, name) {
+			hits++
+		}
+	}
+	if hits < 3 {
+		return content
+	}
+
+	// Gate 2: at least 2 list items referencing internal files
+	matches := configLeakListPattern.FindAllString(content, -1)
+	if len(matches) < 2 {
+		return content
+	}
+
+	slog.Warn("security.config_leak_stripped",
+		"file_hits", hits,
+		"list_matches", len(matches),
+		"original_len", len(content),
+	)
+
+	return "🔒 Security check not passed."
+}
+
 // --- NO_REPLY detection ---
 
 // IsSilentReply checks if the text is a NO_REPLY token.

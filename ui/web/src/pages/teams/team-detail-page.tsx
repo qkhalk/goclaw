@@ -9,7 +9,6 @@ import { TeamMembersTab } from "./team-members-tab";
 import { TeamTasksTab } from "./team-tasks-tab";
 import { TeamDelegationsTab } from "./team-delegations-tab";
 import { TeamSettingsTab } from "./team-settings-tab";
-import { TeamEventsTab } from "./team-events-tab";
 import type { TeamData, TeamMemberData } from "@/types/team";
 
 interface TeamDetailPageProps {
@@ -113,7 +112,6 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
             <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="delegations">Delegations</TabsTrigger>
-            <TabsTrigger value="events">Realtime Events</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -132,10 +130,6 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
 
           <TabsContent value="delegations" className="mt-4">
             <TeamDelegationsTab teamId={teamId} />
-          </TabsContent>
-
-          <TabsContent value="events" className="mt-4">
-            <TeamEventsTab teamId={teamId} />
           </TabsContent>
 
           <TabsContent value="settings" className="mt-4">

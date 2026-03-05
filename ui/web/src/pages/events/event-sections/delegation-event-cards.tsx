@@ -49,18 +49,17 @@ function DelegationLifecycleCard({ entry, resolveAgent }: Props) {
             {p.mode}
           </Badge>
         )}
-        {p.channel && (
-          <Badge variant="outline" className="shrink-0 text-xs">{p.channel}</Badge>
-        )}
       </div>
       {p.task && <p className="break-words text-xs text-muted-foreground line-clamp-2">{p.task}</p>}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         {p.delegation_id && (
-          <span className="shrink-0">
-            deleg: <span className="font-mono">{p.delegation_id.slice(0, 8)}</span>
+          <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
+            deleg: {p.delegation_id.slice(0, 8)}
           </span>
         )}
-        {p.elapsed_ms != null && p.elapsed_ms > 0 && <span>{formatDuration(p.elapsed_ms)}</span>}
+        {p.elapsed_ms != null && p.elapsed_ms > 0 && (
+          <span className="rounded bg-muted px-1.5 py-0.5">{formatDuration(p.elapsed_ms)}</span>
+        )}
         {p.error && <span className="break-words text-destructive">{p.error}</span>}
       </div>
     </div>

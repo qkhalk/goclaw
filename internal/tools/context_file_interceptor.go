@@ -151,6 +151,16 @@ func (b *ContextFileInterceptor) ReadFile(ctx context.Context, path string) (str
 		return b.readAgentFile(ctx, agentID, fileName)
 	}
 
+	// Predefined agent: block reads of shared identity files (SOUL.md, IDENTITY.md, AGENTS.md).
+	// These are already injected into the system prompt — allowing read_file would let the
+	// agent echo their full contents to users, leaking persona configuration.
+	if agentType == store.AgentTypePredefined && fileName != bootstrap.UserFile && fileName != bootstrap.BootstrapFile {
+		return "", true, fmt.Errorf(
+			"this file (%s) is already loaded into your context. You don't need to read it again — refer to your system instructions instead.",
+			fileName,
+		)
+	}
+
 	// Default: agent-level
 	return b.readAgentFile(ctx, agentID, fileName)
 }
