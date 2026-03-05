@@ -17,7 +17,7 @@ import (
 )
 
 const defaultMaxDelegationLoad = 5
-const defaultProgressDelay = 90 * time.Second
+const defaultProgressInterval = 30 * time.Second
 
 // DelegationTask tracks an active delegation for concurrency control and cancellation.
 type DelegationTask struct {
@@ -59,7 +59,7 @@ type DelegateOpts struct {
 	Context           string        // optional extra context
 	Mode              string        // "sync" (default) or "async"
 	TeamTaskID        uuid.UUID     // optional: auto-complete this team task on success
-	EstimatedDuration time.Duration // optional: progress notification fires after this delay (default 90s)
+	EstimatedDuration time.Duration // optional: reserved for future use (progress uses periodic interval now)
 	Label             string        // optional: short label for auto-created task subject (falls back to Task)
 }
 
@@ -260,18 +260,28 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 			dm.active.Delete(task.ID)
 		}()
 
-		// Progress notification timer — fires once after delay if still running
-		progressDelay := opts.EstimatedDuration
-		if progressDelay <= 0 {
-			progressDelay = defaultProgressDelay
-		}
-		progressTimer := time.AfterFunc(progressDelay, func() {
-			dm.sendProgressNotification(task)
-		})
-		defer progressTimer.Stop()
+		// Periodic progress notifications — tick every interval until runAgent returns
+		// or the delegation is cancelled. Listens on both progressDone (normal exit)
+		// and taskCtx.Done() (cancel/stopall) to avoid goroutine leaks.
+		progressDone := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(defaultProgressInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					dm.sendProgressNotification(task)
+				case <-progressDone:
+					return
+				case <-taskCtx.Done():
+					return
+				}
+			}
+		}()
 
 		startTime := time.Now()
 		result, runErr := dm.runAgent(taskCtx, opts.TargetAgentKey, runReq)
+		close(progressDone)
 		duration := time.Since(startTime)
 
 		// Count sibling delegations still running (exclude self)
@@ -604,7 +614,7 @@ func (dm *DelegateManager) injectDependencyResults(ctx context.Context, opts *De
 
 // sendProgressNotification sends a grouped "still working" message listing all
 // active delegations from the same source agent. Uses progressSent to dedup —
-// only the first timer that fires sends the notification; subsequent timers skip.
+// concurrent tickers only send one notification per cycle, then release for next tick.
 func (dm *DelegateManager) sendProgressNotification(task *DelegationTask) {
 	// Skip internal/delegate channels — only notify on real user-facing channels.
 	if dm.msgBus == nil || task.OriginChannel == "" || task.OriginChatID == "" ||
@@ -612,16 +622,16 @@ func (dm *DelegateManager) sendProgressNotification(task *DelegationTask) {
 		return
 	}
 
-	// Dedup: one grouped notification per source agent per chat.
+	// Dedup: one grouped notification per source agent per chat per tick cycle.
 	dedupKey := task.SourceAgentID.String() + ":" + task.OriginChatID
 	if _, loaded := dm.progressSent.LoadOrStore(dedupKey, true); loaded {
 		return
 	}
+	defer dm.progressSent.Delete(dedupKey) // release for next tick
 
 	// Collect all active delegations from same source agent.
 	active := dm.ListActive(task.SourceAgentID)
 	if len(active) == 0 {
-		dm.progressSent.Delete(dedupKey)
 		return
 	}
 
