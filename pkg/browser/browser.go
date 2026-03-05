@@ -77,6 +77,7 @@ func (m *Manager) Start(ctx context.Context) error {
 		m.browser = nil
 		m.pages = make(map[string]*rod.Page)
 		m.console = make(map[string][]ConsoleMessage)
+		m.refs = NewRefStore()
 	}
 
 	var controlURL string
@@ -169,7 +170,18 @@ func (m *Manager) ListTabs(ctx context.Context) ([]TabInfo, error) {
 
 	pages, err := m.browser.Pages()
 	if err != nil {
-		return nil, fmt.Errorf("list pages: %w", err)
+		if m.remoteURL != "" {
+			if reconnErr := m.reconnectLocked(); reconnErr != nil {
+				return nil, fmt.Errorf("list pages: %w (reconnect also failed: %v)", err, reconnErr)
+			}
+			m.logger.Info("auto-reconnected to remote Chrome")
+			pages, err = m.browser.Pages()
+			if err != nil {
+				return nil, fmt.Errorf("list pages after reconnect: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("list pages: %w", err)
+		}
 	}
 
 	tabs := make([]TabInfo, 0, len(pages))
@@ -349,6 +361,7 @@ func (m *Manager) reconnectLocked() error {
 	m.browser = nil
 	m.pages = make(map[string]*rod.Page)
 	m.console = make(map[string][]ConsoleMessage)
+	m.refs = NewRefStore()
 
 	controlURL, err := resolveRemoteCDP(m.remoteURL)
 	if err != nil {
