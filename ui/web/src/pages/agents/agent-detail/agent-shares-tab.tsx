@@ -53,7 +53,7 @@ export function AgentSharesTab({ agentId }: AgentSharesTabProps) {
       {/* Add share form */}
       <div className="rounded-lg border p-4">
         <h3 className="mb-3 text-sm font-medium">Grant Access</h3>
-        <div className="flex items-end gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="shareUserId">User ID</Label>
             <Input
@@ -66,7 +66,7 @@ export function AgentSharesTab({ agentId }: AgentSharesTabProps) {
               }}
             />
           </div>
-          <div className="w-36 space-y-1.5">
+          <div className="w-full space-y-1.5 sm:w-36">
             <Label>Role</Label>
             <Select value={newRole} onValueChange={setNewRole}>
               <SelectTrigger>
@@ -100,8 +100,8 @@ export function AgentSharesTab({ agentId }: AgentSharesTabProps) {
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border">
-          <div className="grid grid-cols-[1fr_100px_48px] items-center gap-2 border-b bg-muted/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
+        <div className="overflow-x-auto rounded-lg border">
+          <div className="grid min-w-[300px] grid-cols-[1fr_100px_48px] items-center gap-2 border-b bg-muted/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
             <span>User</span>
             <span>Role</span>
             <span />
@@ -109,7 +109,7 @@ export function AgentSharesTab({ agentId }: AgentSharesTabProps) {
           {shares.map((share) => (
             <div
               key={share.user_id}
-              className="grid grid-cols-[1fr_100px_48px] items-center gap-2 border-b px-4 py-3 last:border-0"
+              className="grid min-w-[300px] grid-cols-[1fr_100px_48px] items-center gap-2 border-b px-4 py-3 last:border-0"
             >
               <div>
                 <span className="text-sm font-medium">{share.user_id}</span>

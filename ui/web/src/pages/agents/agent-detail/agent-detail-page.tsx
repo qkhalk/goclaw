@@ -109,9 +109,9 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
       </div>
 
       {/* Tabs */}
-      <div className="rounded-xl border bg-card p-4 shadow-sm">
+      <div className="rounded-xl border bg-card p-3 shadow-sm sm:p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
+          <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="config">Config</TabsTrigger>
             <TabsTrigger value="files">Files</TabsTrigger>
