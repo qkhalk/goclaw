@@ -157,6 +157,13 @@ func wireManagedExtras(
 			}
 		}
 	}
+	if listTool, ok := toolsReg.Get("list_files"); ok {
+		if ia, ok := listTool.(tools.InterceptorAware); ok {
+			if stores.Memory != nil {
+				ia.SetMemoryInterceptor(tools.NewMemoryInterceptor(stores.Memory, workspace))
+			}
+		}
+	}
 
 	// Wire group writer cache for permission checks (managed mode only)
 	if groupWriterCache != nil {
