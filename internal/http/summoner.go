@@ -68,7 +68,7 @@ func NewAgentSummoner(agents store.AgentStore, providerReg *providers.Registry, 
 
 // singleCallTimeout is the deadline for the optimistic single LLM call.
 // If exceeded, we fall back to the 2-call approach with the remaining budget.
-const singleCallTimeout = 120 * time.Second
+const singleCallTimeout = 300 * time.Second
 
 // SummonAgent generates context files from a natural language description.
 // Meant to be called as a goroutine: go summoner.SummonAgent(...)
