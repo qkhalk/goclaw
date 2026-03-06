@@ -617,6 +617,16 @@ func runGateway() {
 	server.SetLogTee(logTee)
 	pairingMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee)
 
+	// Wire pairing event broadcasts to all WS clients.
+	pairingMethods.SetBroadcaster(server.BroadcastEvent)
+	if ps, ok := pgStores.Pairing.(*pg.PGPairingStore); ok {
+		ps.SetOnRequest(func(code, senderID, channel, chatID string) {
+			server.BroadcastEvent(*protocol.NewEvent(protocol.EventDevicePairReq, map[string]any{
+				"code": code, "sender_id": senderID, "channel": channel, "chat_id": chatID,
+			}))
+		})
+	}
+
 	// Channel manager
 	channelMgr := channels.NewManager(msgBus)
 
