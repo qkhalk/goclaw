@@ -369,6 +369,8 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	var asyncToolCalls []string   // track async spawn tool names for fallback
 	var mediaResults []MediaResult // media files from tool MEDIA: results
 	var deliverables []string      // actual content from tool outputs (for team task results)
+	var blockReplies int           // count of block.reply events emitted (for dedup in consumer)
+	var lastBlockReply string      // last block reply content
 
 	// Mid-loop compaction: summarize in-memory messages when context exceeds threshold.
 	// Uses same config as maybeSummarize (contextWindow * historyShare).
@@ -576,6 +578,22 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		}
 		messages = append(messages, assistantMsg)
 		pendingMsgs = append(pendingMsgs, assistantMsg)
+
+		// Emit block.reply for intermediate assistant content during tool iterations.
+		// Non-streaming channels (Zalo, Discord, WhatsApp) would otherwise lose this text.
+		if resp.Content != "" {
+			sanitized := SanitizeAssistantContent(resp.Content)
+			if sanitized != "" && !IsSilentReply(sanitized) {
+				blockReplies++
+				lastBlockReply = sanitized
+				l.emit(AgentEvent{
+					Type:    protocol.AgentEventBlockReply,
+					AgentID: l.id,
+					RunID:   req.RunID,
+					Payload: map[string]string{"content": sanitized},
+				})
+			}
+		}
 
 		// Track team_tasks create for orphan detection (argument-based, pre-execution).
 		// Spawn counting is done post-execution so failed spawns don't get counted.
@@ -905,12 +923,14 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	}
 
 	return &RunResult{
-		Content:      finalContent,
-		RunID:        req.RunID,
-		Iterations:   iteration,
-		Usage:        &totalUsage,
-		Media:        mediaResults,
-		Deliverables: deliverables,
+		Content:        finalContent,
+		RunID:          req.RunID,
+		Iterations:     iteration,
+		Usage:          &totalUsage,
+		Media:          mediaResults,
+		Deliverables:   deliverables,
+		BlockReplies:   blockReplies,
+		LastBlockReply: lastBlockReply,
 	}, nil
 }
 

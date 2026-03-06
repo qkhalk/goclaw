@@ -291,8 +291,10 @@ type RunResult struct {
 	RunID        string           `json:"runId"`
 	Iterations   int              `json:"iterations"`
 	Usage        *providers.Usage `json:"usage,omitempty"`
-	Media        []MediaResult    `json:"media,omitempty"`         // media files from tool results (MEDIA: prefix)
-	Deliverables []string         `json:"deliverables,omitempty"`  // actual content from tool outputs (for team task results)
+	Media          []MediaResult    `json:"media,omitempty"`           // media files from tool results (MEDIA: prefix)
+	Deliverables   []string         `json:"deliverables,omitempty"`    // actual content from tool outputs (for team task results)
+	BlockReplies   int              `json:"blockReplies,omitempty"`    // number of block.reply events emitted
+	LastBlockReply string           `json:"lastBlockReply,omitempty"`  // last block reply content (for dedup)
 }
 
 // MediaResult represents a media file produced by a tool during the agent run.
