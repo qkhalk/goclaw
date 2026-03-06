@@ -138,6 +138,7 @@ func (t *MessageTool) sendMedia(ctx context.Context, channel, target, filePath s
 }
 
 // parseMediaPath extracts a file path from a "MEDIA:/path/to/file" string.
+// Only allows absolute paths within os.TempDir() to prevent path traversal.
 func parseMediaPath(s string) (string, bool) {
 	s = strings.TrimSpace(s)
 	if !strings.HasPrefix(s, "MEDIA:") {
@@ -145,6 +146,14 @@ func parseMediaPath(s string) (string, bool) {
 	}
 	path := filepath.Clean(strings.TrimSpace(s[len("MEDIA:"):]))
 	if path == "" || path == "." {
+		return "", false
+	}
+	if !filepath.IsAbs(path) {
+		return "", false
+	}
+	// Restrict to temp directory to prevent path traversal.
+	tmpDir := filepath.Clean(os.TempDir())
+	if !strings.HasPrefix(path, tmpDir+string(filepath.Separator)) && path != tmpDir {
 		return "", false
 	}
 	return path, true

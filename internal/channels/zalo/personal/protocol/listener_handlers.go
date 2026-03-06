@@ -312,6 +312,18 @@ func (ln *Listener) reset() {
 	ln.client = nil
 	ln.cipherKey = ""
 	ln.connectedAt = time.Time{}
+
+	// Drain pending upload callbacks — old connection callbacks won't arrive.
+	ln.uploadCallbacks.Range(func(key, val any) bool {
+		if ch, ok := val.(chan string); ok {
+			select {
+			case ch <- "":
+			default:
+			}
+		}
+		ln.uploadCallbacks.Delete(key)
+		return true
+	})
 }
 
 func (ln *Listener) resetRetryCounters() {

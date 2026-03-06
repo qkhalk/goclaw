@@ -89,7 +89,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("upload image: %v", err)
 	}
-	log.Printf("Upload OK: photoId=%d normalUrl=%s", upload.PhotoID, truncate(upload.NormalURL, 60))
+	log.Printf("Upload OK: photoId=%s normalUrl=%s", upload.PhotoID.String(), truncate(upload.NormalURL, 60))
 
 	imgMsgID, err := protocol.SendImage(ctx, sess, groupID, protocol.ThreadTypeGroup, upload, "Go E2E test image")
 	if err != nil {
