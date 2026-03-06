@@ -143,7 +143,7 @@ func (c *Config) applyEnvOverrides() {
 		c.Channels.WhatsApp.Enabled = true
 	}
 
-	// Allow overriding default provider/model
+	// Default provider/model: env overrides config.
 	envStr("GOCLAW_PROVIDER", &c.Agents.Defaults.Provider)
 	envStr("GOCLAW_MODEL", &c.Agents.Defaults.Model)
 

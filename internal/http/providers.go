@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/oauth"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -14,13 +15,14 @@ import (
 // ProvidersHandler handles LLM provider CRUD endpoints.
 type ProvidersHandler struct {
 	store       store.ProviderStore
+	secretStore store.ConfigSecretsStore
 	token       string
 	providerReg *providers.Registry
 }
 
 // NewProvidersHandler creates a handler for provider management endpoints.
-func NewProvidersHandler(s store.ProviderStore, token string, providerReg *providers.Registry) *ProvidersHandler {
-	return &ProvidersHandler{store: s, token: token, providerReg: providerReg}
+func NewProvidersHandler(s store.ProviderStore, secretStore store.ConfigSecretsStore, token string, providerReg *providers.Registry) *ProvidersHandler {
+	return &ProvidersHandler{store: s, secretStore: secretStore, token: token, providerReg: providerReg}
 }
 
 // RegisterRoutes registers all provider management routes on the given mux.
@@ -64,7 +66,10 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 	if h.providerReg == nil || !p.Enabled || p.APIKey == "" {
 		return
 	}
-	if p.ProviderType == store.ProviderAnthropicNative {
+	if p.ProviderType == store.ProviderChatGPTOAuth {
+		ts := oauth.NewDBTokenSource(h.store, h.secretStore, p.Name)
+		h.providerReg.Register(providers.NewCodexProvider(p.Name, ts, p.APIBase, ""))
+	} else if p.ProviderType == store.ProviderAnthropicNative {
 		h.providerReg.Register(providers.NewAnthropicProvider(p.APIKey,
 			providers.WithAnthropicBaseURL(p.APIBase)))
 	} else if p.ProviderType == store.ProviderDashScope {

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/oauth"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -84,7 +85,7 @@ func registerProviders(registry *providers.Registry, cfg *config.Config) {
 
 // registerProvidersFromDB loads providers from Postgres and registers them.
 // DB providers are registered after config providers, so they take precedence (overwrite).
-func registerProvidersFromDB(registry *providers.Registry, provStore store.ProviderStore) {
+func registerProvidersFromDB(registry *providers.Registry, provStore store.ProviderStore, secretStore store.ConfigSecretsStore) {
 	ctx := context.Background()
 	dbProviders, err := provStore.ListProviders(ctx)
 	if err != nil {
@@ -95,7 +96,10 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 		if !p.Enabled || p.APIKey == "" {
 			continue
 		}
-		if p.ProviderType == store.ProviderAnthropicNative {
+		if p.ProviderType == store.ProviderChatGPTOAuth {
+			ts := oauth.NewDBTokenSource(provStore, secretStore, p.Name)
+			registry.Register(providers.NewCodexProvider(p.Name, ts, p.APIBase, ""))
+		} else if p.ProviderType == store.ProviderAnthropicNative {
 			registry.Register(providers.NewAnthropicProvider(p.APIKey,
 				providers.WithAnthropicBaseURL(p.APIBase)))
 		} else if p.ProviderType == store.ProviderDashScope {

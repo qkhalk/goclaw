@@ -52,7 +52,7 @@ type Config struct {
 	Telemetry TelemetryConfig `json:"telemetry,omitempty"`
 	Tailscale TailscaleConfig `json:"tailscale,omitempty"`
 	Bindings  []AgentBinding  `json:"bindings,omitempty"`
-	mu        sync.RWMutex
+	mu            sync.RWMutex
 }
 
 // TailscaleConfig configures the optional Tailscale tsnet listener.

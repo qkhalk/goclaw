@@ -571,6 +571,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			Content:             resp.Content,
 			Thinking:            resp.Thinking, // reasoning_content passback for thinking models (Kimi, DeepSeek)
 			ToolCalls:           resp.ToolCalls,
+			Phase:               resp.Phase, // preserve Codex phase metadata (gpt-5.3-codex)
 			RawAssistantContent: resp.RawAssistantContent, // preserve thinking blocks for Anthropic passback
 		}
 		messages = append(messages, assistantMsg)
