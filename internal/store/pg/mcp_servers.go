@@ -160,11 +160,20 @@ func (s *PGMCPServerStore) UpdateServer(ctx context.Context, id uuid.UUID, updat
 			updates["api_key"] = encrypted
 		}
 	}
-	// Encrypt env/headers JSONB fields
+	// Encrypt env/headers JSONB fields.
+	// json.Decoder into map[string]interface{} produces map[string]interface{}
+	// for nested objects, not json.RawMessage — so we must marshal any type.
 	for _, field := range []string{"env", "headers"} {
 		if v, ok := updates[field]; ok {
-			if raw, isBytes := v.(json.RawMessage); isBytes {
-				updates[field] = json.RawMessage(s.encryptJSONB([]byte(raw)))
+			var raw []byte
+			switch val := v.(type) {
+			case json.RawMessage:
+				raw = []byte(val)
+			default:
+				raw, _ = json.Marshal(val)
+			}
+			if len(raw) > 0 {
+				updates[field] = json.RawMessage(s.encryptJSONB(raw))
 			}
 		}
 	}
