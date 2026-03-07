@@ -95,7 +95,7 @@ export function CustomToolFormDialog({ open, onOpenChange, tool, onSubmit }: Cus
           <DialogTitle>{tool ? "Edit Tool" : "Create Custom Tool"}</DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2 overflow-y-auto min-h-0">
+        <div className="grid gap-4 py-2 px-0.5 -mx-0.5 overflow-y-auto min-h-0">
           <div className="grid gap-1.5">
             <Label htmlFor="ct-name">Name *</Label>
             <Input id="ct-name" value={name} onChange={(e) => setName(slugify(e.target.value))} placeholder="my-tool" />

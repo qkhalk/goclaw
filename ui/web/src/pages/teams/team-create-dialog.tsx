@@ -114,7 +114,7 @@ export function TeamCreateDialog({ open, onOpenChange, onCreate }: TeamCreateDia
         <DialogHeader>
           <DialogTitle>Create Team</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4 overflow-y-auto min-h-0">
+        <div className="space-y-4 py-4 px-0.5 -mx-0.5 overflow-y-auto min-h-0">
           <div className="space-y-2">
             <Label htmlFor="teamName">Name *</Label>
             <Input

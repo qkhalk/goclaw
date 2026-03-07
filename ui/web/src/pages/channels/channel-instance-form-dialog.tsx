@@ -255,7 +255,7 @@ export function ChannelInstanceFormDialog({
         {/* === FORM STEP === */}
         {step === "form" && (
           <>
-            <div className="grid gap-4 py-2 overflow-y-auto min-h-0">
+            <div className="grid gap-4 py-2 px-0.5 -mx-0.5 overflow-y-auto min-h-0">
               <div className="grid gap-1.5">
                 <Label htmlFor="ci-name">Name *</Label>
                 <Input id="ci-name" value={name} onChange={(e) => setName(slugify(e.target.value))} placeholder="my-telegram-bot" disabled={!!instance} />
@@ -371,7 +371,7 @@ export function ChannelInstanceFormDialog({
         {/* === CONFIG STEP (rendered by registered component) === */}
         {step === "config" && createdInstanceId && ConfigStep && (
           <>
-            <div className="py-2 overflow-y-auto min-h-0">
+            <div className="py-2 px-0.5 -mx-0.5 overflow-y-auto min-h-0">
               <ConfigStep
                 instanceId={createdInstanceId}
                 authCompleted={authCompleted}

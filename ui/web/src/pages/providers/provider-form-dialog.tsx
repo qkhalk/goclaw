@@ -105,7 +105,7 @@ export function ProviderFormDialog({ open, onOpenChange, provider, onSubmit, exi
           <DialogTitle>{isEdit ? "Edit Provider" : "Add Provider"}</DialogTitle>
           <DialogDescription>Configure an LLM provider connection.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4 overflow-y-auto min-h-0">
+        <div className="space-y-4 py-4 px-0.5 -mx-0.5 overflow-y-auto min-h-0">
           {/* Provider type selector — always shown in create mode */}
           {!isEdit && (
             <ProviderTypeSelect
