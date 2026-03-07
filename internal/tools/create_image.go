@@ -131,6 +131,7 @@ func (t *CreateImageTool) Execute(ctx context.Context, args map[string]interface
 	}
 
 	result := &Result{ForLLM: fmt.Sprintf("MEDIA:%s", imagePath)}
+	result.Media = []string{imagePath}
 	result.Deliverable = fmt.Sprintf("[Generated image: %s]\nPrompt: %s", filepath.Base(imagePath), prompt)
 	result.Provider = providerName
 	result.Model = model
