@@ -68,9 +68,7 @@ export function ChatThread({
 
         {/* Thinking block (extended thinking / reasoning) */}
         {isRunning && thinkingText && (
-          <div className="mx-auto max-w-[80%]">
-            <ThinkingBlock text={thinkingText} isStreaming={streamText === null} />
-          </div>
+          <ThinkingBlock text={thinkingText} isStreaming={streamText === null} />
         )}
 
         {/* Streaming text */}
