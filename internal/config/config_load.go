@@ -166,6 +166,7 @@ func (c *Config) applyEnvOverrides() {
 
 	// Database
 	envStr("GOCLAW_POSTGRES_DSN", &c.Database.PostgresDSN)
+	envStr("GOCLAW_REDIS_DSN", &c.Database.RedisDSN)
 
 	// Deprecation warning for GOCLAW_MODE (removed — PostgreSQL is always active)
 	if v := os.Getenv("GOCLAW_MODE"); v != "" {

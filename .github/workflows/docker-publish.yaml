@@ -22,18 +22,27 @@ jobs:
           - variant: latest
             enable_otel: "false"
             enable_tsnet: "false"
+            enable_redis: "false"
             suffix: ""
           - variant: otel
             enable_otel: "true"
             enable_tsnet: "false"
+            enable_redis: "false"
             suffix: "-otel"
           - variant: tsnet
             enable_otel: "false"
             enable_tsnet: "true"
+            enable_redis: "false"
             suffix: "-tsnet"
+          - variant: redis
+            enable_otel: "false"
+            enable_tsnet: "false"
+            enable_redis: "true"
+            suffix: "-redis"
           - variant: full
             enable_otel: "true"
             enable_tsnet: "true"
+            enable_redis: "true"
             suffix: "-full"
 
     steps:
@@ -75,6 +84,7 @@ jobs:
           build-args: |
             ENABLE_OTEL=${{ matrix.enable_otel }}
             ENABLE_TSNET=${{ matrix.enable_tsnet }}
+            ENABLE_REDIS=${{ matrix.enable_redis }}
             VERSION=${{ github.ref_name }}
           cache-from: type=gha,scope=${{ matrix.variant }}
           cache-to: type=gha,mode=max,scope=${{ matrix.variant }}

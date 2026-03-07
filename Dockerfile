@@ -15,6 +15,7 @@ COPY . .
 # Build args
 ARG ENABLE_OTEL=false
 ARG ENABLE_TSNET=false
+ARG ENABLE_REDIS=false
 ARG VERSION=dev
 
 # Build static binary (CGO disabled for scratch/alpine compatibility)
@@ -23,6 +24,9 @@ RUN set -eux; \
     if [ "$ENABLE_OTEL" = "true" ]; then TAGS="otel"; fi; \
     if [ "$ENABLE_TSNET" = "true" ]; then \
         if [ -n "$TAGS" ]; then TAGS="$TAGS,tsnet"; else TAGS="tsnet"; fi; \
+    fi; \
+    if [ "$ENABLE_REDIS" = "true" ]; then \
+        if [ -n "$TAGS" ]; then TAGS="$TAGS,redis"; else TAGS="redis"; fi; \
     fi; \
     if [ -n "$TAGS" ]; then TAGS="-tags $TAGS"; fi; \
     CGO_ENABLED=0 GOOS=linux \

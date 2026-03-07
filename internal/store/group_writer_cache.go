@@ -17,14 +17,15 @@ const groupWriterCacheTTL = 5 * time.Minute
 // Used by tools and agent loop to check group write permissions without repeated DB queries.
 type GroupWriterCache struct {
 	agentStore AgentStore
-	cache      *cache.InMemoryCache[[]GroupFileWriterData]
+	cache      cache.Cache[[]GroupFileWriterData]
 }
 
 // NewGroupWriterCache creates a new cache backed by the given agent store.
-func NewGroupWriterCache(as AgentStore) *GroupWriterCache {
+// The cache implementation is injected (in-memory or Redis) so callers control the backend.
+func NewGroupWriterCache(as AgentStore, c cache.Cache[[]GroupFileWriterData]) *GroupWriterCache {
 	return &GroupWriterCache{
 		agentStore: as,
-		cache:      cache.NewInMemoryCache[[]GroupFileWriterData](),
+		cache:      c,
 	}
 }
 

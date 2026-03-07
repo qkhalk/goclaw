@@ -65,10 +65,11 @@ type TailscaleConfig struct {
 	EnableTLS bool   `json:"enable_tls,omitempty"` // use ListenTLS for auto HTTPS certs
 }
 
-// DatabaseConfig configures the PostgreSQL connection.
-// PostgresDSN is NEVER read from config.json (secret) — only from env GOCLAW_POSTGRES_DSN.
+// DatabaseConfig configures the PostgreSQL connection and optional Redis cache.
+// DSN fields are NEVER read from config.json (secrets) — only from env vars.
 type DatabaseConfig struct {
 	PostgresDSN string `json:"-"` // from env GOCLAW_POSTGRES_DSN only
+	RedisDSN    string `json:"-"` // from env GOCLAW_REDIS_DSN only (optional, requires -tags redis)
 }
 
 // SkillsConfig configures the skills storage system.

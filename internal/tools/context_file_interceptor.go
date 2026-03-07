@@ -81,12 +81,17 @@ type ContextFileInterceptor struct {
 }
 
 // NewContextFileInterceptor creates an interceptor backed by the given agent store.
-func NewContextFileInterceptor(as store.AgentStore, workspace string) *ContextFileInterceptor {
+// Cache implementations are injected (in-memory or Redis) so callers control the backend.
+func NewContextFileInterceptor(
+	as store.AgentStore,
+	workspace string,
+	agentCache, userCache cache.Cache[[]store.AgentContextFileData],
+) *ContextFileInterceptor {
 	return &ContextFileInterceptor{
 		agentStore: as,
 		workspace:  workspace,
-		agentCache: cache.NewInMemoryCache[[]store.AgentContextFileData](),
-		userCache:  cache.NewInMemoryCache[[]store.AgentContextFileData](),
+		agentCache: agentCache,
+		userCache:  userCache,
 		ttl:        defaultContextCacheTTL,
 	}
 }

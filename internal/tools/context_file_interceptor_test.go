@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/cache"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -94,7 +95,10 @@ func TestInterceptor_CacheHit(t *testing.T) {
 			{AgentID: agentID, FileName: "SOUL.md", Content: "you are helpful"},
 		},
 	}
-	intc := NewContextFileInterceptor(as, "")
+	intc := NewContextFileInterceptor(as, "",
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+	)
 
 	ctx := store.WithAgentID(context.Background(), agentID)
 
@@ -126,7 +130,10 @@ func TestInterceptor_InvalidateAgent_ClearsCache(t *testing.T) {
 			{AgentID: agentID, FileName: "SOUL.md", Content: "old content"},
 		},
 	}
-	intc := NewContextFileInterceptor(as, "")
+	intc := NewContextFileInterceptor(as, "",
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+	)
 	ctx := store.WithAgentID(context.Background(), agentID)
 
 	// Warm up cache with old content
@@ -175,7 +182,10 @@ func TestInterceptor_InvalidateAgent_ClearsUserCache(t *testing.T) {
 			{AgentID: agentID, UserID: userID, FileName: "USER.md", Content: "old user content"},
 		},
 	}
-	intc := NewContextFileInterceptor(as, "")
+	intc := NewContextFileInterceptor(as, "",
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+	)
 
 	// Warm user cache
 	intc.readUserFile(context.Background(), agentID, userID, "USER.md")
@@ -215,7 +225,10 @@ func TestInterceptor_InvalidateAgent_DoesNotAffectOtherAgents(t *testing.T) {
 		{AgentID: agentA, FileName: "SOUL.md", Content: "agent A soul"},
 	}
 
-	intc := NewContextFileInterceptor(as, "")
+	intc := NewContextFileInterceptor(as, "",
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+	)
 	ctx := context.Background()
 
 	// Warm agent A cache
@@ -240,7 +253,10 @@ func TestInterceptor_TTLExpiry(t *testing.T) {
 			{AgentID: agentID, FileName: "SOUL.md", Content: "soul content"},
 		},
 	}
-	intc := NewContextFileInterceptor(as, "")
+	intc := NewContextFileInterceptor(as, "",
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+	)
 	intc.ttl = 10 * time.Millisecond // very short TTL for testing
 	ctx := context.Background()
 
