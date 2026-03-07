@@ -53,7 +53,7 @@ export function TeamMembersTab({ members, onAddMember, onRemoveMember }: TeamMem
   };
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       {onAddMember && (
         <div className="space-y-2">
           <Label className="inline-flex items-center gap-1">

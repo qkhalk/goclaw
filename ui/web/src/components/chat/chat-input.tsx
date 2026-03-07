@@ -57,7 +57,7 @@ export function ChatInput({ onSend, onAbort, isRunning, disabled }: ChatInputPro
       {isRunning ? (
         <Button
           variant="destructive"
-          size="icon"
+          size="icon-lg"
           onClick={onAbort}
           title="Stop generation"
         >
@@ -65,7 +65,7 @@ export function ChatInput({ onSend, onAbort, isRunning, disabled }: ChatInputPro
         </Button>
       ) : (
         <Button
-          size="icon"
+          size="icon-lg"
           onClick={handleSend}
           disabled={!value.trim() || disabled}
           title="Send message"
