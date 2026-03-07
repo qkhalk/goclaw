@@ -1,8 +1,10 @@
+import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { Check, Copy } from "lucide-react";
+import { ImageLightbox } from "./image-lightbox";
 
 function CodeBlock({
   className,
@@ -41,8 +43,14 @@ interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  const openLightbox = useCallback((src: string, alt: string) => setLightbox({ src, alt }), []);
+
   return (
     <div className={`prose prose-sm dark:prose-invert max-w-none break-words ${className ?? ""}`}>
+      {lightbox && (
+        <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+      )}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
@@ -67,15 +75,17 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           },
           img({ src, alt, ...props }) {
             return (
-              <a href={src} target="_blank" rel="noopener noreferrer">
-                <img
-                  src={src}
-                  alt={alt ?? "image"}
-                  className="max-w-sm rounded-lg border shadow-sm"
-                  loading="lazy"
-                  {...props}
-                />
-              </a>
+              <img
+                src={src}
+                alt={alt ?? "image"}
+                className="max-w-sm rounded-lg border shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                loading="lazy"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (src) openLightbox(src, alt ?? "image");
+                }}
+                {...props}
+              />
             );
           },
           table({ children, ...props }) {

@@ -18,6 +18,8 @@ export function ChatPage() {
   const connected = useAuthStore((s) => s.connected);
   const userId = useAuthStore((s) => s.userId);
 
+  const [scrollTrigger, setScrollTrigger] = useState(0);
+
   const [agentId, setAgentId] = useState(() => {
     if (urlSessionKey) {
       const { agentId: parsed } = parseSessionKey(urlSessionKey);
@@ -115,6 +117,7 @@ export function ChatPage() {
       }
       // Pass key directly so send() doesn't use a stale closure value
       send(message, key);
+      setScrollTrigger((n) => n + 1);
     },
     [sessionKey, send, buildNewSessionKey, navigate],
   );
@@ -206,6 +209,7 @@ export function ChatPage() {
           toolStream={toolStream}
           isRunning={isRunning}
           loading={messagesLoading}
+          scrollTrigger={scrollTrigger}
         />
 
         {isOwn ? (

@@ -15,6 +15,7 @@ interface ChatThreadProps {
   toolStream: ToolStreamEntry[];
   isRunning: boolean;
   loading?: boolean;
+  scrollTrigger?: number;
 }
 
 export function ChatThread({
@@ -24,9 +25,12 @@ export function ChatThread({
   toolStream,
   isRunning,
   loading,
+  scrollTrigger = 0,
 }: ChatThreadProps) {
   const { ref, onScroll } = useAutoScroll<HTMLDivElement>(
     [messages.length, streamText, thinkingText, toolStream.length],
+    100,
+    scrollTrigger,
   );
 
   // Build map of tool_call_id → error content for tool results that indicate errors
