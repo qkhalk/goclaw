@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { SearchInput } from "@/components/shared/search-input";
 import { Pagination } from "@/components/shared/pagination";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { useChannels } from "./hooks/use-channels";
 import { useChannelInstances, type ChannelInstanceData, type ChannelInstanceInput } from "./hooks/use-channel-instances";
 import { ChannelInstanceFormDialog } from "./channel-instance-form-dialog";
@@ -264,13 +264,13 @@ export function ChannelsPage() {
         onUpdate={handleUpdate}
       />
 
-      <ConfirmDialog
+      <ConfirmDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(v) => !v && setDeleteTarget(null)}
         title="Delete Channel Instance"
-        description={`Are you sure you want to delete "${deleteTarget?.display_name || deleteTarget?.name}"?`}
+        description={`Are you sure you want to delete "${deleteTarget?.display_name || deleteTarget?.name}"? This action cannot be undone.`}
+        confirmValue={deleteTarget?.display_name || deleteTarget?.name || ""}
         confirmLabel="Delete"
-        variant="destructive"
         onConfirm={handleDelete}
         loading={deleteLoading}
       />

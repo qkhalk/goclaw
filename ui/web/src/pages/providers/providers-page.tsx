@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { useProviders, type ProviderData, type ProviderInput } from "./hooks/use-providers";
 import { ProviderFormDialog } from "./provider-form-dialog";
 import { useMinLoading } from "@/hooks/use-min-loading";
@@ -202,13 +202,13 @@ export function ProvidersPage() {
         existingProviders={providers}
       />
 
-      <ConfirmDialog
+      <ConfirmDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(v) => !v && setDeleteTarget(null)}
         title="Delete Provider"
-        description={`Are you sure you want to delete "${deleteTarget?.display_name || deleteTarget?.name}"?`}
+        description={`Are you sure you want to delete "${deleteTarget?.display_name || deleteTarget?.name}"? This action cannot be undone.`}
+        confirmValue={deleteTarget?.display_name || deleteTarget?.name || ""}
         confirmLabel="Delete"
-        variant="destructive"
         onConfirm={handleDelete}
         loading={deleteLoading}
       />

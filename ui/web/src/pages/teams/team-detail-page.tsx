@@ -3,8 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Users, Trash2 } from "lucide-react";
-import { DeferredSpinner } from "@/components/shared/loading-skeleton";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { DetailPageSkeleton } from "@/components/shared/loading-skeleton";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { useTeams } from "./hooks/use-teams";
 import { TeamMembersTab } from "./team-members-tab";
 import { TeamTasksTab } from "./team-tasks-tab";
@@ -65,14 +65,7 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
   }, [teamId, removeMember, reload]);
 
   if (loading || !team) {
-    return (
-      <div className="p-4 sm:p-6">
-        <Button variant="ghost" onClick={onBack} className="mb-4 gap-1">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Button>
-        <DeferredSpinner />
-      </div>
-    );
+    return <DetailPageSkeleton tabs={4} />;
   }
 
   return (
@@ -116,7 +109,7 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
       </div>
 
       {/* Tabs */}
-      <div className="max-w-4xl">
+      <div className="max-w-4xl rounded-xl border bg-card p-3 shadow-sm sm:p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
             <TabsTrigger value="members">Members</TabsTrigger>
@@ -148,13 +141,13 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
         </Tabs>
       </div>
 
-      <ConfirmDialog
+      <ConfirmDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Delete Team"
-        description={`Are you sure you want to delete "${team.name}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete "${team.name}"? All members, tasks, and configuration will be permanently removed.`}
+        confirmValue={team.name}
         confirmLabel="Delete"
-        variant="destructive"
         onConfirm={async () => {
           await deleteTeam(teamId);
           setDeleteOpen(false);

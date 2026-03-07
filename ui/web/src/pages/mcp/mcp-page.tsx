@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { useMCP, type MCPServerData, type MCPServerInput } from "./hooks/use-mcp";
 import { MCPFormDialog } from "./mcp-form-dialog";
 import { MCPGrantsDialog } from "./mcp-grants-dialog";
@@ -226,13 +226,13 @@ export function MCPPage() {
         />
       )}
 
-      <ConfirmDialog
+      <ConfirmDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Delete MCP Server"
         description={`Are you sure you want to delete "${deleteTarget?.display_name || deleteTarget?.name}"? This will also remove all associated grants.`}
+        confirmValue={deleteTarget?.display_name || deleteTarget?.name || ""}
         confirmLabel="Delete"
-        variant="destructive"
         onConfirm={handleDelete}
         loading={deleteLoading}
       />

@@ -11,10 +11,9 @@ import { AgentFilesTab } from "./agent-files-tab";
 import { AgentSharesTab } from "./agent-shares-tab";
 import { AgentLinksTab } from "./agent-links-tab";
 import { AgentSkillsTab } from "./agent-skills-tab";
-import { AgentDangerTab } from "./agent-danger-tab";
 import { SummoningModal } from "../summoning-modal";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { DeferredSpinner } from "@/components/shared/loading-skeleton";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
+import { DetailPageSkeleton } from "@/components/shared/loading-skeleton";
 
 interface AgentDetailPageProps {
   agentId: string;
@@ -38,7 +37,7 @@ function agentSubtitle(agent: { display_name?: string; agent_key: string; id: st
 }
 
 export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
-  const { agent, files, loading, updateAgent, getFile, setFile, regenerateAgent, resummonAgent, deleteAgent, refresh } =
+  const { agent, files, loading, updateAgent, getFile, setFile, regenerateAgent, resummonAgent, refresh } =
     useAgentDetail(agentId);
   const { deleteAgent: deleteAgentById } = useAgents();
   const [summoningOpen, setSummoningOpen] = useState(false);
@@ -62,14 +61,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
   };
 
   if (loading || !agent) {
-    return (
-      <div className="p-4 sm:p-6">
-        <Button variant="ghost" onClick={onBack} className="mb-4 gap-1">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Button>
-        <DeferredSpinner />
-      </div>
-    );
+    return <DetailPageSkeleton tabs={6} />;
   }
 
   const title = agentDisplayName(agent);
@@ -131,7 +123,6 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
             <TabsTrigger value="shares">Shares</TabsTrigger>
             <TabsTrigger value="links">Links</TabsTrigger>
             <TabsTrigger value="skills">Skills</TabsTrigger>
-            <TabsTrigger value="danger" className="text-destructive data-[state=active]:text-destructive">Danger</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="mt-4">
@@ -165,9 +156,6 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
             <AgentSkillsTab agentId={agentId} />
           </TabsContent>
 
-          <TabsContent value="danger" className="mt-4">
-            <AgentDangerTab agent={agent} onDelete={deleteAgent} onDeleted={onBack} />
-          </TabsContent>
         </Tabs>
       </div>
 
@@ -180,13 +168,13 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
         onResummon={async () => { await resummonAgent(); }}
       />
 
-      <ConfirmDialog
+      <ConfirmDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Delete Agent"
-        description={`Are you sure you want to delete "${title}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete "${title}"? All context files, sessions, and configuration will be permanently removed.`}
+        confirmValue={agent.display_name || agent.agent_key}
         confirmLabel="Delete"
-        variant="destructive"
         onConfirm={async () => {
           await deleteAgentById(agentId);
           setDeleteOpen(false);

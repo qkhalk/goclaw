@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { useSkills, type SkillInfo } from "./hooks/use-skills";
 import { SkillDetailDialog } from "./skill-detail-dialog";
 import { SkillUploadDialog } from "./skill-upload-dialog";
@@ -176,13 +176,13 @@ export function SkillsPage() {
         onUpload={handleUpload}
       />
 
-      <ConfirmDialog
+      <ConfirmDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Delete Skill"
         description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmValue={deleteTarget?.name || ""}
         confirmLabel="Delete"
-        variant="destructive"
         onConfirm={handleDelete}
         loading={deleteLoading}
       />
