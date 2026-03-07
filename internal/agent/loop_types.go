@@ -276,8 +276,9 @@ type RunRequest struct {
 	MaxIterations    int       // per-request override (0 = use agent default, must be lower)
 
 	// Run classification
-	RunKind   string // "delegation", "announce" — empty for user-initiated runs
-	HideInput bool   // don't persist input message in session history (announce runs)
+	RunKind       string // "delegation", "announce" — empty for user-initiated runs
+	HideInput     bool   // don't persist input message in session history (announce runs)
+	ContentSuffix string // appended to assistant response before saving (e.g. image markdown for WS)
 
 	// Delegation context (set when running as a delegate agent)
 	DelegationID  string // delegation ID for event correlation

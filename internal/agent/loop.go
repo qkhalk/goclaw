@@ -877,6 +877,11 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		}
 	}
 
+	// Append content suffix (e.g. image markdown for WS) before saving to session.
+	if req.ContentSuffix != "" && !strings.Contains(finalContent, req.ContentSuffix) {
+		finalContent += req.ContentSuffix
+	}
+
 	pendingMsgs = append(pendingMsgs, providers.Message{
 		Role:    "assistant",
 		Content: finalContent,

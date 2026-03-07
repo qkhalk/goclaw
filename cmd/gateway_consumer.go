@@ -425,25 +425,21 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			outMeta := buildAnnounceOutMeta(origLocalKey)
 
 			// Build request before goroutine to capture msg fields.
-			// WS: convert media to markdown URLs inline (no outbound channel handler).
-			// Must happen BEFORE the run so the agent loop saves images in the session
-			// before run.completed fires — avoids race with frontend loadHistory().
+			// WS channel has no outbound handler — media converted to markdown URLs
+			// and appended to the assistant response via ContentSuffix, which the
+			// agent loop applies BEFORE saving to session and emitting run.completed.
 			fwdMedia := msg.Media
-			announceMessage := msg.Content
-			wsMediaSuffix := ""
+			contentSuffix := ""
 			if origChannel == "ws" && len(msg.Media) > 0 {
-				mdMedia := mediaToMarkdownFromPaths(msg.Media, cfg.WorkspacePath(), cfg)
-				if mdMedia != "" {
-					announceMessage += "\n\n[Image URLs for web display — include these EXACTLY as-is at the end of your response]" + mdMedia
-					wsMediaSuffix = mdMedia
-				}
-				fwdMedia = nil // already embedded as markdown
+				contentSuffix = mediaToMarkdownFromPaths(msg.Media, cfg.WorkspacePath(), cfg)
+				fwdMedia = nil // WS: images delivered via ContentSuffix, not ForwardMedia
 			}
 
 			announceReq := agent.RunRequest{
 				SessionKey:       sessionKey,
-				Message:          announceMessage,
+				Message:          msg.Content,
 				ForwardMedia:     fwdMedia,
+				ContentSuffix:    contentSuffix,
 				Channel:          origChannel,
 				ChatID:           msg.ChatID,
 				PeerKind:         origPeerKind,
@@ -459,7 +455,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			// Handle announce asynchronously with per-session serialization.
 			// The mutex ensures concurrent announces for the same session wait for
 			// each other, so each reads up-to-date session history.
-			go func(sessionKey, origCh, chatID, senderID, label string, meta map[string]string, req agent.RunRequest, mediaSuffix string) {
+			go func(sessionKey, origCh, chatID, senderID, label string, meta map[string]string, req agent.RunRequest) {
 				mu := getAnnounceMu(sessionKey)
 				mu.Lock()
 				defer mu.Unlock()
@@ -497,11 +493,6 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 					announceContent = "" // suppress NO_REPLY text but still send media
 				}
 
-				// Fallback: if LLM stripped the image markdown URLs, append them.
-				if mediaSuffix != "" && !strings.Contains(announceContent, mediaSuffix) {
-					announceContent += mediaSuffix
-				}
-
 				outMsg := bus.OutboundMessage{
 					Channel:  origCh,
 					ChatID:   chatID,
@@ -515,7 +506,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 					})
 				}
 				msgBus.PublishOutbound(outMsg)
-			}(sessionKey, origChannel, msg.ChatID, msg.SenderID, msg.Metadata["subagent_label"], outMeta, announceReq, wsMediaSuffix)
+			}(sessionKey, origChannel, msg.ChatID, msg.SenderID, msg.Metadata["subagent_label"], outMeta, announceReq)
 			continue
 		}
 
@@ -569,23 +560,20 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			// Build outbound metadata for topic/thread routing.
 			outMeta := buildAnnounceOutMeta(origLocalKey)
 
-			// WS: convert media to markdown URLs inline (same as subagent announce).
+			// WS channel has no outbound handler — media injected into session after run.
+			// WS channel has no outbound handler — media delivered via ContentSuffix.
 			fwdMedia := msg.Media
-			announceMessage := msg.Content
-			wsMediaSuffix := ""
+			contentSuffix := ""
 			if origChannel == "ws" && len(msg.Media) > 0 {
-				mdMedia := mediaToMarkdownFromPaths(msg.Media, cfg.WorkspacePath(), cfg)
-				if mdMedia != "" {
-					announceMessage += "\n\n[Image URLs for web display — include these EXACTLY as-is at the end of your response]" + mdMedia
-					wsMediaSuffix = mdMedia
-				}
-				fwdMedia = nil
+				contentSuffix = mediaToMarkdownFromPaths(msg.Media, cfg.WorkspacePath(), cfg)
+				fwdMedia = nil // WS: images delivered via ContentSuffix, not ForwardMedia
 			}
 
 			announceReq := agent.RunRequest{
 				SessionKey:       sessionKey,
-				Message:          announceMessage,
+				Message:          msg.Content,
 				ForwardMedia:     fwdMedia,
+				ContentSuffix:    contentSuffix,
 				Channel:          origChannel,
 				ChatID:           msg.ChatID,
 				PeerKind:         origPeerKind,
@@ -600,7 +588,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			}
 
 			// Same per-session serialization as subagent announce above.
-			go func(sessionKey, origCh, chatID, senderID string, meta map[string]string, req agent.RunRequest, mediaSuffix string) {
+			go func(sessionKey, origCh, chatID, senderID string, meta map[string]string, req agent.RunRequest) {
 				mu := getAnnounceMu(sessionKey)
 				mu.Lock()
 				defer mu.Unlock()
@@ -626,14 +614,10 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 					slog.Info("delegate announce: suppressed silent/empty reply", "delegation", senderID)
 					return
 				}
+
 				announceContent := outcome.Result.Content
 				if isSilent {
 					announceContent = "" // suppress NO_REPLY text but still send media
-				}
-
-				// Fallback: if LLM stripped the image markdown URLs, append them.
-				if mediaSuffix != "" && !strings.Contains(announceContent, mediaSuffix) {
-					announceContent += mediaSuffix
 				}
 
 				outMsg := bus.OutboundMessage{
@@ -649,7 +633,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 					})
 				}
 				msgBus.PublishOutbound(outMsg)
-			}(sessionKey, origChannel, msg.ChatID, msg.SenderID, outMeta, announceReq, wsMediaSuffix)
+			}(sessionKey, origChannel, msg.ChatID, msg.SenderID, outMeta, announceReq)
 			continue
 		}
 
