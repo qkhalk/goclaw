@@ -68,8 +68,11 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 		close(progressDone)
 		duration := time.Since(startTime)
 
-		// Count sibling delegations still running (exclude self)
-		siblings := dm.ListActive(task.SourceAgentID)
+		// Count sibling delegations still running (exclude self).
+		// Scoped by origin (channel + chatID) so delegations from different
+		// conversations are NOT treated as siblings of each other.
+		oKey := task.originKey()
+		siblings := dm.ListActiveForOrigin(oKey)
 		siblingCount := 0
 		for _, s := range siblings {
 			if s.ID != task.ID {
@@ -104,7 +107,7 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 				if task.TeamTaskID != uuid.Nil {
 					arts.CompletedTaskIDs = []string{task.TeamTaskID.String()}
 				}
-				dm.accumulateArtifacts(task.SourceAgentID, arts)
+				dm.accumulateArtifacts(oKey, arts)
 
 				// Emit accumulated event so WS clients know this delegation finished
 				// but results are being held until siblings complete.
@@ -134,7 +137,7 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 				dm.progressSent.Delete(task.SourceAgentID.String() + ":" + task.OriginChatID)
 
 				// Last completion: collect all accumulated artifacts + own result
-				artifacts := dm.collectArtifacts(task.SourceAgentID)
+				artifacts := dm.collectArtifacts(oKey)
 				if result != nil {
 					artifacts.Media = append(artifacts.Media, result.MediaPaths...)
 					artifacts.Results = append(artifacts.Results, DelegateResultSummary{

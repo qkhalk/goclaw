@@ -51,6 +51,13 @@ type DelegationTask struct {
 	progressEnabled bool               `json:"-"` // resolved from team settings or global default
 }
 
+// originKey returns a composite key scoping this delegation to its origin conversation.
+// Used for sibling counting and artifact accumulation so that delegations from
+// different channels/chats are NOT treated as siblings of each other.
+func (t *DelegationTask) originKey() string {
+	return t.SourceAgentID.String() + ":" + t.OriginChannel + ":" + t.OriginChatID
+}
+
 // DelegateOpts configures a single delegation call.
 type DelegateOpts struct {
 	TargetAgentKey    string
