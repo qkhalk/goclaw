@@ -217,6 +217,47 @@ func (s *PGTeamStore) CancelTask(ctx context.Context, taskID, teamID uuid.UUID, 
 	return tx.Commit()
 }
 
+func (s *PGTeamStore) FailTask(ctx context.Context, taskID, teamID uuid.UUID, errMsg string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+	res, err := tx.ExecContext(ctx,
+		`UPDATE team_tasks SET status = $1, result = $2, updated_at = $3
+		 WHERE id = $4 AND status = $5 AND team_id = $6`,
+		store.TeamTaskStatusFailed, "FAILED: "+errMsg, now,
+		taskID, store.TeamTaskStatusInProgress, teamID,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("task not in progress or not found")
+	}
+
+	// Unblock dependent tasks (same logic as CompleteTask/CancelTask)
+	_, err = tx.ExecContext(ctx,
+		`UPDATE team_tasks SET
+		   blocked_by = array_remove(blocked_by, $1),
+		   status = CASE WHEN status = 'blocked' AND blocked_by = ARRAY[$1]::uuid[] THEN 'pending' ELSE status END,
+		   updated_at = $2
+		 WHERE $1 = ANY(blocked_by)`,
+		taskID, now,
+	)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func scanTaskRowsJoined(rows *sql.Rows) ([]store.TeamTaskData, error) {
 	var tasks []store.TeamTaskData
 	for rows.Next() {

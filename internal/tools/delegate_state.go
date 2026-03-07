@@ -222,6 +222,45 @@ func (dm *DelegateManager) autoCompleteTeamTask(task *DelegationTask, resultCont
 	}
 }
 
+// autoFailTeamTask marks the associated team task as failed.
+// Called after a delegation fails. Errors are logged but not fatal.
+func (dm *DelegateManager) autoFailTeamTask(task *DelegationTask, errMsg string) {
+	if dm.teamStore == nil || task.TeamTaskID == uuid.Nil {
+		return
+	}
+
+	// Truncate error message for storage
+	if len(errMsg) > 2000 {
+		errMsg = errMsg[:2000] + "..."
+	}
+
+	_ = dm.teamStore.ClaimTask(context.Background(), task.TeamTaskID, task.TargetAgentID, task.TeamID)
+	if err := dm.teamStore.FailTask(context.Background(), task.TeamTaskID, task.TeamID, errMsg); err != nil {
+		slog.Warn("delegate: failed to auto-fail team task",
+			"task_id", task.TeamTaskID, "delegation_id", task.ID, "error", err)
+	} else {
+		slog.Info("delegate: auto-failed team task",
+			"task_id", task.TeamTaskID, "delegation_id", task.ID)
+
+		// Persist delegation failure as team message for audit trail
+		if task.TeamID != uuid.Nil {
+			summary := errMsg
+			if len(summary) > 500 {
+				summary = summary[:500] + "..."
+			}
+			taskID := task.TeamTaskID
+			_ = dm.teamStore.SendMessage(context.Background(), &store.TeamMessageData{
+				TeamID:      task.TeamID,
+				FromAgentID: task.TargetAgentID,
+				ToAgentID:   &task.SourceAgentID,
+				Content:     fmt.Sprintf("[Delegation failed] %s", summary),
+				MessageType: store.TeamMessageTypeChat,
+				TaskID:      &taskID,
+			})
+		}
+	}
+}
+
 // saveDelegationHistory persists a delegation record to the database.
 // Called after delegation completes (success, fail, or cancel). Errors are logged, not fatal.
 func (dm *DelegateManager) saveDelegationHistory(task *DelegationTask, resultContent string, delegateErr error, duration time.Duration) {

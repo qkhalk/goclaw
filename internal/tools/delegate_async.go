@@ -214,12 +214,14 @@ func (dm *DelegateManager) DelegateAsync(ctx context.Context, opts DelegateOpts)
 
 		if runErr != nil {
 			task.Status = "failed"
+			dm.autoFailTeamTask(task, runErr.Error())
 			dm.emitDelegationEventWithError(task, runErr)
 			dm.saveDelegationHistory(task, "", runErr, duration)
 		} else {
 			// Apply quality gates before marking completed.
 			if result, runErr = dm.applyQualityGates(taskCtx, task, opts, result); runErr != nil {
 				task.Status = "failed"
+				dm.autoFailTeamTask(task, runErr.Error())
 				dm.emitDelegationEventWithError(task, runErr)
 				dm.saveDelegationHistory(task, "", runErr, duration)
 			} else {
