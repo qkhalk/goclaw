@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -156,7 +157,7 @@ func (s *PGTeamStore) GetTeamForAgent(ctx context.Context, agentID uuid.UUID) (*
 		 LIMIT 1`, agentID, store.TeamStatusActive)
 
 	d, err := scanTeamRow(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return d, err
@@ -220,7 +221,7 @@ func (s *PGTeamStore) GetHandoffRoute(ctx context.Context, channel, chatID strin
 		&d.ID, &d.Channel, &d.ChatID, &d.FromAgentKey, &d.ToAgentKey,
 		&d.Reason, &d.CreatedBy, &d.CreatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"time"
 
@@ -118,7 +119,7 @@ func (s *PGAgentStore) GetUserOverride(ctx context.Context, agentID uuid.UUID, u
 		agentID, userID,
 	).Scan(&d.AgentID, &d.UserID, &d.Provider, &d.Model)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // not found = no override
 		}
 		return nil, nil

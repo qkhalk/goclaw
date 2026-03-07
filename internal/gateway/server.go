@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -247,7 +248,7 @@ func (s *Server) Start(ctx context.Context) error {
 		s.httpServer.Shutdown(shutdownCtx)
 	}()
 
-	if err := s.httpServer.ListenAndServe(); err != http.ErrServerClosed {
+	if err := s.httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("gateway server: %w", err)
 	}
 	return nil

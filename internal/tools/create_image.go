@@ -98,15 +98,16 @@ func (t *CreateImageTool) Execute(ctx context.Context, args map[string]interface
 	// - others (openai, etc.): /images/generations
 	var imageBytes []byte
 	var usage *providers.Usage
-	if providerName == "gemini" {
+	switch providerName {
+	case "gemini":
 		var genErr error
 		imageBytes, usage, genErr = t.callGeminiNativeImageGen(ctx, cp.APIKey(), cp.APIBase(), model, prompt)
 		err = genErr
-	} else if providerName == "openrouter" {
+	case "openrouter":
 		var genErr error
 		imageBytes, usage, genErr = t.callImageGenAPI(ctx, cp.APIKey(), cp.APIBase(), model, prompt, aspectRatio)
 		err = genErr
-	} else {
+	default:
 		var genErr error
 		imageBytes, usage, genErr = t.callStandardImageGenAPI(ctx, cp.APIKey(), cp.APIBase(), model, prompt)
 		err = genErr

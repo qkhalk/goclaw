@@ -168,7 +168,7 @@ func runUpgrade(dryRun bool) error {
 		}
 		defer m.Close()
 
-		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			fmt.Println("FAILED")
 			return fmt.Errorf("migrate up: %w", err)
 		}
@@ -240,7 +240,7 @@ func checkSchemaOrAutoUpgrade(dsn string) error {
 		}
 		defer m.Close()
 
-		if mErr := m.Up(); mErr != nil && mErr != migrate.ErrNoChange {
+		if mErr := m.Up(); mErr != nil && !errors.Is(mErr, migrate.ErrNoChange) {
 			return fmt.Errorf("auto-upgrade: migrate up: %w", mErr)
 		}
 

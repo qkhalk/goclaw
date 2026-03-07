@@ -170,21 +170,22 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 		if p.APIKey == "" {
 			continue
 		}
-		if p.ProviderType == store.ProviderChatGPTOAuth {
+		switch p.ProviderType {
+		case store.ProviderChatGPTOAuth:
 			ts := oauth.NewDBTokenSource(provStore, secretStore, p.Name)
 			registry.Register(providers.NewCodexProvider(p.Name, ts, p.APIBase, ""))
-		} else if p.ProviderType == store.ProviderAnthropicNative {
+		case store.ProviderAnthropicNative:
 			registry.Register(providers.NewAnthropicProvider(p.APIKey,
 				providers.WithAnthropicBaseURL(p.APIBase)))
-		} else if p.ProviderType == store.ProviderDashScope {
+		case store.ProviderDashScope:
 			registry.Register(providers.NewDashScopeProvider(p.APIKey, p.APIBase, ""))
-		} else if p.ProviderType == store.ProviderBailian {
+		case store.ProviderBailian:
 			base := p.APIBase
 			if base == "" {
 				base = "https://coding-intl.dashscope.aliyuncs.com/v1"
 			}
 			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
-		} else {
+		default:
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
 			if p.ProviderType == store.ProviderMiniMax {
 				prov.WithChatPath("/text/chatcompletion_v2")

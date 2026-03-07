@@ -61,3 +61,19 @@ go test -v ./tests/integration/     # Integration tests
 
 cd ui/web && pnpm install && pnpm dev   # Web dashboard (dev)
 ```
+
+## Post-Implementation Checklist
+
+After implementing or modifying Go code, run these checks:
+
+```bash
+go build ./...                      # Compile check
+go vet ./...                        # Static analysis
+go test -race ./tests/integration/  # Integration tests with race detector
+```
+
+Go conventions to follow:
+- Use `errors.Is(err, sentinel)` instead of `err == sentinel`
+- Use `switch/case` instead of `if/else if` chains on the same variable
+- Use `append(dst, src...)` instead of loop-based append
+- Always handle errors; don't ignore return values

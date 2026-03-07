@@ -94,21 +94,22 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 	if p.APIKey == "" {
 		return
 	}
-	if p.ProviderType == store.ProviderChatGPTOAuth {
+	switch p.ProviderType {
+	case store.ProviderChatGPTOAuth:
 		ts := oauth.NewDBTokenSource(h.store, h.secretStore, p.Name)
 		h.providerReg.Register(providers.NewCodexProvider(p.Name, ts, p.APIBase, ""))
-	} else if p.ProviderType == store.ProviderAnthropicNative {
+	case store.ProviderAnthropicNative:
 		h.providerReg.Register(providers.NewAnthropicProvider(p.APIKey,
 			providers.WithAnthropicBaseURL(p.APIBase)))
-	} else if p.ProviderType == store.ProviderDashScope {
+	case store.ProviderDashScope:
 		h.providerReg.Register(providers.NewDashScopeProvider(p.APIKey, p.APIBase, ""))
-	} else if p.ProviderType == store.ProviderBailian {
+	case store.ProviderBailian:
 		base := p.APIBase
 		if base == "" {
 			base = "https://coding-intl.dashscope.aliyuncs.com/v1"
 		}
 		h.providerReg.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
-	} else {
+	default:
 		prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
 		if p.ProviderType == store.ProviderMiniMax {
 			prov.WithChatPath("/text/chatcompletion_v2")

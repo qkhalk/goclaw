@@ -4,6 +4,7 @@ package oauth
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -182,7 +183,7 @@ func StartLoginOpenAI() (*PendingLogin, error) {
 
 	srv := &http.Server{Handler: mux}
 	go func() {
-		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
+		if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- fmt.Errorf("callback server: %w", err)
 		}
 	}()

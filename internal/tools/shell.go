@@ -3,6 +3,7 @@ package tools
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -297,7 +298,7 @@ func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Resu
 func (t *ExecTool) executeInSandbox(ctx context.Context, command, cwd, sandboxKey string) *Result {
 	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, t.workingDir)
 	if err != nil {
-		if err == sandbox.ErrSandboxDisabled {
+		if errors.Is(err, sandbox.ErrSandboxDisabled) {
 			return t.executeOnHost(ctx, command, cwd)
 		}
 		// Docker unavailable (binary missing, daemon down) → fallback to host

@@ -6,6 +6,7 @@ package feishu
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -278,7 +279,7 @@ func (c *Channel) startWebhook(ctx context.Context) error {
 	}
 
 	go func() {
-		if err := c.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := c.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("feishu webhook server error", "error", err)
 		}
 	}()
