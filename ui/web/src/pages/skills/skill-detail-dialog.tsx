@@ -21,14 +21,27 @@ export function SkillDetailDialog({ skill, onClose }: SkillDetailDialogProps) {
           <DialogTitle className="flex items-center gap-2">
             {skill.name}
             <Badge variant="outline">{skill.source || "file"}</Badge>
+            {skill.visibility && (
+              <Badge variant="secondary">{skill.visibility}</Badge>
+            )}
+            {skill.version ? (
+              <span className="text-xs font-normal text-muted-foreground">v{skill.version}</span>
+            ) : null}
           </DialogTitle>
           {skill.description && (
             <p className="text-sm text-muted-foreground">{skill.description}</p>
           )}
+          {skill.tags && skill.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {skill.tags.map((tag) => (
+                <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+              ))}
+            </div>
+          )}
         </DialogHeader>
         <div className="mt-2">
           {skill.content ? (
-            <div className="rounded-md border bg-muted/30 p-4">
+            <div className="overflow-hidden rounded-md border bg-muted/30 p-4">
               <MarkdownRenderer content={skill.content} />
             </div>
           ) : (

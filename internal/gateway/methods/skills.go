@@ -36,9 +36,16 @@ func (m *SkillsMethods) handleList(_ context.Context, client *gateway.Client, re
 			"slug":        s.Slug,
 			"description": s.Description,
 			"source":      s.Source,
+			"version":     s.Version,
 		}
 		if s.ID != "" {
 			entry["id"] = s.ID
+		}
+		if s.Visibility != "" {
+			entry["visibility"] = s.Visibility
+		}
+		if len(s.Tags) > 0 {
+			entry["tags"] = s.Tags
 		}
 		result = append(result, entry)
 	}
@@ -68,12 +75,24 @@ func (m *SkillsMethods) handleGet(_ context.Context, client *gateway.Client, req
 
 	content, _ := m.store.LoadSkill(params.Name)
 
-	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
+	resp := map[string]interface{}{
 		"name":        info.Name,
+		"slug":        info.Slug,
 		"description": info.Description,
 		"source":      info.Source,
 		"content":     content,
-	}))
+		"version":     info.Version,
+	}
+	if info.ID != "" {
+		resp["id"] = info.ID
+	}
+	if info.Visibility != "" {
+		resp["visibility"] = info.Visibility
+	}
+	if len(info.Tags) > 0 {
+		resp["tags"] = info.Tags
+	}
+	client.SendResponse(protocol.NewOKResponse(req.ID, resp))
 }
 
 // skillUpdater is an optional interface for stores that support skill updates (e.g. PGSkillStore).

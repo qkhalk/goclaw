@@ -4,6 +4,9 @@ export interface SkillInfo {
   slug?: string;
   description: string;
   source: string;
+  visibility?: string;
+  tags?: string[];
+  version?: number;
 }
 
 export interface SkillWithGrant {

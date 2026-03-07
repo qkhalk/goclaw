@@ -51,6 +51,15 @@ export function useSkills() {
     [http, invalidate],
   );
 
+  const updateSkill = useCallback(
+    async (id: string, updates: Record<string, unknown>) => {
+      const res = await http.put<{ ok: string }>(`/v1/skills/${id}`, updates);
+      await invalidate();
+      return res;
+    },
+    [http, invalidate],
+  );
+
   const deleteSkill = useCallback(
     async (id: string) => {
       const res = await http.delete<{ ok: string }>(`/v1/skills/${id}`);
@@ -60,5 +69,5 @@ export function useSkills() {
     [http, invalidate],
   );
 
-  return { skills, loading, refresh: invalidate, getSkill, uploadSkill, deleteSkill };
+  return { skills, loading, refresh: invalidate, getSkill, uploadSkill, updateSkill, deleteSkill };
 }

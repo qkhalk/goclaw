@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -61,7 +64,7 @@ func (s *PGSkillStore) ListSkills() []store.SkillInfo {
 
 	// Cache miss or TTL expired → query DB
 	rows, err := s.db.Query(
-		`SELECT id, name, slug, description, version FROM skills WHERE status = 'active' ORDER BY name`)
+		`SELECT id, name, slug, description, visibility, tags, version FROM skills WHERE status = 'active' ORDER BY name`)
 	if err != nil {
 		return nil
 	}
@@ -70,13 +73,17 @@ func (s *PGSkillStore) ListSkills() []store.SkillInfo {
 	var result []store.SkillInfo
 	for rows.Next() {
 		var id uuid.UUID
-		var name, slug string
+		var name, slug, visibility string
 		var desc *string
+		var tags []string
 		var version int
-		if err := rows.Scan(&id, &name, &slug, &desc, &version); err != nil {
+		if err := rows.Scan(&id, &name, &slug, &desc, &visibility, pq.Array(&tags), &version); err != nil {
 			continue
 		}
-		result = append(result, buildSkillInfo(id.String(), name, slug, desc, version, s.baseDir))
+		info := buildSkillInfo(id.String(), name, slug, desc, version, s.baseDir)
+		info.Visibility = visibility
+		info.Tags = tags
+		result = append(result, info)
 	}
 
 	s.mu.Lock()
@@ -148,16 +155,20 @@ func (s *PGSkillStore) BuildSummary(allowList []string) string {
 }
 
 func (s *PGSkillStore) GetSkill(name string) (*store.SkillInfo, bool) {
-	var skillName, slug string
+	var id uuid.UUID
+	var skillName, slug, visibility string
 	var desc *string
+	var tags []string
 	var version int
 	err := s.db.QueryRow(
-		"SELECT name, slug, description, version FROM skills WHERE slug = $1 AND status = 'active'", name,
-	).Scan(&skillName, &slug, &desc, &version)
+		"SELECT id, name, slug, description, visibility, tags, version FROM skills WHERE slug = $1 AND status = 'active'", name,
+	).Scan(&id, &skillName, &slug, &desc, &visibility, pq.Array(&tags), &version)
 	if err != nil {
 		return nil, false
 	}
-	info := buildSkillInfo("", skillName, slug, desc, version, s.baseDir)
+	info := buildSkillInfo(id.String(), skillName, slug, desc, version, s.baseDir)
+	info.Visibility = visibility
+	info.Tags = tags
 	return &info, true
 }
 
@@ -439,8 +450,12 @@ func buildSkillInfo(id, name, slug string, desc *string, version int, baseDir st
 		BaseDir:     fmt.Sprintf("%s/%s/%d", baseDir, slug, version),
 		Source:      "managed",
 		Description: d,
+		Version:     version,
 	}
 }
+
+// skillFrontmatterRe matches YAML frontmatter (--- delimited) at the start of a file.
+var skillFrontmatterRe = regexp.MustCompile(`(?s)^---\n(.*?)\n---\n?`)
 
 func readSkillContent(baseDir, slug string, version int) (string, error) {
 	path := fmt.Sprintf("%s/%s/%d/SKILL.md", baseDir, slug, version)
@@ -448,5 +463,9 @@ func readSkillContent(baseDir, slug string, version int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(data), nil
+	// Normalize line endings (Windows CRLF → LF) and strip frontmatter
+	content := strings.ReplaceAll(string(data), "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\r", "\n")
+	content = skillFrontmatterRe.ReplaceAllString(content, "")
+	return content, nil
 }

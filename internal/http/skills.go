@@ -270,7 +270,7 @@ func (h *SkillsHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		Slug:        slug,
 		Description: &desc,
 		OwnerID:     userID,
-		Visibility:  "private",
+		Visibility:  "internal",
 		Version:     version,
 		FilePath:    destDir,
 		FileSize:    size,

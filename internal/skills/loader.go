@@ -441,8 +441,16 @@ func parseMetadata(path string) *Metadata {
 	}
 }
 
+// normalizeLineEndings converts \r\n and bare \r to \n so frontmatter regex matches
+// files created on Windows or uploaded via ZIP with CRLF line endings.
+func normalizeLineEndings(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return s
+}
+
 func extractFrontmatter(content string) string {
-	match := frontmatterRe.FindStringSubmatch(content)
+	match := frontmatterRe.FindStringSubmatch(normalizeLineEndings(content))
 	if len(match) > 1 {
 		return match[1]
 	}
@@ -450,7 +458,7 @@ func extractFrontmatter(content string) string {
 }
 
 func stripFrontmatter(content string) string {
-	return frontmatterRe.ReplaceAllString(content, "")
+	return frontmatterRe.ReplaceAllString(normalizeLineEndings(content), "")
 }
 
 func parseSimpleYAML(content string) map[string]string {

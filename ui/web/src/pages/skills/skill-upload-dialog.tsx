@@ -20,6 +20,7 @@ export function SkillUploadDialog({ open, onOpenChange, onUpload }: SkillUploadD
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async () => {
@@ -41,7 +42,22 @@ export function SkillUploadDialog({ open, onOpenChange, onUpload }: SkillUploadD
     if (!loading) {
       setFile(null);
       setError("");
+      setDragging(false);
       onOpenChange(v);
+    }
+  };
+
+  const acceptDrop = (f: File): boolean => f.name.toLowerCase().endsWith(".zip");
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped && acceptDrop(dropped)) {
+      setFile(dropped);
+      setError("");
+    } else {
+      setError("Only .zip files are accepted");
     }
   };
 
@@ -56,14 +72,24 @@ export function SkillUploadDialog({ open, onOpenChange, onUpload }: SkillUploadD
         </DialogHeader>
 
         <div
-          className="flex cursor-pointer flex-col items-center gap-2 rounded-md border-2 border-dashed p-8 text-center transition-colors hover:border-primary/50"
+          className={`flex cursor-pointer flex-col items-center gap-2 rounded-md border-2 border-dashed p-8 text-center transition-colors ${
+            dragging
+              ? "border-primary bg-primary/5"
+              : "hover:border-primary/50"
+          }`}
           onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragEnter={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
         >
           <Upload className="h-8 w-8 text-muted-foreground" />
           {file ? (
             <p className="text-sm font-medium">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
           ) : (
-            <p className="text-sm text-muted-foreground">Click to select a .zip file</p>
+            <p className="text-sm text-muted-foreground">
+              {dragging ? "Drop .zip file here" : "Click or drag & drop a .zip file"}
+            </p>
           )}
           <input
             ref={inputRef}

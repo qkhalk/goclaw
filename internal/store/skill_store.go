@@ -8,13 +8,16 @@ import (
 
 // SkillInfo describes a discovered skill.
 type SkillInfo struct {
-	ID          string `json:"id,omitempty"` // DB UUID
-	Name        string `json:"name"`
-	Slug        string `json:"slug"`
-	Path        string `json:"path"`
-	BaseDir     string `json:"baseDir"`
-	Source      string `json:"source"`
-	Description string `json:"description"`
+	ID          string   `json:"id,omitempty"` // DB UUID
+	Name        string   `json:"name"`
+	Slug        string   `json:"slug"`
+	Path        string   `json:"path"`
+	BaseDir     string   `json:"baseDir"`
+	Source      string   `json:"source"`
+	Description string   `json:"description"`
+	Visibility  string   `json:"visibility,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Version     int      `json:"version,omitempty"`
 }
 
 // SkillSearchResult is a scored skill returned from embedding search.

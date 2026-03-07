@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Zap, Eye, RefreshCw, Upload, Trash2 } from "lucide-react";
+import { Zap, Eye, Pencil, RefreshCw, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
@@ -11,18 +11,26 @@ import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { useSkills, type SkillInfo } from "./hooks/use-skills";
 import { SkillDetailDialog } from "./skill-detail-dialog";
 import { SkillUploadDialog } from "./skill-upload-dialog";
+import { SkillEditDialog } from "./skill-edit-dialog";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { usePagination } from "@/hooks/use-pagination";
 
+const visibilityColor: Record<string, string> = {
+  public: "default",
+  internal: "secondary",
+  private: "outline",
+};
+
 export function SkillsPage() {
-  const { skills, loading, refresh, getSkill, uploadSkill, deleteSkill } = useSkills();
+  const { skills, loading, refresh, getSkill, uploadSkill, updateSkill, deleteSkill } = useSkills();
   const spinning = useMinLoading(loading);
   const showSkeleton = useDeferredLoading(loading && skills.length === 0);
   const [search, setSearch] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<(SkillInfo & { content: string }) | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<SkillInfo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SkillInfo | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -106,6 +114,7 @@ export function SkillsPage() {
                   <th className="px-4 py-3 text-left font-medium">Name</th>
                   <th className="px-4 py-3 text-left font-medium">Description</th>
                   <th className="px-4 py-3 text-left font-medium">Source</th>
+                  <th className="px-4 py-3 text-left font-medium">Visibility</th>
                   <th className="px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
@@ -116,34 +125,54 @@ export function SkillsPage() {
                       <div className="flex items-center gap-2">
                         <Zap className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{skill.name}</span>
+                        {skill.version ? (
+                          <span className="text-xs text-muted-foreground">v{skill.version}</span>
+                        ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <td className="max-w-xs truncate px-4 py-3 text-muted-foreground">
                       {skill.description || "No description"}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant="outline">{skill.source || "file"}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      {skill.visibility && (
+                        <Badge variant={visibilityColor[skill.visibility] as "default" | "secondary" | "outline"}>
+                          {skill.visibility}
+                        </Badge>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleViewSkill(skill.name)}
+                          onClick={() => handleViewSkill(skill.slug ?? skill.name)}
                           disabled={detailLoading}
                           className="gap-1"
                         >
                           <Eye className="h-3.5 w-3.5" /> View
                         </Button>
                         {skill.id && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteTarget(skill)}
-                            className="gap-1 text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setEditTarget(skill)}
+                              className="gap-1"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteTarget(skill)}
+                              className="gap-1 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -167,6 +196,17 @@ export function SkillsPage() {
         <SkillDetailDialog
           skill={selectedSkill}
           onClose={() => setSelectedSkill(null)}
+        />
+      )}
+
+      {editTarget && (
+        <SkillEditDialog
+          skill={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={async (id, updates) => {
+            await updateSkill(id, updates);
+            setEditTarget(null);
+          }}
         />
       )}
 
