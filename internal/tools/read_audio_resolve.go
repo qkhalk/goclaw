@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -12,16 +11,6 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
-
-// audioProviderPriority is the order in which providers are tried for audio analysis.
-var audioProviderPriority = []string{"gemini", "openai", "openrouter"}
-
-// audioModelOverrides maps provider names to preferred audio-capable models.
-var audioModelOverrides = map[string]string{
-	"gemini":     "gemini-2.5-flash",
-	"openai":     "gpt-4o-audio-preview",
-	"openrouter": "google/gemini-2.5-flash",
-}
 
 // resolveAudioFile finds the audio file path from context MediaRefs.
 func (t *ReadAudioTool) resolveAudioFile(ctx context.Context, mediaID string) (path, mime string, err error) {
@@ -62,114 +51,43 @@ func (t *ReadAudioTool) resolveAudioFile(ctx context.Context, mediaID string) (p
 	return p, mime, nil
 }
 
-// resolveAudioProviderWithConfig checks builtin settings, then hardcoded priority.
-func (t *ReadAudioTool) resolveAudioProviderWithConfig(ctx context.Context) (providers.Provider, string, error) {
-	if p, model, ok := t.resolveFromAudioSettings(ctx); ok {
-		return p, model, nil
-	}
-	return t.resolveAudioProvider()
-}
-
-// resolveFromAudioSettings checks global builtin tool settings for provider/model config.
-func (t *ReadAudioTool) resolveFromAudioSettings(ctx context.Context) (providers.Provider, string, bool) {
-	settings := BuiltinToolSettingsFromCtx(ctx)
-	if settings == nil {
-		return nil, "", false
-	}
-	raw, ok := settings["read_audio"]
-	if !ok || len(raw) == 0 {
-		return nil, "", false
-	}
-	var cfg struct {
-		Provider string `json:"provider"`
-		Model    string `json:"model"`
-	}
-	if err := json.Unmarshal(raw, &cfg); err != nil || cfg.Provider == "" {
-		return nil, "", false
-	}
-	p, err := t.registry.Get(cfg.Provider)
-	if err != nil {
-		return nil, "", false
-	}
-	model := cfg.Model
-	if model == "" {
-		model = p.DefaultModel()
-	}
-	return p, model, true
-}
-
-// resolveAudioProvider finds the first available audio-capable provider.
-func (t *ReadAudioTool) resolveAudioProvider() (providers.Provider, string, error) {
-	for _, name := range audioProviderPriority {
-		p, err := t.registry.Get(name)
-		if err != nil {
-			continue
-		}
-		model := p.DefaultModel()
-		if override, ok := audioModelOverrides[name]; ok {
-			model = override
-		}
-		return p, model, nil
-	}
-	return nil, "", fmt.Errorf("no audio-capable provider available (need one of: %v)", audioProviderPriority)
-}
-
-// resolveAudioProviderByName gets a specific provider by name and applies model override.
-func (t *ReadAudioTool) resolveAudioProviderByName(name string) (providers.Provider, string, error) {
-	p, err := t.registry.Get(name)
-	if err != nil {
-		return nil, "", err
-	}
-	model := p.DefaultModel()
-	if override, ok := audioModelOverrides[name]; ok {
-		model = override
-	}
-	return p, model, nil
-}
-
-// callAudioProvider sends audio to a provider for analysis.
+// callProvider dispatches audio analysis to the appropriate provider API.
 // Gemini: uses File API (upload → poll → file_data in generateContent).
 // OpenAI: uses input_audio content part in chat completions.
-// Others: falls back to base64 in image_url (may not work for all).
-func (t *ReadAudioTool) callAudioProvider(ctx context.Context, provider providers.Provider, model, prompt string, data []byte, mime string) (*providers.ChatResponse, string, string) {
-	provName := provider.Name()
+// Others: falls back to base64 in image_url (best effort).
+func (t *ReadAudioTool) callProvider(ctx context.Context, cp credentialProvider, providerName, model string, params map[string]any) ([]byte, *providers.Usage, error) {
+	prompt := GetParamString(params, "prompt", "Analyze this audio and describe its contents.")
+	data, _ := params["data"].([]byte)
+	mime := GetParamString(params, "mime", "audio/mpeg")
 
 	// Gemini: use File API (inlineData doesn't work for audio).
-	if strings.HasPrefix(provName, "gemini") {
-		oaiProv, ok := provider.(*providers.OpenAIProvider)
-		if !ok {
-			slog.Warn("read_audio: gemini provider is not OpenAIProvider", "provider", provName)
-			return nil, "", ""
-		}
-		apiKey := oaiProv.APIKey()
-		slog.Info("read_audio: using gemini file API", "provider", provName, "model", model, "size", len(data), "mime", mime)
-		resp, err := geminiFileAPICall(ctx, apiKey, model, prompt, data, mime, 120*time.Second)
+	if strings.HasPrefix(providerName, "gemini") {
+		slog.Info("read_audio: using gemini file API", "provider", providerName, "model", model, "size", len(data), "mime", mime)
+		resp, err := geminiFileAPICall(ctx, cp.APIKey(), model, prompt, data, mime, 120*time.Second)
 		if err != nil {
-			slog.Warn("read_audio: gemini file API call failed", "error", err)
-			return nil, "", ""
+			return nil, nil, fmt.Errorf("gemini file API: %w", err)
 		}
-		return resp, provName, model
+		return []byte(resp.Content), resp.Usage, nil
 	}
 
 	// OpenAI: use input_audio content part (supports wav, mp3).
-	if strings.HasPrefix(provName, "openai") {
-		oaiProv, ok := provider.(*providers.OpenAIProvider)
-		if !ok {
-			slog.Warn("read_audio: openai provider is not OpenAIProvider", "provider", provName)
-			return nil, "", ""
-		}
-		slog.Info("read_audio: using openai input_audio API", "provider", provName, "model", model, "size", len(data), "mime", mime)
-		resp, err := openaiAudioCall(ctx, oaiProv.APIKey(), oaiProv.APIBase(), model, prompt, data, mime)
+	if strings.HasPrefix(providerName, "openai") {
+		slog.Info("read_audio: using openai input_audio API", "provider", providerName, "model", model, "size", len(data), "mime", mime)
+		resp, err := openaiAudioCall(ctx, cp.APIKey(), cp.APIBase(), model, prompt, data, mime)
 		if err != nil {
-			slog.Warn("read_audio: openai audio call failed", "error", err)
-			return nil, "", ""
+			return nil, nil, fmt.Errorf("openai audio call: %w", err)
 		}
-		return resp, provName, model
+		return []byte(resp.Content), resp.Usage, nil
 	}
 
 	// Other providers: try standard Chat API with base64 audio as image_url (best effort).
-	slog.Info("read_audio: using chat API fallback", "provider", provName, "model", model, "size", len(data))
-	resp, err := provider.Chat(ctx, providers.ChatRequest{
+	p, err := t.registry.Get(providerName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("provider %q not available: %w", providerName, err)
+	}
+
+	slog.Info("read_audio: using chat API fallback", "provider", providerName, "model", model, "size", len(data))
+	resp, err := p.Chat(ctx, providers.ChatRequest{
 		Messages: []providers.Message{
 			{
 				Role:    "user",
@@ -184,10 +102,9 @@ func (t *ReadAudioTool) callAudioProvider(ctx context.Context, provider provider
 		},
 	})
 	if err != nil {
-		slog.Warn("read_audio: chat API fallback failed", "provider", provName, "error", err)
-		return nil, "", ""
+		return nil, nil, fmt.Errorf("chat API: %w", err)
 	}
-	return resp, provName, model
+	return []byte(resp.Content), resp.Usage, nil
 }
 
 // openaiAudioCall sends audio to OpenAI using the input_audio content part.

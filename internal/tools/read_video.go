@@ -30,8 +30,18 @@ func MediaVideoRefsFromCtx(ctx context.Context) []providers.MediaRef {
 // videoMaxBytes is the max file size for video analysis (100MB).
 const videoMaxBytes = 100 * 1024 * 1024
 
+// videoProviderPriority is the order in which providers are tried for video analysis.
+// OpenAI excluded — no native video upload in chat completions.
+var videoProviderPriority = []string{"gemini", "openrouter"}
+
+// videoModelDefaults maps provider names to preferred video-capable models.
+var videoModelDefaults = map[string]string{
+	"gemini":     "gemini-2.5-flash",
+	"openrouter": "google/gemini-2.5-flash",
+}
+
 // ReadVideoTool uses a video-capable provider to analyze video files
-// attached to the current conversation. Follows same pattern as ReadAudioTool.
+// attached to the current conversation.
 type ReadVideoTool struct {
 	registry    *providers.Registry
 	mediaLoader MediaPathLoader
@@ -89,37 +99,27 @@ func (t *ReadVideoTool) Execute(ctx context.Context, args map[string]interface{}
 		return ErrorResult(fmt.Sprintf("Video too large: %d bytes (max %d)", len(data), videoMaxBytes))
 	}
 
-	provider, model, err := t.resolveVideoProviderWithConfig(ctx)
-	if err != nil {
-		return ErrorResult(err.Error())
-	}
+	chain := ResolveMediaProviderChain(ctx, "read_video", "", "",
+		videoProviderPriority, videoModelDefaults, t.registry)
 
-	resp, usedProvider, usedModel := t.callVideoProvider(ctx, provider, model, prompt, data, videoMime)
-	if resp == nil {
-		slog.Warn("read_video: primary provider failed, trying fallback", "primary", provider.Name())
-		for _, fbName := range videoProviderPriority {
-			if fbName == provider.Name() {
-				continue
-			}
-			fbProvider, fbModel, fbErr := t.resolveVideoProviderByName(fbName)
-			if fbErr != nil {
-				continue
-			}
-			resp, usedProvider, usedModel = t.callVideoProvider(ctx, fbProvider, fbModel, prompt, data, videoMime)
-			if resp != nil {
-				slog.Info("read_video: fallback succeeded", "provider", usedProvider)
-				break
-			}
+	for i := range chain {
+		if chain[i].Params == nil {
+			chain[i].Params = make(map[string]any)
 		}
-	}
-	if resp == nil {
-		return ErrorResult("Video analysis failed: all providers returned errors")
+		chain[i].Params["prompt"] = prompt
+		chain[i].Params["data"] = data
+		chain[i].Params["mime"] = videoMime
 	}
 
-	result := NewResult(resp.Content)
-	result.Usage = resp.Usage
-	result.Provider = usedProvider
-	result.Model = usedModel
+	chainResult, err := ExecuteWithChain(ctx, chain, t.registry, t.callProvider)
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("Video analysis failed: %v", err))
+	}
+
+	result := NewResult(string(chainResult.Data))
+	result.Usage = chainResult.Usage
+	result.Provider = chainResult.Provider
+	result.Model = chainResult.Model
 	return result
 }
 

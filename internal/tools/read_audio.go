@@ -30,8 +30,18 @@ func MediaAudioRefsFromCtx(ctx context.Context) []providers.MediaRef {
 // audioMaxBytes is the max file size for audio analysis (50MB).
 const audioMaxBytes = 50 * 1024 * 1024
 
+// audioProviderPriority is the order in which providers are tried for audio analysis.
+var audioProviderPriority = []string{"gemini", "openai", "openrouter"}
+
+// audioModelDefaults maps provider names to preferred audio-capable models.
+var audioModelDefaults = map[string]string{
+	"gemini":     "gemini-2.5-flash",
+	"openai":     "gpt-4o-audio-preview",
+	"openrouter": "google/gemini-2.5-flash",
+}
+
 // ReadAudioTool uses an audio-capable provider to analyze audio files
-// attached to the current conversation. Follows same pattern as ReadDocumentTool.
+// attached to the current conversation.
 type ReadAudioTool struct {
 	registry    *providers.Registry
 	mediaLoader MediaPathLoader
@@ -73,7 +83,6 @@ func (t *ReadAudioTool) Execute(ctx context.Context, args map[string]interface{}
 	}
 	mediaID, _ := args["media_id"].(string)
 
-	// Resolve audio file path from MediaRefs in context.
 	audioPath, audioMime, err := t.resolveAudioFile(ctx, mediaID)
 	if err != nil {
 		return ErrorResult(err.Error())
@@ -81,7 +90,6 @@ func (t *ReadAudioTool) Execute(ctx context.Context, args map[string]interface{}
 
 	slog.Info("read_audio: resolved file", "path", audioPath, "mime", audioMime, "media_id", mediaID)
 
-	// Read audio file.
 	data, err := os.ReadFile(audioPath)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("Failed to read audio file: %v", err))
@@ -91,40 +99,27 @@ func (t *ReadAudioTool) Execute(ctx context.Context, args map[string]interface{}
 		return ErrorResult(fmt.Sprintf("Audio too large: %d bytes (max %d)", len(data), audioMaxBytes))
 	}
 
-	// Find an audio-capable provider.
-	provider, model, err := t.resolveAudioProviderWithConfig(ctx)
-	if err != nil {
-		return ErrorResult(err.Error())
-	}
+	chain := ResolveMediaProviderChain(ctx, "read_audio", "", "",
+		audioProviderPriority, audioModelDefaults, t.registry)
 
-	// Try primary provider, fallback to next available on error.
-	resp, usedProvider, usedModel := t.callAudioProvider(ctx, provider, model, prompt, data, audioMime)
-	if resp == nil {
-		// Primary failed — try fallback providers from priority list.
-		slog.Warn("read_audio: primary provider failed, trying fallback", "primary", provider.Name())
-		for _, fbName := range audioProviderPriority {
-			if fbName == provider.Name() {
-				continue
-			}
-			fbProvider, fbModel, fbErr := t.resolveAudioProviderByName(fbName)
-			if fbErr != nil {
-				continue
-			}
-			resp, usedProvider, usedModel = t.callAudioProvider(ctx, fbProvider, fbModel, prompt, data, audioMime)
-			if resp != nil {
-				slog.Info("read_audio: fallback succeeded", "provider", usedProvider)
-				break
-			}
+	for i := range chain {
+		if chain[i].Params == nil {
+			chain[i].Params = make(map[string]any)
 		}
-	}
-	if resp == nil {
-		return ErrorResult("Audio analysis failed: all providers returned errors")
+		chain[i].Params["prompt"] = prompt
+		chain[i].Params["data"] = data
+		chain[i].Params["mime"] = audioMime
 	}
 
-	result := NewResult(resp.Content)
-	result.Usage = resp.Usage
-	result.Provider = usedProvider
-	result.Model = usedModel
+	chainResult, err := ExecuteWithChain(ctx, chain, t.registry, t.callProvider)
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("Audio analysis failed: %v", err))
+	}
+
+	result := NewResult(string(chainResult.Data))
+	result.Usage = chainResult.Usage
+	result.Provider = chainResult.Provider
+	result.Model = chainResult.Model
 	return result
 }
 

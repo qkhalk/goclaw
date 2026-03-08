@@ -48,6 +48,17 @@ func MediaDocRefsFromCtx(ctx context.Context) []providers.MediaRef {
 // documentMaxBytes is the max file size for document analysis (20MB).
 const documentMaxBytes = 20 * 1024 * 1024
 
+// documentProviderPriority is the order in which providers are tried for document analysis.
+// Gemini has best native PDF support (50MB, 258 tokens/page).
+var documentProviderPriority = []string{"gemini", "anthropic", "openrouter", "dashscope"}
+
+// documentModelDefaults maps provider names to preferred document-capable models.
+var documentModelDefaults = map[string]string{
+	"gemini":     "gemini-2.5-flash",
+	"openrouter": "google/gemini-2.5-flash",
+	"dashscope":  "qwen-vl-max",
+}
+
 // ReadDocumentTool uses a document-capable provider to analyze files
 // attached to the current conversation. Follows same pattern as ReadImageTool.
 type ReadDocumentTool struct {
@@ -119,40 +130,27 @@ func (t *ReadDocumentTool) Execute(ctx context.Context, args map[string]interfac
 		return NewResult(content)
 	}
 
-	// Find a document-capable provider.
-	provider, model, err := t.resolveDocumentProviderWithConfig(ctx)
-	if err != nil {
-		return ErrorResult(err.Error())
-	}
+	chain := ResolveMediaProviderChain(ctx, "read_document", "", "",
+		documentProviderPriority, documentModelDefaults, t.registry)
 
-	// Try primary provider, fallback to next available on error.
-	resp, usedProvider, usedModel := t.callDocumentProvider(ctx, provider, model, prompt, data, docMime)
-	if resp == nil {
-		// Primary failed — try fallback providers from priority list.
-		slog.Warn("read_document: primary provider failed, trying fallback", "primary", provider.Name())
-		for _, fbName := range documentProviderPriority {
-			if fbName == provider.Name() {
-				continue // skip the one that already failed
-			}
-			fbProvider, fbModel, fbErr := t.resolveDocumentProviderByName(fbName)
-			if fbErr != nil {
-				continue
-			}
-			resp, usedProvider, usedModel = t.callDocumentProvider(ctx, fbProvider, fbModel, prompt, data, docMime)
-			if resp != nil {
-				slog.Info("read_document: fallback succeeded", "provider", usedProvider)
-				break
-			}
+	// Inject prompt, data, and mime into each chain entry's params
+	for i := range chain {
+		if chain[i].Params == nil {
+			chain[i].Params = make(map[string]any)
 		}
-	}
-	if resp == nil {
-		return ErrorResult("Document analysis failed: all providers returned errors")
+		chain[i].Params["prompt"] = prompt
+		chain[i].Params["data"] = data
+		chain[i].Params["mime"] = docMime
 	}
 
-	result := NewResult(resp.Content)
-	result.Usage = resp.Usage
-	result.Provider = usedProvider
-	result.Model = usedModel
+	chainResult, err := ExecuteWithChain(ctx, chain, t.registry, t.callProvider)
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("Document analysis failed: %v", err))
+	}
+
+	result := NewResult(string(chainResult.Data))
+	result.Usage = chainResult.Usage
+	result.Provider = chainResult.Provider
+	result.Model = chainResult.Model
 	return result
 }
-

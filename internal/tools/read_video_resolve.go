@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -12,16 +11,6 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
-
-// videoProviderPriority is the order in which providers are tried for video analysis.
-// OpenAI excluded — no native video upload in chat completions.
-var videoProviderPriority = []string{"gemini", "openrouter"}
-
-// videoModelOverrides maps provider names to preferred video-capable models.
-var videoModelOverrides = map[string]string{
-	"gemini":     "gemini-2.5-flash",
-	"openrouter": "google/gemini-2.5-flash",
-}
 
 // resolveVideoFile finds the video file path from context MediaRefs.
 func (t *ReadVideoTool) resolveVideoFile(ctx context.Context, mediaID string) (path, mime string, err error) {
@@ -62,97 +51,32 @@ func (t *ReadVideoTool) resolveVideoFile(ctx context.Context, mediaID string) (p
 	return p, mime, nil
 }
 
-// resolveVideoProviderWithConfig checks builtin settings, then hardcoded priority.
-func (t *ReadVideoTool) resolveVideoProviderWithConfig(ctx context.Context) (providers.Provider, string, error) {
-	if p, model, ok := t.resolveFromVideoSettings(ctx); ok {
-		return p, model, nil
-	}
-	return t.resolveVideoProvider()
-}
-
-// resolveFromVideoSettings checks global builtin tool settings for provider/model config.
-func (t *ReadVideoTool) resolveFromVideoSettings(ctx context.Context) (providers.Provider, string, bool) {
-	settings := BuiltinToolSettingsFromCtx(ctx)
-	if settings == nil {
-		return nil, "", false
-	}
-	raw, ok := settings["read_video"]
-	if !ok || len(raw) == 0 {
-		return nil, "", false
-	}
-	var cfg struct {
-		Provider string `json:"provider"`
-		Model    string `json:"model"`
-	}
-	if err := json.Unmarshal(raw, &cfg); err != nil || cfg.Provider == "" {
-		return nil, "", false
-	}
-	p, err := t.registry.Get(cfg.Provider)
-	if err != nil {
-		return nil, "", false
-	}
-	model := cfg.Model
-	if model == "" {
-		model = p.DefaultModel()
-	}
-	return p, model, true
-}
-
-// resolveVideoProvider finds the first available video-capable provider.
-func (t *ReadVideoTool) resolveVideoProvider() (providers.Provider, string, error) {
-	for _, name := range videoProviderPriority {
-		p, err := t.registry.Get(name)
-		if err != nil {
-			continue
-		}
-		model := p.DefaultModel()
-		if override, ok := videoModelOverrides[name]; ok {
-			model = override
-		}
-		return p, model, nil
-	}
-	return nil, "", fmt.Errorf("no video-capable provider available (need one of: %v)", videoProviderPriority)
-}
-
-// resolveVideoProviderByName gets a specific provider by name and applies model override.
-func (t *ReadVideoTool) resolveVideoProviderByName(name string) (providers.Provider, string, error) {
-	p, err := t.registry.Get(name)
-	if err != nil {
-		return nil, "", err
-	}
-	model := p.DefaultModel()
-	if override, ok := videoModelOverrides[name]; ok {
-		model = override
-	}
-	return p, model, nil
-}
-
-// callVideoProvider sends video to a provider for analysis.
+// callProvider dispatches video analysis to the appropriate provider API.
 // Gemini: uses File API (upload → poll → file_data in generateContent).
 // Others: falls back to base64 in image_url (OpenRouter routes to Gemini which handles video).
-func (t *ReadVideoTool) callVideoProvider(ctx context.Context, provider providers.Provider, model, prompt string, data []byte, mime string) (*providers.ChatResponse, string, string) {
-	provName := provider.Name()
+func (t *ReadVideoTool) callProvider(ctx context.Context, cp credentialProvider, providerName, model string, params map[string]any) ([]byte, *providers.Usage, error) {
+	prompt := GetParamString(params, "prompt", "Analyze this video and describe its contents.")
+	data, _ := params["data"].([]byte)
+	mime := GetParamString(params, "mime", "video/mp4")
 
 	// Gemini: use File API.
-	if strings.HasPrefix(provName, "gemini") {
-		oaiProv, ok := provider.(*providers.OpenAIProvider)
-		if !ok {
-			slog.Warn("read_video: gemini provider is not OpenAIProvider", "provider", provName)
-			return nil, "", ""
-		}
-		apiKey := oaiProv.APIKey()
-		slog.Info("read_video: using gemini file API", "provider", provName, "model", model, "size", len(data), "mime", mime)
-		resp, err := geminiFileAPICall(ctx, apiKey, model, prompt, data, mime, 180*time.Second)
+	if strings.HasPrefix(providerName, "gemini") {
+		slog.Info("read_video: using gemini file API", "provider", providerName, "model", model, "size", len(data), "mime", mime)
+		resp, err := geminiFileAPICall(ctx, cp.APIKey(), model, prompt, data, mime, 180*time.Second)
 		if err != nil {
-			slog.Warn("read_video: gemini file API call failed", "error", err)
-			return nil, "", ""
+			return nil, nil, fmt.Errorf("gemini file API: %w", err)
 		}
-		return resp, provName, model
+		return []byte(resp.Content), resp.Usage, nil
 	}
 
 	// Other providers: try standard Chat API with base64 as image_url (best effort).
-	slog.Info("read_video: using chat API fallback", "provider", provName, "model", model, "size", len(data))
-	resp, err := provider.Chat(ctx, providers.ChatRequest{
+	p, err := t.registry.Get(providerName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("provider %q not available: %w", providerName, err)
+	}
+
+	slog.Info("read_video: using chat API fallback", "provider", providerName, "model", model, "size", len(data))
+	resp, err := p.Chat(ctx, providers.ChatRequest{
 		Messages: []providers.Message{
 			{
 				Role:    "user",
@@ -167,8 +91,7 @@ func (t *ReadVideoTool) callVideoProvider(ctx context.Context, provider provider
 		},
 	})
 	if err != nil {
-		slog.Warn("read_video: chat API fallback failed", "provider", provName, "error", err)
-		return nil, "", ""
+		return nil, nil, fmt.Errorf("chat API: %w", err)
 	}
-	return resp, provName, model
+	return []byte(resp.Content), resp.Usage, nil
 }
