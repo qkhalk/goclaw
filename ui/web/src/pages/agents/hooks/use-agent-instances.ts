@@ -8,6 +8,7 @@ export interface UserInstance {
   first_seen_at?: string;
   last_seen_at?: string;
   file_count: number;
+  metadata?: Record<string, string>;
 }
 
 export interface UserContextFile {

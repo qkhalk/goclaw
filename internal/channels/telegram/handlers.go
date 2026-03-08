@@ -331,7 +331,7 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 			if c.pairingService.IsPaired(groupSenderID, c.Name()) {
 				c.approvedGroups.Store(chatIDStr, true)
 			} else {
-				c.sendGroupPairingReply(ctx, chatID, chatIDStr, groupSenderID, localKey, messageThreadID)
+				c.sendGroupPairingReply(ctx, chatID, chatIDStr, groupSenderID, localKey, messageThreadID, message.Chat.Title)
 				return
 			}
 		}
@@ -410,6 +410,9 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 		"first_name": user.FirstName,
 		"is_group":   fmt.Sprintf("%t", isGroup),
 		"local_key":  localKey,
+	}
+	if message.Chat.Title != "" {
+		metadata["chat_title"] = message.Chat.Title
 	}
 	if isForum {
 		metadata["is_forum"] = "true"

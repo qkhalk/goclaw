@@ -126,3 +126,52 @@ func (h *AgentsHandler) handleSetInstanceFile(w http.ResponseWriter, r *http.Req
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
+
+// handleUpdateInstanceMetadata updates metadata for a user instance.
+func (h *AgentsHandler) handleUpdateInstanceMetadata(w http.ResponseWriter, r *http.Request) {
+	callerID := store.UserIDFromContext(r.Context())
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid agent ID"})
+		return
+	}
+	instanceUserID := r.PathValue("userID")
+	if instanceUserID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing userID"})
+		return
+	}
+
+	ag, err := h.agents.GetByID(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "agent not found"})
+		return
+	}
+	if callerID != "" && ag.OwnerID != callerID && !h.isOwnerUser(callerID) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "only owner can edit instance metadata"})
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
+		return
+	}
+	var payload struct {
+		Metadata map[string]string `json:"metadata"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	if len(payload.Metadata) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "metadata is required"})
+		return
+	}
+
+	if err := h.agents.UpdateUserProfileMetadata(r.Context(), id, instanceUserID, payload.Metadata); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}

@@ -35,7 +35,8 @@ func (c *Channel) sendPairingReply(ctx context.Context, chatID int64, userID, us
 		}
 	}
 
-	code, err := c.pairingService.RequestPairing(userID, c.Name(), fmt.Sprintf("%d", chatID), "default")
+	meta := map[string]string{"username": username}
+	code, err := c.pairingService.RequestPairing(userID, c.Name(), fmt.Sprintf("%d", chatID), "default", meta)
 	if err != nil {
 		slog.Debug("pairing request failed", "user_id", userID, "error", err)
 		return
@@ -58,14 +59,18 @@ func (c *Channel) sendPairingReply(ctx context.Context, chatID int64, userID, us
 // messageThreadID should be set for forum groups so the reply lands in the correct topic.
 // localKey is the composite key (e.g. "-100123:topic:42") stored as chat_id in the pairing
 // request so that the approval notification can be routed to the correct forum topic.
-func (c *Channel) sendGroupPairingReply(ctx context.Context, chatID int64, chatIDStr, groupSenderID, localKey string, messageThreadID int) {
+func (c *Channel) sendGroupPairingReply(ctx context.Context, chatID int64, chatIDStr, groupSenderID, localKey string, messageThreadID int, chatTitle string) {
 	if lastSent, ok := c.pairingReplySent.Load(chatIDStr); ok {
 		if time.Since(lastSent.(time.Time)) < pairingReplyDebounce {
 			return
 		}
 	}
 
-	code, err := c.pairingService.RequestPairing(groupSenderID, c.Name(), localKey, "default")
+	var meta map[string]string
+	if chatTitle != "" {
+		meta = map[string]string{"chat_title": chatTitle}
+	}
+	code, err := c.pairingService.RequestPairing(groupSenderID, c.Name(), localKey, "default", meta)
 	if err != nil {
 		slog.Debug("group pairing request failed", "chat_id", chatIDStr, "error", err)
 		return

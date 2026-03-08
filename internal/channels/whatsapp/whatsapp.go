@@ -349,7 +349,7 @@ func (c *Channel) sendPairingReply(senderID, chatID string) {
 		}
 	}
 
-	code, err := c.pairingService.RequestPairing(senderID, c.Name(), chatID, "default")
+	code, err := c.pairingService.RequestPairing(senderID, c.Name(), chatID, "default", nil)
 	if err != nil {
 		slog.Debug("whatsapp pairing request failed", "sender_id", senderID, "error", err)
 		return

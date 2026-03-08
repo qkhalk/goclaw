@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"time"
@@ -117,7 +118,8 @@ func (s *PGAgentStore) ListUserInstances(ctx context.Context, agentID uuid.UUID)
 		SELECT p.user_id,
 		       TO_CHAR(p.first_seen_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS first_seen_at,
 		       TO_CHAR(p.last_seen_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_seen_at,
-		       COALESCE(fc.cnt, 0) AS file_count
+		       COALESCE(fc.cnt, 0) AS file_count,
+		       COALESCE(p.metadata, '{}')
 		FROM user_agent_profiles p
 		LEFT JOIN (
 		    SELECT user_id, COUNT(*) AS cnt
@@ -136,12 +138,29 @@ func (s *PGAgentStore) ListUserInstances(ctx context.Context, agentID uuid.UUID)
 	var result []store.UserInstanceData
 	for rows.Next() {
 		var d store.UserInstanceData
-		if err := rows.Scan(&d.UserID, &d.FirstSeenAt, &d.LastSeenAt, &d.FileCount); err != nil {
+		var metaJSON []byte
+		if err := rows.Scan(&d.UserID, &d.FirstSeenAt, &d.LastSeenAt, &d.FileCount, &metaJSON); err != nil {
 			continue
+		}
+		if len(metaJSON) > 0 {
+			json.Unmarshal(metaJSON, &d.Metadata)
 		}
 		result = append(result, d)
 	}
 	return result, nil
+}
+
+func (s *PGAgentStore) UpdateUserProfileMetadata(ctx context.Context, agentID uuid.UUID, userID string, metadata map[string]string) error {
+	metaJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx,
+		`UPDATE user_agent_profiles SET metadata = COALESCE(metadata, '{}') || $3::jsonb
+		 WHERE agent_id = $1 AND user_id = $2`,
+		agentID, userID, metaJSON,
+	)
+	return err
 }
 
 // --- User Overrides ---

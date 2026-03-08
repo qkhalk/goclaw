@@ -87,6 +87,9 @@ func (s *stubAgentStore) ListGroupFileWriterGroups(_ context.Context, _ uuid.UUI
 func (s *stubAgentStore) ListUserInstances(_ context.Context, _ uuid.UUID) ([]store.UserInstanceData, error) {
 	return nil, nil
 }
+func (s *stubAgentStore) UpdateUserProfileMetadata(_ context.Context, _ uuid.UUID, _ string, _ map[string]string) error {
+	return nil
+}
 
 // ---- Tests ----
 

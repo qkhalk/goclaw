@@ -449,7 +449,7 @@ func (c *Channel) sendPairingReply(senderID, channelID string) {
 		}
 	}
 
-	code, err := c.pairingService.RequestPairing(senderID, c.Name(), channelID, "default")
+	code, err := c.pairingService.RequestPairing(senderID, c.Name(), channelID, "default", nil)
 	if err != nil {
 		slog.Debug("discord pairing request failed", "sender_id", senderID, "error", err)
 		return

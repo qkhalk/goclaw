@@ -124,7 +124,7 @@ flowchart TD
 | `internal/scheduler/` | Lane-based concurrency control (main, subagent, cron, delegate lanes) with per-session serialization |
 | `internal/memory/` | Memory system (pgvector hybrid search) |
 | `internal/permissions/` | RBAC policy engine (admin, operator, viewer roles) |
-| `internal/pairing/` | DM/device pairing service (8-character codes) |
+| `internal/store/pg/pairing.go` | DM/device pairing service (8-character codes, database-backed) |
 | `internal/sessions/` | Session manager |
 | `internal/bus/` | Event pub/sub (Message Bus) |
 | `internal/sandbox/` | Docker-based code execution sandbox |

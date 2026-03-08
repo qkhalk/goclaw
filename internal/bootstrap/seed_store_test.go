@@ -104,6 +104,9 @@ func (s *seedStubStore) ListGroupFileWriterGroups(_ context.Context, _ uuid.UUID
 func (s *seedStubStore) ListUserInstances(_ context.Context, _ uuid.UUID) ([]store.UserInstanceData, error) {
 	return nil, nil
 }
+func (s *seedStubStore) UpdateUserProfileMetadata(_ context.Context, _ uuid.UUID, _ string, _ map[string]string) error {
+	return nil
+}
 
 // ---- Tests ----
 

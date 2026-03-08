@@ -123,7 +123,7 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 
 	// Path 3b: No token, no valid pairing → initiate browser pairing (if service available)
 	if ps != nil && params.Token == "" {
-		code, err := ps.RequestPairing(client.id, "browser", "", "default")
+		code, err := ps.RequestPairing(client.id, "browser", "", "default", nil)
 		if err != nil {
 			slog.Warn("browser pairing request failed", "error", err, "client", client.id)
 			// Fall through to viewer role

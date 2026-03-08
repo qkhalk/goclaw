@@ -65,7 +65,7 @@ func (m *PairingMethods) handleRequest(_ context.Context, client *gateway.Client
 		params.AccountID = "default"
 	}
 
-	code, err := m.service.RequestPairing(params.SenderID, params.Channel, params.ChatID, params.AccountID)
+	code, err := m.service.RequestPairing(params.SenderID, params.Channel, params.ChatID, params.AccountID, nil)
 	if err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, err.Error()))
 		return

@@ -80,9 +80,10 @@ func (m *SessionsMethods) handlePreview(_ context.Context, client *gateway.Clien
 // Matching TS sessions.patch (src/gateway/server-methods/sessions.ts:237-287).
 func (m *SessionsMethods) handlePatch(_ context.Context, client *gateway.Client, req *protocol.RequestFrame) {
 	var params struct {
-		Key   string `json:"key"`
-		Label *string `json:"label,omitempty"`
-		Model *string `json:"model,omitempty"`
+		Key      string            `json:"key"`
+		Label    *string           `json:"label,omitempty"`
+		Model    *string           `json:"model,omitempty"`
+		Metadata map[string]string `json:"metadata,omitempty"`
 	}
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, "invalid params"))
@@ -103,6 +104,14 @@ func (m *SessionsMethods) handlePatch(_ context.Context, client *gateway.Client,
 	if params.Model != nil {
 		m.sessions.UpdateMetadata(params.Key, *params.Model, "", "")
 	}
+
+	// Apply metadata patch
+	if len(params.Metadata) > 0 {
+		m.sessions.SetSessionMetadata(params.Key, params.Metadata)
+	}
+
+	// Save changes to DB
+	m.sessions.Save(params.Key)
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
 		"ok":  true,

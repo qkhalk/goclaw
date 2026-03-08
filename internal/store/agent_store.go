@@ -214,6 +214,7 @@ type AgentStore interface {
 	// User-agent profiles + instances
 	GetOrCreateUserProfile(ctx context.Context, agentID uuid.UUID, userID, workspace, channel string) (isNew bool, effectiveWorkspace string, err error)
 	ListUserInstances(ctx context.Context, agentID uuid.UUID) ([]UserInstanceData, error)
+	UpdateUserProfileMetadata(ctx context.Context, agentID uuid.UUID, userID string, metadata map[string]string) error
 
 	// Group file writers (allowlist for protected file edits in group chats)
 	IsGroupFileWriter(ctx context.Context, agentID uuid.UUID, groupID, userID string) (bool, error)
@@ -225,10 +226,11 @@ type AgentStore interface {
 
 // UserInstanceData represents a user instance for a predefined agent.
 type UserInstanceData struct {
-	UserID      string  `json:"user_id"`
-	FirstSeenAt *string `json:"first_seen_at,omitempty"`
-	LastSeenAt  *string `json:"last_seen_at,omitempty"`
-	FileCount   int     `json:"file_count"`
+	UserID      string            `json:"user_id"`
+	FirstSeenAt *string           `json:"first_seen_at,omitempty"`
+	LastSeenAt  *string           `json:"last_seen_at,omitempty"`
+	FileCount   int               `json:"file_count"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 // GroupFileWriterData represents a group file writer entry.

@@ -99,7 +99,9 @@ export function SessionDetailPage({
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h3 className="font-medium">{session.label || parsed.scope}</h3>
+            <h3 className="font-medium">
+              {session.metadata?.chat_title || session.metadata?.display_name || session.label || parsed.scope}
+            </h3>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="outline">{parsed.agentId}</Badge>
               {session.channel && session.channel !== "ws" && (
@@ -107,6 +109,12 @@ export function SessionDetailPage({
                   <Eye className="h-3 w-3" />
                   {session.channel}
                 </Badge>
+              )}
+              {session.metadata?.username && (
+                <Badge variant="secondary">@{session.metadata.username}</Badge>
+              )}
+              {session.metadata?.peer_kind && (
+                <Badge variant="outline">{session.metadata.peer_kind}</Badge>
               )}
               <span>{session.messageCount} messages</span>
               <span>{formatDate(session.updated)}</span>

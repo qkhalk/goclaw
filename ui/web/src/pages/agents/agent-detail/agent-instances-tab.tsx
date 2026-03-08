@@ -144,7 +144,12 @@ function InstanceRow({ instance, isSelected, onClick }: { instance: UserInstance
         isSelected ? "bg-accent text-accent-foreground" : "hover:bg-muted/50"
       }`}
     >
-      <span className="truncate font-mono text-xs">{instance.user_id}</span>
+      <span className="truncate text-xs font-medium">
+        {instance.metadata?.display_name || instance.metadata?.chat_title || instance.user_id}
+      </span>
+      {(instance.metadata?.display_name || instance.metadata?.chat_title) && (
+        <span className="truncate font-mono text-[10px] text-muted-foreground">{instance.user_id}</span>
+      )}
       <div className="flex items-center gap-2">
         {instance.file_count > 0 && (
           <Badge variant="outline" className="text-[10px]">

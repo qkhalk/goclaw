@@ -543,7 +543,7 @@ flowchart TD
 | `internal/channels/whatsapp/whatsapp.go` | WhatsApp: external WS bridge |
 | `internal/channels/zalo/zalo.go` | Zalo OA: Bot API, long polling |
 | `internal/channels/zalo/personal/channel.go` | Zalo Personal: reverse-engineered protocol |
-| `internal/pairing/service.go` | Pairing: code generation, approval, persistence |
+| `internal/store/pg/pairing.go` | Pairing: code generation, approval, persistence (database-backed) |
 | `cmd/gateway_consumer.go` | Message routing: prefixes, handoff, cancel interception |
 
 ---

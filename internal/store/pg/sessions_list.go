@@ -18,10 +18,10 @@ func (s *PGSessionStore) List(agentID string) []store.SessionInfo {
 	if agentID != "" {
 		prefix := "agent:" + agentID + ":%"
 		rows, err = s.db.Query(
-			"SELECT session_key, messages, created_at, updated_at, label, channel FROM sessions WHERE session_key LIKE $1 ORDER BY updated_at DESC", prefix)
+			"SELECT session_key, messages, created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}') FROM sessions WHERE session_key LIKE $1 ORDER BY updated_at DESC", prefix)
 	} else {
 		rows, err = s.db.Query(
-			"SELECT session_key, messages, created_at, updated_at, label, channel FROM sessions ORDER BY updated_at DESC")
+			"SELECT session_key, messages, created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}') FROM sessions ORDER BY updated_at DESC")
 	}
 	if err != nil {
 		return nil
@@ -33,12 +33,17 @@ func (s *PGSessionStore) List(agentID string) []store.SessionInfo {
 		var key string
 		var msgsJSON []byte
 		var createdAt, updatedAt time.Time
-		var label, channel *string
-		if err := rows.Scan(&key, &msgsJSON, &createdAt, &updatedAt, &label, &channel); err != nil {
+		var label, channel, userID *string
+		var metaJSON []byte
+		if err := rows.Scan(&key, &msgsJSON, &createdAt, &updatedAt, &label, &channel, &userID, &metaJSON); err != nil {
 			continue
 		}
 		var msgs []providers.Message
 		json.Unmarshal(msgsJSON, &msgs)
+		var meta map[string]string
+		if len(metaJSON) > 0 {
+			json.Unmarshal(metaJSON, &meta)
+		}
 		result = append(result, store.SessionInfo{
 			Key:          key,
 			MessageCount: len(msgs),
@@ -46,6 +51,8 @@ func (s *PGSessionStore) List(agentID string) []store.SessionInfo {
 			Updated:      updatedAt,
 			Label:        derefStr(label),
 			Channel:      derefStr(channel),
+			UserID:       derefStr(userID),
+			Metadata:     meta,
 		})
 	}
 	return result
@@ -81,11 +88,11 @@ func (s *PGSessionStore) ListPaged(opts store.SessionListOpts) store.SessionList
 	var selectArgs []interface{}
 
 	if opts.AgentID != "" {
-		selectQ = `SELECT session_key, jsonb_array_length(messages), created_at, updated_at, label, channel
+		selectQ = `SELECT session_key, jsonb_array_length(messages), created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}')
 		           FROM sessions WHERE session_key LIKE $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`
 		selectArgs = []interface{}{whereArgs[0], limit, offset}
 	} else {
-		selectQ = `SELECT session_key, jsonb_array_length(messages), created_at, updated_at, label, channel
+		selectQ = `SELECT session_key, jsonb_array_length(messages), created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}')
 		           FROM sessions ORDER BY updated_at DESC LIMIT $1 OFFSET $2`
 		selectArgs = []interface{}{limit, offset}
 	}
@@ -101,9 +108,14 @@ func (s *PGSessionStore) ListPaged(opts store.SessionListOpts) store.SessionList
 		var key string
 		var msgCount int
 		var createdAt, updatedAt time.Time
-		var label, channel *string
-		if err := rows.Scan(&key, &msgCount, &createdAt, &updatedAt, &label, &channel); err != nil {
+		var label, channel, userID *string
+		var metaJSON []byte
+		if err := rows.Scan(&key, &msgCount, &createdAt, &updatedAt, &label, &channel, &userID, &metaJSON); err != nil {
 			continue
+		}
+		var meta map[string]string
+		if len(metaJSON) > 0 {
+			json.Unmarshal(metaJSON, &meta)
 		}
 		result = append(result, store.SessionInfo{
 			Key:          key,
@@ -112,6 +124,8 @@ func (s *PGSessionStore) ListPaged(opts store.SessionListOpts) store.SessionList
 			Updated:      updatedAt,
 			Label:        derefStr(label),
 			Channel:      derefStr(channel),
+			UserID:       derefStr(userID),
+			Metadata:     meta,
 		})
 	}
 	if result == nil {
@@ -135,6 +149,10 @@ func (s *PGSessionStore) Save(key string) error {
 	s.mu.RUnlock()
 
 	msgsJSON, _ := json.Marshal(snapshot.Messages)
+	metaJSON := []byte("{}")
+	if len(snapshot.Metadata) > 0 {
+		metaJSON, _ = json.Marshal(snapshot.Metadata)
+	}
 
 	_, err := s.db.Exec(
 		`UPDATE sessions SET
@@ -142,13 +160,13 @@ func (s *PGSessionStore) Save(key string) error {
 			input_tokens = $6, output_tokens = $7, compaction_count = $8,
 			memory_flush_compaction_count = $9, memory_flush_at = $10,
 			label = $11, spawned_by = $12, spawn_depth = $13,
-			agent_id = $14, user_id = $15, updated_at = $16
-		 WHERE session_key = $17`,
+			agent_id = $14, user_id = $15, metadata = $16, updated_at = $17
+		 WHERE session_key = $18`,
 		msgsJSON, nilStr(snapshot.Summary), nilStr(snapshot.Model), nilStr(snapshot.Provider), nilStr(snapshot.Channel),
 		snapshot.InputTokens, snapshot.OutputTokens, snapshot.CompactionCount,
 		snapshot.MemoryFlushCompactionCount, snapshot.MemoryFlushAt,
 		nilStr(snapshot.Label), nilStr(snapshot.SpawnedBy), snapshot.SpawnDepth,
-		nilSessionUUID(snapshot.AgentUUID), nilStr(snapshot.UserID), snapshot.Updated,
+		nilSessionUUID(snapshot.AgentUUID), nilStr(snapshot.UserID), metaJSON, snapshot.Updated,
 		key,
 	)
 	return err
@@ -219,25 +237,31 @@ func (s *PGSessionStore) loadFromDB(key string) *store.SessionData {
 	var compactionCount, memoryFlushCompactionCount, spawnDepth int
 	var memoryFlushAt int64
 	var createdAt, updatedAt time.Time
+	var metaJSON *[]byte
 
 	err := s.db.QueryRow(
 		`SELECT session_key, messages, summary, model, provider, channel,
 		 input_tokens, output_tokens, compaction_count,
 		 memory_flush_compaction_count, memory_flush_at,
 		 label, spawned_by, spawn_depth, agent_id, user_id,
-		 created_at, updated_at
+		 COALESCE(metadata, '{}'), created_at, updated_at
 		 FROM sessions WHERE session_key = $1`, key,
 	).Scan(&sessionKey, &msgsJSON, &summary, &model, &provider, &channel,
 		&inputTokens, &outputTokens, &compactionCount,
 		&memoryFlushCompactionCount, &memoryFlushAt,
 		&label, &spawnedBy, &spawnDepth, &agentID, &userID,
-		&createdAt, &updatedAt)
+		&metaJSON, &createdAt, &updatedAt)
 	if err != nil {
 		return nil
 	}
 
 	var msgs []providers.Message
 	json.Unmarshal(msgsJSON, &msgs)
+
+	var meta map[string]string
+	if metaJSON != nil {
+		json.Unmarshal(*metaJSON, &meta)
+	}
 
 	return &store.SessionData{
 		Key:                        sessionKey,
@@ -258,6 +282,7 @@ func (s *PGSessionStore) loadFromDB(key string) *store.SessionData {
 		Label:                      derefStr(label),
 		SpawnedBy:                  derefStr(spawnedBy),
 		SpawnDepth:                 spawnDepth,
+		Metadata:                   meta,
 	}
 }
 
