@@ -185,6 +185,14 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 				base = "https://coding-intl.dashscope.aliyuncs.com/v1"
 			}
 			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
+		case store.ProviderSuno:
+			// Suno is a media-only provider (music gen). Register as OpenAI-compat
+			// so credentialProvider interface works for API key/base extraction.
+			base := p.APIBase
+			if base == "" {
+				base = "https://api.sunoapi.org"
+			}
+			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, ""))
 		default:
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
 			if p.ProviderType == store.ProviderMiniMax {

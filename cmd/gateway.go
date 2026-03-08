@@ -189,6 +189,10 @@ func runGateway() {
 	toolsReg.Register(tools.NewReadImageTool(providerRegistry))
 	toolsReg.Register(tools.NewCreateImageTool(providerRegistry))
 
+	// Audio generation tool (MiniMax music + ElevenLabs sound effects)
+	toolsReg.Register(tools.NewCreateAudioTool(providerRegistry,
+		cfg.Tts.ElevenLabs.APIKey, cfg.Tts.ElevenLabs.BaseURL))
+
 	// TTS (text-to-speech) system
 	ttsMgr := setupTTS(cfg)
 	if ttsMgr != nil {
@@ -313,9 +317,11 @@ func runGateway() {
 
 	// Block exec from accessing sensitive directories (data dir, .goclaw, config file).
 	// Prevents `cp /app/data/config.json workspace/` and similar exfiltration.
+	// Exception: .goclaw/skills-store/ is allowed (skills may contain executable scripts).
 	if execTool, ok := toolsReg.Get("exec"); ok {
 		if et, ok := execTool.(*tools.ExecTool); ok {
 			et.DenyPaths(dataDir, ".goclaw/")
+			et.AllowPathExemptions(".goclaw/skills-store/")
 			if cfgPath := os.Getenv("GOCLAW_CONFIG"); cfgPath != "" {
 				et.DenyPaths(cfgPath)
 			}
