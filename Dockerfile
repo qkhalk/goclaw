@@ -37,12 +37,16 @@ RUN set -eux; \
 FROM alpine:3.22
 
 ARG ENABLE_SANDBOX=false
+ARG ENABLE_PYTHON=false
 
-# Install ca-certificates + wget (healthcheck) + optionally docker-cli (sandbox)
+# Install ca-certificates + wget (healthcheck) + optionally docker-cli (sandbox) + python3
 RUN set -eux; \
     apk add --no-cache ca-certificates wget; \
     if [ "$ENABLE_SANDBOX" = "true" ]; then \
         apk add --no-cache docker-cli; \
+    fi; \
+    if [ "$ENABLE_PYTHON" = "true" ]; then \
+        apk add --no-cache python3 py3-pip; \
     fi
 
 # Non-root user
