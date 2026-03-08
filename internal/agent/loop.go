@@ -760,9 +760,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			}
 
 			toolResultPayload := map[string]interface{}{
-				"name":     tc.Name,
-				"id":       tc.ID,
-				"is_error": result.IsError,
+				"name":      tc.Name,
+				"id":        tc.ID,
+				"is_error":  result.IsError,
+				"arguments": tc.Arguments,
 			}
 			if result.IsError && result.ForLLM != "" {
 				toolResultPayload["content"] = result.ForLLM
@@ -899,9 +900,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				}
 
 				parToolResultPayload := map[string]interface{}{
-					"name":     r.tc.Name,
-					"id":       r.tc.ID,
-					"is_error": r.result.IsError,
+					"name":      r.tc.Name,
+					"id":        r.tc.ID,
+					"is_error":  r.result.IsError,
+					"arguments": r.tc.Arguments,
 				}
 				if r.result.IsError && r.result.ForLLM != "" {
 					parToolResultPayload["content"] = r.result.ForLLM

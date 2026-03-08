@@ -387,6 +387,8 @@ func resolveProviderType(name string) string {
 		return store.ProviderCohere
 	case "perplexity":
 		return store.ProviderPerplexity
+	case "yescale":
+		return store.ProviderYesScale
 	default:
 		return store.ProviderOpenAICompat
 	}
@@ -417,6 +419,8 @@ func resolveProviderAPIBase(providerName string) string {
 		return "https://api.cohere.com/v2"
 	case "perplexity":
 		return "https://api.perplexity.ai"
+	case "yescale":
+		return "https://api.yescale.one/v1"
 	default:
 		return ""
 	}

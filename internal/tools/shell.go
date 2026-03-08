@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
@@ -129,13 +130,14 @@ var defaultDenyPatterns = []*regexp.Regexp{
 
 // ExecTool executes shell commands, optionally inside a sandbox container.
 type ExecTool struct {
-	workingDir   string
-	timeout      time.Duration
-	denyPatterns []*regexp.Regexp
-	restrict     bool
-	sandboxMgr   sandbox.Manager        // nil = no sandbox, execute on host
-	approvalMgr  *ExecApprovalManager   // nil = no approval needed
-	agentID      string                  // for approval request context
+	workingDir     string
+	timeout        time.Duration
+	denyPatterns   []*regexp.Regexp
+	denyExemptions []string // substrings that exempt a command from deny (e.g. ".goclaw/skills-store/")
+	restrict       bool
+	sandboxMgr     sandbox.Manager        // nil = no sandbox, execute on host
+	approvalMgr    *ExecApprovalManager   // nil = no approval needed
+	agentID        string                  // for approval request context
 }
 
 // NewExecTool creates an exec tool that runs commands directly on the host.
@@ -169,6 +171,13 @@ func (t *ExecTool) DenyPaths(paths ...string) {
 		escaped := regexp.QuoteMeta(p)
 		t.denyPatterns = append(t.denyPatterns, regexp.MustCompile(escaped))
 	}
+}
+
+// AllowPathExemptions adds substrings that exempt a command from deny pattern matches.
+// E.g. AllowPathExemptions(".goclaw/skills-store/") lets commands referencing
+// skills-store pass even though ".goclaw/" is denied.
+func (t *ExecTool) AllowPathExemptions(substrings ...string) {
+	t.denyExemptions = append(t.denyExemptions, substrings...)
 }
 
 // SetApprovalManager sets the exec approval manager for this tool.
@@ -205,7 +214,17 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]interface{}) *Re
 	// Check for dangerous commands (applies to both host and sandbox)
 	for _, pattern := range t.denyPatterns {
 		if pattern.MatchString(command) {
-			return ErrorResult(fmt.Sprintf("command denied by safety policy: matches pattern %s", pattern.String()))
+			// Check if any exemption applies (e.g. skills-store within .goclaw)
+			exempt := false
+			for _, ex := range t.denyExemptions {
+				if strings.Contains(command, ex) {
+					exempt = true
+					break
+				}
+			}
+			if !exempt {
+				return ErrorResult(fmt.Sprintf("command denied by safety policy: matches pattern %s", pattern.String()))
+			}
 		}
 	}
 
