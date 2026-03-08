@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, User, ChevronRight, Check, AlertTriangle } from "lucide-react";
+import { Bot, User, ChevronRight, Check, AlertTriangle, Zap } from "lucide-react";
 import { MessageContent } from "./message-content";
 import type { ChatMessage } from "@/types/chat";
 import type { ToolCall } from "@/types/session";
@@ -79,10 +79,13 @@ function ToolCallItem({ toolCall, compact, isError, errorContent }: { toolCall: 
   const hasArgs = toolCall.arguments && Object.keys(toolCall.arguments).length > 0;
   const canExpand = hasArgs || (isError && !!errorContent);
   const iconSize = compact ? "h-3 w-3" : "h-3.5 w-3.5";
+  const isSkill = toolCall.name === "use_skill";
 
   const StatusIcon = isError
     ? <AlertTriangle className={`${iconSize} shrink-0 text-red-500`} />
-    : <Check className={`${iconSize} shrink-0 text-green-500`} />;
+    : isSkill
+      ? <Zap className={`${iconSize} shrink-0 text-amber-500`} />
+      : <Check className={`${iconSize} shrink-0 text-green-500`} />;
 
   return (
     <div className={compact ? "" : "rounded-md border bg-muted/50 overflow-hidden"}>
@@ -96,7 +99,11 @@ function ToolCallItem({ toolCall, compact, isError, errorContent }: { toolCall: 
         } ${canExpand ? "cursor-pointer" : "cursor-default"}`}
       >
         {StatusIcon}
-        <span className={`font-mono truncate ${compact ? "" : "text-xs"}`}>{toolCall.name}</span>
+        <span className={`font-mono truncate ${compact ? "" : "text-xs"}`}>
+          {isSkill
+            ? `skill: ${(toolCall.arguments?.name as string) || "unknown"}`
+            : toolCall.name}
+        </span>
         {canExpand && (
           <ChevronRight className={`h-3 w-3 shrink-0 ml-auto text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} />
         )}

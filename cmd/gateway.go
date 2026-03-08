@@ -478,6 +478,7 @@ func runGateway() {
 	skillsLoader := skills.NewLoader(workspace, globalSkillsDir, "")
 	skillSearchTool := tools.NewSkillSearchTool(skillsLoader)
 	toolsReg.Register(skillSearchTool)
+	toolsReg.Register(tools.NewUseSkillTool())
 	slog.Info("skill_search tool registered", "skills", len(skillsLoader.ListSkills()))
 
 	// Wire skills-store directory into filesystem loader so agents

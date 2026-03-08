@@ -95,6 +95,7 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 
 		// skills
 		{Name: "skill_search", DisplayName: "Skill Search", Description: "Search available skills by keyword or description", Category: "skills", Enabled: true},
+		{Name: "use_skill", DisplayName: "Use Skill", Description: "Activate a skill (marker for tracing and observability)", Category: "skills", Enabled: true},
 
 		// delegation
 		{Name: "delegate_search", DisplayName: "Delegate Search", Description: "Search for agents to delegate tasks to", Category: "delegation", Enabled: true,

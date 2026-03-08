@@ -134,8 +134,8 @@ func (t *SkillSearchTool) Execute(ctx context.Context, args map[string]interface
 
 	// Include explicit next-step instruction in the result so the model follows through.
 	instruction := fmt.Sprintf(
-		"\n\nACTION REQUIRED: Call read_file with path \"%s\" to read the skill instructions, then follow them.",
-		results[0].Location,
+		"\n\nACTION REQUIRED: Call use_skill with name \"%s\", then read_file with path \"%s\" to read the skill instructions, then follow them.",
+		results[0].Name, results[0].Location,
 	)
 
 	return NewResult(string(data) + instruction)

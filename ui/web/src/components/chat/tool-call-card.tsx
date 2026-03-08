@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Wrench, Check, AlertTriangle, Loader2, ChevronRight } from "lucide-react";
+import { Wrench, Check, AlertTriangle, Loader2, ChevronRight, Zap } from "lucide-react";
 import type { ToolStreamEntry } from "@/types/chat";
+
+const isSkillTool = (name: string) => name === "use_skill";
 
 interface ToolCallCardProps {
   entry: ToolStreamEntry;
@@ -21,9 +23,13 @@ export function ToolCallCard({ entry }: ToolCallCardProps) {
           canExpand ? "cursor-pointer hover:bg-muted/80 transition-colors" : "cursor-default"
         }`}
       >
-        <ToolIcon phase={entry.phase} />
-        <span className="font-mono text-xs break-all">{entry.name}</span>
-        <PhaseLabel phase={entry.phase} />
+        <ToolIcon phase={entry.phase} isSkill={isSkillTool(entry.name)} />
+        <span className="font-mono text-xs break-all">
+          {isSkillTool(entry.name)
+            ? `skill: ${(entry.arguments?.name as string) || "unknown"}`
+            : entry.name}
+        </span>
+        <PhaseLabel phase={entry.phase} isSkill={isSkillTool(entry.name)} />
         {canExpand && (
           <ChevronRight
             className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform ${
@@ -46,7 +52,19 @@ export function ToolCallCard({ entry }: ToolCallCardProps) {
   );
 }
 
-function ToolIcon({ phase }: { phase: ToolStreamEntry["phase"] }) {
+function ToolIcon({ phase, isSkill }: { phase: ToolStreamEntry["phase"]; isSkill?: boolean }) {
+  if (isSkill) {
+    switch (phase) {
+      case "calling":
+        return <Zap className="h-4 w-4 animate-pulse text-amber-500" />;
+      case "completed":
+        return <Zap className="h-4 w-4 text-amber-500" />;
+      case "error":
+        return <AlertTriangle className="h-4 w-4 text-red-500" />;
+      default:
+        return <Zap className="h-4 w-4 text-muted-foreground" />;
+    }
+  }
   switch (phase) {
     case "calling":
       return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
@@ -59,12 +77,10 @@ function ToolIcon({ phase }: { phase: ToolStreamEntry["phase"] }) {
   }
 }
 
-function PhaseLabel({ phase }: { phase: ToolStreamEntry["phase"] }) {
-  const labels: Record<string, string> = {
-    calling: "Running...",
-    completed: "Done",
-    error: "Failed",
-  };
+function PhaseLabel({ phase, isSkill }: { phase: ToolStreamEntry["phase"]; isSkill?: boolean }) {
+  const labels: Record<string, string> = isSkill
+    ? { calling: "Activating...", completed: "Activated", error: "Failed" }
+    : { calling: "Running...", completed: "Done", error: "Failed" };
   const colors: Record<string, string> = {
     calling: "text-blue-500",
     completed: "text-green-500",
