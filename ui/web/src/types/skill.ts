@@ -9,6 +9,18 @@ export interface SkillInfo {
   version?: number;
 }
 
+export interface SkillFile {
+  path: string;
+  name: string;
+  isDir: boolean;
+  size: number;
+}
+
+export interface SkillVersions {
+  versions: number[];
+  current: number;
+}
+
 export interface SkillWithGrant {
   id: string;
   name: string;

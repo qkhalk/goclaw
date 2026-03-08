@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -61,6 +63,9 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/skills/{id}/grants/user", h.authMiddleware(h.handleGrantUser))
 	mux.HandleFunc("DELETE /v1/skills/{id}/grants/user/{userID}", h.authMiddleware(h.handleRevokeUser))
 	mux.HandleFunc("GET /v1/agents/{agentID}/skills", h.authMiddleware(h.handleListAgentSkills))
+	mux.HandleFunc("GET /v1/skills/{id}/versions", h.authMiddleware(h.handleListVersions))
+	mux.HandleFunc("GET /v1/skills/{id}/files/{path...}", h.authMiddleware(h.handleReadFile))
+	mux.HandleFunc("GET /v1/skills/{id}/files", h.authMiddleware(h.handleListFiles))
 }
 
 func (h *SkillsHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -239,6 +244,10 @@ func (h *SkillsHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		if f.FileInfo().IsDir() {
 			continue
 		}
+		// Skip symlinks in ZIP — prevent directory escape attacks
+		if f.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
 		// Strip wrapper directory prefix if ZIP had one
 		entryName := strings.TrimPrefix(f.Name, "./")
 		if stripPrefix != "" {
@@ -247,12 +256,19 @@ func (h *SkillsHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
+		// Skip macOS/system artifacts
+		if isSystemArtifact(entryName) {
+			continue
+		}
 		// Security: prevent path traversal
 		name := filepath.Clean(entryName)
 		if strings.Contains(name, "..") {
 			continue
 		}
 		destPath := filepath.Join(destDir, name)
+		if !strings.HasPrefix(destPath, destDir+string(filepath.Separator)) {
+			continue
+		}
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 			continue
 		}
@@ -311,4 +327,203 @@ func (h *SkillsHandler) handleListAgentSkills(w http.ResponseWriter, r *http.Req
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"skills": skills})
+}
+
+// handleListVersions returns all available version numbers for a skill.
+func (h *SkillsHandler) handleListVersions(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid skill ID"})
+		return
+	}
+
+	_, slug, currentVersion, ok := h.skills.GetSkillFilePath(id)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "skill not found"})
+		return
+	}
+
+	slugDir := filepath.Join(h.baseDir, slug)
+	entries, err := os.ReadDir(slugDir)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"versions": []int{currentVersion},
+			"current":  currentVersion,
+		})
+		return
+	}
+
+	var versions []int
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		v, err := strconv.Atoi(e.Name())
+		if err != nil || v < 1 {
+			continue
+		}
+		versions = append(versions, v)
+	}
+	sort.Ints(versions)
+	if len(versions) == 0 {
+		versions = []int{currentVersion}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"versions": versions,
+		"current":  currentVersion,
+	})
+}
+
+// handleListFiles returns all files in a skill version directory.
+func (h *SkillsHandler) handleListFiles(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid skill ID"})
+		return
+	}
+
+	_, slug, currentVersion, ok := h.skills.GetSkillFilePath(id)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "skill not found"})
+		return
+	}
+
+	version := currentVersion
+	if v := r.URL.Query().Get("version"); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil || parsed < 1 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid version"})
+			return
+		}
+		version = parsed
+	}
+
+	versionDir := filepath.Join(h.baseDir, slug, strconv.Itoa(version))
+	if _, err := os.Stat(versionDir); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "version not found"})
+		return
+	}
+
+	type fileEntry struct {
+		Path  string `json:"path"`
+		Name  string `json:"name"`
+		IsDir bool   `json:"isDir"`
+		Size  int64  `json:"size"`
+	}
+
+	var files []fileEntry
+	filepath.WalkDir(versionDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		rel, _ := filepath.Rel(versionDir, path)
+		if rel == "." {
+			return nil
+		}
+		// Skip system artifacts (__MACOSX, .DS_Store, etc.)
+		if isSystemArtifact(rel) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		// Skip symlinks — prevent escape from skill directory
+		if d.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		entry := fileEntry{
+			Path:  rel,
+			Name:  d.Name(),
+			IsDir: d.IsDir(),
+		}
+		if !d.IsDir() {
+			if info, err := d.Info(); err == nil {
+				entry.Size = info.Size()
+			}
+		}
+		files = append(files, entry)
+		return nil
+	})
+
+	if files == nil {
+		files = []fileEntry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"files": files})
+}
+
+// handleReadFile reads a single file from a skill version directory.
+func (h *SkillsHandler) handleReadFile(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid skill ID"})
+		return
+	}
+
+	relPath := r.PathValue("path")
+	if relPath == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path is required"})
+		return
+	}
+	if strings.Contains(relPath, "..") {
+		slog.Warn("security.skill_files_traversal", "path", relPath)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
+
+	_, slug, currentVersion, ok := h.skills.GetSkillFilePath(id)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "skill not found"})
+		return
+	}
+
+	version := currentVersion
+	if v := r.URL.Query().Get("version"); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil || parsed < 1 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid version"})
+			return
+		}
+		version = parsed
+	}
+
+	versionDir := filepath.Join(h.baseDir, slug, strconv.Itoa(version))
+	absPath := filepath.Join(versionDir, filepath.Clean(relPath))
+
+	// Verify resolved path is within the version directory
+	if !strings.HasPrefix(absPath, versionDir+string(filepath.Separator)) {
+		slog.Warn("security.skill_files_escape", "resolved", absPath, "root", versionDir)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
+
+	// Use Lstat to detect symlinks — reject them to prevent directory escape
+	info, err := os.Lstat(absPath)
+	if err != nil || info.IsDir() {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
+		return
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		slog.Warn("security.skill_files_symlink", "path", absPath)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
+
+	// Skip system artifacts
+	if isSystemArtifact(relPath) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
+		return
+	}
+
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read file"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"content": string(data),
+		"path":    relPath,
+		"size":    info.Size(),
+	})
 }

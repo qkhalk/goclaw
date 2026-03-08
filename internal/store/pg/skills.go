@@ -301,6 +301,14 @@ func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p SkillCreatePara
 	return id, err
 }
 
+// GetSkillFilePath returns the filesystem path and version for a skill by UUID.
+func (s *PGSkillStore) GetSkillFilePath(id uuid.UUID) (filePath string, slug string, version int, ok bool) {
+	err := s.db.QueryRow(
+		"SELECT file_path, slug, version FROM skills WHERE id = $1 AND status = 'active'", id,
+	).Scan(&filePath, &slug, &version)
+	return filePath, slug, version, err == nil
+}
+
 // GetNextVersion returns the next version number for a skill slug.
 func (s *PGSkillStore) GetNextVersion(slug string) int {
 	var maxVersion int

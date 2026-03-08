@@ -4,9 +4,9 @@ import { useWs, useHttp } from "@/hooks/use-ws";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { Methods } from "@/api/protocol";
 import { queryKeys } from "@/lib/query-keys";
-import type { SkillInfo } from "@/types/skill";
+import type { SkillInfo, SkillFile, SkillVersions } from "@/types/skill";
 
-export type { SkillInfo };
+export type { SkillInfo, SkillFile, SkillVersions };
 
 export function useSkills() {
   const ws = useWs();
@@ -69,5 +69,35 @@ export function useSkills() {
     [http, invalidate],
   );
 
-  return { skills, loading, refresh: invalidate, getSkill, uploadSkill, updateSkill, deleteSkill };
+  const getSkillVersions = useCallback(
+    async (id: string) => {
+      return http.get<SkillVersions>(`/v1/skills/${id}/versions`);
+    },
+    [http],
+  );
+
+  const getSkillFiles = useCallback(
+    async (id: string, version?: number) => {
+      const q = version != null ? `?version=${version}` : "";
+      const res = await http.get<{ files: SkillFile[] }>(`/v1/skills/${id}/files${q}`);
+      return res.files ?? [];
+    },
+    [http],
+  );
+
+  const getSkillFileContent = useCallback(
+    async (id: string, path: string, version?: number) => {
+      const q = version != null ? `?version=${version}` : "";
+      return http.get<{ content: string; path: string; size: number }>(
+        `/v1/skills/${id}/files/${encodeURIComponent(path)}${q}`,
+      );
+    },
+    [http],
+  );
+
+  return {
+    skills, loading, refresh: invalidate, getSkill,
+    uploadSkill, updateSkill, deleteSkill,
+    getSkillVersions, getSkillFiles, getSkillFileContent,
+  };
 }

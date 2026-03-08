@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Zap, Eye, Pencil, RefreshCw, Upload, Trash2 } from "lucide-react";
+import { Zap, Pencil, RefreshCw, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
@@ -23,12 +23,14 @@ const visibilityColor: Record<string, string> = {
 };
 
 export function SkillsPage() {
-  const { skills, loading, refresh, getSkill, uploadSkill, updateSkill, deleteSkill } = useSkills();
+  const {
+    skills, loading, refresh, getSkill, uploadSkill, updateSkill, deleteSkill,
+    getSkillVersions, getSkillFiles, getSkillFileContent,
+  } = useSkills();
   const spinning = useMinLoading(loading);
   const showSkeleton = useDeferredLoading(loading && skills.length === 0);
   const [search, setSearch] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<(SkillInfo & { content: string }) | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<SkillInfo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SkillInfo | null>(null);
@@ -45,13 +47,8 @@ export function SkillsPage() {
   useEffect(() => { resetPage(); }, [search, resetPage]);
 
   const handleViewSkill = async (name: string) => {
-    setDetailLoading(true);
-    try {
-      const detail = await getSkill(name);
-      if (detail) setSelectedSkill(detail);
-    } finally {
-      setDetailLoading(false);
-    }
+    const detail = await getSkill(name);
+    if (detail) setSelectedSkill(detail);
   };
 
   const handleUpload = async (file: File) => {
@@ -124,7 +121,13 @@ export function SkillsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Zap className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{skill.name}</span>
+                        <button
+                          type="button"
+                          className="font-medium text-left hover:underline cursor-pointer"
+                          onClick={() => handleViewSkill(skill.slug ?? skill.name)}
+                        >
+                          {skill.name}
+                        </button>
                         {skill.version ? (
                           <span className="text-xs text-muted-foreground">v{skill.version}</span>
                         ) : null}
@@ -145,15 +148,6 @@ export function SkillsPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewSkill(skill.slug ?? skill.name)}
-                          disabled={detailLoading}
-                          className="gap-1"
-                        >
-                          <Eye className="h-3.5 w-3.5" /> View
-                        </Button>
                         {skill.id && (
                           <>
                             <Button
@@ -196,6 +190,9 @@ export function SkillsPage() {
         <SkillDetailDialog
           skill={selectedSkill}
           onClose={() => setSelectedSkill(null)}
+          getSkillVersions={getSkillVersions}
+          getSkillFiles={getSkillFiles}
+          getSkillFileContent={getSkillFileContent}
         />
       )}
 

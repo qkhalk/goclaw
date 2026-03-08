@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -186,6 +187,28 @@ func parseSkillFrontmatter(content string) (name, description, slug string, allF
 		}
 	}
 	return
+}
+
+// isSystemArtifact returns true for OS-generated junk that should be skipped
+// during ZIP extraction and file listing (e.g. __MACOSX, .DS_Store, Thumbs.db).
+func isSystemArtifact(name string) bool {
+	base := filepath.Base(name)
+	// macOS resource fork / metadata folders and files
+	if base == "__MACOSX" || strings.HasPrefix(base, "._") {
+		return true
+	}
+	// Check if any path component is __MACOSX
+	for _, part := range strings.Split(filepath.ToSlash(name), "/") {
+		if part == "__MACOSX" {
+			return true
+		}
+	}
+	// Common OS junk files
+	switch base {
+	case ".DS_Store", "Thumbs.db", "desktop.ini", ".Spotlight-V100", ".Trashes", ".fseventsd":
+		return true
+	}
+	return false
 }
 
 func slugify(name string) string {
