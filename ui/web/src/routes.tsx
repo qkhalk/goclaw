@@ -72,6 +72,9 @@ const EventsPage = lazy(() =>
 const DelegationsPage = lazy(() =>
   import("@/pages/delegations/delegations-page").then((m) => ({ default: m.DelegationsPage })),
 );
+const StoragePage = lazy(() =>
+  import("@/pages/storage/storage-page").then((m) => ({ default: m.StoragePage })),
+);
 const SetupPage = lazy(() =>
   import("@/pages/setup/setup-page").then((m) => ({ default: m.SetupPage })),
 );
@@ -139,6 +142,7 @@ export function AppRoutes() {
           <Route path={ROUTES.BUILTIN_TOOLS} element={<BuiltinToolsPage />} />
           <Route path={ROUTES.MCP} element={<MCPPage />} />
           <Route path={ROUTES.TTS} element={<TtsPage />} />
+          <Route path={ROUTES.STORAGE} element={<StoragePage />} />
         </Route>
 
         {/* Catch-all → overview */}

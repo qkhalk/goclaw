@@ -46,6 +46,7 @@ type Server struct {
 	builtinToolsHandler     *httpapi.BuiltinToolsHandler     // builtin tool management API
 	oauthHandler            *httpapi.OAuthHandler            // OAuth endpoints
 	filesHandler            *httpapi.FilesHandler            // workspace file serving
+	storageHandler          *httpapi.StorageHandler          // storage file management
 	agentStore         store.AgentStore             // for context injection in tools_invoke
 
 	upgrader    websocket.Upgrader
@@ -201,6 +202,11 @@ func (s *Server) BuildMux() *http.ServeMux {
 		s.filesHandler.RegisterRoutes(mux)
 	}
 
+	// Storage file management (browse/delete workspace files)
+	if s.storageHandler != nil {
+		s.storageHandler.RegisterRoutes(mux)
+	}
+
 	// OAuth endpoints (available in all modes)
 	if s.oauthHandler != nil {
 		s.oauthHandler.RegisterRoutes(mux)
@@ -346,6 +352,9 @@ func (s *Server) SetOAuthHandler(h *httpapi.OAuthHandler) { s.oauthHandler = h }
 
 // SetFilesHandler sets the workspace file serving handler.
 func (s *Server) SetFilesHandler(h *httpapi.FilesHandler) { s.filesHandler = h }
+
+// SetStorageHandler sets the storage file management handler.
+func (s *Server) SetStorageHandler(h *httpapi.StorageHandler) { s.storageHandler = h }
 
 // SetAgentStore sets the agent store for context injection in tools_invoke.
 func (s *Server) SetAgentStore(as store.AgentStore) { s.agentStore = as }

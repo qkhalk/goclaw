@@ -28,6 +28,7 @@ export const ROUTES = {
   BUILTIN_TOOLS: "/builtin-tools",
   MCP: "/mcp",
   TTS: "/tts",
+  STORAGE: "/storage",
   SETUP: "/setup",
 } as const;
 

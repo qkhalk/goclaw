@@ -20,6 +20,7 @@ import {
   Volume2,
   Cpu,
   ArrowRightLeft,
+  HardDrive,
 } from "lucide-react";
 import { SidebarGroup } from "./sidebar-group";
 import { SidebarItem } from "./sidebar-item";
@@ -86,6 +87,7 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
           <SidebarItem to={ROUTES.DELEGATIONS} icon={ArrowRightLeft} label="Delegations" collapsed={collapsed} />
           <SidebarItem to={ROUTES.USAGE} icon={BarChart3} label="Usage" collapsed={collapsed} />
           <SidebarItem to={ROUTES.LOGS} icon={Terminal} label="Logs" collapsed={collapsed} />
+          <SidebarItem to={ROUTES.STORAGE} icon={HardDrive} label="Storage" collapsed={collapsed} />
         </SidebarGroup>
 
         <SidebarGroup label="System" collapsed={collapsed}>

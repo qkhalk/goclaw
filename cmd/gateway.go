@@ -630,6 +630,9 @@ func runGateway() {
 	// Supports media from any agent workspace (each agent has its own workspace from DB).
 	server.SetFilesHandler(httpapi.NewFilesHandler(cfg.Gateway.Token))
 
+	// Storage file management — browse/delete files under ~/.goclaw/ (excluding skills dirs).
+	server.SetStorageHandler(httpapi.NewStorageHandler(config.ExpandHome("~/.goclaw"), cfg.Gateway.Token))
+
 	// Seed + apply builtin tool disables
 	if pgStores.BuiltinTools != nil {
 		seedBuiltinTools(context.Background(), pgStores.BuiltinTools)
