@@ -16,8 +16,30 @@ import (
 // callMinimaxImageGen calls the MiniMax image generation API.
 // Endpoint: POST {apiBase}/image_generation
 // Response: base64 image data in data.image_list[0].base64_image
+// aspectRatioToMinimaxSize converts aspect_ratio (e.g. "16:9") to MiniMax size format.
+// Falls back to explicit "size" param if set, otherwise uses aspect_ratio mapping.
+func aspectRatioToMinimaxSize(params map[string]any) string {
+	// Explicit size param takes priority (from UI provider settings)
+	if s := GetParamString(params, "size", ""); s != "" {
+		return s
+	}
+	ar := GetParamString(params, "aspect_ratio", "1:1")
+	switch ar {
+	case "16:9":
+		return "1280*720"
+	case "9:16":
+		return "720*1280"
+	case "4:3":
+		return "1024*768"
+	case "3:4":
+		return "768*1024"
+	default:
+		return "1024*1024"
+	}
+}
+
 func callMinimaxImageGen(ctx context.Context, apiKey, apiBase, model, prompt string, params map[string]any) ([]byte, *providers.Usage, error) {
-	size := GetParamString(params, "size", "1024*1024")
+	size := aspectRatioToMinimaxSize(params)
 	promptOptimizer := GetParamBool(params, "prompt_optimizer", true)
 
 	body := map[string]interface{}{

@@ -100,7 +100,7 @@ export function SkillDetailDialog({
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-2xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl">
+      <DialogContent className="max-h-[85vh] md:min-h-[60vh] overflow-hidden flex flex-col sm:max-w-2xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 flex-wrap">
             {skill.name}

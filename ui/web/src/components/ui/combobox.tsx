@@ -29,6 +29,7 @@ export function Combobox({
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = React.useState<React.CSSProperties>({});
 
   // Sync search text when value changes externally — show label if available
@@ -41,7 +42,11 @@ export function Combobox({
   React.useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        (!dropdownRef.current || !dropdownRef.current.contains(target))
+      ) {
         setOpen(false);
       }
     };
@@ -54,11 +59,14 @@ export function Combobox({
     if (!open || !portalContainer?.current || !containerRef.current) return;
     const inputRect = containerRef.current.getBoundingClientRect();
     const portalRect = portalContainer.current.getBoundingClientRect();
+    const left = inputRect.left - portalRect.left;
+    const maxWidth = portalRect.width - left;
     setDropdownStyle({
       position: "absolute",
       top: inputRect.bottom - portalRect.top + 4,
-      left: inputRect.left - portalRect.left,
+      left,
       width: inputRect.width,
+      maxWidth,
       zIndex: 50,
     });
   }, [open, search, portalContainer]);
@@ -89,10 +97,11 @@ export function Combobox({
 
   const dropdownContent = open && filtered.length > 0 && (
     <div
+      ref={dropdownRef}
       style={portalContainer ? dropdownStyle : undefined}
       className={cn(
-        "bg-popover text-popover-foreground max-h-60 min-w-full overflow-y-auto rounded-md border p-1 shadow-md",
-        !portalContainer && "absolute top-full left-0 z-50 mt-1",
+        "bg-popover text-popover-foreground max-h-60 overflow-y-auto rounded-md border p-1 shadow-md",
+        portalContainer ? "overflow-hidden" : "absolute top-full left-0 z-50 mt-1 min-w-full",
       )}
     >
       {filtered.map((o) => (

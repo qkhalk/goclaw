@@ -19,8 +19,15 @@ func callMinimaxMusicGen(ctx context.Context, apiKey, apiBase, model, prompt str
 	lyrics := GetParamString(params, "lyrics", "")
 	instrumental := GetParamBool(params, "instrumental", false)
 	lyricsOptimizer := GetParamBool(params, "lyrics_optimizer", false)
-	sampleRate := GetParamString(params, "sample_rate", "44100")
-	bitrate := GetParamString(params, "bitrate", "320k")
+	sampleRate := GetParamInt(params, "sample_rate", 44100)
+	bitrate := GetParamInt(params, "bitrate", 256000)
+
+	// lyrics is required when is_instrumental is false
+	if !instrumental && lyrics == "" {
+		instrumental = true
+	}
+
+	duration := GetParamInt(params, "duration", 0)
 
 	body := map[string]interface{}{
 		"model":            model,
@@ -36,6 +43,9 @@ func callMinimaxMusicGen(ctx context.Context, apiKey, apiBase, model, prompt str
 	}
 	if lyrics != "" {
 		body["lyrics"] = lyrics
+	}
+	if duration > 0 {
+		body["duration_seconds"] = duration
 	}
 
 	jsonBody, err := json.Marshal(body)

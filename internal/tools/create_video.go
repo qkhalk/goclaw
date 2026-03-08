@@ -149,7 +149,7 @@ func (t *CreateVideoTool) callProvider(ctx context.Context, cp credentialProvide
 
 	switch ProviderTypeFromName(providerName) {
 	case "gemini":
-		return t.callGeminiVideoGen(ctx, cp.APIKey(), cp.APIBase(), model, prompt, duration, aspectRatio)
+		return t.callGeminiVideoGen(ctx, cp.APIKey(), cp.APIBase(), model, prompt, duration, aspectRatio, params)
 	case "minimax":
 		return callMinimaxVideoGen(ctx, cp.APIKey(), cp.APIBase(), model, params)
 	default:
@@ -159,7 +159,7 @@ func (t *CreateVideoTool) callProvider(ctx context.Context, cp credentialProvide
 
 // callGeminiVideoGen uses the Gemini predictLongRunning API for Veo video generation.
 // Flow: POST predictLongRunning → poll operation → download video from URI.
-func (t *CreateVideoTool) callGeminiVideoGen(ctx context.Context, apiKey, apiBase, model, prompt string, duration int, aspectRatio string) ([]byte, *providers.Usage, error) {
+func (t *CreateVideoTool) callGeminiVideoGen(ctx context.Context, apiKey, apiBase, model, prompt string, duration int, aspectRatio string, params map[string]any) ([]byte, *providers.Usage, error) {
 	nativeBase := strings.TrimRight(apiBase, "/")
 	nativeBase = strings.TrimSuffix(nativeBase, "/openai")
 
@@ -173,7 +173,7 @@ func (t *CreateVideoTool) callGeminiVideoGen(ctx context.Context, apiKey, apiBas
 		"parameters": map[string]interface{}{
 			"aspectRatio":      aspectRatio,
 			"durationSeconds":  duration,
-			"personGeneration": "allow_all",
+			"personGeneration": GetParamString(params, "person_generation", "allow_all"),
 		},
 	}
 

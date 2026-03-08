@@ -59,8 +59,25 @@ func dashScopeTaskEndpoint(apiBase, taskID string) string {
 // callDashScopeImageGen calls the DashScope (Alibaba/Bailian) multimodal image generation API.
 // The API is async: an initial POST returns a task_id, which is then polled until done.
 // On completion, output.results[].url contains the image URL to download.
+// aspectRatioToDashScopeSize converts aspect_ratio to DashScope size format.
+// Falls back to explicit "size" param if set, otherwise uses aspect_ratio mapping.
+func aspectRatioToDashScopeSize(params map[string]any) string {
+	if s := GetParamString(params, "size", ""); s != "" {
+		return s
+	}
+	ar := GetParamString(params, "aspect_ratio", "1:1")
+	switch ar {
+	case "16:9":
+		return "1280*720"
+	case "9:16":
+		return "720*1280"
+	default:
+		return "1024*1024"
+	}
+}
+
 func callDashScopeImageGen(ctx context.Context, apiKey, apiBase, model, prompt string, params map[string]any) ([]byte, *providers.Usage, error) {
-	size := GetParamString(params, "size", "1024*1024")
+	size := aspectRatioToDashScopeSize(params)
 	promptExtend := GetParamBool(params, "prompt_extend", true)
 
 	endpoint := dashScopeImageEndpoint(apiBase)

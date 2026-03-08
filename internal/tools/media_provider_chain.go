@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -297,6 +298,10 @@ func GetParamInt(params map[string]any, key string, fallback int) int {
 		return int(v)
 	case int:
 		return v
+	case string:
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
 	}
 	return fallback
 }
@@ -319,6 +324,8 @@ func ProviderTypeFromName(name string) string {
 		return "anthropic"
 	case name == "suno" || strings.HasPrefix(name, "suno"):
 		return "suno"
+	case name == "yescale":
+		return "openai"
 	default:
 		return "openai_compat"
 	}

@@ -425,7 +425,7 @@ export function MediaProviderChainForm({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1 my-4">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
             {entries.map((entry, index) => (
