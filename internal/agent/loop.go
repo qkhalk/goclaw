@@ -359,7 +359,43 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		ctx = tools.WithMediaDocRefs(ctx, docRefs)
 	}
 
-	// 2b. Cross-session recovery: notify team leads about orphaned pending tasks
+	// 2c. Collect audio MediaRefs (current + historical) for read_audio tool.
+	var audioRefs []providers.MediaRef
+	for _, ref := range mediaRefs {
+		if ref.Kind == "audio" {
+			audioRefs = append(audioRefs, ref)
+		}
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		for _, ref := range messages[i].MediaRefs {
+			if ref.Kind == "audio" {
+				audioRefs = append(audioRefs, ref)
+			}
+		}
+	}
+	if len(audioRefs) > 0 {
+		ctx = tools.WithMediaAudioRefs(ctx, audioRefs)
+	}
+
+	// 2d. Collect video MediaRefs (current + historical) for read_video tool.
+	var videoRefs []providers.MediaRef
+	for _, ref := range mediaRefs {
+		if ref.Kind == "video" {
+			videoRefs = append(videoRefs, ref)
+		}
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		for _, ref := range messages[i].MediaRefs {
+			if ref.Kind == "video" {
+				videoRefs = append(videoRefs, ref)
+			}
+		}
+	}
+	if len(videoRefs) > 0 {
+		ctx = tools.WithMediaVideoRefs(ctx, videoRefs)
+	}
+
+	// 2e. Cross-session recovery: notify team leads about orphaned pending tasks
 	// and in-progress tasks being handled by delegates.
 	// Safe because Bước 1 (early ClaimTask) ensures running tasks are in_progress,
 	// so only truly un-spawned tasks remain pending.

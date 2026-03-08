@@ -77,9 +77,12 @@ func wireExtras(
 				_ = mediaStore.DeleteSession(sessionKey)
 			}
 		}
-		// Register document analysis tool (needs mediaStore for file access).
+		// Register media analysis tools (need mediaStore for file access).
 		toolsReg.Register(tools.NewReadDocumentTool(providerReg, mediaStore))
-		slog.Info("read_document tool registered")
+		toolsReg.Register(tools.NewReadAudioTool(providerReg, mediaStore))
+		toolsReg.Register(tools.NewReadVideoTool(providerReg, mediaStore))
+		toolsReg.Register(tools.NewCreateVideoTool(providerReg))
+		slog.Info("media tools registered", "tools", "read_document,read_audio,read_video,create_video")
 	}
 
 	// 2. User seeding callback: seeds per-user context files on first chat

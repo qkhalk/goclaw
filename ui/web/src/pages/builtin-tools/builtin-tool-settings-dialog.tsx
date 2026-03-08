@@ -30,7 +30,10 @@ interface Props {
   onSave: (name: string, settings: Record<string, unknown>) => Promise<void>;
 }
 
-const MEDIA_TOOLS = new Set(["read_image", "create_image", "read_document"]);
+const MEDIA_TOOLS = new Set([
+  "read_image", "read_document", "read_audio", "read_video",
+  "create_image", "create_video",
+]);
 
 export function BuiltinToolSettingsDialog({ tool, open, onOpenChange, onSave }: Props) {
   const isMedia = tool ? MEDIA_TOOLS.has(tool.name) : false;

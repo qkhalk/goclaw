@@ -71,6 +71,9 @@ var coreToolSummaries = map[string]string{
 	"sessions_history": "Fetch message history for a session",
 	"sessions_send":    "Send a message into another session",
 	"read_image":       "Analyze images attached to the conversation. MUST call this when you see <media:image> tags",
+	"read_audio":       "Analyze audio files attached to the conversation. MUST call this when you see <media:audio> tags",
+	"read_video":       "Analyze video files attached to the conversation. MUST call this when you see <media:video> tags",
+	"create_video":     "Generate videos from text descriptions using AI",
 	"read_document":    "Analyze documents (PDF, DOCX, etc.) attached to the conversation. MUST call this when you see <media:document> tags",
 	"create_image":     "Generate images from text descriptions using AI",
 }

@@ -15,6 +15,20 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+// filteredToolNames returns tool names after applying policy filters.
+// Used for system prompt so denied tools don't appear in ## Tooling section.
+func (l *Loop) filteredToolNames() []string {
+	if l.toolPolicy == nil {
+		return l.tools.List()
+	}
+	defs := l.toolPolicy.FilterTools(l.tools, l.id, l.provider.Name(), l.agentToolPolicy, nil, false, false)
+	names := make([]string, len(defs))
+	for i, d := range defs {
+		names[i] = d.Function.Name
+	}
+	return names
+}
+
 // buildMessages constructs the full message list for an LLM request.
 // Returns the messages and whether BOOTSTRAP.md was present in context files
 // (used by the caller for auto-cleanup without an extra DB roundtrip).
@@ -73,7 +87,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		PeerKind:               peerKind,
 		OwnerIDs:               l.ownerIDs,
 		Mode:                   mode,
-		ToolNames:              l.tools.List(),
+		ToolNames:              l.filteredToolNames(),
 		SkillsSummary:          l.resolveSkillsSummary(skillFilter),
 		HasMemory:              l.hasMemory,
 		HasSpawn:               l.tools != nil && hasSpawn,
