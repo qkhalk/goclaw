@@ -1,7 +1,9 @@
 import { useState, useCallback } from "react";
-import { Save, Check, AlertCircle } from "lucide-react";
+import { Save, Check, AlertCircle, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import type { AgentData } from "@/types/agent";
 import { IdentitySection, LlmConfigSection, WorkspaceSection } from "./general-sections";
 
@@ -27,6 +29,10 @@ export function AgentGeneralTab({ agent, onUpdate }: AgentGeneralTabProps) {
   // Workspace
   const [restrictToWorkspace, setRestrictToWorkspace] = useState(agent.restrict_to_workspace);
 
+  // Self-evolve (predefined agents only)
+  const otherCfg = (agent.other_config ?? {}) as Record<string, unknown>;
+  const [selfEvolve, setSelfEvolve] = useState(Boolean(otherCfg.self_evolve));
+
   // Save state
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -41,6 +47,8 @@ export function AgentGeneralTab({ agent, onUpdate }: AgentGeneralTabProps) {
     setSaveError(null);
     setSaved(false);
     try {
+      // Merge self_evolve into other_config without losing other keys
+      const updatedOtherConfig = { ...otherCfg, self_evolve: selfEvolve };
       await onUpdate({
         display_name: displayName,
         frontmatter: frontmatter || null,
@@ -51,6 +59,7 @@ export function AgentGeneralTab({ agent, onUpdate }: AgentGeneralTabProps) {
         restrict_to_workspace: restrictToWorkspace,
         status,
         is_default: isDefault,
+        other_config: updatedOtherConfig,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -98,6 +107,40 @@ export function AgentGeneralTab({ agent, onUpdate }: AgentGeneralTabProps) {
         restrictToWorkspace={restrictToWorkspace}
         onRestrictChange={setRestrictToWorkspace}
       />
+
+      {/* Self-Evolve (predefined agents only) */}
+      {agent.agent_type === "predefined" && (
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              <h3 className="text-sm font-medium">Self-Evolution</h3>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="self-evolve" className="text-sm font-normal">
+                  Allow agent to evolve its communication style
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, the agent can update its SOUL.md to refine tone, vocabulary, and response style based on interactions. Identity, name, and operating instructions remain locked.
+                </p>
+              </div>
+              <Switch
+                id="self-evolve"
+                checked={selfEvolve}
+                onCheckedChange={setSelfEvolve}
+              />
+            </div>
+            {selfEvolve && (
+              <div className="flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>Agent will evolve its style over time through SOUL.md updates. Only style and tone are affected — identity and workflow rules stay fixed.</span>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Save */}
       {saveError && (

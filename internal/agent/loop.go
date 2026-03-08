@@ -176,6 +176,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	if l.agentType != "" {
 		ctx = store.WithAgentType(ctx, l.agentType)
 	}
+	// Inject self-evolve flag for predefined agents that can update SOUL.md
+	if l.selfEvolve {
+		ctx = store.WithSelfEvolve(ctx, true)
+	}
 	// Inject original sender ID for group file writer permission checks
 	if req.SenderID != "" {
 		ctx = store.WithSenderID(ctx, req.SenderID)

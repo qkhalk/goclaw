@@ -136,6 +136,21 @@ func (a *AgentData) ParseThinkingLevel() string {
 	return cfg.ThinkingLevel
 }
 
+// ParseSelfEvolve extracts self_evolve from other_config JSONB.
+// When true, predefined agents can update their SOUL.md (style/tone) through chat.
+func (a *AgentData) ParseSelfEvolve() bool {
+	if len(a.OtherConfig) == 0 {
+		return false
+	}
+	var cfg struct {
+		SelfEvolve bool `json:"self_evolve"`
+	}
+	if json.Unmarshal(a.OtherConfig, &cfg) != nil {
+		return false
+	}
+	return cfg.SelfEvolve
+}
+
 // AgentShareData represents an agent share grant.
 type AgentShareData struct {
 	BaseModel
@@ -196,8 +211,9 @@ type AgentStore interface {
 	GetUserOverride(ctx context.Context, agentID uuid.UUID, userID string) (*UserAgentOverrideData, error)
 	SetUserOverride(ctx context.Context, override *UserAgentOverrideData) error
 
-	// User-agent profiles
+	// User-agent profiles + instances
 	GetOrCreateUserProfile(ctx context.Context, agentID uuid.UUID, userID, workspace, channel string) (isNew bool, effectiveWorkspace string, err error)
+	ListUserInstances(ctx context.Context, agentID uuid.UUID) ([]UserInstanceData, error)
 
 	// Group file writers (allowlist for protected file edits in group chats)
 	IsGroupFileWriter(ctx context.Context, agentID uuid.UUID, groupID, userID string) (bool, error)
@@ -205,6 +221,14 @@ type AgentStore interface {
 	RemoveGroupFileWriter(ctx context.Context, agentID uuid.UUID, groupID, userID string) error
 	ListGroupFileWriters(ctx context.Context, agentID uuid.UUID, groupID string) ([]GroupFileWriterData, error)
 	ListGroupFileWriterGroups(ctx context.Context, agentID uuid.UUID) ([]GroupWriterGroupInfo, error)
+}
+
+// UserInstanceData represents a user instance for a predefined agent.
+type UserInstanceData struct {
+	UserID      string  `json:"user_id"`
+	FirstSeenAt *string `json:"first_seen_at,omitempty"`
+	LastSeenAt  *string `json:"last_seen_at,omitempty"`
+	FileCount   int     `json:"file_count"`
 }
 
 // GroupFileWriterData represents a group file writer entry.

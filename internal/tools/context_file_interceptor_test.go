@@ -84,6 +84,9 @@ func (s *stubAgentStore) ListGroupFileWriters(_ context.Context, _ uuid.UUID, _ 
 func (s *stubAgentStore) ListGroupFileWriterGroups(_ context.Context, _ uuid.UUID) ([]store.GroupWriterGroupInfo, error) {
 	return nil, nil
 }
+func (s *stubAgentStore) ListUserInstances(_ context.Context, _ uuid.UUID) ([]store.UserInstanceData, error) {
+	return nil, nil
+}
 
 // ---- Tests ----
 

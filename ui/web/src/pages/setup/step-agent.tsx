@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InfoTip } from "@/pages/setup/info-tip";
@@ -30,6 +31,7 @@ export function StepAgent({ provider, model, onComplete }: StepAgentProps) {
   const [agentKey, setAgentKey] = useState("goclaw");
   const [keyTouched, setKeyTouched] = useState(false);
   const [description, setDescription] = useState(DEFAULT_PROMPT);
+  const [selfEvolve, setSelfEvolve] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -76,6 +78,9 @@ export function StepAgent({ provider, model, onComplete }: StepAgentProps) {
     setError("");
 
     try {
+      const otherConfig: Record<string, unknown> = {};
+      if (description.trim()) otherConfig.description = description.trim();
+      if (selfEvolve) otherConfig.self_evolve = true;
       const data: Partial<AgentData> = {
         agent_key: agentKey.trim(),
         display_name: displayName.trim() || undefined,
@@ -83,7 +88,7 @@ export function StepAgent({ provider, model, onComplete }: StepAgentProps) {
         model: model || "",
         agent_type: "predefined",
         is_default: true,
-        other_config: description.trim() ? { description: description.trim() } : undefined,
+        other_config: Object.keys(otherConfig).length > 0 ? otherConfig : undefined,
       };
 
       const result = await createAgent(data) as AgentData;
@@ -196,6 +201,13 @@ export function StepAgent({ provider, model, onComplete }: StepAgentProps) {
               <p className="text-xs text-muted-foreground">
                 Customize this prompt to shape your agent's personality and expertise.
               </p>
+              <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2.5">
+                <div className="space-y-0.5">
+                  <Label htmlFor="setup-self-evolve" className="text-sm font-normal">Self-Evolution</Label>
+                  <p className="text-xs text-muted-foreground">Allow agent to evolve its communication style over time via SOUL.md</p>
+                </div>
+                <Switch id="setup-self-evolve" checked={selfEvolve} onCheckedChange={setSelfEvolve} />
+              </div>
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}

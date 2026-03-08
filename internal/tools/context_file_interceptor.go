@@ -287,13 +287,26 @@ func (b *ContextFileInterceptor) WriteFile(ctx context.Context, path, content st
 	}
 
 	// Predefined agent: block writes to shared files (only USER.md allowed per-user).
-	// This prevents any user from modifying the agent's identity/behavior via chat.
+	// Exception: SOUL.md is allowed when self_evolve is enabled (style/tone evolution).
 	if agentType == store.AgentTypePredefined && fileName != bootstrap.UserFile {
-		return true, fmt.Errorf(
-			"this file (%s) is part of the agent's predefined configuration and cannot be modified through chat. "+
-				"Only the agent owner can edit it from the management dashboard.",
-			fileName,
+		allowSoulEvolve := fileName == bootstrap.SoulFile && store.SelfEvolveFromContext(ctx)
+		if !allowSoulEvolve {
+			return true, fmt.Errorf(
+				"this file (%s) is part of the agent's predefined configuration and cannot be modified through chat. "+
+					"Only the agent owner can edit it from the management dashboard.",
+				fileName,
+			)
+		}
+		// SOUL.md with self_evolve: write to agent-level (shared across all users)
+		slog.Info("self-evolve: SOUL.md updated",
+			"agent_id", agentID,
+			"user_id", userID,
 		)
+		err := b.agentStore.SetAgentContextFile(ctx, agentID, fileName, content)
+		if err == nil {
+			b.InvalidateAgent(agentID)
+		}
+		return true, err
 	}
 
 	// Open agent: all files per-user
@@ -436,6 +449,11 @@ func (b *ContextFileInterceptor) InvalidateAll() {
 func (b *ContextFileInterceptor) hasBootstrapFile(ctx context.Context, agentID uuid.UUID, userID string) bool {
 	content, _, err := b.readUserFile(ctx, agentID, userID, bootstrap.BootstrapFile)
 	return err == nil && content != ""
+}
+
+// InvalidateUser clears the per-user cache for a specific agent+user combination.
+func (b *ContextFileInterceptor) InvalidateUser(agentID uuid.UUID, userID string) {
+	b.invalidateUser(agentID, userID)
 }
 
 func (b *ContextFileInterceptor) invalidateUser(agentID uuid.UUID, userID string) {

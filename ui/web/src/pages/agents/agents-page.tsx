@@ -8,6 +8,7 @@ import { Pagination } from "@/components/shared/pagination";
 import { CardSkeleton } from "@/components/shared/loading-skeleton";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { Button } from "@/components/ui/button";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useAgents } from "./hooks/use-agents";
 import { AgentCard } from "./agent-card";
@@ -98,26 +99,28 @@ export function AgentsPage() {
           />
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {pageItems.map((agent) => (
-                <AgentCard
-                  key={agent.id}
-                  agent={agent}
-                  onClick={() => {
-                    if (agent.status === "summoning") {
-                      setSummoningAgent({
-                        id: agent.id,
-                        name: agent.display_name || agent.agent_key,
-                      });
-                    } else {
-                      navigate(`/agents/${agent.id}`);
-                    }
-                  }}
-                  onResummon={() => handleResummon(agent)}
-                  onDelete={() => setDeleteTarget(agent.id)}
-                />
-              ))}
-            </div>
+            <TooltipProvider>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {pageItems.map((agent) => (
+                  <AgentCard
+                    key={agent.id}
+                    agent={agent}
+                    onClick={() => {
+                      if (agent.status === "summoning") {
+                        setSummoningAgent({
+                          id: agent.id,
+                          name: agent.display_name || agent.agent_key,
+                        });
+                      } else {
+                        navigate(`/agents/${agent.id}`);
+                      }
+                    }}
+                    onResummon={() => handleResummon(agent)}
+                    onDelete={() => setDeleteTarget(agent.id)}
+                  />
+                ))}
+              </div>
+            </TooltipProvider>
             <div className="mt-4">
               <Pagination
                 page={pagination.page}

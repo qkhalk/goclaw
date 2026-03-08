@@ -8,6 +8,7 @@ export const queryKeys = {
     detail: (id: string) => ["agents", id] as const,
     files: (agentKey: string) => ["agents", agentKey, "files"] as const,
     links: (agentId: string) => ["agents", agentId, "links"] as const,
+    instances: (agentId: string) => ["agents", agentId, "instances"] as const,
   },
   sessions: {
     all: ["sessions"] as const,

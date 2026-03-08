@@ -1,6 +1,7 @@
-import { Bot, Star, RotateCcw, Trash2 } from "lucide-react";
+import { Bot, Star, RotateCcw, Trash2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AgentData } from "@/types/agent";
 
 interface AgentCardProps {
@@ -15,6 +16,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export function AgentCard({ agent, onClick, onResummon, onDelete }: AgentCardProps) {
   const displayName = agent.display_name
     || (UUID_RE.test(agent.agent_key) ? "Unnamed Agent" : agent.agent_key);
+  const selfEvolve = agent.agent_type === "predefined" && Boolean((agent.other_config as Record<string, unknown> | null)?.self_evolve);
 
   // Show agent_key as subtitle only if there's a display_name and agent_key is meaningful
   const showSubtitle = agent.display_name && !UUID_RE.test(agent.agent_key);
@@ -72,7 +74,34 @@ export function AgentCard({ agent, onClick, onResummon, onDelete }: AgentCardPro
 
       {/* Bottom badges */}
       <div className="flex items-center gap-1.5">
-        <Badge variant="outline" className="text-[11px]">{agent.agent_type}</Badge>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="text-[11px]">{agent.agent_type}</Badge>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[260px] text-xs">
+            {agent.agent_type === "predefined"
+              ? "Shared context files (SOUL.md, IDENTITY.md, AGENTS.md) with per-user USER.md instances."
+              : "Each user gets their own full set of context files."}
+          </TooltipContent>
+        </Tooltip>
+        {agent.agent_type === "predefined" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant={selfEvolve ? "default" : "outline"}
+                className={`text-[11px] ${selfEvolve ? "bg-violet-100 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300" : "text-muted-foreground"}`}
+              >
+                <Sparkles className="mr-0.5 h-3 w-3" />
+                {selfEvolve ? "Evolving" : "Static"}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[240px] text-xs">
+              {selfEvolve
+                ? "Agent can self-evolve its communication style (SOUL.md). Identity and workflow stay fixed."
+                : "Agent style is static. Enable Self-Evolution in settings to allow style adaptation."}
+            </TooltipContent>
+          </Tooltip>
+        )}
         {agent.context_window > 0 && (
           <span className="text-[11px] text-muted-foreground">
             {(agent.context_window / 1000).toFixed(0)}K ctx

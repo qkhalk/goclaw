@@ -98,6 +98,9 @@ type Loop struct {
 	// Thinking level for extended thinking support
 	thinkingLevel string
 
+	// Self-evolve: predefined agents can update SOUL.md through chat
+	selfEvolve bool
+
 	// Group writer cache for system prompt injection
 	groupWriterCache *store.GroupWriterCache
 
@@ -185,6 +188,9 @@ type LoopConfig struct {
 	// Thinking level: "off", "low", "medium", "high" (from agent other_config)
 	ThinkingLevel string
 
+	// Self-evolve: predefined agents can update SOUL.md (style/tone) through chat
+	SelfEvolve bool
+
 	// Group writer cache for system prompt injection
 	GroupWriterCache *store.GroupWriterCache
 
@@ -253,6 +259,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		maxMessageChars:       cfg.MaxMessageChars,
 		builtinToolSettings:   cfg.BuiltinToolSettings,
 		thinkingLevel:         cfg.ThinkingLevel,
+		selfEvolve:            cfg.SelfEvolve,
 		groupWriterCache:      cfg.GroupWriterCache,
 		teamStore:             cfg.TeamStore,
 		mediaStore:            cfg.MediaStore,

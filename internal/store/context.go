@@ -19,6 +19,8 @@ const (
 	// In group chats, UserIDKey is group-scoped but SenderIDKey preserves
 	// the actual person who sent the message.
 	SenderIDKey contextKey = "goclaw_sender_id"
+	// SelfEvolveKey indicates whether a predefined agent can update its SOUL.md.
+	SelfEvolveKey contextKey = "goclaw_self_evolve"
 )
 
 // WithUserID returns a new context with the given user ID.
@@ -71,4 +73,17 @@ func SenderIDFromContext(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// WithSelfEvolve returns a new context with the self-evolve flag.
+func WithSelfEvolve(ctx context.Context, v bool) context.Context {
+	return context.WithValue(ctx, SelfEvolveKey, v)
+}
+
+// SelfEvolveFromContext extracts the self-evolve flag from context. Returns false if not set.
+func SelfEvolveFromContext(ctx context.Context) bool {
+	if v, ok := ctx.Value(SelfEvolveKey).(bool); ok {
+		return v
+	}
+	return false
 }

@@ -110,6 +110,40 @@ func (s *PGAgentStore) GetOrCreateUserProfile(ctx context.Context, agentID uuid.
 	return isInserted, ws, nil
 }
 
+// --- User Instances ---
+
+func (s *PGAgentStore) ListUserInstances(ctx context.Context, agentID uuid.UUID) ([]store.UserInstanceData, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT p.user_id,
+		       TO_CHAR(p.first_seen_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS first_seen_at,
+		       TO_CHAR(p.last_seen_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_seen_at,
+		       COALESCE(fc.cnt, 0) AS file_count
+		FROM user_agent_profiles p
+		LEFT JOIN (
+		    SELECT user_id, COUNT(*) AS cnt
+		    FROM user_context_files
+		    WHERE agent_id = $1
+		    GROUP BY user_id
+		) fc ON fc.user_id = p.user_id
+		WHERE p.agent_id = $1
+		ORDER BY p.last_seen_at DESC
+	`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []store.UserInstanceData
+	for rows.Next() {
+		var d store.UserInstanceData
+		if err := rows.Scan(&d.UserID, &d.FirstSeenAt, &d.LastSeenAt, &d.FileCount); err != nil {
+			continue
+		}
+		result = append(result, d)
+	}
+	return result, nil
+}
+
 // --- User Overrides ---
 
 func (s *PGAgentStore) GetUserOverride(ctx context.Context, agentID uuid.UUID, userID string) (*store.UserAgentOverrideData, error) {

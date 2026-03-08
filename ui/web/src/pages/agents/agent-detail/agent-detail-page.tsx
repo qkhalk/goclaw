@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Bot, Star, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ArrowLeft, Bot, Star, Trash2, Sparkles } from "lucide-react";
 import { useAgentDetail } from "../hooks/use-agent-detail";
 import { useAgents } from "../hooks/use-agents";
 import { AgentGeneralTab } from "./agent-general-tab";
@@ -11,6 +12,7 @@ import { AgentFilesTab } from "./agent-files-tab";
 import { AgentSharesTab } from "./agent-shares-tab";
 import { AgentLinksTab } from "./agent-links-tab";
 import { AgentSkillsTab } from "./agent-skills-tab";
+import { AgentInstancesTab } from "./agent-instances-tab";
 import { SummoningModal } from "../summoning-modal";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { DetailPageSkeleton } from "@/components/shared/loading-skeleton";
@@ -68,6 +70,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
   const subtitle = agentSubtitle(agent);
 
   return (
+    <TooltipProvider>
     <div className="p-4 sm:p-6">
       {/* Header */}
       <div className="mb-6 flex items-start gap-4">
@@ -94,7 +97,37 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
                 <span className="text-border">|</span>
               </>
             )}
-            <Badge variant="outline" className="text-[11px]">{agent.agent_type}</Badge>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="text-[11px]">{agent.agent_type}</Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[260px] text-xs">
+                {agent.agent_type === "predefined"
+                  ? "Shared context files (SOUL.md, IDENTITY.md, AGENTS.md) with per-user USER.md instances."
+                  : "Each user gets their own full set of context files."}
+              </TooltipContent>
+            </Tooltip>
+            {agent.agent_type === "predefined" && (() => {
+              const evolving = Boolean((agent.other_config as Record<string, unknown> | null)?.self_evolve);
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant={evolving ? "default" : "outline"}
+                      className={`text-[11px] ${evolving ? "bg-violet-100 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300" : "text-muted-foreground"}`}
+                    >
+                      <Sparkles className="mr-0.5 h-3 w-3" />
+                      {evolving ? "Evolving" : "Static"}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[240px] text-xs">
+                    {evolving
+                      ? "Agent can self-evolve its communication style (SOUL.md). Identity and workflow stay fixed."
+                      : "Agent style is static. Enable Self-Evolution in General tab to allow style adaptation."}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })()}
             {agent.provider && (
               <>
                 <span className="text-border">|</span>
@@ -123,6 +156,9 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
             <TabsTrigger value="shares">Shares</TabsTrigger>
             <TabsTrigger value="links">Links</TabsTrigger>
             <TabsTrigger value="skills">Skills</TabsTrigger>
+            {agent.agent_type === "predefined" && (
+              <TabsTrigger value="instances">Instances</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="general" className="mt-4">
@@ -156,6 +192,12 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
             <AgentSkillsTab agentId={agentId} />
           </TabsContent>
 
+          {agent.agent_type === "predefined" && (
+            <TabsContent value="instances" className="mt-4">
+              <AgentInstancesTab agentId={agentId} />
+            </TabsContent>
+          )}
+
         </Tabs>
       </div>
 
@@ -182,5 +224,6 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
         }}
       />
     </div>
+    </TooltipProvider>
   );
 }

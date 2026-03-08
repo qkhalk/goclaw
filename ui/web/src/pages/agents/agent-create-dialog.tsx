@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
   const [model, setModel] = useState("");
   const [agentType, setAgentType] = useState<"open" | "predefined">("open");
   const [description, setDescription] = useState("");
+  const [selfEvolve, setSelfEvolve] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -75,13 +77,16 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
     setLoading(true);
     setError("");
     try {
+      const otherConfig: Record<string, unknown> = {};
+      if (description.trim()) otherConfig.description = description.trim();
+      if (selfEvolve) otherConfig.self_evolve = true;
       await onCreate({
         agent_key: agentKey.trim(),
         display_name: displayName.trim() || undefined,
         provider: provider.trim(),
         model: model.trim(),
         agent_type: agentType,
-        other_config: description.trim() ? { description: description.trim() } : undefined,
+        other_config: Object.keys(otherConfig).length > 0 ? otherConfig : undefined,
       });
       onOpenChange(false);
       setAgentKey("");
@@ -91,6 +96,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
       setModel("");
       setAgentType("open");
       setDescription("");
+      setSelfEvolve(false);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create agent");
@@ -252,6 +258,13 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
                 AI will automatically generate your agent's context files from this description.
                 Leave empty to start with templates.
               </p>
+              <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2.5">
+                <div className="space-y-0.5">
+                  <Label htmlFor="create-self-evolve" className="text-sm font-normal">Self-Evolution</Label>
+                  <p className="text-xs text-muted-foreground">Allow agent to evolve its style and tone over time via SOUL.md</p>
+                </div>
+                <Switch id="create-self-evolve" checked={selfEvolve} onCheckedChange={setSelfEvolve} />
+              </div>
             </div>
           )}
           {error && (
