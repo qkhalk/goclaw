@@ -1,0 +1,99 @@
+package http
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/nextlevelbuilder/goclaw/internal/channels/media"
+)
+
+const (
+	// maxUploadSize is the default max upload size (50MB).
+	maxUploadSize int64 = 50 * 1024 * 1024
+)
+
+// MediaUploadHandler handles media file uploads for WebSocket clients.
+type MediaUploadHandler struct {
+	token string
+}
+
+// NewMediaUploadHandler creates a media upload handler.
+func NewMediaUploadHandler(token string) *MediaUploadHandler {
+	return &MediaUploadHandler{token: token}
+}
+
+// RegisterRoutes registers the upload endpoint.
+func (h *MediaUploadHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /v1/media/upload", h.auth(h.handleUpload))
+}
+
+func (h *MediaUploadHandler) auth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if h.token != "" {
+			provided := extractBearerToken(r)
+			if provided != h.token {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+				return
+			}
+		}
+		next(w, r)
+	}
+}
+
+func (h *MediaUploadHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file too large or invalid multipart form"})
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing 'file' field"})
+		return
+	}
+	defer file.Close()
+
+	// Sanitize filename: strip path, prevent traversal.
+	origName := filepath.Base(header.Filename)
+	if origName == "." || origName == "/" || strings.Contains(origName, "..") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid filename"})
+		return
+	}
+
+	ext := filepath.Ext(origName)
+	if ext == "" {
+		ext = ".bin"
+	}
+
+	// Save to temp with unique name.
+	tmpName := fmt.Sprintf("ws_upload_%d%s", time.Now().UnixNano(), ext)
+	tmpPath := filepath.Join(os.TempDir(), tmpName)
+
+	out, err := os.Create(tmpPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create temp file"})
+		return
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, file); err != nil {
+		os.Remove(tmpPath)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save file"})
+		return
+	}
+
+	mimeType := media.DetectMIMEType(origName)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"path":      tmpPath,
+		"mime_type": mimeType,
+		"filename":  origName,
+	})
+}

@@ -27,6 +27,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/gateway/methods"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
+	"github.com/nextlevelbuilder/goclaw/internal/media"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
@@ -598,7 +599,8 @@ func runGateway() {
 	}
 
 	var mcpPool *mcpbridge.Pool
-	contextFileInterceptor, delegateMgr, mcpPool = wireExtras(pgStores, agentRouter, providerRegistry, msgBus, pgStores.Sessions, toolsReg, toolPE, skillsLoader, hasMemory, traceCollector, workspace, cfg.Gateway.InjectionAction, cfg, sandboxMgr, dynamicLoader, redisClient)
+	var mediaStore *media.Store
+	contextFileInterceptor, delegateMgr, mcpPool, mediaStore = wireExtras(pgStores, agentRouter, providerRegistry, msgBus, pgStores.Sessions, toolsReg, toolPE, skillsLoader, hasMemory, traceCollector, workspace, cfg.Gateway.InjectionAction, cfg, sandboxMgr, dynamicLoader, redisClient)
 	if mcpPool != nil {
 		defer mcpPool.Stop()
 	}
@@ -642,6 +644,14 @@ func runGateway() {
 
 	// Storage file management — browse/delete files under ~/.goclaw/ (excluding skills dirs).
 	server.SetStorageHandler(httpapi.NewStorageHandler(config.ExpandHome("~/.goclaw"), cfg.Gateway.Token))
+
+	// Media upload endpoint — accepts multipart file uploads, returns temp path + MIME type.
+	server.SetMediaUploadHandler(httpapi.NewMediaUploadHandler(cfg.Gateway.Token))
+
+	// Media serve endpoint — serves persisted media files by ID for WS/web clients.
+	if mediaStore != nil {
+		server.SetMediaServeHandler(httpapi.NewMediaServeHandler(mediaStore, cfg.Gateway.Token))
+	}
 
 	// Seed + apply builtin tool disables
 	if pgStores.BuiltinTools != nil {

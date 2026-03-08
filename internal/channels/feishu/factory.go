@@ -35,8 +35,13 @@ type feishuInstanceConfig struct {
 	RenderMode       string   `json:"render_mode,omitempty"`
 	Streaming        *bool    `json:"streaming,omitempty"`
 	ReactionLevel    string   `json:"reaction_level,omitempty"`
-	HistoryLimit     int      `json:"history_limit,omitempty"`
-	BlockReply       *bool    `json:"block_reply,omitempty"`
+	HistoryLimit      int      `json:"history_limit,omitempty"`
+	BlockReply        *bool    `json:"block_reply,omitempty"`
+	STTProxyURL       string   `json:"stt_proxy_url,omitempty"`
+	STTAPIKey         string   `json:"stt_api_key,omitempty"`
+	STTTenantID       string   `json:"stt_tenant_id,omitempty"`
+	STTTimeoutSeconds int      `json:"stt_timeout_seconds,omitempty"`
+	VoiceAgentID      string   `json:"voice_agent_id,omitempty"`
 }
 
 // Factory creates a Feishu/Lark channel from DB instance data.
@@ -83,6 +88,11 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 		ReactionLevel:     ic.ReactionLevel,
 		HistoryLimit:      ic.HistoryLimit,
 		BlockReply:        ic.BlockReply,
+		STTProxyURL:       ic.STTProxyURL,
+		STTAPIKey:         ic.STTAPIKey,
+		STTTenantID:       ic.STTTenantID,
+		STTTimeoutSeconds: ic.STTTimeoutSeconds,
+		VoiceAgentID:      ic.VoiceAgentID,
 	}
 
 	// DB instances default to "pairing" for groups (secure by default).

@@ -8,6 +8,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/media"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
@@ -107,15 +108,34 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		defer m.agents.UnregisterRun(runID)
 		defer cancel()
 
-		// Convert string paths to bus.MediaFile for the unified media pipeline.
+		// Convert string paths to bus.MediaFile with MIME detection.
 		var mediaFiles []bus.MediaFile
+		var mediaInfos []media.MediaInfo
 		for _, p := range params.Media {
-			mediaFiles = append(mediaFiles, bus.MediaFile{Path: p})
+			mimeType := media.DetectMIMEType(p)
+			mediaFiles = append(mediaFiles, bus.MediaFile{Path: p, MimeType: mimeType})
+			mediaInfos = append(mediaInfos, media.MediaInfo{
+				Type:        media.MediaKindFromMime(mimeType),
+				FilePath:    p,
+				ContentType: mimeType,
+			})
+		}
+
+		// Prepend media tags so the LLM knows what media is attached.
+		message := params.Message
+		if len(mediaInfos) > 0 {
+			if tags := media.BuildMediaTags(mediaInfos); tags != "" {
+				if message != "" {
+					message = tags + "\n\n" + message
+				} else {
+					message = tags
+				}
+			}
 		}
 
 		result, err := loop.Run(runCtx, agent.RunRequest{
 			SessionKey: sessionKey,
-			Message:    params.Message,
+			Message:    message,
 			Media:      mediaFiles,
 			Channel:    "ws",
 			ChatID:     client.ID(),

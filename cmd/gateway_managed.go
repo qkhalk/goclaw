@@ -47,7 +47,7 @@ func wireExtras(
 	sandboxMgr sandbox.Manager,
 	dynamicLoader *tools.DynamicToolLoader,
 	redisClient any, // nil when built without -tags redis or when Redis is unconfigured
-) (*tools.ContextFileInterceptor, *tools.DelegateManager, *mcpbridge.Pool) {
+) (*tools.ContextFileInterceptor, *tools.DelegateManager, *mcpbridge.Pool, *media.Store) {
 	// 1. Build cache instances (in-memory or Redis depending on build tags)
 	agentCtxCache, userCtxCache, gwCache := makeCaches(redisClient)
 
@@ -512,7 +512,7 @@ func wireExtras(
 	}
 
 	slog.Info("resolver + interceptors + cache subscribers wired")
-	return contextFileInterceptor, delegateMgr, mcpPool
+	return contextFileInterceptor, delegateMgr, mcpPool, mediaStore
 }
 
 // wireHTTP creates HTTP handlers (agents + skills + traces + MCP + custom tools + channel instances + providers + delegations + builtin tools).

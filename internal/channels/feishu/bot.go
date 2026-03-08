@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/media"
 )
 
 // messageContext holds parsed information from a Feishu message event.
@@ -146,14 +148,94 @@ func (c *Channel) handleMessageEvent(ctx context.Context, event *MessageEvent) {
 	}
 
 	// 10. Resolve inbound media (image, file, audio, video, sticker)
-	var mediaPaths []string
+	var mediaList []media.MediaInfo
 	switch mc.ContentType {
 	case "image", "file", "audio", "video", "sticker":
-		mediaPaths = c.resolveMediaFromMessage(ctx, mc.MessageID, mc.ContentType, msg.Content)
+		mediaList = c.resolveMediaFromMessage(ctx, mc.MessageID, mc.ContentType, msg.Content)
 	}
 
-	// 11. Publish to bus
-	c.HandleMessage(mc.SenderID, chatID, content, mediaPaths, metadata, peerKind)
+	// 11. Process media: STT transcription, document extraction, build tags
+	var mediaFiles []bus.MediaFile
+	if len(mediaList) > 0 {
+		var extraContent string
+		for i := range mediaList {
+			m := &mediaList[i]
+
+			switch m.Type {
+			case media.TypeAudio, media.TypeVoice:
+				transcript, sttErr := c.transcribeAudio(ctx, m.FilePath)
+				if sttErr != nil {
+					slog.Warn("feishu: STT transcription failed",
+						"type", m.Type, "error", sttErr,
+					)
+				} else {
+					m.Transcript = transcript
+				}
+
+			case media.TypeDocument:
+				if m.FileName != "" && m.FilePath != "" {
+					docContent, err := media.ExtractDocumentContent(m.FilePath, m.FileName)
+					if err != nil {
+						slog.Warn("feishu: document extraction failed", "file", m.FileName, "error", err)
+					} else if docContent != "" {
+						extraContent += "\n\n" + docContent
+					}
+				}
+			}
+
+			if m.FilePath != "" {
+				mediaFiles = append(mediaFiles, bus.MediaFile{
+					Path:     m.FilePath,
+					MimeType: m.ContentType,
+				})
+			}
+		}
+
+		// Build media tags AFTER processing so transcript fields are populated.
+		mediaTags := media.BuildMediaTags(mediaList)
+		if mediaTags != "" {
+			if content != "" {
+				content = mediaTags + "\n\n" + content
+			} else {
+				content = mediaTags
+			}
+		}
+
+		if extraContent != "" {
+			content += extraContent
+		}
+	}
+
+	// 12. Voice agent routing
+	targetAgentID := c.AgentID()
+	if c.cfg.VoiceAgentID != "" {
+		for _, m := range mediaList {
+			if m.Type == media.TypeAudio || m.Type == media.TypeVoice {
+				targetAgentID = c.cfg.VoiceAgentID
+				slog.Debug("feishu: routing voice inbound to speaking agent",
+					"agent_id", targetAgentID, "media_type", m.Type,
+				)
+				break
+			}
+		}
+	}
+
+	// Derive userID from senderID (strip "|username" suffix if present).
+	userID := mc.SenderID
+
+	// 13. Publish to bus directly (to preserve MediaFile MIME types)
+	c.Bus().PublishInbound(bus.InboundMessage{
+		Channel:      c.Name(),
+		SenderID:     mc.SenderID,
+		ChatID:       chatID,
+		Content:      content,
+		Media:        mediaFiles,
+		PeerKind:     peerKind,
+		UserID:       userID,
+		AgentID:      targetAgentID,
+		HistoryLimit: c.historyLimit,
+		Metadata:     metadata,
+	})
 
 	// Clear pending history after sending to agent.
 	if mc.ChatType == "group" {
