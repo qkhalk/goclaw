@@ -374,6 +374,14 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		slog.Debug("agent iteration", "agent", l.id, "iteration", iteration, "messages", len(messages))
 
+		// Emit activity event: thinking phase
+		emitRun(AgentEvent{
+			Type:    protocol.AgentEventActivity,
+			AgentID: l.id,
+			RunID:   req.RunID,
+			Payload: map[string]interface{}{"phase": "thinking", "iteration": iteration},
+		})
+
 		// Build provider request with policy-filtered tools
 		var toolDefs []providers.ToolDefinition
 		var allowedTools map[string]bool
@@ -493,6 +501,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 			if promptTokens >= threshold {
 				midLoopCompacted = true
+				emitRun(AgentEvent{
+					Type:    protocol.AgentEventActivity,
+					AgentID: l.id,
+					RunID:   req.RunID,
+					Payload: map[string]interface{}{"phase": "compacting", "iteration": iteration},
+				})
 				if compacted := l.compactMessagesInPlace(ctx, messages); compacted != nil {
 					messages = compacted
 				}
@@ -591,6 +605,25 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				Content: fmt.Sprintf("[System] Tool call budget reached (%d/%d). Do NOT call any more tools. Summarize results so far and respond to the user.", totalToolCalls, l.maxToolCalls),
 			})
 			continue // one more LLM call for summarization, then loop exits (no tool calls)
+		}
+
+		// Emit activity event: tool execution phase
+		if len(resp.ToolCalls) > 0 {
+			toolNames := make([]string, len(resp.ToolCalls))
+			for i, tc := range resp.ToolCalls {
+				toolNames[i] = tc.Name
+			}
+			emitRun(AgentEvent{
+				Type:    protocol.AgentEventActivity,
+				AgentID: l.id,
+				RunID:   req.RunID,
+				Payload: map[string]interface{}{
+					"phase":     "tool_exec",
+					"tool":      toolNames[0],
+					"tools":     toolNames,
+					"iteration": iteration,
+				},
+			})
 		}
 
 		// Execute tool calls (parallel when multiple, sequential when single)

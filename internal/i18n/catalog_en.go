@@ -122,6 +122,16 @@ func init() {
 		MsgNoPendingOAuth:    "no pending OAuth flow",
 		MsgFailedToSaveToken: "failed to save token",
 
+		// Intent Classify
+		MsgStatusWorking:       "🔄 I'm working on your request... Please wait.",
+		MsgStatusDetailed:      "🔄 I'm currently working on your request...\n%s (iteration %d)\nRunning for: %s\n\nPlease wait — I'll respond when done.",
+		MsgStatusPhaseThinking: "Phase: Thinking...",
+		MsgStatusPhaseToolExec: "Phase: Running %s",
+		MsgStatusPhaseTools:    "Phase: Executing tools...",
+		MsgStatusPhaseCompact:  "Phase: Compacting context...",
+		MsgStatusPhaseDefault:  "Phase: Processing...",
+		MsgCancelledReply:      "✋ Cancelled. What would you like to do next?",
+
 		// Knowledge Graph
 		MsgEntityIDRequired:       "entity_id is required",
 		MsgEntityFieldsRequired:   "external_id, name, and entity_type are required",

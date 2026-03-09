@@ -30,6 +30,8 @@ type DelegationProgressItem struct {
 	TargetDisplayName string `json:"target_display_name,omitempty"`
 	ElapsedMS         int    `json:"elapsed_ms"`
 	TeamTaskID        string `json:"team_task_id,omitempty"`
+	Activity          string `json:"activity,omitempty"` // "thinking", "tool_exec", "compacting"
+	Tool              string `json:"tool,omitempty"`     // current tool name (when Activity == "tool_exec")
 }
 
 // DelegationProgressPayload is emitted periodically for async delegations.

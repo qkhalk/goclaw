@@ -29,6 +29,8 @@ export interface DelegationProgressItem {
   target_display_name?: string;
   elapsed_ms: number;
   team_task_id?: string;
+  activity?: string; // "thinking", "tool_exec", "compacting"
+  tool?: string; // current tool name (when activity == "tool_exec")
 }
 
 export interface DelegationProgressPayload {

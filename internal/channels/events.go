@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
@@ -45,6 +46,20 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload interface{})
 			rc.mu.Unlock()
 			if err := sc.OnStreamEnd(ctx, rc.ChatID, ""); err != nil {
 				slog.Debug("stream tool-phase end failed", "channel", rc.ChannelName, "error", err)
+			}
+
+			// Show tool status in streaming preview (edit placeholder with tool name).
+			toolName := extractPayloadString(payload, "name")
+			if toolName != "" && rc.ToolStatusEnabled {
+				statusText := formatToolStatus(toolName)
+				outMeta := copyRoutingMeta(rc.Metadata)
+				outMeta["placeholder_update"] = "true"
+				m.bus.PublishOutbound(bus.OutboundMessage{
+					Channel:  rc.ChannelName,
+					ChatID:   rc.ChatID,
+					Content:  statusText,
+					Metadata: outMeta,
+				})
 			}
 		case protocol.ChatEventChunk:
 			// Accumulate chunk deltas into full text.
@@ -149,7 +164,10 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload interface{})
 		case protocol.AgentEventRunStarted:
 			status = "thinking"
 		case protocol.AgentEventToolCall:
-			status = "tool"
+			// Use tool-specific reaction statuses to activate existing variants
+			// (web → ⚡, coding → 👨‍💻) that are already defined in channel reaction maps.
+			toolName := extractPayloadString(payload, "name")
+			status = resolveToolReactionStatus(toolName)
 		case protocol.AgentEventRunCompleted:
 			status = "done"
 		case protocol.AgentEventRunFailed:
@@ -179,4 +197,98 @@ func extractPayloadString(payload interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// copyRoutingMeta copies channel routing metadata (thread_id, local_key, group_id)
+// from RunContext.Metadata into a new map suitable for outbound messages.
+func copyRoutingMeta(src map[string]string) map[string]string {
+	out := make(map[string]string)
+	for _, k := range []string{"message_thread_id", "local_key", "group_id"} {
+		if v := src[k]; v != "" {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// toolStatusMap maps builtin tool names to user-friendly status messages.
+var toolStatusMap = map[string]string{
+	// Filesystem
+	"read_file":   "📝 Reading file...",
+	"write_file":  "📝 Writing file...",
+	"list_files":  "📝 Listing files...",
+	"edit":        "📝 Editing file...",
+	// Runtime
+	"exec": "⚡ Running code...",
+	// Web
+	"web_search": "🔍 Searching the web...",
+	"web_fetch":  "🔍 Fetching web content...",
+	// Memory
+	"memory_search":         "🧠 Searching memory...",
+	"memory_get":            "🧠 Retrieving memory...",
+	"knowledge_graph_search": "🧠 Querying knowledge graph...",
+	// Media
+	"read_image":   "👁 Analyzing image...",
+	"read_document": "📄 Reading document...",
+	"read_audio":   "🎧 Processing audio...",
+	"read_video":   "🎬 Processing video...",
+	"create_image": "🎨 Creating image...",
+	"create_video": "🎬 Creating video...",
+	"create_audio": "🎵 Creating audio...",
+	"tts":          "🔊 Generating speech...",
+	// Browser
+	"browser": "🌐 Browsing...",
+	// Delegation & teams
+	"spawn":        "👥 Delegating task...",
+	"handoff":      "🔄 Handing off...",
+	"team_tasks":   "📋 Managing team tasks...",
+	"team_message": "💬 Sending team message...",
+	// Sessions
+	"sessions_list":    "📋 Listing sessions...",
+	"session_status":   "📋 Checking session...",
+	"sessions_history": "📋 Reading history...",
+	"sessions_send":    "📤 Sending message...",
+	// Other
+	"message":         "📤 Sending message...",
+	"cron":            "⏰ Managing schedule...",
+	"skill_search":    "🔍 Searching skills...",
+	"use_skill":       "🧩 Using skill...",
+	"delegate_search": "🔍 Searching delegates...",
+	"evaluate_loop":   "🔄 Evaluating...",
+	"mcp_tool_search": "🔌 Searching MCP tools...",
+}
+
+// toolPrefixStatus maps tool name prefixes to status messages (fallback for dynamic tools).
+var toolPrefixStatus = []struct {
+	prefix string
+	status string
+}{
+	{"mcp_", "🔌 Using external tool..."},
+}
+
+// formatToolStatus returns a user-friendly status message for a tool name.
+func formatToolStatus(toolName string) string {
+	if s, ok := toolStatusMap[toolName]; ok {
+		return s
+	}
+	for _, p := range toolPrefixStatus {
+		if strings.HasPrefix(toolName, p.prefix) {
+			return p.status
+		}
+	}
+	return "🔧 Running " + toolName + "..."
+}
+
+// resolveToolReactionStatus maps a tool name to a reaction status string.
+// Returns tool-specific statuses ("web", "coding") that activate existing
+// but previously unused reaction variants in channel implementations.
+func resolveToolReactionStatus(toolName string) string {
+	switch {
+	case strings.HasPrefix(toolName, "web") || toolName == "browser":
+		return "web"
+	case toolName == "exec":
+		return "coding"
+	default:
+		return "tool"
+	}
 }

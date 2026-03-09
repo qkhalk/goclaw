@@ -768,6 +768,34 @@ func runGateway() {
 			return
 		}
 		channelMgr.HandleAgentEvent(agentEvent.Type, agentEvent.RunID, agentEvent.Payload)
+
+		// Route activity events to Router (status registry) and DelegateManager (progress tracking).
+		if agentEvent.Type == protocol.AgentEventActivity {
+			payloadMap, _ := agentEvent.Payload.(map[string]interface{})
+			phase, _ := payloadMap["phase"].(string)
+			tool, _ := payloadMap["tool"].(string)
+			iteration := 0
+			if v, ok := payloadMap["iteration"].(int); ok {
+				iteration = v
+			}
+
+			// Update Router activity registry (for status queries via LLM classify)
+			if sessionKey := agentRouter.SessionKeyForRun(agentEvent.RunID); sessionKey != "" {
+				agentRouter.UpdateActivity(sessionKey, agentEvent.RunID, phase, tool, iteration)
+			}
+
+			// Update DelegateManager activity tracking (for enriched progress notifications)
+			if delegateMgr != nil && agentEvent.DelegationID != "" {
+				delegateMgr.HandleActivityEvent(agentEvent.DelegationID, phase, tool)
+			}
+		}
+
+		// Clear activity on terminal events
+		if agentEvent.Type == protocol.AgentEventRunCompleted || agentEvent.Type == protocol.AgentEventRunFailed {
+			if sessionKey := agentRouter.SessionKeyForRun(agentEvent.RunID); sessionKey != "" {
+				agentRouter.ClearActivity(sessionKey)
+			}
+		}
 	})
 
 	// Start inbound message consumer (channel → scheduler → agent → channel)

@@ -147,6 +147,14 @@ export function AgentsDefaultsSection({ data, onSave, saving }: Props) {
           </div>
         </div>
 
+        <div className="flex items-center justify-between">
+          <InfoLabel tip={t("agents.intentClassifyTip")}>{t("agents.intentClassify")}</InfoLabel>
+          <Switch
+            checked={defaults.intent_classify !== false}
+            onCheckedChange={(v) => updateDefaults({ intent_classify: v })}
+          />
+        </div>
+
         {/* Collapsible sub-sections */}
         <SubSection
           title={t("agents.subagents.title")}

@@ -47,8 +47,30 @@ type DelegationTask struct {
 	TeamID     uuid.UUID `json:"-"` // from link.TeamID (for delegation history)
 	TeamTaskID uuid.UUID `json:"-"`
 
+	// Activity tracking (updated via UpdateActivity on agent.activity events)
+	LastActivity string       `json:"-"` // "thinking", "tool_exec", "compacting"
+	LastTool     string       `json:"-"` // current tool name (when LastActivity == "tool_exec")
+	activityMu   sync.RWMutex `json:"-"`
+
 	cancelFunc      context.CancelFunc `json:"-"`
 	progressEnabled bool               `json:"-"` // resolved from team settings or global default
+}
+
+// UpdateActivity sets the current phase and tool for this delegation.
+func (t *DelegationTask) UpdateActivity(phase, tool string) {
+	t.activityMu.Lock()
+	t.LastActivity = phase
+	t.LastTool = tool
+	t.activityMu.Unlock()
+}
+
+// GetActivity returns the current phase and tool for this delegation.
+func (t *DelegationTask) GetActivity() (phase, tool string) {
+	t.activityMu.RLock()
+	phase = t.LastActivity
+	tool = t.LastTool
+	t.activityMu.RUnlock()
+	return
 }
 
 // originKey returns a composite key scoping this delegation to its origin conversation.
@@ -205,5 +227,20 @@ func (dm *DelegateManager) SetMediaLoader(ml MediaPathLoader) {
 // SetProgressEnabled toggles "Your team is working on it..." chat notifications.
 func (dm *DelegateManager) SetProgressEnabled(enabled bool) {
 	dm.progressEnabled = enabled
+}
+
+// HandleActivityEvent updates the activity tracking for a delegation.
+// Called from the bus event subscriber when an agent.activity event arrives.
+// delegationID is extracted from the event's DelegationID field.
+func (dm *DelegateManager) HandleActivityEvent(delegationID, phase, tool string) {
+	if delegationID == "" {
+		return
+	}
+	// O(1) lookup: active map is keyed by delegationID.
+	val, ok := dm.active.Load(delegationID)
+	if !ok {
+		return
+	}
+	val.(*DelegationTask).UpdateActivity(phase, tool)
 }
 

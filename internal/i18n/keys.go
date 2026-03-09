@@ -123,6 +123,16 @@ const (
 	MsgNoPendingOAuth    = "error.no_pending_oauth"    // "no pending OAuth flow"
 	MsgFailedToSaveToken = "error.failed_to_save_token" // "failed to save token"
 
+	// --- Intent Classify (channel-facing status replies) ---
+	MsgStatusWorking       = "status.working"         // "🔄 I'm working on your request... Please wait."
+	MsgStatusDetailed      = "status.detailed"        // "🔄 I'm currently working on your request...\n%s (iteration %d)\nRunning for: %s\n\nPlease wait — I'll respond when done."
+	MsgStatusPhaseThinking = "status.phase_thinking"  // "Phase: Thinking..."
+	MsgStatusPhaseToolExec = "status.phase_tool_exec" // "Phase: Running %s"
+	MsgStatusPhaseTools    = "status.phase_tools"     // "Phase: Executing tools..."
+	MsgStatusPhaseCompact  = "status.phase_compact"   // "Phase: Compacting context..."
+	MsgStatusPhaseDefault  = "status.phase_default"   // "Phase: Processing..."
+	MsgCancelledReply      = "status.cancelled"       // "✋ Cancelled. What would you like to do next?"
+
 	// --- Knowledge Graph ---
 	MsgEntityIDRequired           = "error.entity_id_required"            // "entity_id is required"
 	MsgEntityFieldsRequired       = "error.entity_fields_required"        // "external_id, name, and entity_type are required"

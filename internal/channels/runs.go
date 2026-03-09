@@ -4,7 +4,7 @@ package channels
 
 // RegisterRun associates a run ID with a channel context so agent events
 // (chunks, tool calls, completion) can be forwarded to the originating channel.
-func (m *Manager) RegisterRun(runID, channelName, chatID, messageID string, metadata map[string]string, streaming, blockReply bool) {
+func (m *Manager) RegisterRun(runID, channelName, chatID, messageID string, metadata map[string]string, streaming, blockReply, toolStatus bool) {
 	m.runs.Store(runID, &RunContext{
 		ChannelName:       channelName,
 		ChatID:            chatID,
@@ -12,6 +12,7 @@ func (m *Manager) RegisterRun(runID, channelName, chatID, messageID string, meta
 		Metadata:          metadata,
 		Streaming:         streaming,
 		BlockReplyEnabled: blockReply,
+		ToolStatusEnabled: toolStatus,
 	})
 }
 

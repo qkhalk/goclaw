@@ -15,6 +15,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -185,8 +186,9 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			chatIDForRun = lk
 		}
 		blockReply := channelMgr != nil && channelMgr.ResolveBlockReply(msg.Channel, cfg.Gateway.BlockReply)
+		toolStatus := cfg.Gateway.ToolStatus == nil || *cfg.Gateway.ToolStatus // default true
 		if channelMgr != nil {
-			channelMgr.RegisterRun(runID, msg.Channel, chatIDForRun, messageID, outMeta, enableStream, blockReply)
+			channelMgr.RegisterRun(runID, msg.Channel, chatIDForRun, messageID, outMeta, enableStream, blockReply, toolStatus)
 		}
 
 		// Group-aware system prompt: help the LLM adapt tone and behavior for group chats.
@@ -220,6 +222,47 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			fwdMedia = msg.Media
 		} else {
 			reqMedia = msg.Media
+		}
+
+		// Intent classify fast-path: when agent is busy on DM, classify user intent
+		// to detect status queries, cancel requests, etc. without queueing.
+		// Only for DM (maxConcurrent=1) where messages queue behind the active run.
+		intentClassifyEnabled := cfg.Agents.Defaults.IntentClassify == nil || *cfg.Agents.Defaults.IntentClassify
+		if intentClassifyEnabled && maxConcurrent == 1 && agents.IsSessionBusy(sessionKey) {
+			if loop, ok := agentLoop.(*agent.Loop); ok && loop.Provider() != nil {
+				locale := msg.Metadata["locale"]
+				if locale == "" {
+					locale = "en"
+				}
+				intent := agent.ClassifyIntent(ctx, loop.Provider(), loop.Model(), msg.Content)
+				switch intent {
+				case agent.IntentStatusQuery:
+					status := agents.GetActivity(sessionKey)
+					reply := agent.FormatStatusReply(status, locale)
+					msgBus.PublishOutbound(bus.OutboundMessage{
+						Channel:  msg.Channel,
+						ChatID:   msg.ChatID,
+						Content:  reply,
+						Metadata: outMeta,
+					})
+					return
+				case agent.IntentCancel:
+					aborted := agents.AbortRunsForSession(sessionKey)
+					if len(aborted) > 0 {
+						slog.Info("inbound: cancelled runs via intent classify",
+							"session", sessionKey, "aborted", aborted)
+						msgBus.PublishOutbound(bus.OutboundMessage{
+							Channel:  msg.Channel,
+							ChatID:   msg.ChatID,
+							Content:  i18n.T(locale, i18n.MsgCancelledReply),
+							Metadata: outMeta,
+						})
+					}
+					return
+				default:
+					// steer / new_task → queue as normal
+				}
+			}
 		}
 
 		// Schedule through main lane (per-session concurrency controlled by maxConcurrent)

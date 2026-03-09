@@ -20,6 +20,7 @@ interface GatewayData {
   injection_action?: string;
   inbound_debounce_ms?: number;
   block_reply?: boolean;
+  tool_status?: boolean;
 }
 
 const DEFAULT: GatewayData = {};
@@ -167,6 +168,12 @@ export function GatewaySection({ data, onSave, saving }: Props) {
             <InfoLabel tip={t("gateway.blockReplyTip")}>{t("gateway.blockReply")}</InfoLabel>
             <div className="flex items-center h-9">
               <Switch checked={draft.block_reply ?? false} onCheckedChange={(v) => update({ block_reply: v })} />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <InfoLabel tip={t("gateway.toolStatusTip")}>{t("gateway.toolStatus")}</InfoLabel>
+            <div className="flex items-center h-9">
+              <Switch checked={draft.tool_status !== false} onCheckedChange={(v) => update({ tool_status: v })} />
             </div>
           </div>
         </div>

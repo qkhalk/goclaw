@@ -122,6 +122,16 @@ func init() {
 		MsgNoPendingOAuth:    "没有待处理的 OAuth 流程",
 		MsgFailedToSaveToken: "保存令牌失败",
 
+		// Intent Classify
+		MsgStatusWorking:       "🔄 我正在处理您的请求...请稍候。",
+		MsgStatusDetailed:      "🔄 我正在处理您的请求...\n%s（第 %d 次迭代）\n已运行：%s\n\n请稍候——完成后我会回复您。",
+		MsgStatusPhaseThinking: "阶段：思考中...",
+		MsgStatusPhaseToolExec: "阶段：正在运行 %s",
+		MsgStatusPhaseTools:    "阶段：执行工具中...",
+		MsgStatusPhaseCompact:  "阶段：压缩上下文中...",
+		MsgStatusPhaseDefault:  "阶段：处理中...",
+		MsgCancelledReply:      "✋ 已取消。您接下来想做什么？",
+
 		// Knowledge Graph
 		MsgEntityIDRequired:       "entity_id 是必填项",
 		MsgEntityFieldsRequired:   "external_id、name 和 entity_type 是必填项",

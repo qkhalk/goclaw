@@ -76,6 +76,7 @@ const (
 	AgentEventToolCall     = "tool.call"
 	AgentEventToolResult   = "tool.result"
 	AgentEventBlockReply   = "block.reply"
+	AgentEventActivity     = "activity" // agent phase transitions: thinking, tool_exec, compacting
 )
 
 // Chat event subtypes (in payload.type)

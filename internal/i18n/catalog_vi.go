@@ -122,6 +122,16 @@ func init() {
 		MsgNoPendingOAuth:    "không có luồng OAuth đang chờ",
 		MsgFailedToSaveToken: "không thể lưu token",
 
+		// Intent Classify
+		MsgStatusWorking:       "🔄 Mình đang xử lý yêu cầu của bạn... Vui lòng chờ.",
+		MsgStatusDetailed:      "🔄 Mình đang xử lý yêu cầu của bạn...\n%s (lần lặp %d)\nĐã chạy: %s\n\nVui lòng chờ — mình sẽ phản hồi khi xong.",
+		MsgStatusPhaseThinking: "Giai đoạn: Đang suy nghĩ...",
+		MsgStatusPhaseToolExec: "Giai đoạn: Đang chạy %s",
+		MsgStatusPhaseTools:    "Giai đoạn: Đang thực thi công cụ...",
+		MsgStatusPhaseCompact:  "Giai đoạn: Đang nén ngữ cảnh...",
+		MsgStatusPhaseDefault:  "Giai đoạn: Đang xử lý...",
+		MsgCancelledReply:      "✋ Đã hủy. Bạn muốn làm gì tiếp?",
+
 		// Knowledge Graph
 		MsgEntityIDRequired:       "entity_id là bắt buộc",
 		MsgEntityFieldsRequired:   "external_id, name và entity_type là bắt buộc",

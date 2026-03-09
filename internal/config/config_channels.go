@@ -254,6 +254,7 @@ type GatewayConfig struct {
 	InboundDebounceMs int          `json:"inbound_debounce_ms,omitempty"` // merge rapid messages from same sender (default 1000ms, -1 = disabled)
 	Quota             *QuotaConfig `json:"quota,omitempty"`               // per-user/group request quotas
 	BlockReply        *bool        `json:"block_reply,omitempty"`         // deliver intermediate text during tool iterations (default false)
+	ToolStatus        *bool        `json:"tool_status,omitempty"`         // show tool name in streaming preview during tool execution (default true)
 }
 
 // ToolsConfig controls tool availability, policy, and web search.

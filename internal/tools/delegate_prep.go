@@ -272,10 +272,17 @@ func (dm *DelegateManager) sendProgressNotification(task *DelegationTask) {
 		if t.TargetDisplayName != "" {
 			label = fmt.Sprintf("%s (%s)", t.TargetDisplayName, t.TargetAgentKey)
 		}
-		lines = append(lines, fmt.Sprintf("- %s: %s", label, elapsed))
+		// Include current activity if available
+		phase, tool := t.GetActivity()
+		activityStr := formatDelegateActivity(phase, tool)
+		if activityStr != "" {
+			lines = append(lines, fmt.Sprintf("- %s %s — %s", activityStr, label, elapsed))
+		} else {
+			lines = append(lines, fmt.Sprintf("- %s: %s", label, elapsed))
+		}
 	}
 
-	content := fmt.Sprintf("⏳ Your team is working on it...\n%s", strings.Join(lines, "\n"))
+	content := fmt.Sprintf("🏗 Your team is working on it...\n%s", strings.Join(lines, "\n"))
 
 	dm.msgBus.PublishOutbound(bus.OutboundMessage{
 		Channel: task.OriginChannel,
@@ -290,11 +297,14 @@ func (dm *DelegateManager) sendProgressNotification(task *DelegationTask) {
 	// Emit WS progress event alongside the outbound channel message.
 	var progressItems []protocol.DelegationProgressItem
 	for _, t := range active {
+		phase, tool := t.GetActivity()
 		item := protocol.DelegationProgressItem{
 			DelegationID:      t.ID,
 			TargetAgentKey:    t.TargetAgentKey,
 			TargetDisplayName: t.TargetDisplayName,
 			ElapsedMS:         int(time.Since(t.CreatedAt).Milliseconds()),
+			Activity:          phase,
+			Tool:              tool,
 		}
 		if t.TeamTaskID != uuid.Nil {
 			item.TeamTaskID = t.TeamTaskID.String()
@@ -351,6 +361,29 @@ func (dm *DelegateManager) buildRunRequest(task *DelegationTask, message string)
 	}
 
 	return req
+}
+
+// formatDelegateActivity returns an emoji+label for the delegate's current phase.
+func formatDelegateActivity(phase, tool string) string {
+	switch phase {
+	case "thinking":
+		return "💭"
+	case "tool_exec":
+		if strings.HasPrefix(tool, "web") {
+			return "🔍"
+		}
+		if tool == "exec" {
+			return "⚡"
+		}
+		if tool == "spawn" || tool == "delegate" {
+			return "👥"
+		}
+		return "🔧"
+	case "compacting":
+		return "📦"
+	default:
+		return ""
+	}
 }
 
 // resolveParentMedia loads image media files from the parent session's recent MediaRefs.

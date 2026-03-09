@@ -24,6 +24,16 @@ func makeSchedulerRunFunc(agents *agent.Router, cfg *config.Config) scheduler.Ru
 		if err != nil {
 			return nil, fmt.Errorf("agent %s not found: %w", agentID, err)
 		}
-		return loop.Run(ctx, req)
+
+		// Register run with the agent router so IsSessionBusy() and AbortRunsForSession()
+		// work correctly for inbound channel runs (Telegram DM intent classifier, /stop, etc.).
+		// The ctx from the scheduler is already cancellable; we create a child so the router's
+		// cancel func is independent from the scheduler's cancel func. Calling cancel twice is safe.
+		runCtx, cancel := context.WithCancel(ctx)
+		agents.RegisterRun(req.RunID, req.SessionKey, agentID, cancel)
+		defer agents.UnregisterRun(req.RunID)
+		defer cancel()
+
+		return loop.Run(runCtx, req)
 	}
 }
