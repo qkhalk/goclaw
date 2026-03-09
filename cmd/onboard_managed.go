@@ -31,6 +31,8 @@ var defaultPlaceholderProviders = []store.LLMProviderData{
 	{Name: "synthetic", DisplayName: "Synthetic", ProviderType: store.ProviderOpenAICompat, APIBase: "https://api.synthetic.new/openai/v1", Enabled: false},
 	{Name: "alicloud-api", DisplayName: "AliCloud API", ProviderType: store.ProviderDashScope, APIBase: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", Enabled: false},
 	{Name: "alicloud-sub", DisplayName: "AliCloud Sub", ProviderType: store.ProviderBailian, APIBase: "https://coding-intl.dashscope.aliyuncs.com/v1", Enabled: false},
+	{Name: "zai", DisplayName: "Z.ai API", ProviderType: store.ProviderZai, APIBase: "https://api.z.ai/api/paas/v4", Enabled: false},
+	{Name: "zai-coding", DisplayName: "Z.ai Coding Plan", ProviderType: store.ProviderZaiCoding, APIBase: "https://api.z.ai/api/coding/paas/v4", Enabled: false},
 }
 
 // seedOnboardPlaceholders opens a PG store and seeds disabled placeholder providers

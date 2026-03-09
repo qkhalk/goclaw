@@ -26,6 +26,8 @@ const (
 	ProviderClaudeCLI       = "claude_cli"
 	ProviderSuno            = "suno"
 	ProviderYesScale        = "yescale"
+	ProviderZai             = "zai"
+	ProviderZaiCoding       = "zai_coding"
 )
 
 // ValidProviderTypes lists all accepted provider_type values.
@@ -47,6 +49,8 @@ var ValidProviderTypes = map[string]bool{
 	ProviderClaudeCLI:       true,
 	ProviderSuno:            true,
 	ProviderYesScale:        true,
+	ProviderZai:             true,
+	ProviderZaiCoding:       true,
 }
 
 // LLMProviderData represents an LLM provider configuration.

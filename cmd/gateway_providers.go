@@ -98,6 +98,24 @@ func registerProviders(registry *providers.Registry, cfg *config.Config) {
 		slog.Info("registered provider", "name", "bailian")
 	}
 
+	if cfg.Providers.Zai.APIKey != "" {
+		base := cfg.Providers.Zai.APIBase
+		if base == "" {
+			base = "https://api.z.ai/api/paas/v4"
+		}
+		registry.Register(providers.NewOpenAIProvider("zai", cfg.Providers.Zai.APIKey, base, "glm-5"))
+		slog.Info("registered provider", "name", "zai")
+	}
+
+	if cfg.Providers.ZaiCoding.APIKey != "" {
+		base := cfg.Providers.ZaiCoding.APIBase
+		if base == "" {
+			base = "https://api.z.ai/api/coding/paas/v4"
+		}
+		registry.Register(providers.NewOpenAIProvider("zai-coding", cfg.Providers.ZaiCoding.APIKey, base, "glm-5"))
+		slog.Info("registered provider", "name", "zai-coding")
+	}
+
 	// Claude CLI provider (subscription-based, no API key needed)
 	if cfg.Providers.ClaudeCLI.CLIPath != "" {
 		cliPath := cfg.Providers.ClaudeCLI.CLIPath
@@ -243,6 +261,18 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 				base = "https://coding-intl.dashscope.aliyuncs.com/v1"
 			}
 			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
+		case store.ProviderZai:
+			base := p.APIBase
+			if base == "" {
+				base = "https://api.z.ai/api/paas/v4"
+			}
+			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "glm-5"))
+		case store.ProviderZaiCoding:
+			base := p.APIBase
+			if base == "" {
+				base = "https://api.z.ai/api/coding/paas/v4"
+			}
+			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "glm-5"))
 		case store.ProviderSuno:
 			// Suno is a media-only provider (music gen). Register as OpenAI-compat
 			// so credentialProvider interface works for API key/base extraction.

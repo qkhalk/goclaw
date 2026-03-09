@@ -21,5 +21,7 @@ export const PROVIDER_TYPES: ProviderTypeInfo[] = [
   { value: "dashscope", label: "DashScope (Qwen)", apiBase: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", placeholder: "" },
   { value: "bailian", label: "Bailian Coding", apiBase: "https://coding-intl.dashscope.aliyuncs.com/v1", placeholder: "" },
   { value: "yescale", label: "YesScale", apiBase: "https://api.yescale.one/v1", placeholder: "" },
+  { value: "zai", label: "Z.ai API", apiBase: "https://api.z.ai/api/paas/v4", placeholder: "" },
+  { value: "zai_coding", label: "Z.ai Coding Plan", apiBase: "https://api.z.ai/api/coding/paas/v4", placeholder: "" },
   { value: "claude_cli", label: "Claude CLI (Local)", apiBase: "", placeholder: "" },
 ];

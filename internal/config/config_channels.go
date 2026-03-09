@@ -182,6 +182,8 @@ type ProvidersConfig struct {
 	Perplexity ProviderConfig   `json:"perplexity"`
 	DashScope  ProviderConfig   `json:"dashscope"`
 	Bailian    ProviderConfig   `json:"bailian"`
+	Zai        ProviderConfig   `json:"zai"`
+	ZaiCoding  ProviderConfig   `json:"zai_coding"`
 	ClaudeCLI  ClaudeCLIConfig  `json:"claude_cli"`
 }
 
@@ -214,6 +216,8 @@ func (c *Config) HasAnyProvider() bool {
 		p.Perplexity.APIKey != "" ||
 		p.DashScope.APIKey != "" ||
 		p.Bailian.APIKey != "" ||
+		p.Zai.APIKey != "" ||
+		p.ZaiCoding.APIKey != "" ||
 		p.ClaudeCLI.CLIPath != ""
 }
 

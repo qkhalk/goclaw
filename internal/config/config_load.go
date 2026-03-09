@@ -110,6 +110,8 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GOCLAW_PERPLEXITY_API_KEY", &c.Providers.Perplexity.APIKey)
 	envStr("GOCLAW_DASHSCOPE_API_KEY", &c.Providers.DashScope.APIKey)
 	envStr("GOCLAW_BAILIAN_API_KEY", &c.Providers.Bailian.APIKey)
+	envStr("GOCLAW_ZAI_API_KEY", &c.Providers.Zai.APIKey)
+	envStr("GOCLAW_ZAI_CODING_API_KEY", &c.Providers.ZaiCoding.APIKey)
 	envStr("GOCLAW_GATEWAY_TOKEN", &c.Gateway.Token)
 	envStr("GOCLAW_TELEGRAM_TOKEN", &c.Channels.Telegram.Token)
 	envStr("GOCLAW_DISCORD_TOKEN", &c.Channels.Discord.Token)
