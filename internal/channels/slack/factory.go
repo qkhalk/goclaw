@@ -81,10 +81,67 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 		slackCfg.GroupPolicy = "pairing"
 	}
 
-	ch, err := New(slackCfg, msgBus, pairingSvc)
+	ch, err := New(slackCfg, msgBus, pairingSvc, nil)
 	if err != nil {
 		return nil, err
 	}
 	ch.SetName(name)
 	return ch, nil
+}
+
+// FactoryWithPendingStore returns a ChannelFactory with persistent history support.
+func FactoryWithPendingStore(pendingStore store.PendingMessageStore) channels.ChannelFactory {
+	return func(name string, creds json.RawMessage, cfg json.RawMessage,
+		msgBus *bus.MessageBus, pairingSvc store.PairingStore) (channels.Channel, error) {
+
+		var c slackCreds
+		if len(creds) > 0 {
+			if err := json.Unmarshal(creds, &c); err != nil {
+				return nil, fmt.Errorf("decode slack credentials: %w", err)
+			}
+		}
+		if c.BotToken == "" {
+			return nil, fmt.Errorf("slack bot_token is required")
+		}
+		if c.AppToken == "" {
+			return nil, fmt.Errorf("slack app_token is required for Socket Mode")
+		}
+
+		var ic slackInstanceConfig
+		if len(cfg) > 0 {
+			if err := json.Unmarshal(cfg, &ic); err != nil {
+				return nil, fmt.Errorf("decode slack config: %w", err)
+			}
+		}
+
+		slackCfg := config.SlackConfig{
+			Enabled:        true,
+			BotToken:       c.BotToken,
+			AppToken:       c.AppToken,
+			UserToken:      c.UserToken,
+			AllowFrom:      ic.AllowFrom,
+			DMPolicy:       ic.DMPolicy,
+			GroupPolicy:    ic.GroupPolicy,
+			RequireMention: ic.RequireMention,
+			HistoryLimit:   ic.HistoryLimit,
+			DMStream:       ic.DMStream,
+			GroupStream:    ic.GroupStream,
+			NativeStream:   ic.NativeStream,
+			ReactionLevel:  ic.ReactionLevel,
+			BlockReply:     ic.BlockReply,
+			DebounceDelay:  ic.DebounceDelay,
+			ThreadTTL:      ic.ThreadTTL,
+		}
+
+		if slackCfg.GroupPolicy == "" {
+			slackCfg.GroupPolicy = "pairing"
+		}
+
+		ch, err := New(slackCfg, msgBus, pairingSvc, pendingStore)
+		if err != nil {
+			return nil, err
+		}
+		ch.SetName(name)
+		return ch, nil
+	}
 }

@@ -41,7 +41,7 @@ func New(cfg config.WhatsAppConfig, msgBus *bus.MessageBus, pairingSvc store.Pai
 		return nil, fmt.Errorf("whatsapp bridge_url is required")
 	}
 
-	base := channels.NewBaseChannel("whatsapp", msgBus, cfg.AllowFrom)
+	base := channels.NewBaseChannel(channels.TypeWhatsApp, msgBus, cfg.AllowFrom)
 	base.ValidatePolicy(cfg.DMPolicy, cfg.GroupPolicy)
 
 	return &Channel{

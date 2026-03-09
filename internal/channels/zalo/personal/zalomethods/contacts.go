@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo/personal/protocol"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -45,7 +46,7 @@ func (m *ContactsMethods) handleContacts(ctx context.Context, client *gateway.Cl
 	}
 
 	inst, err := m.instanceStore.Get(ctx, instID)
-	if err != nil || inst.ChannelType != "zalo_personal" {
+	if err != nil || inst.ChannelType != channels.TypeZaloPersonal {
 		client.SendResponse(goclawprotocol.NewErrorResponse(req.ID, goclawprotocol.ErrNotFound, "zalo_personal instance not found"))
 		return
 	}

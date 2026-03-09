@@ -9,8 +9,8 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
-// wireHTTP creates HTTP handlers (agents + skills + traces + MCP + custom tools + channel instances + providers + delegations + builtin tools).
-func wireHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus, toolsReg *tools.Registry, providerReg *providers.Registry, isOwner func(string) bool, gatewayAddr string, mcpToolLister httpapi.MCPToolLister) (*httpapi.AgentsHandler, *httpapi.SkillsHandler, *httpapi.TracesHandler, *httpapi.MCPHandler, *httpapi.CustomToolsHandler, *httpapi.ChannelInstancesHandler, *httpapi.ProvidersHandler, *httpapi.DelegationsHandler, *httpapi.BuiltinToolsHandler) {
+// wireHTTP creates HTTP handlers (agents + skills + traces + MCP + custom tools + channel instances + providers + delegations + builtin tools + pending messages).
+func wireHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus, toolsReg *tools.Registry, providerReg *providers.Registry, isOwner func(string) bool, gatewayAddr string, mcpToolLister httpapi.MCPToolLister) (*httpapi.AgentsHandler, *httpapi.SkillsHandler, *httpapi.TracesHandler, *httpapi.MCPHandler, *httpapi.CustomToolsHandler, *httpapi.ChannelInstancesHandler, *httpapi.ProvidersHandler, *httpapi.DelegationsHandler, *httpapi.BuiltinToolsHandler, *httpapi.PendingMessagesHandler) {
 	var agentsH *httpapi.AgentsHandler
 	var skillsH *httpapi.SkillsHandler
 	var tracesH *httpapi.TracesHandler
@@ -20,6 +20,7 @@ func wireHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus, toolsR
 	var providersH *httpapi.ProvidersHandler
 	var delegationsH *httpapi.DelegationsHandler
 	var builtinToolsH *httpapi.BuiltinToolsHandler
+	var pendingMessagesH *httpapi.PendingMessagesHandler
 
 	if stores != nil && stores.Agents != nil {
 		var summoner *httpapi.AgentSummoner
@@ -66,5 +67,9 @@ func wireHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus, toolsR
 		builtinToolsH = httpapi.NewBuiltinToolsHandler(stores.BuiltinTools, token, msgBus)
 	}
 
-	return agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH
+	if stores != nil && stores.PendingMessages != nil {
+		pendingMessagesH = httpapi.NewPendingMessagesHandler(stores.PendingMessages, token)
+	}
+
+	return agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH, pendingMessagesH
 }

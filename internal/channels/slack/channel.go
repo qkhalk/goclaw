@@ -72,7 +72,7 @@ var _ channels.ReactionChannel = (*Channel)(nil)
 var _ channels.BlockReplyChannel = (*Channel)(nil)
 
 // New creates a new Slack channel from config.
-func New(cfg config.SlackConfig, msgBus *bus.MessageBus, pairingSvc store.PairingStore) (*Channel, error) {
+func New(cfg config.SlackConfig, msgBus *bus.MessageBus, pairingSvc store.PairingStore, pendingStore store.PendingMessageStore) (*Channel, error) {
 	if cfg.BotToken == "" {
 		return nil, fmt.Errorf("slack bot_token is required")
 	}
@@ -91,7 +91,7 @@ func New(cfg config.SlackConfig, msgBus *bus.MessageBus, pairingSvc store.Pairin
 		return nil, fmt.Errorf("slack user_token must start with xoxp-")
 	}
 
-	base := channels.NewBaseChannel("slack", msgBus, cfg.AllowFrom)
+	base := channels.NewBaseChannel(channels.TypeSlack, msgBus, cfg.AllowFrom)
 	base.ValidatePolicy(cfg.DMPolicy, cfg.GroupPolicy)
 
 	requireMention := true
@@ -123,7 +123,7 @@ func New(cfg config.SlackConfig, msgBus *bus.MessageBus, pairingSvc store.Pairin
 		config:         cfg,
 		requireMention: requireMention,
 		pairingService: pairingSvc,
-		groupHistory:   channels.NewPendingHistory(),
+		groupHistory:   channels.MakeHistory(channels.TypeSlack, pendingStore),
 		historyLimit:   historyLimit,
 		debounceDelay:  debounceDelay,
 		threadTTL:      threadTTL,
@@ -134,6 +134,7 @@ func New(cfg config.SlackConfig, msgBus *bus.MessageBus, pairingSvc store.Pairin
 
 // Start opens the Socket Mode connection and begins receiving events.
 func (c *Channel) Start(ctx context.Context) error {
+	c.groupHistory.StartFlusher()
 	slog.Info("starting slack bot (socket mode)")
 
 	c.api = slackapi.New(
@@ -281,6 +282,7 @@ func (c *Channel) handleEvent(evt socketmode.Event) {
 
 // Stop gracefully shuts down the Slack channel.
 func (c *Channel) Stop(_ context.Context) error {
+	c.groupHistory.StopFlusher()
 	slog.Info("stopping slack bot")
 	c.SetRunning(false)
 

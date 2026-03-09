@@ -48,6 +48,17 @@ const (
 	GroupPolicyDisabled  GroupPolicy = "disabled"   // No group messages
 )
 
+// Channel type constants used across channel packages and gateway wiring.
+const (
+	TypeTelegram     = "telegram"
+	TypeDiscord      = "discord"
+	TypeSlack        = "slack"
+	TypeFeishu       = "feishu"
+	TypeWhatsApp     = "whatsapp"
+	TypeZaloOA       = "zalo_oa"
+	TypeZaloPersonal = "zalo_personal"
+)
+
 // Channel defines the interface that all channel implementations must satisfy.
 type Channel interface {
 	// Name returns the channel instance name (e.g., "telegram", "discord", "slack").

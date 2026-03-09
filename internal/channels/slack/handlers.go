@@ -166,6 +166,7 @@ func (c *Channel) handleMessage(ev *slackevents.MessageEvent) {
 		if !mentioned {
 			c.groupHistory.Record(localKey, channels.HistoryEntry{
 				Sender:    displayName,
+				SenderID:  senderID,
 				Body:      content,
 				Timestamp: time.Now(),
 				MessageID: ev.TimeStamp,

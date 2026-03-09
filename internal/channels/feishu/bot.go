@@ -79,6 +79,7 @@ func (c *Channel) handleMessageEvent(ctx context.Context, event *MessageEvent) {
 			}
 			c.groupHistory.Record(historyKey, channels.HistoryEntry{
 				Sender:    senderName,
+				SenderID:  mc.SenderID,
 				Body:      mc.Content,
 				Timestamp: time.Now(),
 				MessageID: messageID,
@@ -130,7 +131,7 @@ func (c *Channel) handleMessageEvent(ctx context.Context, event *MessageEvent) {
 		"chat_type":     mc.ChatType,
 		"sender_name":   senderName,
 		"mentioned_bot": fmt.Sprintf("%t", mc.MentionedBot),
-		"platform":      "feishu",
+		"platform":      channels.TypeFeishu,
 	}
 
 	if sender != nil {

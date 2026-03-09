@@ -39,8 +39,8 @@ type Channel struct {
 }
 
 // New creates a new Zalo Personal channel from config.
-func New(cfg config.ZaloPersonalConfig, msgBus *bus.MessageBus, pairingSvc store.PairingStore) (*Channel, error) {
-	base := channels.NewBaseChannel("zalo_personal", msgBus, cfg.AllowFrom)
+func New(cfg config.ZaloPersonalConfig, msgBus *bus.MessageBus, pairingSvc store.PairingStore, pendingStore store.PendingMessageStore) (*Channel, error) {
+	base := channels.NewBaseChannel(channels.TypeZaloPersonal, msgBus, cfg.AllowFrom)
 
 	if cfg.DMPolicy == "" {
 		cfg.DMPolicy = "allowlist"
@@ -64,7 +64,7 @@ func New(cfg config.ZaloPersonalConfig, msgBus *bus.MessageBus, pairingSvc store
 		BaseChannel:    base,
 		config:         cfg,
 		pairingService: pairingSvc,
-		groupHistory:   channels.NewPendingHistory(),
+		groupHistory:   channels.MakeHistory(channels.TypeZaloPersonal, pendingStore),
 		historyLimit:   historyLimit,
 		requireMention: requireMention,
 		stopCh:         make(chan struct{}),
@@ -90,6 +90,7 @@ func (c *Channel) getListener() *protocol.Listener {
 
 // Start authenticates and begins listening for Zalo messages.
 func (c *Channel) Start(ctx context.Context) error {
+	c.groupHistory.StartFlusher()
 	slog.Warn("security.unofficial_api",
 		"channel", "zalo_personal",
 		"msg", "Zalo Personal is unofficial and reverse-engineered. Account may be locked/banned. Use at own risk.",
@@ -124,6 +125,7 @@ func (c *Channel) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the Zalo Personal channel.
 func (c *Channel) Stop(_ context.Context) error {
+	c.groupHistory.StopFlusher()
 	slog.Info("stopping zalo_personal channel")
 	c.stopOnce.Do(func() { close(c.stopCh) })
 	c.typingCtrls.Range(func(key, val any) bool {

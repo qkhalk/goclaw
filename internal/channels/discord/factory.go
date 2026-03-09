@@ -74,11 +74,64 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 		dcCfg.GroupPolicy = "pairing"
 	}
 
-	ch, err := New(dcCfg, msgBus, pairingSvc)
+	ch, err := New(dcCfg, msgBus, pairingSvc, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	ch.SetName(name)
 	return ch, nil
+}
+
+// FactoryWithPendingStore returns a ChannelFactory with persistent history support.
+func FactoryWithPendingStore(pendingStore store.PendingMessageStore) channels.ChannelFactory {
+	return func(name string, creds json.RawMessage, cfg json.RawMessage,
+		msgBus *bus.MessageBus, pairingSvc store.PairingStore) (channels.Channel, error) {
+
+		var c discordCreds
+		if len(creds) > 0 {
+			if err := json.Unmarshal(creds, &c); err != nil {
+				return nil, fmt.Errorf("decode discord credentials: %w", err)
+			}
+		}
+		if c.Token == "" {
+			return nil, fmt.Errorf("discord token is required")
+		}
+
+		var ic discordInstanceConfig
+		if len(cfg) > 0 {
+			if err := json.Unmarshal(cfg, &ic); err != nil {
+				return nil, fmt.Errorf("decode discord config: %w", err)
+			}
+		}
+
+		dcCfg := config.DiscordConfig{
+			Enabled:           true,
+			Token:             c.Token,
+			AllowFrom:         ic.AllowFrom,
+			DMPolicy:          ic.DMPolicy,
+			GroupPolicy:       ic.GroupPolicy,
+			RequireMention:    ic.RequireMention,
+			HistoryLimit:      ic.HistoryLimit,
+			BlockReply:        ic.BlockReply,
+			MediaMaxBytes:     ic.MediaMaxBytes,
+			STTProxyURL:       ic.STTProxyURL,
+			STTAPIKey:         ic.STTAPIKey,
+			STTTenantID:       ic.STTTenantID,
+			STTTimeoutSeconds: ic.STTTimeoutSeconds,
+			VoiceAgentID:      ic.VoiceAgentID,
+		}
+
+		if dcCfg.GroupPolicy == "" {
+			dcCfg.GroupPolicy = "pairing"
+		}
+
+		ch, err := New(dcCfg, msgBus, pairingSvc, pendingStore)
+		if err != nil {
+			return nil, err
+		}
+
+		ch.SetName(name)
+		return ch, nil
+	}
 }

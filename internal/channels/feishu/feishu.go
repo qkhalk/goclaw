@@ -61,7 +61,7 @@ type senderCacheEntry struct {
 }
 
 // New creates a new Feishu/Lark channel.
-func New(cfg config.FeishuConfig, msgBus *bus.MessageBus, pairingSvc store.PairingStore) (*Channel, error) {
+func New(cfg config.FeishuConfig, msgBus *bus.MessageBus, pairingSvc store.PairingStore, pendingStore store.PendingMessageStore) (*Channel, error) {
 	if cfg.AppID == "" || cfg.AppSecret == "" {
 		return nil, fmt.Errorf("feishu app_id and app_secret are required")
 	}
@@ -71,7 +71,7 @@ func New(cfg config.FeishuConfig, msgBus *bus.MessageBus, pairingSvc store.Pairi
 
 	client := NewLarkClient(cfg.AppID, cfg.AppSecret, domain)
 
-	base := channels.NewBaseChannel("feishu", msgBus, cfg.AllowFrom)
+	base := channels.NewBaseChannel(channels.TypeFeishu, msgBus, cfg.AllowFrom)
 	base.ValidatePolicy(cfg.DMPolicy, cfg.GroupPolicy)
 
 	historyLimit := cfg.HistoryLimit
@@ -85,7 +85,7 @@ func New(cfg config.FeishuConfig, msgBus *bus.MessageBus, pairingSvc store.Pairi
 		client:         client,
 		pairingService: pairingSvc,
 		groupAllowList: cfg.GroupAllowFrom,
-		groupHistory:   channels.NewPendingHistory(),
+		groupHistory:   channels.MakeHistory(channels.TypeFeishu, pendingStore),
 		historyLimit:   historyLimit,
 		stopCh:         make(chan struct{}),
 	}, nil
@@ -93,6 +93,7 @@ func New(cfg config.FeishuConfig, msgBus *bus.MessageBus, pairingSvc store.Pairi
 
 // Start begins receiving Feishu events via WebSocket or Webhook.
 func (c *Channel) Start(ctx context.Context) error {
+	c.groupHistory.StartFlusher()
 	slog.Info("starting feishu/lark bot")
 
 	// Probe bot identity
@@ -122,6 +123,7 @@ func (c *Channel) BlockReplyEnabled() *bool { return c.cfg.BlockReply }
 
 // Stop shuts down the Feishu channel.
 func (c *Channel) Stop(_ context.Context) error {
+	c.groupHistory.StopFlusher()
 	slog.Info("stopping feishu/lark bot")
 	close(c.stopCh)
 

@@ -312,6 +312,7 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 		if !wasMentioned {
 			c.groupHistory.Record(localKey, channels.HistoryEntry{
 				Sender:    senderLabel,
+				SenderID:  senderID,
 				Body:      content,
 				Timestamp: time.Unix(int64(message.Date), 0),
 				MessageID: fmt.Sprintf("%d", message.MessageID),

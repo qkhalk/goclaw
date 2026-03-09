@@ -21,6 +21,7 @@ import {
   Cpu,
   ArrowRightLeft,
   HardDrive,
+  Inbox,
 } from "lucide-react";
 import { SidebarGroup } from "./sidebar-group";
 import { SidebarItem } from "./sidebar-item";
@@ -73,6 +74,7 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
           <SidebarItem to={ROUTES.AGENTS} icon={Bot} label="Agents" collapsed={collapsed} />
           <SidebarItem to={ROUTES.TEAMS} icon={Users} label="Agent Teams" collapsed={collapsed} />
           <SidebarItem to={ROUTES.SESSIONS} icon={History} label="Sessions" collapsed={collapsed} />
+          <SidebarItem to={ROUTES.PENDING_MESSAGES} icon={Inbox} label="Pending Messages" collapsed={collapsed} />
           <SidebarItem to={ROUTES.CHANNELS} icon={Radio} label="Channels" collapsed={collapsed} />
           <SidebarItem to={ROUTES.SKILLS} icon={Zap} label="Skills" collapsed={collapsed} />
           <SidebarItem to={ROUTES.CRON} icon={Clock} label="Cron" collapsed={collapsed} />

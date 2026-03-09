@@ -35,7 +35,7 @@ type Channel struct {
 }
 
 // New creates a new Discord channel from config.
-func New(cfg config.DiscordConfig, msgBus *bus.MessageBus, pairingSvc store.PairingStore) (*Channel, error) {
+func New(cfg config.DiscordConfig, msgBus *bus.MessageBus, pairingSvc store.PairingStore, pendingStore store.PendingMessageStore) (*Channel, error) {
 	session, err := discordgo.New("Bot " + cfg.Token)
 	if err != nil {
 		return nil, fmt.Errorf("create discord session: %w", err)
@@ -46,7 +46,7 @@ func New(cfg config.DiscordConfig, msgBus *bus.MessageBus, pairingSvc store.Pair
 		discordgo.IntentsDirectMessages |
 		discordgo.IntentsMessageContent
 
-	base := channels.NewBaseChannel("discord", msgBus, cfg.AllowFrom)
+	base := channels.NewBaseChannel(channels.TypeDiscord, msgBus, cfg.AllowFrom)
 	base.ValidatePolicy(cfg.DMPolicy, cfg.GroupPolicy)
 
 	requireMention := true
@@ -65,13 +65,14 @@ func New(cfg config.DiscordConfig, msgBus *bus.MessageBus, pairingSvc store.Pair
 		config:         cfg,
 		requireMention: requireMention,
 		pairingService: pairingSvc,
-		groupHistory:   channels.NewPendingHistory(),
+		groupHistory:   channels.MakeHistory(channels.TypeDiscord, pendingStore),
 		historyLimit:   historyLimit,
 	}, nil
 }
 
 // Start opens the Discord gateway connection and begins receiving events.
 func (c *Channel) Start(_ context.Context) error {
+	c.groupHistory.StartFlusher()
 	slog.Info("starting discord bot")
 
 	c.session.AddHandler(c.handleMessage)
@@ -99,6 +100,7 @@ func (c *Channel) BlockReplyEnabled() *bool { return c.config.BlockReply }
 
 // Stop closes the Discord gateway connection.
 func (c *Channel) Stop(_ context.Context) error {
+	c.groupHistory.StopFlusher()
 	slog.Info("stopping discord bot")
 	c.SetRunning(false)
 	return c.session.Close()

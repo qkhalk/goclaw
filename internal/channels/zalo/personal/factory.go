@@ -64,7 +64,7 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 		BlockReply:     ic.BlockReply,
 	}
 
-	ch, err := New(zaloCfg, msgBus, pairingSvc)
+	ch, err := New(zaloCfg, msgBus, pairingSvc, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -79,4 +79,55 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 	ch.SetName(name)
 
 	return ch, nil
+}
+
+// FactoryWithPendingStore returns a ChannelFactory with persistent history support.
+func FactoryWithPendingStore(pendingStore store.PendingMessageStore) channels.ChannelFactory {
+	return func(name string, creds json.RawMessage, cfg json.RawMessage,
+		msgBus *bus.MessageBus, pairingSvc store.PairingStore) (channels.Channel, error) {
+
+		var c zaloCreds
+		if len(creds) > 0 {
+			if err := json.Unmarshal(creds, &c); err != nil {
+				return nil, fmt.Errorf("decode zalo_personal credentials: %w", err)
+			}
+		}
+
+		if c.IMEI == "" || c.Cookie == nil {
+			return nil, nil
+		}
+
+		var ic zaloInstanceConfig
+		if len(cfg) > 0 {
+			if err := json.Unmarshal(cfg, &ic); err != nil {
+				return nil, fmt.Errorf("decode zalo_personal config: %w", err)
+			}
+		}
+
+		zaloCfg := config.ZaloPersonalConfig{
+			Enabled:        true,
+			AllowFrom:      ic.AllowFrom,
+			DMPolicy:       ic.DMPolicy,
+			GroupPolicy:    ic.GroupPolicy,
+			RequireMention: ic.RequireMention,
+			HistoryLimit:   ic.HistoryLimit,
+			BlockReply:     ic.BlockReply,
+		}
+
+		ch, err := New(zaloCfg, msgBus, pairingSvc, pendingStore)
+		if err != nil {
+			return nil, err
+		}
+
+		protoCred := &protocol.Credentials{
+			IMEI:      c.IMEI,
+			Cookie:    c.Cookie,
+			UserAgent: c.UserAgent,
+			Language:  c.Language,
+		}
+		ch.SetPreloadedCredentials(protoCred)
+		ch.SetName(name)
+
+		return ch, nil
+	}
 }

@@ -585,7 +585,7 @@ func runGateway() {
 	if mcpMgr != nil {
 		mcpToolLister = mcpMgr
 	}
-	agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH := wireHTTP(pgStores, cfg.Gateway.Token, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
+	agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH, pendingMessagesH := wireHTTP(pgStores, cfg.Gateway.Token, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
 	if agentsH != nil {
 		server.SetAgentsHandler(agentsH)
 	}
@@ -612,6 +612,9 @@ func runGateway() {
 	}
 	if builtinToolsH != nil {
 		server.SetBuiltinToolsHandler(builtinToolsH)
+	}
+	if pendingMessagesH != nil {
+		server.SetPendingMessagesHandler(pendingMessagesH)
 	}
 
 	// Workspace file serving endpoint — serves files by absolute path, auth-token protected.
@@ -663,13 +666,13 @@ func runGateway() {
 	var instanceLoader *channels.InstanceLoader
 	if pgStores.ChannelInstances != nil {
 		instanceLoader = channels.NewInstanceLoader(pgStores.ChannelInstances, pgStores.Agents, channelMgr, msgBus, pgStores.Pairing)
-		instanceLoader.RegisterFactory("telegram", telegram.FactoryWithStores(pgStores.Agents, pgStores.Teams))
-		instanceLoader.RegisterFactory("discord", discord.Factory)
-		instanceLoader.RegisterFactory("feishu", feishu.Factory)
-		instanceLoader.RegisterFactory("zalo_oa", zalo.Factory)
-		instanceLoader.RegisterFactory("zalo_personal", zalopersonal.Factory)
-		instanceLoader.RegisterFactory("whatsapp", whatsapp.Factory)
-		instanceLoader.RegisterFactory("slack", slackchannel.Factory)
+		instanceLoader.RegisterFactory(channels.TypeTelegram, telegram.FactoryWithStores(pgStores.Agents, pgStores.Teams, pgStores.PendingMessages))
+		instanceLoader.RegisterFactory(channels.TypeDiscord, discord.FactoryWithPendingStore(pgStores.PendingMessages))
+		instanceLoader.RegisterFactory(channels.TypeFeishu, feishu.FactoryWithPendingStore(pgStores.PendingMessages))
+		instanceLoader.RegisterFactory(channels.TypeZaloOA, zalo.Factory)
+		instanceLoader.RegisterFactory(channels.TypeZaloPersonal, zalopersonal.FactoryWithPendingStore(pgStores.PendingMessages))
+		instanceLoader.RegisterFactory(channels.TypeWhatsApp, whatsapp.Factory)
+		instanceLoader.RegisterFactory(channels.TypeSlack, slackchannel.FactoryWithPendingStore(pgStores.PendingMessages))
 		if err := instanceLoader.LoadAll(context.Background()); err != nil {
 			slog.Error("failed to load channel instances from DB", "error", err)
 		}

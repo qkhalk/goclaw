@@ -141,6 +141,7 @@ func (c *Channel) handleMessage(_ *discordgo.Session, m *discordgo.MessageCreate
 		if !mentioned {
 			c.groupHistory.Record(channelID, channels.HistoryEntry{
 				Sender:    senderName,
+				SenderID:  senderID,
 				Body:      content,
 				Timestamp: m.Timestamp,
 				MessageID: m.ID,

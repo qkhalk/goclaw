@@ -53,7 +53,7 @@ func (c *Channel) handleDM(msg protocol.UserMessage) {
 
 	metadata := map[string]string{
 		"message_id": msg.Data.MsgID,
-		"platform":   "zalo_personal",
+		"platform":   channels.TypeZaloPersonal,
 	}
 	c.HandleMessage(senderID, threadID, content, media, metadata, "direct")
 }
@@ -83,6 +83,7 @@ func (c *Channel) handleGroupMessage(msg protocol.GroupMessage) {
 		if !wasMentioned {
 			c.groupHistory.Record(threadID, channels.HistoryEntry{
 				Sender:    senderName,
+				SenderID:  senderID,
 				Body:      content,
 				Timestamp: time.Now(),
 				MessageID: msg.Data.MsgID,
@@ -112,7 +113,7 @@ func (c *Channel) handleGroupMessage(msg protocol.GroupMessage) {
 
 	metadata := map[string]string{
 		"message_id": msg.Data.MsgID,
-		"platform":   "zalo_personal",
+		"platform":   channels.TypeZaloPersonal,
 		"group_id":   threadID,
 	}
 	c.HandleMessage(senderID, threadID, finalContent, media, metadata, "group")
