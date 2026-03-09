@@ -12,10 +12,11 @@
     "actions": "Thao tác"
   },
   "status": {
-    "compacted": "Đã nén",
+    "compacted": "Đã tóm tắt",
     "raw": "Thô"
   },
-  "compact": "Nén",
+  "compact": "Tóm tắt",
+  "compacting": "Đang tóm tắt…",
   "clear": "Xóa",
   "confirmClear": {
     "title": "Xóa tin nhắn?",

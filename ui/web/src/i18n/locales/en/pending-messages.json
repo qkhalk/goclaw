@@ -16,6 +16,7 @@
     "raw": "Raw"
   },
   "compact": "Compact",
+  "compacting": "Compacting…",
   "clear": "Clear",
   "confirmClear": {
     "title": "Clear messages?",

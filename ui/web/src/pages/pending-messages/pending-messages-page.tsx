@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Inbox, RefreshCw, Trash2, Archive } from "lucide-react";
+import { Inbox, RefreshCw, Trash2, Archive, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
@@ -32,6 +32,7 @@ export function PendingMessagesPage() {
   const [selectedGroup, setSelectedGroup] = useState<PendingMessageGroup | null>(null);
   const [confirmClear, setConfirmClear] = useState<PendingMessageGroup | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [compactingKey, setCompactingKey] = useState<string | null>(null);
 
   useEffect(() => {
     loadGroups();
@@ -43,7 +44,9 @@ export function PendingMessagesPage() {
     e.stopPropagation();
     const key = `${group.channel_name}/${group.history_key}`;
     setActionLoading(key);
+    setCompactingKey(key);
     await compactGroup(group.channel_name, group.history_key);
+    setCompactingKey(null);
     setActionLoading(null);
     loadGroups();
   };
@@ -95,6 +98,7 @@ export function PendingMessagesPage() {
                 {groups.map((g) => {
                   const rowKey = `${g.channel_name}/${g.history_key}`;
                   const busy = actionLoading === rowKey;
+                  const isCompacting = compactingKey === rowKey;
                   return (
                     <tr
                       key={rowKey}
@@ -129,7 +133,12 @@ export function PendingMessagesPage() {
                             disabled={busy || g.has_summary}
                             onClick={(e) => handleCompact(e, g)}
                           >
-                            <Archive className="h-3 w-3" /> {t("compact")}
+                            {isCompacting ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Archive className="h-3 w-3" />
+                            )}
+                            {isCompacting ? t("compacting") : t("compact")}
                           </Button>
                           <Button
                             variant="outline"

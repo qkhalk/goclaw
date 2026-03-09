@@ -16,6 +16,7 @@
     "raw": "原始"
   },
   "compact": "压缩",
+  "compacting": "压缩中…",
   "clear": "清除",
   "confirmClear": {
     "title": "清除消息？",
