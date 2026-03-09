@@ -432,6 +432,9 @@ func (c *Channel) handleGroupMessage(msg protocol.GroupMessage) {
 		"group_id":   threadID,
 	}
 	c.HandleMessage(senderID, threadID, finalContent, media, metadata, "group")
+
+	// Clear pending history after sending to agent (matches Telegram/Discord/Slack/Feishu pattern).
+	c.groupHistory.Clear(threadID)
 }
 
 // startTyping starts a typing indicator with keepalive for the given thread.
