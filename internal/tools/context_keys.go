@@ -18,10 +18,10 @@ const (
 	ctxChannelType toolContextKey = "tool_channel_type"
 	ctxChatID      toolContextKey = "tool_chat_id"
 	ctxPeerKind    toolContextKey = "tool_peer_kind"
-	ctxLocalKey   toolContextKey = "tool_local_key" // composite key with topic/thread suffix for routing
-	ctxSandboxKey toolContextKey = "tool_sandbox_key"
-	ctxAsyncCB    toolContextKey = "tool_async_cb"
-	ctxWorkspace  toolContextKey = "tool_workspace"
+	ctxLocalKey    toolContextKey = "tool_local_key" // composite key with topic/thread suffix for routing
+	ctxSandboxKey  toolContextKey = "tool_sandbox_key"
+	ctxAsyncCB     toolContextKey = "tool_async_cb"
+	ctxWorkspace   toolContextKey = "tool_workspace"
 	ctxAgentKey    toolContextKey = "tool_agent_key"
 	ctxSessionKey  toolContextKey = "tool_session_key" // origin session key for announce routing
 )
