@@ -160,6 +160,11 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 		lines = append(lines, buildMessagingSection()...)
 	}
 
+	// 9.5. Channel formatting hints (e.g. Zalo → plain text)
+	if hint := buildChannelFormattingHint(cfg.ChannelType); hint != nil {
+		lines = append(lines, hint...)
+	}
+
 	// 10. Extra system prompt (wrapped in tags for context isolation)
 	if cfg.ExtraPrompt != "" {
 		header := "## Additional Context"

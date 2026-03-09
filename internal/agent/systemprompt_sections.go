@@ -248,6 +248,24 @@ func buildRuntimeSection(cfg SystemPromptConfig) []string {
 	return lines
 }
 
+// buildChannelFormattingHint returns platform-specific formatting guidance.
+// Zalo does not render any markup, so we instruct the model to use plain text.
+func buildChannelFormattingHint(channelType string) []string {
+	switch channelType {
+	case "zalo", "zalo_personal":
+		return []string{
+			"## Output Formatting",
+			"",
+			"This channel (Zalo) does NOT support any text formatting — no Markdown, no HTML, no bold/italic/code.",
+			"Always respond in clean plain text. Do not use **, __, `, ```, #, > or any markup syntax.",
+			"For lists use simple dashes or bullets (•). For code, just paste the code as-is without fencing.",
+			"",
+		}
+	default:
+		return nil
+	}
+}
+
 // hasBootstrapFile checks if BOOTSTRAP.md is present in the context files.
 func hasBootstrapFile(files []bootstrap.ContextFile) bool {
 	for _, f := range files {

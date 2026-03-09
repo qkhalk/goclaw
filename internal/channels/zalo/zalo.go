@@ -111,6 +111,9 @@ func (c *Channel) Send(_ context.Context, msg bus.OutboundMessage) error {
 		return fmt.Errorf("zalo bot not running")
 	}
 
+	// Strip markdown — Zalo does not support any markup rendering.
+	msg.Content = StripMarkdown(msg.Content)
+
 	// Check for media in content (URL-based photo sending)
 	if strings.Contains(msg.Content, "[photo:") {
 		// Extract photo URL from "[photo:URL]" pattern

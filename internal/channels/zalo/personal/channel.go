@@ -15,6 +15,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/typing"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo/personal/protocol"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -158,6 +159,9 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	if !c.IsRunning() || sess == nil {
 		return fmt.Errorf("zalo_personal channel not running")
 	}
+
+	// Strip markdown — Zalo does not support any markup rendering.
+	msg.Content = zalo.StripMarkdown(msg.Content)
 
 	// Stop typing indicator before sending response
 	if ctrl, ok := c.typingCtrls.LoadAndDelete(msg.ChatID); ok {
