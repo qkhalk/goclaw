@@ -14,9 +14,10 @@ import (
 type toolContextKey string
 
 const (
-	ctxChannel    toolContextKey = "tool_channel"
-	ctxChatID     toolContextKey = "tool_chat_id"
-	ctxPeerKind   toolContextKey = "tool_peer_kind"
+	ctxChannel     toolContextKey = "tool_channel"
+	ctxChannelType toolContextKey = "tool_channel_type"
+	ctxChatID      toolContextKey = "tool_chat_id"
+	ctxPeerKind    toolContextKey = "tool_peer_kind"
 	ctxLocalKey   toolContextKey = "tool_local_key" // composite key with topic/thread suffix for routing
 	ctxSandboxKey toolContextKey = "tool_sandbox_key"
 	ctxAsyncCB    toolContextKey = "tool_async_cb"
@@ -31,6 +32,15 @@ func WithToolChannel(ctx context.Context, channel string) context.Context {
 
 func ToolChannelFromCtx(ctx context.Context) string {
 	v, _ := ctx.Value(ctxChannel).(string)
+	return v
+}
+
+func WithToolChannelType(ctx context.Context, channelType string) context.Context {
+	return context.WithValue(ctx, ctxChannelType, channelType)
+}
+
+func ToolChannelTypeFromCtx(ctx context.Context) string {
+	v, _ := ctx.Value(ctxChannelType).(string)
 	return v
 }
 

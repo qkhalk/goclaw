@@ -213,7 +213,10 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 		}
 		base.SetAgentID(ag.AgentKey)
 	}
-
+	// Set the platform type on the channel so Manager.ChannelTypeForName can read it.
+	if base, ok := ch.(interface{ SetType(string) }); ok {
+		base.SetType(inst.ChannelType)
+	}
 	l.manager.RegisterChannel(inst.Name, ch)
 	l.loaded[inst.Name] = struct{}{}
 

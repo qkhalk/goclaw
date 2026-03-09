@@ -272,7 +272,8 @@ type RunRequest struct {
 	Message          string // user message
 	Media            []bus.MediaFile // local media files with MIME types
 	ForwardMedia     []bus.MediaFile // media files to forward to output (from delegation results)
-	Channel          string // source channel
+	Channel          string // source channel instance name (e.g. "my-telegram-bot")
+	ChannelType      string // platform type (e.g. "zalo_personal", "telegram") — for system prompt context
 	ChatID           string // source chat ID
 	PeerKind         string // "direct" or "group" (for session key building and tool context)
 	RunID            string // unique run identifier

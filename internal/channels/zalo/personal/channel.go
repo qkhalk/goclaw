@@ -45,6 +45,8 @@ type Channel struct {
 	// Pre-loaded credentials (from DB or from file/QR as fallback).
 	preloadedCreds *protocol.Credentials
 
+	groupHistory   *channels.PendingHistory
+	historyLimit   int
 	requireMention bool
 	stopCh         chan struct{}
 	stopOnce       sync.Once
@@ -67,10 +69,17 @@ func New(cfg config.ZaloPersonalConfig, msgBus *bus.MessageBus, pairingSvc store
 		requireMention = *cfg.RequireMention
 	}
 
+	historyLimit := cfg.HistoryLimit
+	if historyLimit == 0 {
+		historyLimit = channels.DefaultGroupHistoryLimit
+	}
+
 	return &Channel{
 		BaseChannel:    base,
 		config:         cfg,
 		pairingService: pairingSvc,
+		groupHistory:   channels.NewPendingHistory(),
+		historyLimit:   historyLimit,
 		requireMention: requireMention,
 		stopCh:         make(chan struct{}),
 	}, nil
@@ -156,9 +165,12 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	}
 
 	threadType := protocol.ThreadTypeUser
-	if msg.Metadata != nil {
+	if _, isGroup := c.approvedGroups.Load(msg.ChatID); isGroup {
+		threadType = protocol.ThreadTypeGroup
+	} else if msg.Metadata != nil {
 		if _, ok := msg.Metadata["group_id"]; ok {
 			threadType = protocol.ThreadTypeGroup
+			c.approvedGroups.Store(msg.ChatID, true)
 		}
 	}
 
@@ -371,8 +383,32 @@ func (c *Channel) handleGroupMessage(msg protocol.GroupMessage) {
 		return
 	}
 
-	if !c.checkGroupPolicy(senderID, threadID, msg.Data.Mentions) {
+	// Step 1: enforce access policy (allowlist/pairing). Hard reject — don't record history.
+	if !c.checkGroupPolicy(senderID, threadID) {
 		return
+	}
+
+	senderName := msg.Data.DName
+	if senderName == "" {
+		senderName = senderID
+	}
+
+	// Step 2: @mention gating — record non-mentioned messages in history and return.
+	if c.requireMention {
+		wasMentioned := c.checkBotMentioned(msg.Data.Mentions)
+		if !wasMentioned {
+			c.groupHistory.Record(threadID, channels.HistoryEntry{
+				Sender:    senderName,
+				Body:      content,
+				Timestamp: time.Now(),
+				MessageID: msg.Data.MsgID,
+			}, c.historyLimit)
+			slog.Debug("zalo_personal group message recorded (no mention)",
+				"group_id", threadID,
+				"sender", senderName,
+			)
+			return
+		}
 	}
 
 	slog.Debug("zalo_personal group message received",
@@ -381,6 +417,13 @@ func (c *Channel) handleGroupMessage(msg protocol.GroupMessage) {
 		"preview", channels.Truncate(content, 50),
 	)
 
+	// Step 3: flush pending history + annotate current message with sender name.
+	annotated := fmt.Sprintf("[From: %s]\n%s", senderName, content)
+	finalContent := annotated
+	if c.historyLimit > 0 {
+		finalContent = c.groupHistory.BuildContext(threadID, annotated, c.historyLimit)
+	}
+
 	c.startTyping(threadID, protocol.ThreadTypeGroup)
 
 	metadata := map[string]string{
@@ -388,7 +431,7 @@ func (c *Channel) handleGroupMessage(msg protocol.GroupMessage) {
 		"platform":   "zalo_personal",
 		"group_id":   threadID,
 	}
-	c.HandleMessage(senderID, threadID, content, media, metadata, "group")
+	c.HandleMessage(senderID, threadID, finalContent, media, metadata, "group")
 }
 
 // startTyping starts a typing indicator with keepalive for the given thread.

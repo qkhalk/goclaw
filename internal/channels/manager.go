@@ -210,6 +210,17 @@ func (m *Manager) RegisterChannel(name string, channel Channel) {
 	m.channels[name] = channel
 }
 
+// ChannelTypeForName returns the platform type for a channel instance name.
+// Reads directly from the Channel.Type() method — no separate map needed.
+func (m *Manager) ChannelTypeForName(name string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if ch, ok := m.channels[name]; ok {
+		return ch.Type()
+	}
+	return ""
+}
+
 // UnregisterChannel removes a channel from the manager.
 func (m *Manager) UnregisterChannel(name string) {
 	m.mu.Lock()

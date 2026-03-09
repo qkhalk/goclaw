@@ -50,8 +50,12 @@ const (
 
 // Channel defines the interface that all channel implementations must satisfy.
 type Channel interface {
-	// Name returns the channel identifier (e.g., "telegram", "discord", "slack").
+	// Name returns the channel instance name (e.g., "telegram", "discord", "slack").
 	Name() string
+
+	// Type returns the platform type (e.g., "telegram", "zalo_personal").
+	// For config-based channels this equals Name(); for DB instances it may differ.
+	Type() string
 
 	// Start begins listening for messages. Should be non-blocking after setup.
 	Start(ctx context.Context) error
@@ -119,11 +123,12 @@ type ReactionChannel interface {
 // BaseChannel provides shared functionality for all channel implementations.
 // Channel implementations should embed this struct.
 type BaseChannel struct {
-	name      string
-	bus       *bus.MessageBus
-	running   bool
-	allowList []string
-	agentID   string // for DB instances: routes to specific agent (empty = use resolveAgentRoute)
+	name        string
+	channelType string // platform type; defaults to name if unset
+	bus         *bus.MessageBus
+	running     bool
+	allowList   []string
+	agentID     string // for DB instances: routes to specific agent (empty = use resolveAgentRoute)
 }
 
 // NewBaseChannel creates a new BaseChannel with the given parameters.
@@ -135,11 +140,22 @@ func NewBaseChannel(name string, msgBus *bus.MessageBus, allowList []string) *Ba
 	}
 }
 
-// Name returns the channel name.
+// Name returns the channel instance name.
 func (c *BaseChannel) Name() string { return c.name }
+
+// Type returns the platform type. Falls back to name if unset (config-based channels).
+func (c *BaseChannel) Type() string {
+	if c.channelType != "" {
+		return c.channelType
+	}
+	return c.name
+}
 
 // SetName overrides the channel name (used by InstanceLoader for DB instances).
 func (c *BaseChannel) SetName(name string) { c.name = name }
+
+// SetType sets the platform type (used by InstanceLoader for DB instances).
+func (c *BaseChannel) SetType(t string) { c.channelType = t }
 
 // AgentID returns the explicit agent ID for this channel (empty = use resolveAgentRoute).
 func (c *BaseChannel) AgentID() string { return c.agentID }

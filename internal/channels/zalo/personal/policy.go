@@ -89,8 +89,9 @@ func (c *Channel) sendPairingReply(senderID, chatID string) {
 	}
 }
 
-// checkGroupPolicy enforces group policy and @mention gating.
-func (c *Channel) checkGroupPolicy(senderID, groupID string, mentions []*protocol.TMention) bool {
+// checkGroupPolicy enforces group access policy (allowlist/pairing).
+// Returns false if the group is blocked by policy; does NOT check @mention gating.
+func (c *Channel) checkGroupPolicy(senderID, groupID string) bool {
 	groupPolicy := c.config.GroupPolicy
 	if groupPolicy == "" {
 		groupPolicy = "allowlist"
@@ -123,23 +124,16 @@ func (c *Channel) checkGroupPolicy(senderID, groupID string, mentions []*protoco
 		}
 	}
 
-	// @mention gating: only process group messages that @mention the bot.
-	if c.requireMention {
-		sess := c.session()
-		botUID := ""
-		if sess != nil {
-			botUID = sess.UID
-		}
-		if !isBotMentioned(botUID, mentions) {
-			slog.Debug("zalo_personal group message skipped: not mentioned",
-				"group_id", groupID,
-				"sender_id", senderID,
-			)
-			return false
-		}
-	}
-
 	return true
+}
+
+// checkBotMentioned reports whether the bot is @mentioned in the message.
+func (c *Channel) checkBotMentioned(mentions []*protocol.TMention) bool {
+	sess := c.session()
+	if sess == nil {
+		return false
+	}
+	return isBotMentioned(sess.UID, mentions)
 }
 
 // isBotMentioned checks if the bot's UID is @mentioned in the message.

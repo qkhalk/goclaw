@@ -45,7 +45,7 @@ JOB SCHEMA (for add action):
   "schedule": { ... },      // Required: when to run
   "message": "string",      // Required: what message to send to the agent
   "deliver": true|false,    // Optional: deliver result to channel (default false)
-  "channel": "telegram",    // Optional: target channel for delivery
+  "channel": "channel-name", // Optional: target channel for delivery (auto-filled from context)
   "to": "chat-id",          // Optional: target chat/recipient ID
   "agentId": "agent-uuid",  // Optional: which agent handles the job (default: current)
   "deleteAfterRun": true    // Optional: auto-delete after execution (default true for "at" schedule)

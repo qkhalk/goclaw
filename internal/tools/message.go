@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // MessageTool allows the agent to proactively send messages to channels.
@@ -24,7 +25,7 @@ func (t *MessageTool) SetMessageBus(b *bus.MessageBus)   { t.msgBus = b }
 
 func (t *MessageTool) Name() string { return "message" }
 func (t *MessageTool) Description() string {
-	return "Send a message to a channel (Telegram, Discord, etc.) or the current chat."
+	return "Send a message to a channel (Telegram, Discord, Slack, Zalo, Feishu/Lark, WhatsApp, etc.) or the current chat. Channel and target are auto-filled from context."
 }
 
 func (t *MessageTool) Parameters() map[string]interface{} {
@@ -85,22 +86,37 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]interface{}) 
 		return t.sendMedia(ctx, channel, target, filePath)
 	}
 
-	// Prefer direct channel sender (channels.Manager.SendToChannel)
-	if t.sender != nil {
+	// Prefer direct channel sender for immediate delivery.
+	// For group chats, fall through to message bus which supports metadata.
+	if t.sender != nil && !isGroupContext(ctx) {
 		if err := t.sender(ctx, channel, target, message); err != nil {
 			return ErrorResult(fmt.Sprintf("failed to send message: %v", err))
 		}
 		return SilentResult(fmt.Sprintf(`{"status":"sent","channel":"%s","target":"%s"}`, channel, target))
 	}
 
-	// Fallback: publish via message bus outbound queue
+	// Publish via message bus outbound queue.
+	// Group messages include metadata so channel implementations (e.g. Zalo)
+	// can distinguish group sends from DMs.
 	if t.msgBus != nil {
-		t.msgBus.PublishOutbound(bus.OutboundMessage{
+		outMsg := bus.OutboundMessage{
 			Channel: channel,
 			ChatID:  target,
 			Content: message,
-		})
-		return SilentResult(fmt.Sprintf(`{"status":"queued","channel":"%s","target":"%s"}`, channel, target))
+		}
+		if isGroupContext(ctx) {
+			outMsg.Metadata = map[string]string{"group_id": target}
+		}
+		t.msgBus.PublishOutbound(outMsg)
+		return SilentResult(fmt.Sprintf(`{"status":"sent","channel":"%s","target":"%s"}`, channel, target))
+	}
+
+	// Last resort: direct sender without group metadata.
+	if t.sender != nil {
+		if err := t.sender(ctx, channel, target, message); err != nil {
+			return ErrorResult(fmt.Sprintf("failed to send message: %v", err))
+		}
+		return SilentResult(fmt.Sprintf(`{"status":"sent","channel":"%s","target":"%s"}`, channel, target))
 	}
 
 	return ErrorResult("no channel sender or message bus available")
@@ -117,8 +133,7 @@ func (t *MessageTool) sendMedia(ctx context.Context, channel, target, filePath s
 
 	// Build metadata for group routing (Zalo needs group_id to choose group API).
 	var meta map[string]string
-	peerKind := ToolPeerKindFromCtx(ctx)
-	if peerKind == "group" {
+	if isGroupContext(ctx) {
 		meta = map[string]string{"group_id": target}
 	}
 
@@ -135,6 +150,12 @@ func (t *MessageTool) sendMedia(ctx context.Context, channel, target, filePath s
 		"media":   filepath.Base(filePath),
 	})
 	return SilentResult(string(out))
+}
+
+// isGroupContext returns true if the current context indicates a group conversation.
+func isGroupContext(ctx context.Context) bool {
+	return ToolPeerKindFromCtx(ctx) == "group" ||
+		strings.HasPrefix(store.UserIDFromContext(ctx), "group:")
 }
 
 // parseMediaPath extracts a file path from a "MEDIA:/path/to/file" string.

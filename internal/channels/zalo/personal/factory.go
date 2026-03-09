@@ -24,6 +24,7 @@ type zaloInstanceConfig struct {
 	DMPolicy       string   `json:"dm_policy,omitempty"`
 	GroupPolicy    string   `json:"group_policy,omitempty"`
 	RequireMention *bool    `json:"require_mention,omitempty"`
+	HistoryLimit   int      `json:"history_limit,omitempty"`
 	AllowFrom      []string `json:"allow_from,omitempty"`
 	BlockReply     *bool    `json:"block_reply,omitempty"`
 }
@@ -59,6 +60,7 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 		DMPolicy:       ic.DMPolicy,
 		GroupPolicy:    ic.GroupPolicy,
 		RequireMention: ic.RequireMention,
+		HistoryLimit:   ic.HistoryLimit,
 		BlockReply:     ic.BlockReply,
 	}
 

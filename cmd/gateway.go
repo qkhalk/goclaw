@@ -891,7 +891,7 @@ func runGateway() {
 	defer sched.Stop()
 
 	// Start cron service with job handler (routes through scheduler's cron lane)
-	pgStores.Cron.SetOnJob(makeCronJobHandler(sched, msgBus, cfg))
+	pgStores.Cron.SetOnJob(makeCronJobHandler(sched, msgBus, cfg, channelMgr))
 	if err := pgStores.Cron.Start(); err != nil {
 		slog.Warn("cron service failed to start", "error", err)
 	}
