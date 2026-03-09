@@ -617,6 +617,11 @@ func runGateway() {
 		server.SetPendingMessagesHandler(pendingMessagesH)
 	}
 
+	// Memory management API (wired directly, only needs MemoryStore + token)
+	if pgStores != nil && pgStores.Memory != nil {
+		server.SetMemoryHandler(httpapi.NewMemoryHandler(pgStores.Memory, cfg.Gateway.Token))
+	}
+
 	// Workspace file serving endpoint — serves files by absolute path, auth-token protected.
 	// Supports media from any agent workspace (each agent has its own workspace from DB).
 	server.SetFilesHandler(httpapi.NewFilesHandler(cfg.Gateway.Token))

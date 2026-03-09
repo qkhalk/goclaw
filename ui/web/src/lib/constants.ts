@@ -31,6 +31,7 @@ export const ROUTES = {
   TTS: "/tts",
   STORAGE: "/storage",
   PENDING_MESSAGES: "/pending-messages",
+  MEMORY: "/memory",
   SETUP: "/setup",
 } as const;
 

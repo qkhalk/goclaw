@@ -45,6 +45,7 @@ type Server struct {
 	delegationsHandler      *httpapi.DelegationsHandler      // delegation history API
 	builtinToolsHandler     *httpapi.BuiltinToolsHandler     // builtin tool management API
 	pendingMessagesHandler  *httpapi.PendingMessagesHandler  // pending messages API
+	memoryHandler           *httpapi.MemoryHandler           // memory management API
 	oauthHandler            *httpapi.OAuthHandler            // OAuth endpoints
 	filesHandler            *httpapi.FilesHandler            // workspace file serving
 	storageHandler          *httpapi.StorageHandler          // storage file management
@@ -203,6 +204,11 @@ func (s *Server) BuildMux() *http.ServeMux {
 	// Managed mode: pending messages API
 	if s.pendingMessagesHandler != nil {
 		s.pendingMessagesHandler.RegisterRoutes(mux)
+	}
+
+	// Memory management API
+	if s.memoryHandler != nil {
+		s.memoryHandler.RegisterRoutes(mux)
 	}
 
 	// Workspace file serving (available in all modes)
@@ -384,6 +390,9 @@ func (s *Server) SetMediaUploadHandler(h *httpapi.MediaUploadHandler) { s.mediaU
 
 // SetMediaServeHandler sets the media serve handler.
 func (s *Server) SetMediaServeHandler(h *httpapi.MediaServeHandler) { s.mediaServeHandler = h }
+
+// SetMemoryHandler sets the memory management handler.
+func (s *Server) SetMemoryHandler(h *httpapi.MemoryHandler) { s.memoryHandler = h }
 
 // SetAgentStore sets the agent store for context injection in tools_invoke.
 func (s *Server) SetAgentStore(as store.AgentStore) { s.agentStore = as }

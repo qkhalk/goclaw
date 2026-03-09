@@ -58,4 +58,8 @@ export const queryKeys = {
     all: ["teams"] as const,
     detail: (id: string) => ["teams", id] as const,
   },
+  memory: {
+    all: ["memory"] as const,
+    list: (params: Record<string, unknown>) => ["memory", params] as const,
+  },
 };

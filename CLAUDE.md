@@ -77,3 +77,4 @@ Go conventions to follow:
 - Use `switch/case` instead of `if/else if` chains on the same variable
 - Use `append(dst, src...)` instead of loop-based append
 - Always handle errors; don't ignore return values
+- **Migrations:** When adding a new SQL migration file in `migrations/`, bump `RequiredSchemaVersion` in `internal/upgrade/version.go` to match the new migration number
