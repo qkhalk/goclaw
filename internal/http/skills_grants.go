@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,24 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
+
+func (h *SkillsHandler) handleListAgentSkills(w http.ResponseWriter, r *http.Request) {
+	agentIDStr := r.PathValue("agentID")
+	agentID, err := uuid.Parse(agentIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid agent ID"})
+		return
+	}
+
+	skills, err := h.skills.ListWithGrantStatus(r.Context(), agentID)
+	if err != nil {
+		slog.Error("failed to list skills with grant status", "agent_id", agentID, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list skills"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"skills": skills})
+}
 
 func (h *SkillsHandler) handleGrantAgent(w http.ResponseWriter, r *http.Request) {
 	userID := store.UserIDFromContext(r.Context())
