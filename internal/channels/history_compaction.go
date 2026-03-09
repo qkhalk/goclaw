@@ -41,49 +41,32 @@ func (ph *PendingHistory) MaybeCompact(historyKey string, currentCount int, cfg 
 	go ph.runCompaction(historyKey, cfg)
 }
 
-// runCompaction performs LLM-based summarization of old messages.
-// Follows pattern from internal/agent/loop_compact.go.
-func (ph *PendingHistory) runCompaction(historyKey string, cfg *CompactionConfig) {
-	defer ph.compacting.Delete(historyKey)
-
-	// Step 1: Force-flush buffer to ensure DB is consistent
-	ph.flushNow()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-
-	// Step 2: Read entries from DB
-	entries, err := ph.store.ListByKey(ctx, ph.channelName, historyKey)
-	if err != nil {
-		slog.Warn("compaction.list_failed", "channel", ph.channelName, "key", historyKey, "error", err)
-		return
-	}
-
-	threshold := cfg.Threshold
-	if threshold <= 0 {
-		threshold = DefaultGroupHistoryLimit
-	}
-	if len(entries) <= threshold {
-		return // cleared or below threshold
-	}
-
-	// Step 3: Split entries
-	keepRecent := cfg.KeepRecent
+// CompactGroup performs LLM-based compaction on a pending message group.
+// Reused by both auto-compact (channel) and HTTP compact endpoint.
+// Returns the number of entries remaining after compaction.
+func CompactGroup(ctx context.Context, s store.PendingMessageStore, channelName, historyKey string, provider providers.Provider, model string, keepRecent int) (int, error) {
 	if keepRecent <= 0 {
 		keepRecent = 15
 	}
-	if keepRecent >= len(entries) {
-		return
-	}
-	splitIdx := len(entries) - keepRecent
 
+	// Step 1: Read entries from DB
+	entries, err := s.ListByKey(ctx, channelName, historyKey)
+	if err != nil {
+		return 0, fmt.Errorf("list entries: %w", err)
+	}
+	if keepRecent >= len(entries) {
+		return len(entries), nil // nothing to summarize
+	}
+
+	// Step 2: Split into old (to summarize) and recent (to keep)
+	splitIdx := len(entries) - keepRecent
 	toSummarize := entries[:splitIdx]
 	deleteIDs := make([]uuid.UUID, len(toSummarize))
 	for i, e := range toSummarize {
 		deleteIDs[i] = e.ID
 	}
 
-	// Step 4: Build text and call LLM
+	// Step 3: Build text and call LLM for summarization
 	var sb strings.Builder
 	for _, e := range toSummarize {
 		prefix := e.Sender
@@ -97,33 +80,73 @@ func (ph *PendingHistory) runCompaction(historyKey string, cfg *CompactionConfig
 		fmt.Fprintf(&sb, "%s%s: %s\n", prefix, ts, e.Body)
 	}
 
-	resp, err := cfg.Provider.Chat(ctx, providers.ChatRequest{
+	resp, err := provider.Chat(ctx, providers.ChatRequest{
 		Messages: []providers.Message{{
 			Role:    "user",
 			Content: "Summarize these group chat messages concisely, preserving key topics, decisions, names, and important context:\n\n" + sb.String(),
 		}},
-		Model:   cfg.Model,
+		Model:   model,
 		Options: map[string]any{"max_tokens": 512, "temperature": 0.3},
 	})
 	if err != nil {
-		slog.Warn("compaction.llm_failed", "channel", ph.channelName, "key", historyKey, "error", err)
-		return
+		return 0, fmt.Errorf("llm summarize: %w", err)
 	}
 
-	// Step 5: Compact in DB (atomic tx: delete old + insert summary)
+	// Step 4: Compact in DB (atomic tx: delete old + insert summary)
 	summary := &store.PendingMessage{
-		ChannelName: ph.channelName,
+		ChannelName: channelName,
 		HistoryKey:  historyKey,
 		Sender:      "[summary]",
 		Body:        resp.Content,
 		IsSummary:   true,
 	}
-	if err := ph.store.Compact(ctx, deleteIDs, summary); err != nil {
-		slog.Warn("compaction.db_failed", "channel", ph.channelName, "key", historyKey, "error", err)
+	if err := s.Compact(ctx, deleteIDs, summary); err != nil {
+		return 0, fmt.Errorf("db compact: %w", err)
+	}
+
+	remaining := keepRecent + 1 // kept messages + new summary
+	slog.Info("compaction.done",
+		"channel", channelName,
+		"key", historyKey,
+		"summarized", len(toSummarize),
+		"kept", keepRecent,
+		"total_after", remaining,
+	)
+	return remaining, nil
+}
+
+// runCompaction performs LLM-based summarization of old messages.
+// Wraps CompactGroup with flush + RAM update + threshold check.
+func (ph *PendingHistory) runCompaction(historyKey string, cfg *CompactionConfig) {
+	defer ph.compacting.Delete(historyKey)
+
+	// Force-flush buffer to ensure DB is consistent
+	ph.flushNow()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	// Check threshold from DB (may have been cleared since trigger)
+	entries, err := ph.store.ListByKey(ctx, ph.channelName, historyKey)
+	if err != nil {
+		slog.Warn("compaction.list_failed", "channel", ph.channelName, "key", historyKey, "error", err)
+		return
+	}
+	threshold := cfg.Threshold
+	if threshold <= 0 {
+		threshold = DefaultGroupHistoryLimit
+	}
+	if len(entries) <= threshold {
 		return
 	}
 
-	// Step 6: Update RAM from DB
+	_, err = CompactGroup(ctx, ph.store, ph.channelName, historyKey, cfg.Provider, cfg.Model, cfg.KeepRecent)
+	if err != nil {
+		slog.Warn("compaction.failed", "channel", ph.channelName, "key", historyKey, "error", err)
+		return
+	}
+
+	// Update RAM from DB
 	ph.mu.Lock()
 	if _, exists := ph.entries[historyKey]; !exists {
 		// Key was Clear()ed during compaction — remove stale summary
@@ -132,7 +155,6 @@ func (ph *PendingHistory) runCompaction(historyKey string, cfg *CompactionConfig
 		slog.Info("compaction.cleared_stale", "channel", ph.channelName, "key", historyKey)
 		return
 	}
-	// Re-read from DB to get complete current state (summary + kept + new entries)
 	fresh, err := ph.store.ListByKey(ctx, ph.channelName, historyKey)
 	if err == nil {
 		rebuilt := make([]HistoryEntry, 0, len(fresh))
@@ -147,12 +169,4 @@ func (ph *PendingHistory) runCompaction(historyKey string, cfg *CompactionConfig
 		ph.entries[historyKey] = rebuilt
 	}
 	ph.mu.Unlock()
-
-	slog.Info("compaction.done",
-		"channel", ph.channelName,
-		"key", historyKey,
-		"summarized", len(toSummarize),
-		"kept", keepRecent,
-		"total_after", len(fresh),
-	)
 }

@@ -71,7 +71,7 @@ func wireHTTP(stores *store.Stores, token string, msgBus *bus.MessageBus, toolsR
 	}
 
 	if stores != nil && stores.PendingMessages != nil {
-		pendingMessagesH = httpapi.NewPendingMessagesHandler(stores.PendingMessages, token)
+		pendingMessagesH = httpapi.NewPendingMessagesHandler(stores.PendingMessages, token, providerReg)
 	}
 
 	return agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH, pendingMessagesH

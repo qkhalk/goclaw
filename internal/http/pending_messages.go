@@ -1,21 +1,27 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"time"
 
+	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // PendingMessagesHandler handles pending message HTTP endpoints.
 type PendingMessagesHandler struct {
-	store store.PendingMessageStore
-	token string
+	store       store.PendingMessageStore
+	token       string
+	providerReg *providers.Registry
 }
 
-func NewPendingMessagesHandler(s store.PendingMessageStore, token string) *PendingMessagesHandler {
-	return &PendingMessagesHandler{store: s, token: token}
+func NewPendingMessagesHandler(s store.PendingMessageStore, token string, providerReg *providers.Registry) *PendingMessagesHandler {
+	return &PendingMessagesHandler{store: s, token: token, providerReg: providerReg}
 }
 
 func (h *PendingMessagesHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -101,7 +107,8 @@ type compactRequest struct {
 	HistoryKey  string `json:"history_key"`
 }
 
-// POST /v1/pending-messages/compact — MVP: clear group and return success
+// POST /v1/pending-messages/compact — LLM-based summarization of old messages, keeping recent ones.
+// Falls back to hard delete if no LLM provider is available.
 func (h *PendingMessagesHandler) handleCompact(w http.ResponseWriter, r *http.Request) {
 	locale := store.LocaleFromContext(r.Context())
 	var req compactRequest
@@ -114,9 +121,43 @@ func (h *PendingMessagesHandler) handleCompact(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := h.store.DeleteByKey(r.Context(), req.ChannelName, req.HistoryKey); err != nil {
+	// Resolve an LLM provider for summarization
+	provider := h.resolveProvider()
+	if provider == nil {
+		// Fallback: hard delete if no provider available
+		slog.Warn("compact.no_provider", "channel", req.ChannelName, "key", req.HistoryKey)
+		if err := h.store.DeleteByKey(r.Context(), req.ChannelName, req.HistoryKey); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "method": "deleted"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+
+	remaining, err := channels.CompactGroup(ctx, h.store, req.ChannelName, req.HistoryKey, provider, provider.DefaultModel(), 15)
+	if err != nil {
+		slog.Warn("compact.failed", "channel", req.ChannelName, "key", req.HistoryKey, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "method": "summarized", "remaining": remaining})
+}
+
+// resolveProvider returns the first available LLM provider, or nil.
+func (h *PendingMessagesHandler) resolveProvider() providers.Provider {
+	if h.providerReg == nil {
+		return nil
+	}
+	names := h.providerReg.List()
+	if len(names) == 0 {
+		return nil
+	}
+	p, err := h.providerReg.Get(names[0])
+	if err != nil {
+		return nil
+	}
+	return p
 }

@@ -103,12 +103,18 @@ func (s *PGPendingMessageStore) Compact(ctx context.Context, deleteIDs []uuid.UU
 		args[i] = id
 	}
 
-	_, err = tx.ExecContext(ctx,
+	res, err := tx.ExecContext(ctx,
 		fmt.Sprintf("DELETE FROM channel_pending_messages WHERE id IN (%s)", strings.Join(placeholders, ",")),
 		args...,
 	)
 	if err != nil {
 		return fmt.Errorf("compact delete: %w", err)
+	}
+
+	// Guard: if another compaction already deleted these rows, skip summary insertion
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return nil // already compacted by concurrent caller
 	}
 
 	// Insert summary row
