@@ -236,6 +236,16 @@
     "retrying": "重试中...",
     "done": "完成"
   },
+  "configGroups": {
+    "core": "核心",
+    "coreDesc": "直接影响Agent行为的基本设置",
+    "capabilities": "能力",
+    "capabilitiesDesc": "Agent可以使用的功能",
+    "performance": "性能",
+    "performanceDesc": "上下文管理和执行环境",
+    "advanced": "质量与高级",
+    "advancedDesc": "质量保证和自定义配置"
+  },
   "configSections": {
     "subagents": {
       "title": "子Agent",

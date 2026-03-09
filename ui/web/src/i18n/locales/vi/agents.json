@@ -236,6 +236,16 @@
     "retrying": "Đang thử lại...",
     "done": "xong"
   },
+  "configGroups": {
+    "core": "Cốt lõi",
+    "coreDesc": "Cài đặt thiết yếu ảnh hưởng trực tiếp đến hành vi agent",
+    "capabilities": "Khả năng",
+    "capabilitiesDesc": "Các tính năng agent có thể sử dụng",
+    "performance": "Hiệu suất",
+    "performanceDesc": "Quản lý ngữ cảnh và môi trường thực thi",
+    "advanced": "Chất lượng & Nâng cao",
+    "advancedDesc": "Kiểm tra chất lượng và cấu hình tùy chỉnh"
+  },
   "configSections": {
     "subagents": {
       "title": "Agent con",

@@ -10,15 +10,17 @@ import { useConfig } from "./hooks/use-config";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { useIsMobile } from "@/hooks/use-media-query";
-import { GatewaySection } from "./sections/gateway-section";
-import { AgentsDefaultsSection } from "./sections/agents-defaults-section";
-import { ToolsSection } from "./sections/tools-section";
-import { SessionsSection } from "./sections/sessions-section";
+import { ServerSection } from "./sections/server-section";
+import { BehaviorSection } from "./sections/behavior-section";
+import { AiDefaultsSection } from "./sections/ai-defaults-section";
+import { QuotaSection } from "./sections/quota-section";
+import { ToolsProfileSection } from "./sections/tools-profile-section";
+import { ToolsExecSection } from "./sections/tools-exec-section";
+import { ToolsWebSection } from "./sections/tools-web-section";
 import { TtsSection } from "./sections/tts-section";
 import { CronSection } from "./sections/cron-section";
 import { TelemetrySection } from "./sections/telemetry-section";
 import { BindingsSection } from "./sections/bindings-section";
-import { QuotaSection } from "./sections/quota-section";
 
 export function ConfigPage() {
   const { t } = useTranslation("config");
@@ -82,7 +84,7 @@ export function ConfigPage() {
         <span>{t("warning")}</span>
       </div>
 
-      <Tabs orientation={isMobile ? "horizontal" : "vertical"} defaultValue="general" className="mt-4 items-start">
+      <Tabs orientation={isMobile ? "horizontal" : "vertical"} defaultValue="server" className="mt-4 items-start">
         <TabsList
           variant={isMobile ? "default" : "line"}
           className={isMobile
@@ -90,18 +92,34 @@ export function ConfigPage() {
             : "w-44 shrink-0 sticky top-6 rounded-lg border bg-card p-3 shadow-sm"
           }
         >
-          <TabsTrigger value="general">{t("tabs.general")}</TabsTrigger>
+          <TabsTrigger value="server">{t("tabs.server")}</TabsTrigger>
+          <TabsTrigger value="behavior">{t("tabs.behavior")}</TabsTrigger>
+          <TabsTrigger value="aiDefaults">{t("tabs.aiDefaults")}</TabsTrigger>
           <TabsTrigger value="quota">{t("tabs.quota")}</TabsTrigger>
-          <TabsTrigger value="agents">{t("tabs.agents")}</TabsTrigger>
-          <TabsTrigger value="sessions">{t("tabs.sessions")}</TabsTrigger>
           <TabsTrigger value="tools">{t("tabs.tools")}</TabsTrigger>
-          <TabsTrigger value="advanced">{t("tabs.advanced")}</TabsTrigger>
+          <TabsTrigger value="integrations">{t("tabs.integrations")}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="space-y-4">
-          <GatewaySection
+        <TabsContent value="server" className="space-y-4">
+          <ServerSection
             data={config.gateway as any}
             onSave={(v) => patch({ gateway: v })}
+            saving={saving}
+          />
+        </TabsContent>
+
+        <TabsContent value="behavior" className="space-y-4">
+          <BehaviorSection
+            config={config as any}
+            onPatch={patch}
+            saving={saving}
+          />
+        </TabsContent>
+
+        <TabsContent value="aiDefaults" className="space-y-4">
+          <AiDefaultsSection
+            data={config.agents as any}
+            onSave={(v) => patch({ agents: v })}
             saving={saving}
           />
         </TabsContent>
@@ -114,31 +132,25 @@ export function ConfigPage() {
           />
         </TabsContent>
 
-        <TabsContent value="agents" className="space-y-4">
-          <AgentsDefaultsSection
-            data={config.agents as any}
-            onSave={(v) => patch({ agents: v })}
-            saving={saving}
-          />
-        </TabsContent>
-
-        <TabsContent value="sessions" className="space-y-4">
-          <SessionsSection
-            data={config.sessions as any}
-            onSave={(v) => patch({ sessions: v })}
-            saving={saving}
-          />
-        </TabsContent>
-
         <TabsContent value="tools" className="space-y-4">
-          <ToolsSection
+          <ToolsProfileSection
+            data={config.tools as any}
+            onSave={(v) => patch({ tools: v })}
+            saving={saving}
+          />
+          <ToolsExecSection
+            data={config.tools as any}
+            onSave={(v) => patch({ tools: v })}
+            saving={saving}
+          />
+          <ToolsWebSection
             data={config.tools as any}
             onSave={(v) => patch({ tools: v })}
             saving={saving}
           />
         </TabsContent>
 
-        <TabsContent value="advanced" className="space-y-4">
+        <TabsContent value="integrations" className="space-y-4">
           <TtsSection data={config.tts as any} />
           <CronSection
             data={config.cron as any}

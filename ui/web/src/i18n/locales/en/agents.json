@@ -236,6 +236,16 @@
     "retrying": "Retrying...",
     "done": "done"
   },
+  "configGroups": {
+    "core": "Core",
+    "coreDesc": "Essential settings that directly affect agent behavior",
+    "capabilities": "Capabilities",
+    "capabilitiesDesc": "Features the agent can use",
+    "performance": "Performance",
+    "performanceDesc": "Context management and execution environment",
+    "advanced": "Quality & Advanced",
+    "advancedDesc": "Quality assurance and custom configuration"
+  },
   "configSections": {
     "subagents": {
       "title": "Subagents",

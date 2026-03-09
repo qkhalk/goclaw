@@ -21,7 +21,7 @@ interface Props {
   saving: boolean;
 }
 
-export function AgentsDefaultsSection({ data, onSave, saving }: Props) {
+export function AiDefaultsSection({ data, onSave, saving }: Props) {
   const { t } = useTranslation("config");
   const [draft, setDraft] = useState<AgentsData>(data ?? DEFAULT);
   const [dirty, setDirty] = useState(false);
@@ -76,7 +76,6 @@ export function AgentsDefaultsSection({ data, onSave, saving }: Props) {
         <CardDescription>{t("agents.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Core fields */}
         <ProviderModelSelect
           provider={defaults.provider ?? ""}
           onProviderChange={(v) => updateDefaults({ provider: v })}
@@ -145,14 +144,6 @@ export function AgentsDefaultsSection({ data, onSave, saving }: Props) {
               onCheckedChange={(v) => updateDefaults({ restrict_to_workspace: v })}
             />
           </div>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <InfoLabel tip={t("agents.intentClassifyTip")}>{t("agents.intentClassify")}</InfoLabel>
-          <Switch
-            checked={defaults.intent_classify !== false}
-            onCheckedChange={(v) => updateDefaults({ intent_classify: v })}
-          />
         </div>
 
         {/* Collapsible sub-sections */}
@@ -326,7 +317,7 @@ function Field({
 }: {
   label: string;
   tip?: string;
-  value: any;
+  value: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
