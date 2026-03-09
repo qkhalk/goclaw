@@ -1,595 +1,63 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
-	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
 
 func onboardCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "onboard",
-		Short: "Interactive setup wizard — configure provider, model, gateway, channels",
+		Short: "Quick setup — configure database, generate keys, run migrations",
 		Run: func(cmd *cobra.Command, args []string) {
 			runOnboard()
 		},
 	}
 }
 
-type providerInfo struct {
-	name      string
-	envKey    string
-	modelHint string
-}
-
-var providerMap = map[string]providerInfo{
-	"openrouter": {"openrouter", "GOCLAW_OPENROUTER_API_KEY", "anthropic/claude-sonnet-4-5-20250929"},
-	"anthropic":  {"anthropic", "GOCLAW_ANTHROPIC_API_KEY", "claude-sonnet-4-5-20250929"},
-	"openai":     {"openai", "GOCLAW_OPENAI_API_KEY", "gpt-4o"},
-	"groq":       {"groq", "GOCLAW_GROQ_API_KEY", "llama-3.3-70b-versatile"},
-	"deepseek":   {"deepseek", "GOCLAW_DEEPSEEK_API_KEY", "deepseek-chat"},
-	"gemini":     {"gemini", "GOCLAW_GEMINI_API_KEY", "gemini-2.0-flash"},
-	"mistral":    {"mistral", "GOCLAW_MISTRAL_API_KEY", "mistral-large-latest"},
-	"xai":        {"xai", "GOCLAW_XAI_API_KEY", "grok-3-mini"},
-	"minimax":    {"minimax", "GOCLAW_MINIMAX_API_KEY", "MiniMax-M2.5"},
-	"cohere":     {"cohere", "GOCLAW_COHERE_API_KEY", "command-a"},
-	"perplexity": {"perplexity", "GOCLAW_PERPLEXITY_API_KEY", "sonar-pro"},
-	"claude_cli": {"claude-cli", "", "sonnet"},
-	"custom":     {"custom", "", ""},
-}
-
 func runOnboard() {
-	// If env vars provide API keys, skip interactive wizard entirely.
-	if canAutoOnboard() {
-		cfgPath := resolveConfigPath()
-		fmt.Println("Environment variables detected. Running non-interactive setup...")
-		if runAutoOnboard(cfgPath) {
-			return
-		}
-		fmt.Println("Auto-onboard failed, falling through to interactive wizard...")
-		fmt.Println()
-	}
-
 	fmt.Println("╔══════════════════════════════════════════════╗")
-	fmt.Println("║        GoClaw — Setup Wizard            ║")
+	fmt.Println("║        GoClaw — Quick Setup                 ║")
 	fmt.Println("╚══════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// Determine config path
 	cfgPath := resolveConfigPath()
+	cfg := config.Default()
 
-	// Check existing config
-	var cfg *config.Config
-	isNewConfig := true
+	// Load existing config if present (preserve gateway port, etc.)
 	if _, err := os.Stat(cfgPath); err == nil {
-		fmt.Printf("Found existing config at %s\n", cfgPath)
-		useExisting, err := promptConfirm("Use existing config as base?", true)
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-		if useExisting {
-			loaded, err := config.Load(cfgPath)
-			if err != nil {
-				fmt.Printf("Warning: could not load existing config: %v\n", err)
-				cfg = config.Default()
-			} else {
-				cfg = loaded
-				isNewConfig = false
-			}
-		} else {
-			cfg = config.Default()
-		}
-	} else {
-		cfg = config.Default()
-	}
-
-	// --- Declare all wizard variables (pre-filled from existing config) ---
-	var (
-		providerChoice = cfg.Agents.Defaults.Provider
-		apiKey         string
-		customAPIBase  string
-		customModel    string
-		modelChoice    = cfg.Agents.Defaults.Model
-		orModelChoice  = cfg.Agents.Defaults.Model
-
-		portStr = strconv.Itoa(cfg.Gateway.Port)
-
-		selectedChannels []string
-		telegramToken    string
-		zaloToken        string
-		zaloDMPolicy     = "pairing"
-		feishuAppID      string
-		feishuSecret     string
-		feishuDomain     = "lark"
-		feishuConnMode   = "websocket"
-
-		selectedFeatures []string
-		embProvider      string
-
-		ttsProvider = "none"
-		ttsAPIKey   string
-		ttsGroupID  string
-		ttsAutoMode = "off"
-
-		postgresDSN  string
-		traceVerbose bool
-	)
-
-	if isNewConfig {
-		providerChoice = "openrouter"
-		selectedFeatures = []string{"memory", "browser"}
-	}
-	if portStr == "0" {
-		portStr = "18790"
-	}
-
-	// Pre-fill from existing config
-	if cfg.Channels.Telegram.Enabled {
-		selectedChannels = append(selectedChannels, "telegram")
-		telegramToken = cfg.Channels.Telegram.Token
-	}
-	if cfg.Channels.Zalo.Enabled {
-		selectedChannels = append(selectedChannels, "zalo")
-		zaloToken = cfg.Channels.Zalo.Token
-		zaloDMPolicy = cfg.Channels.Zalo.DMPolicy
-	}
-	if cfg.Channels.Feishu.Enabled {
-		selectedChannels = append(selectedChannels, "feishu")
-		feishuAppID = cfg.Channels.Feishu.AppID
-		feishuSecret = cfg.Channels.Feishu.AppSecret
-		feishuDomain = cfg.Channels.Feishu.Domain
-		feishuConnMode = cfg.Channels.Feishu.ConnectionMode
-	}
-	if cfg.Agents.Defaults.Memory != nil && (cfg.Agents.Defaults.Memory.Enabled == nil || *cfg.Agents.Defaults.Memory.Enabled) {
-		selectedFeatures = append(selectedFeatures, "memory")
-		embProvider = cfg.Agents.Defaults.Memory.EmbeddingProvider
-	}
-	if cfg.Tools.Browser.Enabled {
-		selectedFeatures = append(selectedFeatures, "browser")
-	}
-	if cfg.Tts.Provider != "" {
-		ttsProvider = cfg.Tts.Provider
-		ttsAutoMode = cfg.Tts.Auto
-		ttsAPIKey = cfg.Tts.OpenAI.APIKey
-		if ttsAPIKey == "" {
-			ttsAPIKey = cfg.Tts.ElevenLabs.APIKey
-		}
-		if ttsAPIKey == "" {
-			ttsAPIKey = cfg.Tts.MiniMax.APIKey
-		}
-		ttsGroupID = cfg.Tts.MiniMax.GroupID
-	}
-	postgresDSN = cfg.Database.PostgresDSN
-
-	// Pre-fill API key from env or config
-	apiKey = resolveExistingAPIKey(cfg, providerChoice)
-	if cfg.Providers.OpenAI.APIBase != "" {
-		customAPIBase = cfg.Providers.OpenAI.APIBase
-	}
-
-	// ── Step 1: Provider ──
-	providerOptions := []SelectOption[string]{
-		{"OpenRouter  (recommended — access to many models)", "openrouter"},
-		{"Anthropic   (Claude models directly)", "anthropic"},
-		{"OpenAI      (GPT models)", "openai"},
-		{"Groq        (fast inference)", "groq"},
-		{"DeepSeek    (DeepSeek models)", "deepseek"},
-		{"Gemini      (Google Gemini)", "gemini"},
-		{"Mistral     (Mistral AI models)", "mistral"},
-		{"xAI         (Grok models)", "xai"},
-		{"MiniMax     (MiniMax models)", "minimax"},
-		{"Cohere      (Command models)", "cohere"},
-		{"Perplexity  (Sonar search models)", "perplexity"},
-		{"Claude CLI  (use local claude CLI — no API key needed)", "claude_cli"},
-		{"Custom      (any OpenAI-compatible endpoint)", "custom"},
-	}
-
-	var err error
-	providerChoice, err = promptSelect("Step 1 · AI Provider — Choose your LLM provider", providerOptions, 0)
-	if err != nil {
-		fmt.Println("Cancelled.")
-		return
-	}
-
-	// Claude CLI variables
-	var cliPath, cliModel string
-	if cfg.Providers.ClaudeCLI.CLIPath != "" {
-		cliPath = cfg.Providers.ClaudeCLI.CLIPath
-		cliModel = cfg.Providers.ClaudeCLI.Model
-	}
-
-	// Provider-specific prompts
-	switch providerChoice {
-	case "claude_cli":
-		if cliPath == "" {
-			cliPath = "claude"
-		}
-		cliPath, err = promptString("Claude CLI Path", "Path to the claude binary", cliPath)
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-
-		// Verify CLI binary exists
-		if _, lookErr := exec.LookPath(cliPath); lookErr != nil {
-			fmt.Printf("  ✗ Claude CLI binary not found at %q\n", cliPath)
-			fmt.Println("  Install Claude CLI first: https://docs.anthropic.com/en/docs/claude-cli")
-			return
-		}
-
-		// Check authentication status
-		fmt.Print("  Checking Claude CLI authentication... ")
-		authStatus, authErr := providers.CheckClaudeAuthStatus(context.Background(), cliPath)
-		if authErr != nil || !authStatus.LoggedIn {
-			if authErr != nil {
-				fmt.Println("FAILED")
-				fmt.Printf("  %v\n", authErr)
-			} else {
-				fmt.Println("NOT LOGGED IN")
-			}
-			fmt.Println()
-			runLogin, confirmErr := promptConfirm("Claude CLI requires authentication. Run login now?", true)
-			if confirmErr != nil {
-				fmt.Println("Cancelled.")
-				return
-			}
-			if runLogin {
-				if loginErr := runClaudeAuthLogin(cliPath); loginErr != nil {
-					fmt.Printf("  Login failed: %v\n", loginErr)
-					fmt.Println("  You can try manually: claude auth login")
-					return
-				}
-			} else {
-				fmt.Println("  Skipping login. Run 'claude auth login' before starting the gateway.")
-			}
-		} else {
-			sub := authStatus.SubscriptionType
-			if sub == "" {
-				sub = "unknown"
-			}
-			fmt.Printf("OK\n")
-			fmt.Printf("  ✓ Authenticated as %s (subscription: %s)\n", authStatus.Email, sub)
-		}
-		fmt.Println()
-
-		if cliModel == "" {
-			cliModel = "sonnet"
-		}
-		cliModel, err = promptString("Default Model", "Model alias: sonnet, opus, haiku", cliModel)
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-
-	case "custom":
-		customAPIBase, err = promptString("API Base URL", "OpenAI-compatible endpoint (e.g. Ollama, vLLM, LiteLLM)", customAPIBase)
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-		apiKey, err = promptPassword("API Key", "Leave empty if not required")
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-		customModel, err = promptString("Model ID", "The model to use on this endpoint", customModel)
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-
-	case "openrouter":
-		apiKey, err = promptPassword("OpenRouter API Key", "Get yours at https://openrouter.ai/keys")
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-
-		// Fetch and select model
-		fmt.Println("  Fetching OpenRouter models...")
-		orModelOptions := buildOpenRouterModelOptions()
-		orModelChoice, err = promptSelect("Choose OpenRouter Model", orModelOptions, 0)
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-
-	default:
-		// Standard provider
-		apiKey, err = promptPassword("API Key", "Your provider API key (check env vars or dashboard)")
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-		modelChoice, err = promptString("Default Model", "Model ID to use (leave empty for provider default)", modelChoice)
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
+		if loaded, err := config.Load(cfgPath); err == nil {
+			cfg = loaded
 		}
 	}
 
-	// ── Gateway Port ──
-	portStr, err = promptString("Gateway Port", "WebSocket server port", portStr)
-	if err != nil {
-		fmt.Println("Cancelled.")
-		return
-	}
-
-	// ── Step 2: Channels ──
-	selectedChannels, err = promptMultiSelect("Step 2 · Channels (select at least 1)", "Enter numbers to toggle channels", []SelectOption[string]{
-		{"Telegram", "telegram"},
-		{"Zalo OA", "zalo"},
-		{"Feishu / Lark", "feishu"},
-	}, selectedChannels)
-	if err != nil {
-		fmt.Println("Cancelled.")
-		return
-	}
-
-	// Helper closures
-	hasChannel := func(ch string) bool {
-		for _, c := range selectedChannels {
-			if c == ch {
-				return true
-			}
-		}
-		return false
-	}
-	hasFeature := func(f string) bool {
-		for _, feat := range selectedFeatures {
-			if feat == f {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Channel-specific configs
-	if hasChannel("telegram") {
-		telegramToken, err = promptPassword("Telegram Bot Token", "Get from @BotFather on Telegram")
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-		if telegramToken == "" {
-			telegramToken = cfg.Channels.Telegram.Token // keep existing
-		}
-	}
-
-	if hasChannel("zalo") {
-		if err := promptZaloConfig(&zaloToken, &zaloDMPolicy); err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-	}
-
-	if hasChannel("feishu") {
-		if err := promptFeishuConfig(&feishuAppID, &feishuSecret, &feishuDomain, &feishuConnMode); err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-	}
-
-	// ── Features ──
-	selectedFeatures, err = promptMultiSelect("Features (recommended: keep both)", "Enter numbers to toggle features", []SelectOption[string]{
-		{"Memory (vector search over agent notes)", "memory"},
-		{"Browser automation (agent can browse the web)", "browser"},
-	}, selectedFeatures)
-	if err != nil {
-		fmt.Println("Cancelled.")
-		return
-	}
-
-	// Memory embedding provider
-	if hasFeature("memory") {
-		embProvider, err = promptSelect("Memory Embedding Provider", []SelectOption[string]{
-			{"Auto-detect (use chat provider's API key)", ""},
-			{"OpenAI (text-embedding-3-small)", "openai"},
-			{"OpenRouter (openai/text-embedding-3-small)", "openrouter"},
-			{"Gemini (text-embedding-004)", "gemini"},
-		}, 0)
-		if err != nil {
-			fmt.Println("Cancelled.")
-			return
-		}
-	}
-
-	// ── TTS ──
-	if err := promptTTSConfig(&ttsProvider, &ttsAPIKey, &ttsGroupID, &ttsAutoMode); err != nil {
-		fmt.Println("Cancelled.")
-		return
-	}
-
-	// ── Verbose Tracing ──
-	traceVerbose, err = promptConfirm("Enable verbose tracing? (Logs full LLM input in trace spans)", false)
-	if err != nil {
-		fmt.Println("Cancelled.")
-		return
-	}
-
-	// ── Step 3: Database ──
-	postgresDSN, err = promptString("Step 3 · Postgres DSN", "Connection string (e.g. postgres://user:pass@host:5432/dbname)", postgresDSN)
-	if err != nil {
-		fmt.Println("Cancelled.")
-		return
-	}
-
-	// --- Post-form validation ---
-	var errors []string
-
-	if providerChoice == "custom" {
-		if customAPIBase == "" {
-			errors = append(errors, "API base URL is required for custom provider")
-		}
-		if customModel == "" {
-			errors = append(errors, "Model ID is required for custom provider")
-		}
-	} else if providerChoice == "claude_cli" {
-		if cliPath == "" {
-			errors = append(errors, "Claude CLI path is required")
-		}
-	} else if apiKey == "" {
-		errors = append(errors, fmt.Sprintf("API key is required for %s", providerChoice))
-	}
-
-	if _, err := strconv.Atoi(portStr); err != nil {
-		errors = append(errors, fmt.Sprintf("Invalid gateway port: %s", portStr))
-	}
-
-	if len(selectedChannels) == 0 {
-		errors = append(errors, "At least one channel must be selected (Telegram, Zalo, or Feishu)")
-	}
-
-	if hasChannel("telegram") && telegramToken == "" {
-		errors = append(errors, "Telegram bot token is required")
-	}
-	if hasChannel("zalo") && zaloToken == "" {
-		errors = append(errors, "Zalo bot token is required")
-	}
-	if hasChannel("feishu") && (feishuAppID == "" || feishuSecret == "") {
-		errors = append(errors, "Feishu App ID and App Secret are required")
-	}
-
+	// ── Step 1: Postgres DSN ──
+	postgresDSN := os.Getenv("GOCLAW_POSTGRES_DSN")
 	if postgresDSN == "" {
-		errors = append(errors, "Postgres DSN is required (set GOCLAW_POSTGRES_DSN or enter above)")
+		postgresDSN = cfg.Database.PostgresDSN
 	}
-
-	if len(errors) > 0 {
-		fmt.Println()
-		fmt.Println("  Validation errors:")
-		for _, e := range errors {
-			fmt.Printf("    • %s\n", e)
+	if postgresDSN == "" {
+		var err error
+		postgresDSN, err = promptString("Postgres DSN", "Connection string (e.g. postgres://user:pass@host:5432/dbname)", "")
+		if err != nil {
+			fmt.Println("Cancelled.")
+			return
 		}
-		fmt.Println()
-		fmt.Println("  Please re-run: ./goclaw onboard")
+	} else {
+		fmt.Printf("  Using Postgres DSN from environment\n")
+	}
+	if postgresDSN == "" {
+		fmt.Println("  Error: Postgres DSN is required.")
 		return
 	}
 
-	// --- Apply collected values to config ---
-
-	// Provider & model
-	if providerChoice == "claude_cli" {
-		cfg.Agents.Defaults.Provider = "claude-cli"
-		cfg.Agents.Defaults.Model = cliModel
-		cfg.Providers.ClaudeCLI.CLIPath = cliPath
-		cfg.Providers.ClaudeCLI.Model = cliModel
-	} else if providerChoice == "custom" {
-		cfg.Agents.Defaults.Provider = "openai"
-		cfg.Providers.OpenAI.APIBase = customAPIBase
-		cfg.Providers.OpenAI.APIKey = apiKey
-		cfg.Agents.Defaults.Model = customModel
-	} else {
-		pi := providerMap[providerChoice]
-		cfg.Agents.Defaults.Provider = pi.name
-		applyProviderAPIKey(cfg, pi.name, apiKey)
-
-		if providerChoice == "openrouter" {
-			if orModelChoice == "__custom__" {
-				cfg.Agents.Defaults.Model = pi.modelHint
-			} else {
-				cfg.Agents.Defaults.Model = orModelChoice
-			}
-		} else {
-			if modelChoice == "" {
-				modelChoice = pi.modelHint
-			}
-			cfg.Agents.Defaults.Model = modelChoice
-		}
-	}
-
-	// Gateway
-	cfg.Gateway.Port, _ = strconv.Atoi(portStr)
-	if cfg.Gateway.Host == "" {
-		cfg.Gateway.Host = "0.0.0.0"
-	}
-	if cfg.Gateway.Token == "" {
-		cfg.Gateway.Token = onboardGenerateToken(16)
-		fmt.Printf("  Generated gateway token: %s\n", cfg.Gateway.Token)
-	}
-
-	// Workspace (use default, no prompt)
-	cfg.Agents.Defaults.Workspace = "~/.goclaw/workspace"
-	expandedWS := config.ExpandHome(cfg.Agents.Defaults.Workspace)
-	if err := os.MkdirAll(expandedWS, 0755); err != nil {
-		fmt.Printf("Warning: could not create workspace: %v\n", err)
-	}
-
-	// Channels
-	cfg.Channels.Telegram.Enabled = hasChannel("telegram")
-	if cfg.Channels.Telegram.Enabled {
-		cfg.Channels.Telegram.Token = telegramToken
-		cfg.Channels.Telegram.DMPolicy = "pairing"
-	}
-
-	cfg.Channels.Zalo.Enabled = hasChannel("zalo")
-	if cfg.Channels.Zalo.Enabled {
-		cfg.Channels.Zalo.Token = zaloToken
-		cfg.Channels.Zalo.DMPolicy = zaloDMPolicy
-	}
-
-	cfg.Channels.Feishu.Enabled = hasChannel("feishu")
-	if cfg.Channels.Feishu.Enabled {
-		cfg.Channels.Feishu.AppID = feishuAppID
-		cfg.Channels.Feishu.AppSecret = feishuSecret
-		cfg.Channels.Feishu.Domain = feishuDomain
-		cfg.Channels.Feishu.ConnectionMode = feishuConnMode
-	}
-
-	// Features
-	if hasFeature("memory") {
-		enabled := true
-		if cfg.Agents.Defaults.Memory == nil {
-			cfg.Agents.Defaults.Memory = &config.MemoryConfig{}
-		}
-		cfg.Agents.Defaults.Memory.Enabled = &enabled
-		cfg.Agents.Defaults.Memory.EmbeddingProvider = embProvider
-	} else {
-		disabled := false
-		cfg.Agents.Defaults.Memory = &config.MemoryConfig{Enabled: &disabled}
-	}
-	cfg.Tools.Browser.Enabled = hasFeature("browser")
-	if cfg.Tools.Browser.Enabled {
-		cfg.Tools.Browser.Headless = true
-	}
-
-	// TTS
-	if ttsProvider != "none" {
-		cfg.Tts.Provider = ttsProvider
-		cfg.Tts.Auto = ttsAutoMode
-		switch ttsProvider {
-		case "openai":
-			cfg.Tts.OpenAI.APIKey = ttsAPIKey
-		case "elevenlabs":
-			cfg.Tts.ElevenLabs.APIKey = ttsAPIKey
-		case "minimax":
-			cfg.Tts.MiniMax.APIKey = ttsAPIKey
-			cfg.Tts.MiniMax.GroupID = ttsGroupID
-		case "edge":
-			cfg.Tts.Edge.Enabled = true
-		}
-	}
-
-	// Database
-	cfg.Database.PostgresDSN = postgresDSN
-
-	// Auto-generate encryption key for API keys in DB (if not already set).
-	if os.Getenv("GOCLAW_ENCRYPTION_KEY") == "" {
-		encKey := onboardGenerateToken(32)
-		os.Setenv("GOCLAW_ENCRYPTION_KEY", encKey)
-		fmt.Printf("  Generated encryption key for API keys (AES-256-GCM)\n")
-	} else {
-		fmt.Println("  Using existing GOCLAW_ENCRYPTION_KEY from environment")
-	}
-
+	// ── Step 2: Test connection ──
 	fmt.Print("  Testing Postgres connection... ")
 	if err := testPostgresConnection(postgresDSN); err != nil {
 		fmt.Println("FAILED")
@@ -599,135 +67,111 @@ func runOnboard() {
 	}
 	fmt.Println("OK")
 
-	runMigrate, err := promptConfirm("Run database migration now?", true)
-	if err != nil {
-		fmt.Println("Cancelled.")
-		return
+	// ── Step 3: Generate keys ──
+	gatewayToken := os.Getenv("GOCLAW_GATEWAY_TOKEN")
+	if gatewayToken == "" {
+		gatewayToken = cfg.Gateway.Token
 	}
-	if runMigrate {
-		fmt.Println("  Running migration...")
-		m, err := newMigrator(postgresDSN)
-		if err != nil {
-			fmt.Printf("  Migration error: %v\n", err)
+	generatedToken := false
+	if gatewayToken == "" {
+		gatewayToken = onboardGenerateToken(16)
+		generatedToken = true
+	}
+
+	encryptionKey := os.Getenv("GOCLAW_ENCRYPTION_KEY")
+	generatedEncKey := false
+	if encryptionKey == "" {
+		encryptionKey = onboardGenerateToken(32)
+		generatedEncKey = true
+	}
+	os.Setenv("GOCLAW_ENCRYPTION_KEY", encryptionKey)
+
+	// ── Step 4: Migrations ──
+	fmt.Print("  Running migrations... ")
+	m, err := newMigrator(postgresDSN)
+	if err != nil {
+		fmt.Printf("FAILED: %v\n", err)
+		fmt.Println("  You can run it manually later: ./goclaw migrate up")
+	} else {
+		if err := m.Up(); err != nil && err.Error() != "no change" {
+			fmt.Printf("FAILED: %v\n", err)
 			fmt.Println("  You can run it manually later: ./goclaw migrate up")
 		} else {
-			if err := m.Up(); err != nil && err.Error() != "no change" {
-				fmt.Printf("  Migration error: %v\n", err)
-				fmt.Println("  You can run it manually later: ./goclaw migrate up")
-			} else {
-				v, _, _ := m.Version()
-				fmt.Printf("  Migration complete (version: %d)\n", v)
-			}
-			m.Close()
+			v, _, _ := m.Version()
+			fmt.Printf("OK (version: %d)\n", v)
 		}
-
-		fmt.Println("  Seeding default agent and provider...")
-		if err := seedManagedData(postgresDSN, cfg); err != nil {
-			fmt.Printf("  Seed warning: %v\n", err)
-			fmt.Println("  You can seed manually via the API after starting the gateway.")
-		} else {
-			fmt.Println("  Default agent and provider seeded.")
-		}
+		m.Close()
 	}
 
-	// --- Save config ---
-	fmt.Println()
-	fmt.Println("── Saving Config ──")
-	fmt.Println()
-
-	savedProviders := cfg.Providers
-	savedGwToken := cfg.Gateway.Token
-	savedTgToken := cfg.Channels.Telegram.Token
-	savedZaloToken := cfg.Channels.Zalo.Token
-	savedFeishuAppSecret := cfg.Channels.Feishu.AppSecret
-	savedTtsOpenAIKey := cfg.Tts.OpenAI.APIKey
-	savedTtsElevenLabsKey := cfg.Tts.ElevenLabs.APIKey
-	savedTtsMiniMaxKey := cfg.Tts.MiniMax.APIKey
-
-	// Clear secrets from providers but keep non-secret configs (like ClaudeCLI)
-	cfg.Providers = config.ProvidersConfig{
-		ClaudeCLI: savedProviders.ClaudeCLI, // no secrets, safe to save in config
+	// ── Step 5: Seed placeholder providers for UI ──
+	fmt.Print("  Seeding placeholder providers... ")
+	if err := seedOnboardPlaceholders(postgresDSN); err != nil {
+		fmt.Printf("warning: %v\n", err)
+	} else {
+		fmt.Println("OK")
 	}
-	cfg.Gateway.Token = ""
-	cfg.Channels.Telegram.Token = ""
-	cfg.Channels.Zalo.Token = ""
-	cfg.Channels.Feishu.AppSecret = ""
-	cfg.Tts.OpenAI.APIKey = ""
-	cfg.Tts.ElevenLabs.APIKey = ""
-	cfg.Tts.MiniMax.APIKey = ""
 
-	saveErr := config.Save(cfgPath, cfg)
+	// ── Step 6: Save config ──
+	if cfg.Gateway.Host == "" {
+		cfg.Gateway.Host = "0.0.0.0"
+	}
+	if cfg.Gateway.Port == 0 {
+		cfg.Gateway.Port = 18790
+	}
+	cfg.Database.PostgresDSN = "" // secrets go in .env.local, not config
+	cfg.Gateway.Token = ""       // secrets go in .env.local, not config
 
-	cfg.Providers = savedProviders
-	cfg.Gateway.Token = savedGwToken
-	cfg.Channels.Telegram.Token = savedTgToken
-	cfg.Channels.Zalo.Token = savedZaloToken
-	cfg.Channels.Feishu.AppSecret = savedFeishuAppSecret
-	cfg.Tts.OpenAI.APIKey = savedTtsOpenAIKey
-	cfg.Tts.ElevenLabs.APIKey = savedTtsElevenLabsKey
-	cfg.Tts.MiniMax.APIKey = savedTtsMiniMaxKey
-
-	if err := saveErr; err != nil {
-		fmt.Printf("Error saving config: %v\n", err)
+	if err := config.Save(cfgPath, cfg); err != nil {
+		fmt.Printf("  Error saving config: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Config saved to %s (no secrets)\n", cfgPath)
 
+	// ── Step 7: Save .env.local ──
 	envPath := filepath.Join(filepath.Dir(cfgPath), ".env.local")
-	pi := providerMap[providerChoice]
-	onboardWriteEnvFile(envPath, cfg, apiKey, pi.envKey, traceVerbose)
-	fmt.Printf("Secrets saved to %s\n", envPath)
+	onboardWriteEnvFile(envPath, postgresDSN, gatewayToken, encryptionKey)
 
-	// Summary
+	// ── Summary ──
+	port := strconv.Itoa(cfg.Gateway.Port)
+
 	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════╗")
-	fmt.Println("║           Setup Complete!                     ║")
+	fmt.Println("║           Setup Complete!                    ║")
 	fmt.Println("╚══════════════════════════════════════════════╝")
 	fmt.Println()
-	fmt.Printf("  Provider:  %s\n", cfg.Agents.Defaults.Provider)
-	fmt.Printf("  Model:     %s\n", cfg.Agents.Defaults.Model)
-	fmt.Printf("  Gateway:   ws://%s:%d\n", cfg.Gateway.Host, cfg.Gateway.Port)
-	fmt.Printf("  Token:     %s\n", cfg.Gateway.Token)
-	fmt.Printf("  Workspace: %s\n", cfg.Agents.Defaults.Workspace)
-	fmt.Println("  Database:  PostgreSQL")
-	if cfg.Channels.Telegram.Enabled {
-		fmt.Println("  Telegram:  enabled")
-	}
-	if cfg.Channels.Zalo.Enabled {
-		fmt.Println("  Zalo:      enabled")
-	}
-	if cfg.Channels.Feishu.Enabled {
-		fmt.Printf("  Feishu:    enabled (%s, %s)\n", cfg.Channels.Feishu.Domain, cfg.Channels.Feishu.ConnectionMode)
-	}
-	if cfg.Agents.Defaults.Memory != nil && (cfg.Agents.Defaults.Memory.Enabled == nil || *cfg.Agents.Defaults.Memory.Enabled) {
-		embProv := cfg.Agents.Defaults.Memory.EmbeddingProvider
-		if embProv == "" {
-			embProv = "auto-detect"
+
+	if generatedToken || generatedEncKey {
+		fmt.Println("── Generated Secrets (shown once, saved to .env.local) ──")
+		fmt.Println()
+		if generatedToken {
+			fmt.Printf("  Gateway Token:   %s\n", gatewayToken)
 		}
-		fmt.Printf("  Memory:    enabled (embedding: %s)\n", embProv)
-	} else {
-		fmt.Println("  Memory:    disabled")
-	}
-	if cfg.Tools.Browser.RemoteURL != "" {
-		fmt.Printf("  Browser:   enabled (remote: %s)\n", cfg.Tools.Browser.RemoteURL)
-	} else if cfg.Tools.Browser.Enabled {
-		fmt.Println("  Browser:   enabled (headless)")
-	} else {
-		fmt.Println("  Browser:   disabled")
-	}
-	if cfg.Tts.Provider != "" {
-		autoMode := cfg.Tts.Auto
-		if autoMode == "" {
-			autoMode = "off"
+		if generatedEncKey {
+			fmt.Printf("  Encryption Key:  %s\n", encryptionKey)
 		}
-		fmt.Printf("  TTS:       %s (auto: %s)\n", cfg.Tts.Provider, autoMode)
-	} else {
-		fmt.Println("  TTS:       disabled")
+		fmt.Println()
+		fmt.Println("  ⚠  These keys are shown only once. They are saved in:")
+		fmt.Printf("    → %s\n", envPath)
+		fmt.Println()
 	}
+
+	fmt.Println("── Files ──")
 	fmt.Println()
-	fmt.Println("To start the gateway:")
+	fmt.Printf("  Config:    %s  (gateway host/port, no secrets)\n", cfgPath)
+	fmt.Printf("  Secrets:   %s  (GOCLAW_POSTGRES_DSN, GOCLAW_GATEWAY_TOKEN, GOCLAW_ENCRYPTION_KEY)\n", envPath)
 	fmt.Println()
-	fmt.Printf("  source %s && ./goclaw\n", envPath)
+
+	fmt.Println("── Next Steps ──")
+	fmt.Println()
+	fmt.Println("  1. Start the gateway:")
+	fmt.Printf("     source %s && ./goclaw\n", envPath)
+	fmt.Println()
+	fmt.Println("  2. Open the dashboard to complete setup:")
+	fmt.Printf("     http://localhost:%s\n", port)
+	fmt.Println()
+	fmt.Println("     The setup wizard will guide you through:")
+	fmt.Println("     → Provider & API key configuration")
+	fmt.Println("     → Model selection & verification")
+	fmt.Println("     → Agent creation")
+	fmt.Println("     → Channel setup (optional)")
 	fmt.Println()
 }
-
