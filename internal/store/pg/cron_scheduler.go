@@ -242,4 +242,12 @@ func (s *PGCronStore) executeOneJob(job store.CronJob, handler func(job *store.C
 			now, status, lastError, next, now, id,
 		)
 	}
+
+	// Emit completion event
+	evt := store.CronEvent{Action: "completed", JobID: job.ID, JobName: job.Name, Status: status}
+	if err != nil {
+		evt.Action = "error"
+		evt.Error = err.Error()
+	}
+	s.emitEvent(evt)
 }

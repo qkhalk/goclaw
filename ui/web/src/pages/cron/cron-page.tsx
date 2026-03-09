@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Clock, Plus, Play, Trash2, History, RefreshCw } from "lucide-react";
+import { useParams, useNavigate } from "react-router";
+import { Clock, Plus, Play, Trash2, History, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -11,6 +12,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useCron, type CronJob, type CronRunLogEntry } from "./hooks/use-cron";
 import { CronFormDialog } from "./cron-form-dialog";
 import { CronRunLogDialog } from "./cron-run-log-dialog";
+import { CronDetailPage } from "./cron-detail-page";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { usePagination } from "@/hooks/use-pagination";
@@ -29,8 +31,10 @@ function formatSchedule(job: CronJob): string {
 }
 
 export function CronPage() {
-  const { jobs, loading, refresh, createJob, toggleJob, deleteJob, runJob, getRunLog } = useCron();
-  const spinning = useMinLoading(loading);
+  const { id: detailId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { jobs, loading, refreshing, refresh, createJob, toggleJob, deleteJob, runJob, getRunLog } = useCron();
+  const spinning = useMinLoading(refreshing);
   const showSkeleton = useDeferredLoading(loading && jobs.length === 0);
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CronJob | null>(null);
@@ -41,11 +45,29 @@ export function CronPage() {
 
   const { pageItems, pagination, setPage, setPageSize } = usePagination(jobs);
 
+  const detailJob = detailId ? jobs.find((j) => j.id === detailId) : null;
+  if (detailJob) {
+    return (
+      <CronDetailPage
+        job={detailJob}
+        onBack={() => navigate("/cron")}
+        onRun={runJob}
+        onToggle={toggleJob}
+        onDelete={async (id) => {
+          await deleteJob(id);
+          navigate("/cron");
+        }}
+        getRunLog={getRunLog}
+        onRefresh={refresh}
+      />
+    );
+  }
+
   const handleShowRunLog = async (job: CronJob) => {
     setRunLogTarget(job);
     setRunLogLoading(true);
     try {
-      const entries = await getRunLog(job.id);
+      const { entries } = await getRunLog(job.id);
       setRunLogEntries(entries);
     } finally {
       setRunLogLoading(false);
@@ -105,7 +127,15 @@ export function CronPage() {
                         onCheckedChange={(checked: boolean) => setToggleTarget({ job, enabled: checked })}
                       />
                     </td>
-                    <td className="px-4 py-3 font-medium">{job.name}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        className="cursor-pointer font-medium text-primary hover:underline"
+                        onClick={() => navigate(`/cron/${job.id}`)}
+                      >
+                        {job.name}
+                      </button>
+                    </td>
                     <td className="px-4 py-3">
                       <Badge variant="outline">{formatSchedule(job)}</Badge>
                     </td>
@@ -124,10 +154,13 @@ export function CronPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="Run now"
+                          title={job.state?.lastStatus === "running" ? "Running..." : "Run now"}
+                          disabled={job.state?.lastStatus === "running"}
                           onClick={() => runJob(job.id)}
                         >
-                          <Play className="h-3.5 w-3.5" />
+                          {job.state?.lastStatus === "running"
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Play className="h-3.5 w-3.5" />}
                         </Button>
                         <Button
                           variant="ghost"

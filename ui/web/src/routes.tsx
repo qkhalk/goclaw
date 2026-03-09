@@ -126,6 +126,7 @@ export function AppRoutes() {
           <Route path={ROUTES.SKILLS} element={<SkillsPage key="list" />} />
           <Route path={ROUTES.SKILL_DETAIL} element={<SkillsPage key="detail" />} />
           <Route path={ROUTES.CRON} element={<CronPage />} />
+          <Route path={ROUTES.CRON_DETAIL} element={<CronPage />} />
           <Route path={ROUTES.CONFIG} element={<ConfigPage />} />
           <Route path={ROUTES.TRACES} element={<TracesPage key="list" />} />
           <Route path={ROUTES.TRACE_DETAIL} element={<TracesPage key="detail" />} />

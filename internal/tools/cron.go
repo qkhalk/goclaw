@@ -366,11 +366,12 @@ func (t *CronTool) handleRuns(args map[string]interface{}, agentID, userID strin
 		limit = int(v)
 	}
 
-	entries := t.cronStore.GetRunLog(jobID, limit)
+	entries, total := t.cronStore.GetRunLog(jobID, limit, 0)
 
 	result := map[string]interface{}{
 		"entries": entries,
 		"count":   len(entries),
+		"total":   total,
 	}
 	data, _ := json.MarshalIndent(result, "", "  ")
 	return NewResult(string(data))

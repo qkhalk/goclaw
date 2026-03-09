@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/google/uuid"
@@ -795,9 +796,17 @@ func runGateway() {
 
 	// Wire pairing approval notification → channel (matching TS notifyPairingApproved).
 	botName := cfg.ResolveDisplayName("default")
-	pairingMethods.SetOnApprove(func(ctx context.Context, channel, chatID string) {
+	pairingMethods.SetOnApprove(func(ctx context.Context, channel, chatID, senderID string) {
 		msg := fmt.Sprintf("✅ %s access approved. Send a message to start chatting.", botName)
-		if err := channelMgr.SendToChannel(ctx, channel, chatID, msg); err != nil {
+		// Group pairings need group_id metadata so channels (e.g. Zalo) route to group API.
+		if strings.HasPrefix(senderID, "group:") {
+			msgBus.PublishOutbound(bus.OutboundMessage{
+				Channel:  channel,
+				ChatID:   chatID,
+				Content:  msg,
+				Metadata: map[string]string{"group_id": chatID},
+			})
+		} else if err := channelMgr.SendToChannel(ctx, channel, chatID, msg); err != nil {
 			slog.Warn("failed to send pairing approval notification", "channel", channel, "chatID", chatID, "error", err)
 		}
 	})
@@ -892,6 +901,9 @@ func runGateway() {
 
 	// Start cron service with job handler (routes through scheduler's cron lane)
 	pgStores.Cron.SetOnJob(makeCronJobHandler(sched, msgBus, cfg, channelMgr))
+	pgStores.Cron.SetOnEvent(func(event store.CronEvent) {
+		server.BroadcastEvent(*protocol.NewEvent(protocol.EventCron, event))
+	})
 	if err := pgStores.Cron.Start(); err != nil {
 		slog.Warn("cron service failed to start", "error", err)
 	}

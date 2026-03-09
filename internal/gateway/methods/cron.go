@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"regexp"
 
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
@@ -188,27 +189,33 @@ func (m *CronMethods) handleRun(_ context.Context, client *gateway.Client, req *
 	}
 
 	force := params.Mode == "force"
-	ran, reason, err := m.service.RunJob(jobID, force)
-	if err != nil {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+
+	// Validate job exists before responding
+	_, ok := m.service.GetJob(jobID)
+	if !ok {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, "job not found"))
 		return
 	}
 
-	resp := map[string]interface{}{
+	// Respond immediately — job execution happens in background
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
 		"ok":  true,
-		"ran": ran,
-	}
-	if !ran && reason != "" {
-		resp["reason"] = reason
-	}
-	client.SendResponse(protocol.NewOKResponse(req.ID, resp))
+		"ran": true,
+	}))
+
+	go func() {
+		if _, _, err := m.service.RunJob(jobID, force); err != nil {
+			slog.Warn("cron.run background error", "jobId", jobID, "error", err)
+		}
+	}()
 }
 
 func (m *CronMethods) handleRuns(_ context.Context, client *gateway.Client, req *protocol.RequestFrame) {
 	var params struct {
-		JobID string `json:"jobId"`
-		ID    string `json:"id"`
-		Limit int    `json:"limit"`
+		JobID  string `json:"jobId"`
+		ID     string `json:"id"`
+		Limit  int    `json:"limit"`
+		Offset int    `json:"offset"`
 	}
 	if req.Params != nil {
 		json.Unmarshal(req.Params, &params)
@@ -219,8 +226,9 @@ func (m *CronMethods) handleRuns(_ context.Context, client *gateway.Client, req 
 		jobID = params.ID
 	}
 
-	entries := m.service.GetRunLog(jobID, params.Limit)
+	entries, total := m.service.GetRunLog(jobID, params.Limit, params.Offset)
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]interface{}{
 		"entries": entries,
+		"total":   total,
 	}))
 }

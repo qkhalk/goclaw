@@ -39,13 +39,14 @@ export function CronJobsCard({ jobs }: { jobs: CronJob[] }) {
                         : "bg-muted-foreground/40"
                     }`}
                   />
-                  <span
-                    className={
+                  <Link
+                    to={`/cron/${job.id}`}
+                    className={`hover:underline ${
                       job.enabled ? "" : "text-muted-foreground"
-                    }
+                    }`}
                   >
                     {job.name}
-                  </span>
+                  </Link>
                 </div>
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   {job.enabled && job.state.nextRunAtMs ? (

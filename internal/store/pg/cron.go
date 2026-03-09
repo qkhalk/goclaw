@@ -24,6 +24,7 @@ type PGCronStore struct {
 	db      *sql.DB
 	mu      sync.Mutex
 	onJob   func(job *store.CronJob) (*store.CronJobResult, error)
+	onEvent func(event store.CronEvent)
 	running bool
 	stop    chan struct{}
 
@@ -369,27 +370,35 @@ func (s *PGCronStore) EnableJob(jobID string, enabled bool) error {
 	return nil
 }
 
-func (s *PGCronStore) GetRunLog(jobID string, limit int) []store.CronRunLogEntry {
+func (s *PGCronStore) GetRunLog(jobID string, limit, offset int) ([]store.CronRunLogEntry, int) {
 	if limit <= 0 {
 		limit = 20
 	}
+	if offset < 0 {
+		offset = 0
+	}
 
+	const cols = "job_id, status, error, summary, ran_at, COALESCE(duration_ms, 0), COALESCE(input_tokens, 0), COALESCE(output_tokens, 0)"
+
+	var total int
 	var rows *sql.Rows
 	var err error
 	if jobID != "" {
 		id, parseErr := uuid.Parse(jobID)
 		if parseErr != nil {
-			return nil
+			return nil, 0
 		}
+		s.db.QueryRow("SELECT COUNT(*) FROM cron_run_logs WHERE job_id = $1", id).Scan(&total)
 		rows, err = s.db.Query(
-			"SELECT job_id, status, error, summary, ran_at FROM cron_run_logs WHERE job_id = $1 ORDER BY ran_at DESC LIMIT $2",
-			id, limit)
+			"SELECT "+cols+" FROM cron_run_logs WHERE job_id = $1 ORDER BY ran_at DESC LIMIT $2 OFFSET $3",
+			id, limit, offset)
 	} else {
+		s.db.QueryRow("SELECT COUNT(*) FROM cron_run_logs").Scan(&total)
 		rows, err = s.db.Query(
-			"SELECT job_id, status, error, summary, ran_at FROM cron_run_logs ORDER BY ran_at DESC LIMIT $1", limit)
+			"SELECT "+cols+" FROM cron_run_logs ORDER BY ran_at DESC LIMIT $1 OFFSET $2", limit, offset)
 	}
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	defer rows.Close()
 
@@ -399,18 +408,23 @@ func (s *PGCronStore) GetRunLog(jobID string, limit int) []store.CronRunLogEntry
 		var status string
 		var errStr, summary *string
 		var ranAt time.Time
-		if err := rows.Scan(&jobUUID, &status, &errStr, &summary, &ranAt); err != nil {
+		var durationMS int64
+		var inputTokens, outputTokens int
+		if err := rows.Scan(&jobUUID, &status, &errStr, &summary, &ranAt, &durationMS, &inputTokens, &outputTokens); err != nil {
 			continue
 		}
 		result = append(result, store.CronRunLogEntry{
-			Ts:      ranAt.UnixMilli(),
-			JobID:   jobUUID.String(),
-			Status:  status,
-			Error:   derefStr(errStr),
-			Summary: derefStr(summary),
+			Ts:           ranAt.UnixMilli(),
+			JobID:        jobUUID.String(),
+			Status:       status,
+			Error:        derefStr(errStr),
+			Summary:      derefStr(summary),
+			DurationMS:   durationMS,
+			InputTokens:  inputTokens,
+			OutputTokens: outputTokens,
 		})
 	}
-	return result
+	return result, total
 }
 
 func (s *PGCronStore) Status() map[string]interface{} {
@@ -454,6 +468,21 @@ func (s *PGCronStore) SetOnJob(handler func(job *store.CronJob) (*store.CronJobR
 	s.onJob = handler
 }
 
+func (s *PGCronStore) SetOnEvent(handler func(event store.CronEvent)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onEvent = handler
+}
+
+func (s *PGCronStore) emitEvent(event store.CronEvent) {
+	s.mu.Lock()
+	fn := s.onEvent
+	s.mu.Unlock()
+	if fn != nil {
+		fn(event)
+	}
+}
+
 func (s *PGCronStore) RunJob(jobID string, force bool) (bool, string, error) {
 	job, ok := s.GetJob(jobID)
 	if !ok {
@@ -468,11 +497,21 @@ func (s *PGCronStore) RunJob(jobID string, force bool) (bool, string, error) {
 		return false, "", fmt.Errorf("no job handler configured")
 	}
 
-	result, err := handler(job)
-	content := ""
-	if result != nil {
-		content = result.Content
+	// Mark job as running before execution
+	if id, parseErr := uuid.Parse(jobID); parseErr == nil {
+		s.db.Exec("UPDATE cron_jobs SET last_status = 'running', updated_at = $1 WHERE id = $2", time.Now(), id)
 	}
-	return true, content, err
+	s.mu.Lock()
+	s.cacheLoaded = false
+	s.mu.Unlock()
+
+	s.emitEvent(store.CronEvent{Action: "running", JobID: job.ID, JobName: job.Name})
+
+	// Use executeOneJob for proper state updates, run logging, and retry
+	s.executeOneJob(*job, handler)
+	s.mu.Lock()
+	s.cacheLoaded = false
+	s.mu.Unlock()
+	return true, "", nil
 }
 

@@ -46,6 +46,9 @@ export interface CronRunLogEntry {
   status?: string;
   error?: string;
   summary?: string;
+  durationMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 export function useCron() {
@@ -53,7 +56,7 @@ export function useCron() {
   const connected = useAuthStore((s) => s.connected);
   const queryClient = useQueryClient();
 
-  const { data: jobs = [], isPending: loading } = useQuery({
+  const { data: jobs = [], isPending: loading, isFetching: refreshing } = useQuery({
     queryKey: queryKeys.cron.all,
     queryFn: async () => {
       const res = await ws.call<{ jobs: CronJob[] }>(Methods.CRON_LIST, {
@@ -133,16 +136,17 @@ export function useCron() {
   );
 
   const getRunLog = useCallback(
-    async (jobId: string, limit = 20): Promise<CronRunLogEntry[]> => {
-      if (!ws.isConnected) return [];
-      const res = await ws.call<{ entries: CronRunLogEntry[] }>(Methods.CRON_RUNS, {
+    async (jobId: string, limit = 20, offset = 0): Promise<{ entries: CronRunLogEntry[]; total: number }> => {
+      if (!ws.isConnected) return { entries: [], total: 0 };
+      const res = await ws.call<{ entries: CronRunLogEntry[]; total: number }>(Methods.CRON_RUNS, {
         jobId,
         limit,
+        offset,
       });
-      return res.entries ?? [];
+      return { entries: res.entries ?? [], total: res.total ?? 0 };
     },
     [ws],
   );
 
-  return { jobs, loading, refresh: invalidate, createJob, toggleJob, deleteJob, runJob, getRunLog };
+  return { jobs, loading, refreshing, refresh: invalidate, createJob, toggleJob, deleteJob, runJob, getRunLog };
 }
