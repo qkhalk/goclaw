@@ -120,11 +120,11 @@ func (ph *PendingHistory) Record(historyKey string, entry HistoryEntry, limit in
 	ph.mu.Lock()
 	existing := ph.entries[historyKey]
 	existing = append(existing, entry)
+	count = len(existing) // capture pre-trim count so MaybeCompact sees threshold exceeded
 	if len(existing) > limit {
 		existing = existing[len(existing)-limit:]
 	}
 	ph.entries[historyKey] = existing
-	count = len(existing)
 	ph.removeFromOrder(historyKey)
 	ph.order = append(ph.order, historyKey)
 	ph.evictOldKeys()
