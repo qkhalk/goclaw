@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+
+	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/oauth"
@@ -108,14 +111,10 @@ func registerProviders(registry *providers.Registry, cfg *config.Config) {
 		if cfg.Providers.ClaudeCLI.PermMode != "" {
 			opts = append(opts, providers.WithClaudeCLIPermMode(cfg.Providers.ClaudeCLI.PermMode))
 		}
-		// Build MCP config: external MCP servers + GoClaw bridge (built-in tools via streamable-http)
+		// Build per-session MCP config: external MCP servers + GoClaw bridge
 		gatewayAddr := loopbackAddr(cfg.Gateway.Host, cfg.Gateway.Port)
-		mcpPath, mcpCleanup, err := providers.BuildCLIMCPConfig(cfg.Tools.McpServers, gatewayAddr, cfg.Gateway.Token)
-		if err != nil {
-			slog.Warn("failed to build MCP config for claude-cli", "error", err)
-		} else if mcpPath != "" {
-			opts = append(opts, providers.WithClaudeCLIMCPConfig(mcpPath, mcpCleanup))
-		}
+		mcpData := providers.BuildCLIMCPConfigData(cfg.Tools.McpServers, gatewayAddr, cfg.Gateway.Token)
+		opts = append(opts, providers.WithClaudeCLIMCPConfigData(mcpData))
 		// Enable GoClaw security hooks (shell deny patterns, path restrictions)
 		opts = append(opts, providers.WithClaudeCLISecurityHooks(
 			cfg.Providers.ClaudeCLI.BaseWorkDir, true))
@@ -124,10 +123,72 @@ func registerProviders(registry *providers.Registry, cfg *config.Config) {
 	}
 }
 
+// buildMCPServerLookup creates an MCPServerLookup from an MCPServerStore.
+// Returns nil if mcpStore is nil.
+func buildMCPServerLookup(mcpStore store.MCPServerStore) providers.MCPServerLookup {
+	if mcpStore == nil {
+		return nil
+	}
+	return func(ctx context.Context, agentID string) []providers.MCPServerEntry {
+		aid, err := uuid.Parse(agentID)
+		if err != nil {
+			return nil
+		}
+		accessible, err := mcpStore.ListAccessible(ctx, aid, "")
+		if err != nil {
+			slog.Warn("claude-cli: failed to list agent MCP servers", "agent_id", agentID, "error", err)
+			return nil
+		}
+		var entries []providers.MCPServerEntry
+		for _, info := range accessible {
+			srv := info.Server
+			if !srv.Enabled {
+				continue
+			}
+			entry := providers.MCPServerEntry{
+				Name:      srv.Name,
+				Transport: srv.Transport,
+				Command:   srv.Command,
+				URL:       srv.URL,
+				Args:      jsonToStringSlice(srv.Args),
+				Headers:   jsonToStringMap(srv.Headers),
+				Env:       jsonToStringMap(srv.Env),
+			}
+			entries = append(entries, entry)
+		}
+		return entries
+	}
+}
+
+// jsonToStringSlice converts a json.RawMessage to []string.
+func jsonToStringSlice(data json.RawMessage) []string {
+	if len(data) == 0 {
+		return nil
+	}
+	var result []string
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
+	}
+	return result
+}
+
+// jsonToStringMap converts a json.RawMessage to map[string]string.
+func jsonToStringMap(data json.RawMessage) map[string]string {
+	if len(data) == 0 {
+		return nil
+	}
+	var result map[string]string
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
+	}
+	return result
+}
+
 // registerProvidersFromDB loads providers from Postgres and registers them.
 // DB providers are registered after config providers, so they take precedence (overwrite).
 // gatewayAddr is used to inject GoClaw MCP bridge for Claude CLI providers.
-func registerProvidersFromDB(registry *providers.Registry, provStore store.ProviderStore, secretStore store.ConfigSecretsStore, gatewayAddr, gatewayToken string) {
+// mcpStore is optional; when provided, per-agent MCP servers are injected into CLI config.
+func registerProvidersFromDB(registry *providers.Registry, provStore store.ProviderStore, secretStore store.ConfigSecretsStore, gatewayAddr, gatewayToken string, mcpStore store.MCPServerStore) {
 	ctx := context.Background()
 	dbProviders, err := provStore.ListProviders(ctx)
 	if err != nil {
@@ -156,12 +217,9 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			var cliOpts []providers.ClaudeCLIOption
 			cliOpts = append(cliOpts, providers.WithClaudeCLISecurityHooks("", true))
 			if gatewayAddr != "" {
-				mcpPath, mcpCleanup, mcpErr := providers.BuildCLIMCPConfig(nil, gatewayAddr, gatewayToken)
-				if mcpErr != nil {
-					slog.Warn("failed to build MCP config for db claude-cli", "error", mcpErr)
-				} else if mcpPath != "" {
-					cliOpts = append(cliOpts, providers.WithClaudeCLIMCPConfig(mcpPath, mcpCleanup))
-				}
+				mcpData := providers.BuildCLIMCPConfigData(nil, gatewayAddr, gatewayToken)
+				mcpData.AgentMCPLookup = buildMCPServerLookup(mcpStore)
+				cliOpts = append(cliOpts, providers.WithClaudeCLIMCPConfigData(mcpData))
 			}
 			registry.Register(providers.NewClaudeCLIProvider(cliPath, cliOpts...))
 			slog.Info("registered provider from DB", "name", p.Name)

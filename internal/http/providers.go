@@ -15,17 +15,24 @@ import (
 
 // ProvidersHandler handles LLM provider CRUD endpoints.
 type ProvidersHandler struct {
-	store       store.ProviderStore
-	secretStore store.ConfigSecretsStore
-	token       string
-	providerReg *providers.Registry
-	gatewayAddr string     // for injecting MCP bridge into Claude CLI providers
-	cliMu       sync.Mutex // serializes Claude CLI provider create to prevent duplicates
+	store          store.ProviderStore
+	secretStore    store.ConfigSecretsStore
+	token          string
+	providerReg    *providers.Registry
+	gatewayAddr    string                   // for injecting MCP bridge into Claude CLI providers
+	mcpLookup      providers.MCPServerLookup // optional: resolves per-agent MCP servers
+	cliMu          sync.Mutex               // serializes Claude CLI provider create to prevent duplicates
 }
 
 // NewProvidersHandler creates a handler for provider management endpoints.
 func NewProvidersHandler(s store.ProviderStore, secretStore store.ConfigSecretsStore, token string, providerReg *providers.Registry, gatewayAddr string) *ProvidersHandler {
 	return &ProvidersHandler{store: s, secretStore: secretStore, token: token, providerReg: providerReg, gatewayAddr: gatewayAddr}
+}
+
+// SetMCPServerLookup sets the per-agent MCP server lookup for Claude CLI providers.
+// Must be called before serving requests (not thread-safe).
+func (h *ProvidersHandler) SetMCPServerLookup(lookup providers.MCPServerLookup) {
+	h.mcpLookup = lookup
 }
 
 // RegisterRoutes registers all provider management routes on the given mux.
@@ -81,12 +88,9 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 		var cliOpts []providers.ClaudeCLIOption
 		cliOpts = append(cliOpts, providers.WithClaudeCLISecurityHooks("", true))
 		if h.gatewayAddr != "" {
-			mcpPath, mcpCleanup, mcpErr := providers.BuildCLIMCPConfig(nil, h.gatewayAddr, h.token)
-			if mcpErr != nil {
-				slog.Warn("failed to build MCP config for in-memory claude-cli", "error", mcpErr)
-			} else if mcpPath != "" {
-				cliOpts = append(cliOpts, providers.WithClaudeCLIMCPConfig(mcpPath, mcpCleanup))
-			}
+			mcpData := providers.BuildCLIMCPConfigData(nil, h.gatewayAddr, h.token)
+			mcpData.AgentMCPLookup = h.mcpLookup
+			cliOpts = append(cliOpts, providers.WithClaudeCLIMCPConfigData(mcpData))
 		}
 		h.providerReg.Register(providers.NewClaudeCLIProvider(cliPath, cliOpts...))
 		return
@@ -223,7 +227,10 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	// Validate provider_type if being updated
+	// Validate provider_type if being updated.
+	// IMPORTANT: Do NOT replace this with delete(updates, "provider_type").
+	// We must return 400 so the caller knows the value is invalid,
+	// silently deleting it would hide the error from the end user.
 	if pt, ok := updates["provider_type"]; ok {
 		if s, _ := pt.(string); !store.ValidProviderTypes[s] {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider_type"})
@@ -242,6 +249,14 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 	delete(updates, "id")
 	delete(updates, "created_at")
 
+	// Track old name before update for registry cleanup
+	var oldName string
+	if h.providerReg != nil {
+		if old, err := h.store.GetProvider(r.Context(), id); err == nil {
+			oldName = old.Name
+		}
+	}
+
 	if err := h.store.UpdateProvider(r.Context(), id, updates); err != nil {
 		slog.Error("providers.update", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -251,6 +266,10 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 	// Sync in-memory registry with updated provider
 	if h.providerReg != nil {
 		if updated, err := h.store.GetProvider(r.Context(), id); err == nil {
+			// Unregister old name if renamed to prevent ghost entries
+			if oldName != "" && oldName != updated.Name {
+				h.providerReg.Unregister(oldName)
+			}
 			if !updated.Enabled {
 				h.providerReg.Unregister(updated.Name)
 			} else {
