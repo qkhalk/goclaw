@@ -104,11 +104,9 @@ func (ln *Listener) handleControlEvents(ctx context.Context, data string, encTyp
 		Data struct {
 			Controls []struct {
 				Content struct {
-					ActType string `json:"act_type"`
-					FileID  any    `json:"fileId"` // can be string or number
-					Data    struct {
-						URL string `json:"url"`
-					} `json:"data"`
+					ActType string          `json:"act_type"`
+					FileID  any             `json:"fileId"` // can be string or number
+					Data    json.RawMessage `json:"data"`   // can be object {"url":"..."} or string
 				} `json:"content"`
 			} `json:"controls"`
 		} `json:"data"`
@@ -129,7 +127,20 @@ func (ln *Listener) handleControlEvents(ctx context.Context, data string, encTyp
 		// fmt.Sprint on large float64 produces scientific notation (3.15e+11),
 		// but callbacks are registered with the plain decimal string.
 		fileID := anyToDecimalString(ctrl.Content.FileID)
-		fileURL := ctrl.Content.Data.URL
+		// Data can be an object {"url":"..."} or a plain string; extract URL from either.
+		var fileURL string
+		if len(ctrl.Content.Data) > 0 {
+			if ctrl.Content.Data[0] == '{' {
+				var dataObj struct {
+					URL string `json:"url"`
+				}
+				if json.Unmarshal(ctrl.Content.Data, &dataObj) == nil {
+					fileURL = dataObj.URL
+				}
+			} else {
+				json.Unmarshal(ctrl.Content.Data, &fileURL)
+			}
+		}
 
 		slog.Debug("zalo_personal file upload completed", "file_id", fileID, "url_len", len(fileURL))
 
