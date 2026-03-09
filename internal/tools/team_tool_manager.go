@@ -87,6 +87,19 @@ func (m *TeamToolManager) resolveTeam(ctx context.Context) (*store.TeamData, uui
 	return team, agentID, nil
 }
 
+// requireLead checks if the calling agent is the team lead.
+// Delegate/system channels bypass this check (they act on behalf of the lead).
+func (m *TeamToolManager) requireLead(ctx context.Context, team *store.TeamData, agentID uuid.UUID) error {
+	channel := ToolChannelFromCtx(ctx)
+	if channel == "delegate" || channel == "system" {
+		return nil
+	}
+	if agentID != team.LeadAgentID {
+		return fmt.Errorf("only the team lead can perform this action")
+	}
+	return nil
+}
+
 // InvalidateTeam clears all cached team data.
 // Called when team membership, settings, or links change.
 // Full clear is acceptable because team mutations are rare (admin-initiated).

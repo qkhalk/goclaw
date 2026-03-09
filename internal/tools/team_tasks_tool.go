@@ -226,8 +226,11 @@ func (t *TeamTasksTool) executeSearch(ctx context.Context, args map[string]inter
 }
 
 func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]interface{}) *Result {
-	team, _, err := t.manager.resolveTeam(ctx)
+	team, agentID, err := t.manager.resolveTeam(ctx)
 	if err != nil {
+		return ErrorResult(err.Error())
+	}
+	if err := t.manager.requireLead(ctx, team, agentID); err != nil {
 		return ErrorResult(err.Error())
 	}
 
@@ -378,8 +381,11 @@ func (t *TeamTasksTool) executeCancel(ctx context.Context, args map[string]inter
 		return ErrorResult("delegate agents cannot cancel team tasks directly")
 	}
 
-	team, _, err := t.manager.resolveTeam(ctx)
+	team, agentID, err := t.manager.resolveTeam(ctx)
 	if err != nil {
+		return ErrorResult(err.Error())
+	}
+	if err := t.manager.requireLead(ctx, team, agentID); err != nil {
 		return ErrorResult(err.Error())
 	}
 

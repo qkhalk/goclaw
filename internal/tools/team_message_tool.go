@@ -139,6 +139,9 @@ func (t *TeamMessageTool) executeBroadcast(ctx context.Context, args map[string]
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
+	if err := t.manager.requireLead(ctx, team, agentID); err != nil {
+		return ErrorResult(err.Error())
+	}
 
 	text, _ := args["text"].(string)
 	if text == "" {

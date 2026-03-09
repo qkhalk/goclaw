@@ -53,7 +53,11 @@ func (dm *DelegateManager) prepareDelegation(ctx context.Context, opts DelegateO
 	// Auto-create team task when team_task_id is omitted.
 	// This eliminates the two-step create→spawn dance that caused LLM hallucination
 	// (LLM would call create+spawn in parallel, hallucinating the task_id).
+	// Only the team lead can create tasks — members must ask the lead.
 	if team != nil && opts.TeamTaskID == uuid.Nil {
+		if sourceAgentID != team.LeadAgentID {
+			return nil, nil, fmt.Errorf("only the team lead can create team tasks — ask your lead to assign this task")
+		}
 		subject := opts.Label
 		if subject == "" {
 			subject = opts.Task
