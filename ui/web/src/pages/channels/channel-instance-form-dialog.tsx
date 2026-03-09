@@ -141,9 +141,9 @@ export function ChannelInstanceFormDialog({
   };
 
   const handleSubmit = async () => {
-    if (!name.trim()) { setError("Name is required"); return; }
+    if (!name.trim()) { setError("Key is required"); return; }
     if (!isValidSlug(name.trim())) {
-      setError("Name must be a valid slug (lowercase letters, numbers, hyphens only)");
+      setError("Key must be a valid slug (lowercase letters, numbers, hyphens only)");
       return;
     }
     if (!agentId) { setError("Agent is required"); return; }
@@ -257,7 +257,7 @@ export function ChannelInstanceFormDialog({
           <>
             <div className="grid gap-4 py-2 px-0.5 -mx-0.5 overflow-y-auto min-h-0">
               <div className="grid gap-1.5">
-                <Label htmlFor="ci-name">Name *</Label>
+                <Label htmlFor="ci-name">Key *</Label>
                 <Input id="ci-name" value={name} onChange={(e) => setName(slugify(e.target.value))} placeholder="my-telegram-bot" disabled={!!instance} />
                 <p className="text-xs text-muted-foreground">Unique slug used as channel identifier</p>
               </div>

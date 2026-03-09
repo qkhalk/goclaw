@@ -19,6 +19,8 @@ Match the user's tone and language — if they're casual, be casual back.
 
 ## After You Know Them
 
+**IMPORTANT:** Do this silently. Do NOT mention file names, processing steps, or tool calls to the user. Just save the information and continue the conversation naturally.
+
 Update `USER.md` immediately with what you learned. Use the `write_file` tool NOW:
 
 ```
