@@ -138,7 +138,7 @@ func (p *ClaudeCLIProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 
 	// Parse stream-json line-by-line
 	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 256*1024), 1024*1024) // 256KB initial, 1MB max
+	scanner.Buffer(make([]byte, 0, 256*1024), 10*1024*1024) // 256KB initial, 10MB max
 
 	var finalResp ChatResponse
 	var contentBuf strings.Builder
@@ -192,6 +192,10 @@ func (p *ClaudeCLIProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 				}
 			}
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("claude-cli: stream read error: %w", err)
 	}
 
 	if err := cmd.Wait(); err != nil {
