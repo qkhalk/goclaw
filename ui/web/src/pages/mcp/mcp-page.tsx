@@ -110,6 +110,7 @@ export function MCPPage() {
                   <th className="px-4 py-3 text-left font-medium">{t("columns.name")}</th>
                   <th className="px-4 py-3 text-left font-medium">{t("columns.transport")}</th>
                   <th className="px-4 py-3 text-center font-medium">{t("columns.tools")}</th>
+                  <th className="px-4 py-3 text-center font-medium">{t("columns.agents")}</th>
                   <th className="px-4 py-3 text-left font-medium">{t("columns.enabled")}</th>
                   <th className="px-4 py-3 text-left font-medium">{t("columns.createdBy")}</th>
                   <th className="px-4 py-3 text-right font-medium">{t("columns.actions")}</th>
@@ -148,6 +149,9 @@ export function MCPPage() {
                       >
                         <Wrench className="h-3.5 w-3.5" />
                       </Button>
+                    </td>
+                    <td className="px-4 py-3 text-center text-muted-foreground">
+                      {srv.agent_count ?? 0}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={srv.enabled ? "default" : "secondary"}>
