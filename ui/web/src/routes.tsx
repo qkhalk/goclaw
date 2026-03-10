@@ -84,6 +84,9 @@ const PendingMessagesPage = lazy(() =>
 const MemoryPage = lazy(() =>
   import("@/pages/memory/memory-page").then((m) => ({ default: m.MemoryPage })),
 );
+const KnowledgeGraphPage = lazy(() =>
+  import("@/pages/knowledge-graph/knowledge-graph-page").then((m) => ({ default: m.KnowledgeGraphPage })),
+);
 const ContactsPage = lazy(() =>
   import("@/pages/contacts/contacts-page").then((m) => ({ default: m.ContactsPage })),
 );
@@ -156,6 +159,7 @@ export function AppRoutes() {
           <Route path={ROUTES.STORAGE} element={<StoragePage />} />
           <Route path={ROUTES.PENDING_MESSAGES} element={<PendingMessagesPage />} />
           <Route path={ROUTES.MEMORY} element={<MemoryPage />} />
+          <Route path={ROUTES.KNOWLEDGE_GRAPH} element={<KnowledgeGraphPage />} />
         </Route>
 
         {/* Catch-all → overview */}

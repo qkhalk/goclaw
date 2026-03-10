@@ -33,6 +33,7 @@ export const ROUTES = {
   STORAGE: "/storage",
   PENDING_MESSAGES: "/pending-messages",
   MEMORY: "/memory",
+  KNOWLEDGE_GRAPH: "/knowledge-graph",
   SETUP: "/setup",
 } as const;
 

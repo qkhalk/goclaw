@@ -1,8 +1,10 @@
 import { useMemo, useEffect, useCallback, useRef } from "react";
 import {
   ReactFlow,
+  ReactFlowProvider,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   Background,
   Controls,
   MiniMap,
@@ -88,6 +90,7 @@ function applyForceLayout(
   nodes: Node[],
   edges: Edge[],
   onUpdate: (positioned: Node[]) => void,
+  onSettled?: () => void,
 ) {
   if (nodes.length === 0) return () => {};
 
@@ -113,6 +116,8 @@ function applyForceLayout(
     onUpdate(positioned);
   });
 
+  simulation.on("end", () => onSettled?.());
+
   // Run fast to settle
   simulation.alpha(1).restart();
 
@@ -125,8 +130,17 @@ interface KGGraphViewProps {
   onEntityClick?: (entity: KGEntity) => void;
 }
 
-export function KGGraphView({ entities, relations, onEntityClick }: KGGraphViewProps) {
+export function KGGraphView(props: KGGraphViewProps) {
+  return (
+    <ReactFlowProvider>
+      <KGGraphViewInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewProps) {
   const { t } = useTranslation("memory");
+  const { fitView } = useReactFlow();
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => buildGraph(entities, relations),
     [entities, relations],
@@ -136,13 +150,18 @@ export function KGGraphView({ entities, relations, onEntityClick }: KGGraphViewP
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const simRef = useRef<(() => void) | null>(null);
 
+  // Fit view after simulation settles so the graph covers the viewport
+  const handleSettled = useCallback(() => {
+    requestAnimationFrame(() => fitView({ padding: 0.15, duration: 300 }));
+  }, [fitView]);
+
   // Run force layout when data changes
   useEffect(() => {
     setEdges(initialEdges);
     simRef.current?.();
-    simRef.current = applyForceLayout(initialNodes, initialEdges, setNodes);
+    simRef.current = applyForceLayout(initialNodes, initialEdges, setNodes, handleSettled);
     return () => simRef.current?.();
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
+  }, [initialNodes, initialEdges, setNodes, setEdges, handleSettled]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -171,8 +190,8 @@ export function KGGraphView({ entities, relations, onEntityClick }: KGGraphViewP
         onNodeClick={handleNodeClick}
         nodeTypes={nodeTypes}
         fitView
-        minZoom={0.2}
-        maxZoom={2}
+        minZoom={0.1}
+        maxZoom={3}
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={20} size={1} />
