@@ -191,6 +191,15 @@ func (s *PGPendingMessageStore) CountAll(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+func (s *PGPendingMessageStore) CountByKey(ctx context.Context, channelName, historyKey string) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM channel_pending_messages WHERE channel_name = $1 AND history_key = $2`,
+		channelName, historyKey,
+	).Scan(&count)
+	return count, err
+}
+
 func (s *PGPendingMessageStore) ResolveGroupTitles(ctx context.Context, groups []store.PendingMessageGroup) (map[string]string, error) {
 	if len(groups) == 0 {
 		return nil, nil

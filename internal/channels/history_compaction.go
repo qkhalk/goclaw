@@ -24,6 +24,7 @@ type CompactionConfig struct {
 
 // MaybeCompact checks if compaction is needed for a history key and triggers it in background.
 // Called from Record() after appending. Thread-safe via sync.Map compaction guard.
+// Uses DB count (not RAM count) to correctly detect threshold after server restarts.
 func (ph *PendingHistory) MaybeCompact(historyKey string, currentCount int, cfg *CompactionConfig) {
 	if ph.store == nil || cfg == nil || cfg.Provider == nil {
 		return
@@ -32,9 +33,18 @@ func (ph *PendingHistory) MaybeCompact(historyKey string, currentCount int, cfg 
 	if threshold <= 0 {
 		threshold = DefaultGroupHistoryLimit
 	}
+
+	// RAM count may be stale after restart (LoadFromDB doesn't warm full history).
+	// If RAM says below threshold, ask DB for the real count.
 	if currentCount <= threshold {
-		return
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		dbCount, err := ph.store.CountByKey(ctx, ph.channelName, historyKey)
+		if err != nil || dbCount <= threshold {
+			return
+		}
 	}
+
 	// Guard: only one compaction per key at a time
 	if _, loaded := ph.compacting.LoadOrStore(historyKey, true); loaded {
 		return
