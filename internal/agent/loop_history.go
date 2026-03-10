@@ -459,6 +459,17 @@ func (l *Loop) buildGroupWriterPrompt(ctx context.Context, groupID, senderID str
 		return "", files // fail-open
 	}
 
+	// System-initiated runs (cron, delegate, subagent) have no sender ID.
+	// Allow reading, messaging, and tool use freely, but still protect
+	// identity files (SOUL.md, IDENTITY.md, etc.) from modification.
+	if senderID == "" {
+		var sb strings.Builder
+		sb.WriteString("## Group File Permissions\n\n")
+		sb.WriteString("This is a system-initiated run (cron/scheduled task). You may read files, send messages, and use tools freely.\n")
+		sb.WriteString("However, do NOT modify protected identity files (SOUL.md, IDENTITY.md, AGENTS.md, USER.md) unless explicitly instructed by the task.\n")
+		return sb.String(), files
+	}
+
 	numericID := strings.SplitN(senderID, "|", 2)[0]
 	isWriter := false
 	for _, w := range writers {
