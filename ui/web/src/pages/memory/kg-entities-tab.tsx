@@ -60,7 +60,7 @@ export function KGEntitiesTab({ agentId, userId }: KGEntitiesTabProps) {
     extractFromText(text, provider, model, userId);
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       {/* Search + stats + actions — single compact row */}
       <div className="flex items-center gap-2 mb-3">
         <Input
@@ -121,6 +121,7 @@ export function KGEntitiesTab({ agentId, userId }: KGEntitiesTabProps) {
       </div>
 
       {/* Content area */}
+      <div className="min-h-0 flex-1">
       {viewMode === "graph" ? (
         <KGGraphView
           entities={graphData.entities}
@@ -189,6 +190,7 @@ export function KGEntitiesTab({ agentId, userId }: KGEntitiesTabProps) {
           </table>
         </div>
       )}
+      </div>
 
       {/* Entity detail dialog */}
       <KGEntityDetailDialog

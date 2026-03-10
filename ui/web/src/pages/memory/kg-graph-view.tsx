@@ -174,36 +174,39 @@ function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewPro
 
   if (entities.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[400px] text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         {t("kg.graphView.empty")}
       </div>
     );
   }
 
   return (
-    <div className="h-[500px] rounded-md border bg-background">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={handleNodeClick}
-        nodeTypes={nodeTypes}
-        fitView
-        minZoom={0.1}
-        maxZoom={3}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background gap={20} size={1} />
-        <Controls showInteractive={false} />
-        <MiniMap
-          nodeColor={(n) => {
-            const type = (n.data as any)?.type as string;
-            return (TYPE_COLORS[type] || DEFAULT_COLOR).border;
-          }}
-          maskColor="rgba(0,0,0,0.1)"
-        />
-      </ReactFlow>
+    <div className="flex h-full flex-col rounded-md border bg-background">
+      <div className="min-h-0 flex-1">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={handleNodeClick}
+          nodeTypes={nodeTypes}
+          fitView
+          minZoom={0.1}
+          maxZoom={3}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background gap={20} size={1} />
+          <Controls showInteractive={false} />
+          <MiniMap
+            nodeColor={(n) => {
+              const type = (n.data as any)?.type as string;
+              return (TYPE_COLORS[type] || DEFAULT_COLOR).border;
+            }}
+            maskColor="rgba(0,0,0,0.1)"
+            style={{ width: 100, height: 75 }}
+          />
+        </ReactFlow>
+      </div>
 
       {/* Legend */}
       <div className="flex flex-wrap gap-2 px-3 py-2 border-t text-[10px]">

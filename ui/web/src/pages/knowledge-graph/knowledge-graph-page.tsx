@@ -12,7 +12,7 @@ export function KnowledgeGraphPage() {
   const [userIdFilter, setUserIdFilter] = useState("");
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="flex h-full flex-col p-4 sm:p-6">
       {/* Header + filters in one row */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="mr-auto">
@@ -44,7 +44,7 @@ export function KnowledgeGraphPage() {
       </div>
 
       {/* Content */}
-      <div className="mt-3">
+      <div className="mt-3 min-h-0 flex-1">
         {!agentId ? (
           <EmptyState
             icon={Network}
