@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Users,
   Link,
-  Wrench,
   Package,
   Plug,
   Volume2,
@@ -90,7 +89,6 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
 
         <SidebarGroup label={t("groups.capabilities")} collapsed={collapsed}>
           <SidebarItem to={ROUTES.SKILLS} icon={Zap} label={t("nav.skills")} collapsed={collapsed} />
-          <SidebarItem to={ROUTES.CUSTOM_TOOLS} icon={Wrench} label={t("nav.customTools")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.BUILTIN_TOOLS} icon={Package} label={t("nav.builtinTools")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.MCP} icon={Plug} label={t("nav.mcpServers")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.TTS} icon={Volume2} label={t("nav.tts")} collapsed={collapsed} />
