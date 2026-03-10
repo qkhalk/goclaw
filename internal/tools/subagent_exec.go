@@ -120,9 +120,9 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 		task.CompletedAt = time.Now().UnixMilli()
 		sm.mu.Unlock()
 
-		// Always emit root subagent span on exit (uses traceCtx which is never cancelled).
-		sm.emitSubagentSpan(traceCtx, subRootSpanID, taskStart, task, model, finalContent)
-		slog.Debug("subagent tracing: root span emitted",
+		// Finalize root subagent span on exit (uses traceCtx which is never cancelled).
+		sm.emitSubagentSpanEnd(traceCtx, subRootSpanID, taskStart, task, finalContent)
+		slog.Debug("subagent tracing: root span finalized",
 			"id", task.ID, "span_id", subRootSpanID,
 			"trace_id", tracing.TraceIDFromContext(traceCtx),
 			"status", task.Status, "iterations", iteration)
@@ -156,6 +156,9 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 	if task.Model != "" {
 		model = task.Model
 	}
+
+	// Emit running subagent root span (after model resolution so span has correct model).
+	sm.emitSubagentSpanStart(traceCtx, subRootSpanID, taskStart, task, model)
 
 	// Build subagent system prompt (matching TS buildSubagentSystemPrompt pattern).
 	systemPrompt := sm.buildSubagentSystemPrompt(task)
@@ -191,8 +194,9 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 		}
 
 		llmStart := time.Now().UTC()
+		llmSpanID := sm.emitLLMSpanStart(subTraceCtx, llmStart, iteration, model, messages)
 		resp, err := sm.provider.Chat(ctx, chatReq)
-		sm.emitLLMSpan(subTraceCtx, llmStart, iteration, model, messages, resp, err)
+		sm.emitLLMSpanEnd(subTraceCtx, llmSpanID, llmStart, resp, err)
 
 		if err != nil {
 			sm.mu.Lock()
@@ -221,11 +225,11 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 		for _, tc := range resp.ToolCalls {
 			slog.Debug("subagent tool call", "id", task.ID, "tool", tc.Name)
 
-			toolStart := time.Now().UTC()
-			result := toolsReg.Execute(ctx, tc.Name, tc.Arguments)
-
 			argsJSON, _ := json.Marshal(tc.Arguments)
-			sm.emitToolSpan(subTraceCtx, toolStart, tc.Name, tc.ID, string(argsJSON), result.ForLLM, result.IsError)
+			toolStart := time.Now().UTC()
+			toolSpanID := sm.emitToolSpanStart(subTraceCtx, toolStart, tc.Name, tc.ID, string(argsJSON))
+			result := toolsReg.Execute(ctx, tc.Name, tc.Arguments)
+			sm.emitToolSpanEnd(subTraceCtx, toolSpanID, toolStart, result.ForLLM, result.IsError)
 
 			// Capture media file paths from tool results (e.g. image generation).
 			if len(result.Media) > 0 {

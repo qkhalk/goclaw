@@ -424,6 +424,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		var err error
 
 		llmSpanStart := time.Now().UTC()
+		llmSpanID := l.emitLLMSpanStart(ctx, llmSpanStart, iteration, messages)
 
 		if req.Stream {
 			resp, err = l.provider.ChatStream(ctx, chatReq, func(chunk providers.StreamChunk) {
@@ -449,11 +450,11 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		}
 
 		if err != nil {
-			l.emitLLMSpan(ctx, llmSpanStart, iteration, messages, nil, err)
+			l.emitLLMSpanEnd(ctx, llmSpanID, llmSpanStart, nil, err)
 			return nil, fmt.Errorf("LLM call failed (iteration %d): %w", iteration, err)
 		}
 
-		l.emitLLMSpan(ctx, llmSpanStart, iteration, messages, resp, nil)
+		l.emitLLMSpanEnd(ctx, llmSpanID, llmSpanStart, resp, nil)
 
 		// For non-streaming responses, emit thinking and content as single events
 		if !req.Stream {
@@ -643,6 +644,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			argsHash := loopDetector.record(tc.Name, tc.Arguments)
 
 			toolSpanStart := time.Now().UTC()
+			toolSpanID := l.emitToolSpanStart(ctx, toolSpanStart, tc.Name, tc.ID, string(argsJSON))
 			var result *tools.Result
 			if allowedTools != nil && !allowedTools[tc.Name] {
 				slog.Warn("security.tool_policy_blocked", "agent", l.id, "tool", tc.Name)
@@ -651,7 +653,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				result = l.tools.ExecuteWithContext(ctx, tc.Name, tc.Arguments, req.Channel, req.ChatID, req.PeerKind, req.SessionKey, nil)
 			}
 
-			l.emitToolSpan(ctx, toolSpanStart, tc.Name, tc.ID, string(argsJSON), result)
+			l.emitToolSpanEnd(ctx, toolSpanID, toolSpanStart, result)
 
 			// Record result for loop detection.
 			loopDetector.recordResult(argsHash, result.ForLLM)
@@ -763,6 +765,9 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					argsJSON, _ := json.Marshal(tc.Arguments)
 					slog.Info("tool call", "agent", l.id, "tool", tc.Name, "args_len", len(argsJSON), "parallel", true)
 					spanStart := time.Now().UTC()
+					// Emit running span inside goroutine — goroutine-safe (channel send only).
+					// End is also emitted here to prevent orphans on ctx cancellation.
+					spanID := l.emitToolSpanStart(ctx, spanStart, tc.Name, tc.ID, string(argsJSON))
 					var result *tools.Result
 					if allowedTools != nil && !allowedTools[tc.Name] {
 						slog.Warn("security.tool_policy_blocked", "agent", l.id, "tool", tc.Name)
@@ -770,6 +775,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					} else {
 						result = l.tools.ExecuteWithContext(ctx, tc.Name, tc.Arguments, req.Channel, req.ChatID, req.PeerKind, req.SessionKey, nil)
 					}
+					l.emitToolSpanEnd(ctx, spanID, spanStart, result)
 					resultCh <- indexedResult{idx: idx, tc: tc, result: result, argsJSON: string(argsJSON), spanStart: spanStart}
 				}(i, tc)
 			}
@@ -789,9 +795,9 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			})
 
 			// 5. Process results sequentially: emit events, append messages, save to session
+			// Note: tool span start/end already emitted inside goroutines above.
 			var loopStuck bool
 			for _, r := range collected {
-				l.emitToolSpan(ctx, r.spanStart, r.tc.Name, r.tc.ID, r.argsJSON, r.result)
 
 				// Record for loop detection.
 				argsHash := loopDetector.record(r.tc.Name, r.tc.Arguments)
