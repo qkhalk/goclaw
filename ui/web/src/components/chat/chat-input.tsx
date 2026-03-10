@@ -54,7 +54,7 @@ export function ChatInput({ onSend, onAbort, isRunning, disabled }: ChatInputPro
         placeholder={t("sendMessage")}
         disabled={disabled}
         rows={1}
-        className="flex-1 resize-none rounded-lg border bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+        className="flex-1 resize-none rounded-lg border bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
       />
       {isRunning ? (
         <Button

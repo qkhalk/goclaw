@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Contact, RefreshCw, Search } from "lucide-react";
+import { ChevronDown, Contact, Info, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { useContacts } from "./hooks/use-contacts";
 
 const CHANNEL_TYPES = ["telegram", "discord", "slack", "whatsapp", "zalo_oa", "zalo_personal", "feishu"];
+const PERM_CHANNELS = ["telegram", "discord", "zalo", "slack", "feishu"] as const;
 
 export function ContactsPage() {
   const { t } = useTranslation("contacts");
@@ -73,6 +74,9 @@ export function ContactsPage() {
         }
       />
 
+      {/* Permissions note */}
+      <PermissionsNote />
+
       {/* Filters */}
       <div className="mt-4 flex flex-wrap items-end gap-2">
         <form onSubmit={handleSearchSubmit} className="flex gap-2 flex-1 min-w-[200px] max-w-md">
@@ -85,7 +89,7 @@ export function ContactsPage() {
               className="pl-9"
             />
           </div>
-          <Button type="submit" variant="outline" size="sm">
+          <Button type="submit" variant="outline">
             {t("filter")}
           </Button>
         </form>
@@ -179,6 +183,35 @@ export function ContactsPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PermissionsNote() {
+  const { t } = useTranslation("contacts");
+  const [open, setOpen] = useState(true);
+  const p = "permissionsNote";
+
+  return (
+    <div className="mt-4 rounded-md border border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/30">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
+      >
+        <Info className="h-4 w-4 text-blue-500 shrink-0" />
+        <span className="font-medium text-blue-700 dark:text-blue-400">{t(`${p}.title`)}</span>
+        <ChevronDown className={`ml-auto h-4 w-4 text-blue-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <ul className="px-3 pb-3 space-y-1 text-xs text-muted-foreground">
+          {PERM_CHANNELS.map((ch) => (
+            <li key={ch} className={ch === "feishu" ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
+              {t(`${p}.${ch}`)}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
