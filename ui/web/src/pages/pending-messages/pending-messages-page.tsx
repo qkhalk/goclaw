@@ -45,10 +45,17 @@ export function PendingMessagesPage() {
     const key = `${group.channel_name}/${group.history_key}`;
     setActionLoading(key);
     setCompactingKey(key);
-    await compactGroup(group.channel_name, group.history_key);
-    setCompactingKey(null);
-    setActionLoading(null);
-    loadGroups();
+    const ok = await compactGroup(group.channel_name, group.history_key);
+    if (!ok) {
+      setCompactingKey(null);
+      setActionLoading(null);
+      return;
+    }
+    // Backend runs LLM in background — poll until done (has_summary changes).
+    // Compact button is already disabled when has_summary=true.
+    const poll = setInterval(() => loadGroups(), 5000);
+    setTimeout(() => loadGroups(), 2000); // quick first check
+    setTimeout(() => { clearInterval(poll); setCompactingKey(null); setActionLoading(null); }, 120_000);
   };
 
   const handleClear = async (group: PendingMessageGroup) => {

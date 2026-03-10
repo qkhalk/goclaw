@@ -41,6 +41,8 @@
     "compacted": "Tóm tắt hoàn tất",
     "compactedSummarized": "Đã tóm tắt còn {{count}} tin nhắn",
     "compactedDeleted": "Đã xóa tất cả (không có LLM provider)",
+    "compacting": "Đang tóm tắt…",
+    "compactingDesc": "LLM đang tóm tắt ở nền. Danh sách sẽ tự động cập nhật.",
     "failedCompact": "Tóm tắt thất bại",
     "cleared": "Đã xóa tin nhắn",
     "failedClear": "Không thể xóa tin nhắn"

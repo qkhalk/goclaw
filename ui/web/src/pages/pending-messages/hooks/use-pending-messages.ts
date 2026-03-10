@@ -48,13 +48,19 @@ export function usePendingMessages() {
           "/v1/pending-messages/compact",
           { channel_name: channel, history_key: key },
         );
-        const method = res?.method ?? "summarized";
-        toast.success(
-          i18next.t("pending-messages:toast.compacted"),
-          method === "deleted"
-            ? i18next.t("pending-messages:toast.compactedDeleted")
-            : i18next.t("pending-messages:toast.compactedSummarized", { count: res?.remaining ?? 0 }),
-        );
+        const method = res?.method ?? "summarizing";
+        if (method === "deleted") {
+          toast.success(
+            i18next.t("pending-messages:toast.compacted"),
+            i18next.t("pending-messages:toast.compactedDeleted"),
+          );
+        } else {
+          // Backend runs LLM in background — show info toast and let caller poll
+          toast.info(
+            i18next.t("pending-messages:toast.compacting"),
+            i18next.t("pending-messages:toast.compactingDesc"),
+          );
+        }
         return true;
       } catch (err) {
         toast.error(

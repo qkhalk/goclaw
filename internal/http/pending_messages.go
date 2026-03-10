@@ -151,22 +151,25 @@ func (h *PendingMessagesHandler) handleCompact(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Detach from HTTP request context so LLM summarization isn't
-	// cancelled when the browser closes the connection.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 180*time.Second)
-	defer cancel()
-
+	// Run compaction in background so the HTTP response returns immediately.
+	// The long-running LLM call (30-120s) was blocking the response, which
+	// caused browser WebSocket connections to drop (pong timeout).
 	keepRecent := h.keepRecent
 	if keepRecent <= 0 {
 		keepRecent = 15
 	}
-	remaining, err := channels.CompactGroup(ctx, h.store, req.ChannelName, req.HistoryKey, provider, model, keepRecent, h.maxTokens)
-	if err != nil {
-		slog.Warn("compact.failed", "channel", req.ChannelName, "key", req.HistoryKey, "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "method": "summarized", "remaining": remaining})
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+		defer cancel()
+		remaining, err := channels.CompactGroup(ctx, h.store, req.ChannelName, req.HistoryKey, provider, model, keepRecent, h.maxTokens)
+		if err != nil {
+			slog.Warn("compact.failed", "channel", req.ChannelName, "key", req.HistoryKey, "error", err)
+		} else {
+			slog.Info("compact.done", "channel", req.ChannelName, "key", req.HistoryKey, "remaining", remaining)
+		}
+	}()
+
+	writeJSON(w, http.StatusAccepted, map[string]interface{}{"status": "accepted", "method": "summarizing"})
 }
 
 // resolveProviderAndModel resolves the LLM provider+model for pending message compaction.
