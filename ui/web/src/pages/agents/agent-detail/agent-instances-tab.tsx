@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
-import { Save, Check, AlertCircle, Users, FileText } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Save, Check, AlertCircle, Users, FileText, Search, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useContactResolver } from "@/hooks/use-contact-resolver";
 import { useAgentInstances, type UserInstance } from "../hooks/use-agent-instances";
+import { useContactSearch } from "../hooks/use-contact-search";
 
 interface AgentInstancesTabProps {
   agentId: string;
@@ -60,27 +61,36 @@ export function AgentInstancesTab({ agentId }: AgentInstancesTabProps) {
   const instanceUserIDs = useMemo(() => instances.map((i) => i.user_id), [instances]);
   const { resolve } = useContactResolver(instanceUserIDs);
 
+  // Existing instance user_ids for deduplication
+  const existingIDs = useMemo(() => new Set(instances.map((i) => i.user_id)), [instances]);
+
+  const handleContactSelect = (senderID: string) => {
+    setSelected(senderID);
+  };
+
   if (loading) {
     return <div className="py-8 text-center text-sm text-muted-foreground">{t("instances.loadingInstances")}</div>;
-  }
-
-  if (instances.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-2 py-12 text-center">
-        <Users className="h-8 w-8 text-muted-foreground/50" />
-        <p className="text-sm text-muted-foreground">{t("instances.noInstances")}</p>
-        <p className="text-xs text-muted-foreground/70">{t("instances.noInstancesDesc")}</p>
-      </div>
-    );
   }
 
   return (
     <div className="flex gap-4" style={{ minHeight: 400 }}>
       {/* Instance list */}
       <div className="w-64 shrink-0 space-y-1 overflow-y-auto rounded-md border p-2">
-        <div className="px-2 pb-2 text-xs font-medium text-muted-foreground">
-          {instances.length} instance{instances.length !== 1 ? "s" : ""}
-        </div>
+        <ContactSearchBox
+          existingIDs={existingIDs}
+          onSelect={handleContactSelect}
+        />
+        {instances.length > 0 && (
+          <div className="px-2 pb-1 pt-1 text-xs font-medium text-muted-foreground">
+            {instances.length} instance{instances.length !== 1 ? "s" : ""}
+          </div>
+        )}
+        {instances.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <Users className="h-6 w-6 text-muted-foreground/50" />
+            <p className="text-xs text-muted-foreground">{t("instances.noInstances")}</p>
+          </div>
+        )}
         {instances.map((inst) => (
           <InstanceRow
             key={inst.user_id}
@@ -136,6 +146,78 @@ export function AgentInstancesTab({ agentId }: AgentInstancesTabProps) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Inline contact search dropdown for adding new instances. */
+function ContactSearchBox({ existingIDs, onSelect }: { existingIDs: Set<string>; onSelect: (id: string) => void }) {
+  const { t } = useTranslation("agents");
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const { contacts } = useContactSearch(search);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Filter out contacts already in instances
+  const filtered = contacts.filter((c) => !existingIDs.has(c.sender_id));
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative px-1 pb-2">
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+          onFocus={() => search.length >= 2 && setOpen(true)}
+          placeholder={t("instances.searchContacts")}
+          className="h-8 w-full rounded-md border bg-transparent pl-7 pr-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+      </div>
+      {open && search.length >= 2 && filtered.length > 0 && (
+        <div className="absolute left-1 right-1 z-50 mt-1 max-h-48 overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+          {filtered.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onSelect(c.sender_id);
+                setSearch("");
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground"
+            >
+              <UserPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">
+                  {c.display_name || c.sender_id}
+                </div>
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  {c.username && <span>@{c.username}</span>}
+                  <Badge variant="outline" className="text-[9px] px-1 py-0">{c.channel_type}</Badge>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && search.length >= 2 && filtered.length === 0 && contacts.length === 0 && (
+        <div className="absolute left-1 right-1 z-50 mt-1 rounded-md border bg-popover p-3 text-center text-xs text-muted-foreground shadow-md">
+          {t("instances.noContactsFound")}
+        </div>
+      )}
     </div>
   );
 }
