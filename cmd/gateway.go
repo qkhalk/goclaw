@@ -874,6 +874,7 @@ func runGateway() {
 	var contactCollector *store.ContactCollector
 	if pgStores.Contacts != nil {
 		contactCollector = store.NewContactCollector(pgStores.Contacts, cache.NewInMemoryCache[bool]())
+		channelMgr.SetContactCollector(contactCollector) // propagate to all channel handlers
 	}
 
 	go consumeInboundMessages(ctx, msgBus, agentRouter, cfg, sched, channelMgr, consumerTeamStore, quotaChecker, delegateMgr, pgStores.Sessions, pgStores.Agents, contactCollector)
