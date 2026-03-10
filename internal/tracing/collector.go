@@ -156,6 +156,16 @@ func (c *Collector) EmitSpanUpdate(spanID, traceID uuid.UUID, updates map[string
 	}
 }
 
+// SetTraceStatus updates only the trace status and marks it dirty for re-aggregation.
+// Used by child trace runs (e.g. announce) to toggle the parent trace back to
+// "running" while the child is active, then "completed" when done.
+func (c *Collector) SetTraceStatus(ctx context.Context, traceID uuid.UUID, status string) {
+	if err := c.store.UpdateTrace(ctx, traceID, map[string]any{"status": status}); err != nil {
+		slog.Warn("tracing: failed to set trace status", "trace_id", traceID, "error", err)
+	}
+	c.markDirty(traceID)
+}
+
 // FinishTrace marks a trace as completed and schedules aggregate update.
 func (c *Collector) FinishTrace(ctx context.Context, traceID uuid.UUID, status string, errMsg string, outputPreview string) {
 	now := time.Now().UTC()

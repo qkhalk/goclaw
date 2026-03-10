@@ -110,6 +110,13 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		l.emitAgentSpanStart(ctx, agentSpanID, runStart, req.Message)
 	}
 
+	// Child trace (announce run): set parent trace back to "running" while
+	// this run is active so the trace UI doesn't show "completed" with a
+	// "running" child span.
+	if isChildTrace && l.traceCollector != nil && traceID != uuid.Nil {
+		l.traceCollector.SetTraceStatus(ctx, traceID, store.TraceStatusRunning)
+	}
+
 	result, err := l.runLoop(ctx, req)
 
 	// Finalize the root agent span. Uses EmitSpanUpdate (channel send) so it
@@ -117,6 +124,15 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 	// aggregates include this span.
 	if agentSpanID != uuid.Nil {
 		l.emitAgentSpanEnd(ctx, agentSpanID, runStart, result, err)
+	}
+
+	// Child trace: restore trace status now that this run is done.
+	if isChildTrace && l.traceCollector != nil && traceID != uuid.Nil {
+		status := store.TraceStatusCompleted
+		if err != nil {
+			status = store.TraceStatusError
+		}
+		l.traceCollector.SetTraceStatus(ctx, traceID, status)
 	}
 
 	if err != nil {
