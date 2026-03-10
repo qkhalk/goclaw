@@ -151,7 +151,9 @@ func (h *PendingMessagesHandler) handleCompact(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
+	// Detach from HTTP request context so LLM summarization isn't
+	// cancelled when the browser closes the connection.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 180*time.Second)
 	defer cancel()
 
 	keepRecent := h.keepRecent

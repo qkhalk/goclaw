@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/mymmrac/telego"
@@ -238,4 +239,40 @@ func buildMediaTags(mediaList []MediaInfo) string {
 // extractDocumentContent delegates to the shared media package.
 func extractDocumentContent(filePath, fileName string) (string, error) {
 	return media.ExtractDocumentContent(filePath, fileName)
+}
+
+// lightweightMediaTags builds media placeholder tags from Telegram message metadata
+// without downloading any files. Used for pending history recording when bot is not mentioned.
+func lightweightMediaTags(msg *telego.Message) string {
+	var tags []string
+	if msg.Photo != nil && len(msg.Photo) > 0 {
+		tags = append(tags, "<media:image>")
+	}
+	if msg.Video != nil {
+		tags = append(tags, "<media:video>")
+	}
+	if msg.VideoNote != nil {
+		tags = append(tags, "<media:video>")
+	}
+	if msg.Animation != nil {
+		tags = append(tags, "<media:video>")
+	}
+	if msg.Audio != nil {
+		tags = append(tags, "<media:audio>")
+	}
+	if msg.Voice != nil {
+		tags = append(tags, "<media:voice>")
+	}
+	if msg.Document != nil {
+		name := msg.Document.FileName
+		if name != "" {
+			tags = append(tags, fmt.Sprintf("<media:document name=%q>", name))
+		} else {
+			tags = append(tags, "<media:document>")
+		}
+	}
+	if len(tags) == 0 {
+		return ""
+	}
+	return strings.Join(tags, "\n")
 }

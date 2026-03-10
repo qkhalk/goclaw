@@ -150,9 +150,22 @@ func (s *PGPendingMessageStore) ListGroups(ctx context.Context) ([]store.Pending
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT channel_name, history_key,
 		        COUNT(*) AS message_count,
-		        BOOL_OR(is_summary) AS has_summary,
+		        BOOL_OR(is_summary)
+		          AND NOT EXISTS (
+		            SELECT 1 FROM channel_pending_messages n
+		            WHERE n.channel_name = m.channel_name
+		              AND n.history_key  = m.history_key
+		              AND NOT n.is_summary
+		              AND n.created_at > (
+		                SELECT MAX(s.created_at)
+		                FROM channel_pending_messages s
+		                WHERE s.channel_name = m.channel_name
+		                  AND s.history_key  = m.history_key
+		                  AND s.is_summary
+		              )
+		          ) AS has_summary,
 		        MAX(created_at) AS last_activity
-		 FROM channel_pending_messages
+		 FROM channel_pending_messages m
 		 GROUP BY channel_name, history_key
 		 ORDER BY last_activity DESC`,
 	)
