@@ -887,8 +887,9 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// 4. Full sanitization pipeline (matching TS extractAssistantText + sanitizeUserFacingText)
 	finalContent = SanitizeAssistantContent(finalContent)
 
-	// 4b. Config leak detection (predefined agents only)
-	finalContent = StripConfigLeak(finalContent, l.agentType)
+	// 4b. Config leak detection — disabled: too many false positives
+	// (e.g. agent explaining public architecture mentioning SOUL.md etc.)
+	// finalContent = StripConfigLeak(finalContent, l.agentType)
 
 	// 5. Handle NO_REPLY: save to session for context but mark as silent.
 	// Matching TS: NO_REPLY is saved (via resolveSilentReplyFallbackText) but
