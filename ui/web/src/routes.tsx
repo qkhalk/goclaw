@@ -84,6 +84,9 @@ const PendingMessagesPage = lazy(() =>
 const MemoryPage = lazy(() =>
   import("@/pages/memory/memory-page").then((m) => ({ default: m.MemoryPage })),
 );
+const ContactsPage = lazy(() =>
+  import("@/pages/contacts/contacts-page").then((m) => ({ default: m.ContactsPage })),
+);
 
 function PageLoader() {
   return (
@@ -141,6 +144,7 @@ export function AppRoutes() {
           <Route path={ROUTES.USAGE} element={<UsagePage />} />
           <Route path={ROUTES.CHANNELS} element={<ChannelsPage key="list" />} />
           <Route path={ROUTES.CHANNEL_DETAIL} element={<ChannelsPage key="detail" />} />
+          <Route path={ROUTES.CONTACTS} element={<ContactsPage />} />
           <Route path={ROUTES.APPROVALS} element={<ApprovalsPage />} />
           <Route path={ROUTES.NODES} element={<NodesPage />} />
           <Route path={ROUTES.LOGS} element={<LogsPage />} />

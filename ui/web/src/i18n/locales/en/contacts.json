@@ -1,0 +1,24 @@
+{
+  "title": "Contacts",
+  "description": "Auto-collected contacts from all channel interactions.",
+  "searchPlaceholder": "Search by name, username, or ID...",
+  "filter": "Filter",
+  "emptyTitle": "No contacts",
+  "emptyDescription": "Contacts will appear here as users interact with your agents through channels.",
+  "noMatchTitle": "No matching contacts",
+  "noMatchDescription": "Try a different search term or filter.",
+  "columns": {
+    "name": "Name",
+    "username": "Username",
+    "senderId": "Sender ID",
+    "channelType": "Channel",
+    "peerKind": "Type",
+    "lastSeen": "Last Seen"
+  },
+  "filters": {
+    "allChannels": "All Channels",
+    "allTypes": "All Types",
+    "direct": "Direct",
+    "group": "Group"
+  }
+}

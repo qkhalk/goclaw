@@ -1,0 +1,24 @@
+{
+  "title": "联系人",
+  "description": "从所有Channel交互中自动收集的联系人。",
+  "searchPlaceholder": "按名称、用户名或 ID 搜索...",
+  "filter": "筛选",
+  "emptyTitle": "暂无联系人",
+  "emptyDescription": "当用户通过Channel与Agent交互时，联系人将自动出现在此处。",
+  "noMatchTitle": "未找到匹配的联系人",
+  "noMatchDescription": "请尝试其他搜索词或筛选条件。",
+  "columns": {
+    "name": "名称",
+    "username": "用户名",
+    "senderId": "发送者 ID",
+    "channelType": "Channel",
+    "peerKind": "类型",
+    "lastSeen": "最后活跃"
+  },
+  "filters": {
+    "allChannels": "所有Channel",
+    "allTypes": "所有类型",
+    "direct": "私聊",
+    "group": "群组"
+  }
+}

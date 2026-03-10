@@ -30,6 +30,10 @@ export const queryKeys = {
     list: (params: Record<string, unknown>) => ["channels", params] as const,
     detail: (id: string) => ["channels", "detail", id] as const,
   },
+  contacts: {
+    all: ["contacts"] as const,
+    list: (params: Record<string, unknown>) => ["contacts", params] as const,
+  },
   skills: {
     all: ["skills"] as const,
     agentGrants: (agentId: string) => ["skills", "agent", agentId] as const,
