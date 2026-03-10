@@ -1,7 +1,10 @@
 {
   "groups": {
     "core": "Core",
-    "management": "Management",
+    "conversations": "Conversations",
+    "connectivity": "Connectivity",
+    "capabilities": "Capabilities",
+    "data": "Data",
     "monitoring": "Monitoring",
     "system": "System"
   },
@@ -20,6 +23,7 @@
     "builtinTools": "Built-in Tools",
     "mcpServers": "MCP Servers",
     "memory": "Memory",
+    "knowledgeGraph": "Knowledge Graph",
     "traces": "Traces",
     "realtimeEvents": "Realtime Events",
     "delegations": "Delegations",

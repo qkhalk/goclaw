@@ -1,7 +1,10 @@
 {
   "groups": {
     "core": "核心",
-    "management": "管理",
+    "conversations": "会话",
+    "connectivity": "连接",
+    "capabilities": "能力",
+    "data": "数据",
     "monitoring": "监控",
     "system": "系统"
   },
@@ -20,7 +23,8 @@
     "logs": "日志",
     "mcpServers": "MCP 服务器",
     "memory": "记忆",
-    "nodes": "节点",
+    "knowledgeGraph": "Knowledge Graph",
+    "nodes": "Nodes",
     "overview": "概览",
     "pendingMessages": "待处理消息",
     "providers": "Provider",
@@ -29,7 +33,7 @@
     "skills": "Skill",
     "storage": "存储",
     "traces": "追踪",
-    "tts": "语音合成",
+    "tts": "TTS",
     "usage": "用量"
   }
 }
