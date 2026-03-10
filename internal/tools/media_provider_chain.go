@@ -25,12 +25,10 @@ type MediaProviderEntry struct {
 }
 
 // mediaProviderChain is the settings JSON structure for media tools.
-// Supports both new (providers array) and legacy (flat provider/model) formats.
+// Only supports chain format: {"providers":[...]}.
+// Legacy flat format is auto-migrated at startup (see cmd/gateway_builtin_tools.go).
 type mediaProviderChain struct {
 	Providers []MediaProviderEntry `json:"providers,omitempty"`
-	// Legacy fields (backward compat)
-	Provider string `json:"provider,omitempty"`
-	Model    string `json:"model,omitempty"`
 }
 
 // applyDefaults fills in zero-value fields with sensible defaults.
@@ -97,41 +95,21 @@ func parseChainSettings(raw []byte, defaultModels map[string]string) []MediaProv
 		return nil
 	}
 
-	// New format: providers array
-	if len(chain.Providers) > 0 {
-		var result []MediaProviderEntry
-		for _, e := range chain.Providers {
-			if !e.Enabled {
-				continue
-			}
-			if e.Provider == "" {
-				continue
-			}
-			if e.Model == "" {
-				e.Model = defaultModels[e.Provider]
-			}
-			e.applyDefaults()
-			result = append(result, e)
+	var result []MediaProviderEntry
+	for _, e := range chain.Providers {
+		if !e.Enabled {
+			continue
 		}
-		return result
+		if e.Provider == "" {
+			continue
+		}
+		if e.Model == "" {
+			e.Model = defaultModels[e.Provider]
+		}
+		e.applyDefaults()
+		result = append(result, e)
 	}
-
-	// Legacy format: flat provider/model
-	if chain.Provider != "" {
-		model := chain.Model
-		if model == "" {
-			model = defaultModels[chain.Provider]
-		}
-		entry := MediaProviderEntry{
-			Provider: chain.Provider,
-			Model:    model,
-			Enabled:  true,
-		}
-		entry.applyDefaults()
-		return []MediaProviderEntry{entry}
-	}
-
-	return nil
+	return result
 }
 
 // buildDefaultChain creates a chain from the hardcoded priority list,

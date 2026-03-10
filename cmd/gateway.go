@@ -658,6 +658,7 @@ func runGateway() {
 	// Seed + apply builtin tool disables
 	if pgStores.BuiltinTools != nil {
 		seedBuiltinTools(context.Background(), pgStores.BuiltinTools)
+		migrateBuiltinToolSettings(context.Background(), pgStores.BuiltinTools)
 		applyBuiltinToolDisables(context.Background(), pgStores.BuiltinTools, toolsReg)
 	}
 
