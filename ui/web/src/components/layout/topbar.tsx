@@ -28,10 +28,8 @@ export function Topbar() {
     ? () => setMobileSidebarOpen(true)
     : toggleSidebar;
 
-  const cycleLanguage = () => {
-    const idx = SUPPORTED_LANGUAGES.indexOf(language);
-    const next = SUPPORTED_LANGUAGES[(idx + 1) % SUPPORTED_LANGUAGES.length] as Language;
-    setLanguage(next);
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setLanguage(e.target.value as Language);
   };
 
   return (
@@ -68,14 +66,18 @@ export function Topbar() {
           )}
         </button>
 
-        <button
-          onClick={cycleLanguage}
-          className="cursor-pointer rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center gap-1"
-          title={t("language")}
-        >
-          <Globe className="h-4 w-4" />
-          <span className="text-xs">{LANGUAGE_LABELS[language]}</span>
-        </button>
+        <div className="flex items-center gap-1 rounded-md px-2 py-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground" title={t("language")}>
+          <Globe className="h-4 w-4 shrink-0" />
+          <select
+            value={language}
+            onChange={handleLanguageChange}
+            className="cursor-pointer bg-transparent text-xs outline-none"
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>{LANGUAGE_LABELS[lang]}</option>
+            ))}
+          </select>
+        </div>
 
         <button
           onClick={() => setTheme(isDark ? "light" : "dark")}

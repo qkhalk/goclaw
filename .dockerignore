@@ -5,7 +5,7 @@
 *.md
 docs/
 tests/
-config.json
+/config.json
 openclaw-go
 *.exe
 tmp/
