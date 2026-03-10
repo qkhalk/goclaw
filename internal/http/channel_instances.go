@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -39,6 +40,7 @@ func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
 	// Channel contacts (global, not per-agent)
 	if h.contactStore != nil {
 		mux.HandleFunc("GET /v1/contacts", h.auth(h.handleListContacts))
+		mux.HandleFunc("GET /v1/contacts/resolve", h.auth(h.handleResolveContacts))
 	}
 
 	// Group file writers (nested under channel instances)
@@ -444,6 +446,29 @@ func (h *ChannelInstancesHandler) handleListContacts(w http.ResponseWriter, r *h
 		"limit":    opts.Limit,
 		"offset":   opts.Offset,
 	})
+}
+
+func (h *ChannelInstancesHandler) handleResolveContacts(w http.ResponseWriter, r *http.Request) {
+	idsParam := r.URL.Query().Get("ids")
+	if idsParam == "" {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"contacts": map[string]any{}})
+		return
+	}
+
+	ids := strings.Split(idsParam, ",")
+	if len(ids) > 100 {
+		ids = ids[:100]
+	}
+
+	result, err := h.contactStore.GetContactsBySenderIDs(r.Context(), ids)
+	if err != nil {
+		slog.Error("contacts.resolve", "error", err)
+		locale := store.LocaleFromContext(r.Context())
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgFailedToList, "contacts")})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"contacts": result})
 }
 
 // isValidChannelType checks if the channel type is supported.

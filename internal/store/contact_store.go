@@ -45,6 +45,10 @@ type ContactStore interface {
 	// CountContacts returns total matching contacts for the given filters.
 	CountContacts(ctx context.Context, opts ContactListOpts) (int, error)
 
+	// GetContactsBySenderIDs returns contacts matching the given sender IDs.
+	// Returns a map of sender_id → ChannelContact (first match per sender_id).
+	GetContactsBySenderIDs(ctx context.Context, senderIDs []string) (map[string]ChannelContact, error)
+
 	// MergeContacts assigns the same merged_id to all given contact IDs,
 	// linking them as the same person across channels.
 	MergeContacts(ctx context.Context, contactIDs []uuid.UUID) error

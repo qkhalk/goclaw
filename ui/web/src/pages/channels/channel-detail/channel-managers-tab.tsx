@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2, RefreshCw, Users, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { Combobox } from "@/components/ui/combobox";
 import { EmptyState } from "@/components/shared/empty-state";
-import type { GroupManagerGroupInfo, GroupManagerData, ChannelContact } from "../hooks/use-channel-detail";
+import { useContactPicker } from "@/hooks/use-contact-picker";
+import type { GroupManagerGroupInfo, GroupManagerData } from "../hooks/use-channel-detail";
+import type { ChannelContact } from "@/types/contact";
 
 interface ChannelManagersTabProps {
   listManagerGroups: () => Promise<GroupManagerGroupInfo[]>;
@@ -20,14 +22,6 @@ interface ChannelManagersTabProps {
 function shortGroupId(id: string): string {
   const m = id.match(/^group:[^:]+:(.+)$/);
   return m?.[1] ?? id;
-}
-
-function contactToOption(c: ChannelContact): ComboboxOption {
-  const parts: string[] = [];
-  if (c.display_name) parts.push(c.display_name);
-  if (c.username) parts.push(`@${c.username}`);
-  parts.push(`(${c.sender_id})`);
-  return { value: c.sender_id, label: parts.join(" — ") };
 }
 
 // --- Inline add form (scoped state per instance) ---
@@ -47,45 +41,11 @@ function InlineAddForm({ groupId, showGroupField, listContacts, onAdd }: InlineA
   const [username, setUsername] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
-  const [contactOptions, setContactOptions] = useState<ComboboxOption[]>([]);
-  const contactCacheRef = useRef<Record<string, ChannelContact>>({});
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
-  const searchContacts = useCallback(
-    (query: string) => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (!query || query.length < 2) {
-        setContactOptions([]);
-        return;
-      }
-      debounceRef.current = setTimeout(async () => {
-        try {
-          const contacts = await listContacts(query);
-          const cache: Record<string, ChannelContact> = {};
-          const opts = contacts.map((c) => {
-            cache[c.sender_id] = c;
-            return contactToOption(c);
-          });
-          contactCacheRef.current = { ...contactCacheRef.current, ...cache };
-          setContactOptions(opts);
-        } catch {
-          setContactOptions([]);
-        }
-      }, 300);
-    },
-    [listContacts],
-  );
+  const { options: contactOptions, searchContacts, getContact, clearOptions } = useContactPicker(listContacts);
 
   const handleUserIdChange = (val: string) => {
     setUserId(val);
-    const contact = contactCacheRef.current[val];
+    const contact = getContact(val);
     if (contact) {
       setDisplayName(contact.display_name ?? "");
       setUsername(contact.username ?? "");
@@ -107,7 +67,7 @@ function InlineAddForm({ groupId, showGroupField, listContacts, onAdd }: InlineA
       setUserId("");
       setDisplayName("");
       setUsername("");
-      setContactOptions([]);
+      clearOptions();
       if (!groupId) setFormGroupId("");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("detail.managers.addForm.errors.failedAdd"));

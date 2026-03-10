@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Save, Check, AlertCircle, Users, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { useContactResolver } from "@/hooks/use-contact-resolver";
 import { useAgentInstances, type UserInstance } from "../hooks/use-agent-instances";
 
 interface AgentInstancesTabProps {
@@ -55,6 +56,10 @@ export function AgentInstancesTab({ agentId }: AgentInstancesTabProps) {
 
   const isDirty = content !== originalContent;
 
+  // Resolve user_ids to contact names for instances without metadata
+  const instanceUserIDs = useMemo(() => instances.map((i) => i.user_id), [instances]);
+  const { resolve } = useContactResolver(instanceUserIDs);
+
   if (loading) {
     return <div className="py-8 text-center text-sm text-muted-foreground">{t("instances.loadingInstances")}</div>;
   }
@@ -82,6 +87,7 @@ export function AgentInstancesTab({ agentId }: AgentInstancesTabProps) {
             instance={inst}
             isSelected={selected === inst.user_id}
             onClick={() => setSelected(inst.user_id)}
+            resolve={resolve}
           />
         ))}
       </div>
@@ -134,8 +140,10 @@ export function AgentInstancesTab({ agentId }: AgentInstancesTabProps) {
   );
 }
 
-function InstanceRow({ instance, isSelected, onClick }: { instance: UserInstance; isSelected: boolean; onClick: () => void }) {
+function InstanceRow({ instance, isSelected, onClick, resolve }: { instance: UserInstance; isSelected: boolean; onClick: () => void; resolve: (id: string) => import("@/types/contact").ChannelContact | null }) {
   const lastSeen = instance.last_seen_at ? formatRelative(instance.last_seen_at) : null;
+  const contact = resolve(instance.user_id);
+  const displayName = instance.metadata?.display_name || instance.metadata?.chat_title || contact?.display_name || null;
 
   return (
     <button
@@ -146,9 +154,9 @@ function InstanceRow({ instance, isSelected, onClick }: { instance: UserInstance
       }`}
     >
       <span className="truncate text-xs font-medium">
-        {instance.metadata?.display_name || instance.metadata?.chat_title || instance.user_id}
+        {displayName || instance.user_id}
       </span>
-      {(instance.metadata?.display_name || instance.metadata?.chat_title) && (
+      {displayName && (
         <span className="truncate font-mono text-[10px] text-muted-foreground">{instance.user_id}</span>
       )}
       <div className="flex items-center gap-2">

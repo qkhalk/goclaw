@@ -33,6 +33,7 @@ export const queryKeys = {
   contacts: {
     all: ["contacts"] as const,
     list: (params: Record<string, unknown>) => ["contacts", params] as const,
+    resolve: (ids: string) => ["contacts", "resolve", ids] as const,
   },
   skills: {
     all: ["skills"] as const,

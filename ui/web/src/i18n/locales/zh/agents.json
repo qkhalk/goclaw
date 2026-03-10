@@ -160,7 +160,7 @@
   "shares": {
     "grantAccess": "授予访问权限",
     "userId": "用户 ID",
-    "userIdPlaceholder": "输入用户 ID...",
+    "userIdPlaceholder": "搜索联系人或输入用户 ID...",
     "role": "角色",
     "share": "共享",
     "loadingShares": "加载共享中...",

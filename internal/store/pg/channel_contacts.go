@@ -119,6 +119,47 @@ func (s *PGContactStore) CountContacts(ctx context.Context, opts store.ContactLi
 	return count, err
 }
 
+func (s *PGContactStore) GetContactsBySenderIDs(ctx context.Context, senderIDs []string) (map[string]store.ChannelContact, error) {
+	if len(senderIDs) == 0 {
+		return map[string]store.ChannelContact{}, nil
+	}
+
+	placeholders := make([]string, len(senderIDs))
+	args := make([]any, len(senderIDs))
+	for i, id := range senderIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`SELECT DISTINCT ON (sender_id)
+		id, channel_type, channel_instance, sender_id, user_id,
+		display_name, username, avatar_url, peer_kind, merged_id,
+		first_seen_at, last_seen_at
+		FROM channel_contacts
+		WHERE sender_id IN (%s)
+		ORDER BY sender_id, last_seen_at DESC`, strings.Join(placeholders, ","))
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]store.ChannelContact, len(senderIDs))
+	for rows.Next() {
+		var c store.ChannelContact
+		if err := rows.Scan(
+			&c.ID, &c.ChannelType, &c.ChannelInstance, &c.SenderID, &c.UserID,
+			&c.DisplayName, &c.Username, &c.AvatarURL, &c.PeerKind, &c.MergedID,
+			&c.FirstSeenAt, &c.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		result[c.SenderID] = c
+	}
+	return result, rows.Err()
+}
+
 func (s *PGContactStore) MergeContacts(ctx context.Context, contactIDs []uuid.UUID) error {
 	if len(contactIDs) < 2 {
 		return nil

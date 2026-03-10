@@ -160,7 +160,7 @@
   "shares": {
     "grantAccess": "Cấp quyền truy cập",
     "userId": "ID người dùng",
-    "userIdPlaceholder": "Nhập ID người dùng...",
+    "userIdPlaceholder": "Tìm liên hệ hoặc nhập ID người dùng...",
     "role": "Vai trò",
     "share": "Chia sẻ",
     "loadingShares": "Đang tải chia sẻ...",
