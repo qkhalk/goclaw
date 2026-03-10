@@ -147,7 +147,8 @@
     "contextFile": "Context file",
     "perUser": "per-user",
     "emptyFile": "empty",
-    "estTokens": "Est {{tokens}} tokens"
+    "estTokens": "Est {{tokens}} tokens",
+    "insertContact": "Search contact to insert..."
   },
   "fileEditor": {
     "editWithAi": "Edit with AI",
@@ -222,7 +223,9 @@
     "loading": "Loading...",
     "saving": "Saving...",
     "save": "Save",
-    "saved": "Saved"
+    "saved": "Saved",
+    "searchContacts": "Search contacts to add...",
+    "noContactsFound": "No contacts found"
   },
   "summoning": {
     "title": "Summoning Your Agent...",

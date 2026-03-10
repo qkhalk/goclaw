@@ -147,7 +147,8 @@
     "contextFile": "Tệp ngữ cảnh",
     "perUser": "theo người dùng",
     "emptyFile": "trống",
-    "estTokens": "Ước {{tokens}} token"
+    "estTokens": "Ước {{tokens}} token",
+    "insertContact": "Tìm liên hệ để chèn..."
   },
   "fileEditor": {
     "editWithAi": "Chỉnh sửa với AI",
@@ -222,7 +223,9 @@
     "loading": "Đang tải...",
     "saving": "Đang lưu...",
     "save": "Lưu",
-    "saved": "Đã lưu"
+    "saved": "Đã lưu",
+    "searchContacts": "Tìm liên hệ để thêm...",
+    "noContactsFound": "Không tìm thấy liên hệ"
   },
   "summoning": {
     "title": "Đang triệu hồi agent...",

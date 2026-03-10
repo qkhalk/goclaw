@@ -2,25 +2,23 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { CompactionConfig } from "@/types/agent";
-import { ConfigSection, InfoLabel, numOrUndef } from "./config-section";
+import { InfoLabel, numOrUndef } from "./config-section";
 
 interface CompactionSectionProps {
-  enabled: boolean;
   value: CompactionConfig;
-  onToggle: (v: boolean) => void;
   onChange: (v: CompactionConfig) => void;
 }
 
-export function CompactionSection({ enabled, value, onToggle, onChange }: CompactionSectionProps) {
+export function CompactionSection({ value, onChange }: CompactionSectionProps) {
   const { t } = useTranslation("agents");
   const s = "configSections.compaction";
   return (
-    <ConfigSection
-      title={t(`${s}.title`)}
-      description={t(`${s}.description`)}
-      enabled={enabled}
-      onToggle={onToggle}
-    >
+    <section className="space-y-3">
+      <div>
+        <h3 className="text-sm font-medium">{t(`${s}.title`)}</h3>
+        <p className="text-xs text-muted-foreground">{t(`${s}.description`)}</p>
+      </div>
+      <div className="rounded-lg border p-3 space-y-4 sm:p-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <InfoLabel tip={t(`${s}.maxHistoryShareTip`)}>{t(`${s}.maxHistoryShare`)}</InfoLabel>
@@ -62,6 +60,7 @@ export function CompactionSection({ enabled, value, onToggle, onChange }: Compac
         />
         <InfoLabel tip={t(`${s}.memoryFlushTip`)}>{t(`${s}.memoryFlush`)}</InfoLabel>
       </div>
-    </ConfigSection>
+      </div>
+    </section>
   );
 }

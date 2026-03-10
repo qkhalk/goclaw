@@ -147,7 +147,8 @@
     "contextFile": "上下文文件",
     "perUser": "每用户",
     "emptyFile": "空",
-    "estTokens": "估计 {{tokens}} token"
+    "estTokens": "估计 {{tokens}} token",
+    "insertContact": "搜索联系人以插入..."
   },
   "fileEditor": {
     "editWithAi": "AI 编辑",
@@ -222,7 +223,9 @@
     "loading": "加载中...",
     "saving": "保存中...",
     "save": "保存",
-    "saved": "已保存"
+    "saved": "已保存",
+    "searchContacts": "搜索联系人添加...",
+    "noContactsFound": "未找到联系人"
   },
   "summoning": {
     "title": "正在召唤您的Agent...",
