@@ -271,12 +271,14 @@
     "compaction": {
       "title": "Compaction",
       "description": "Context window compaction and memory flush settings",
-      "reserveTokensFloor": "Reserve Tokens Floor",
       "maxHistoryShare": "Max History Share (0-1)",
+      "maxHistoryShareTip": "Maximum fraction of context window for conversation history (e.g. 0.75 = 75%). Compaction triggers when exceeded.",
       "minMessages": "Min Messages",
+      "minMessagesTip": "Minimum messages before compaction can trigger, regardless of token count.",
       "keepLastMessages": "Keep Last Messages",
+      "keepLastMessagesTip": "Recent messages kept after compaction. Older messages are replaced by a summary.",
       "memoryFlush": "Memory Flush",
-      "softThreshold": "Soft Threshold (tokens)"
+      "memoryFlushTip": "Before compaction, the agent gets a turn to save important context to memory files. Also triggers Knowledge Graph extraction."
     },
     "contextPruning": {
       "title": "Context Pruning",
