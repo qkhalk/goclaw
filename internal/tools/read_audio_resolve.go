@@ -62,6 +62,9 @@ func (t *ReadAudioTool) callProvider(ctx context.Context, cp credentialProvider,
 
 	// Provider-specific paths require API credentials; skip when cp is nil
 	// (e.g. OAuth-based providers that don't expose static keys).
+	if cp == nil && (strings.HasPrefix(providerName, "gemini") || strings.HasPrefix(providerName, "openai")) {
+		slog.Info("read_audio: no API credentials, falling back to Chat API", "provider", providerName)
+	}
 	if cp != nil {
 		// Gemini: use File API (inlineData doesn't work for audio).
 		if strings.HasPrefix(providerName, "gemini") {
