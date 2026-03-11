@@ -103,6 +103,7 @@ type SessionStore interface {
 	SetLastPromptTokens(key string, tokens, msgCount int)
 	GetLastPromptTokens(key string) (tokens, msgCount int)
 	TruncateHistory(key string, keepLast int)
+	SetHistory(key string, msgs []providers.Message)
 	Reset(key string)
 	Delete(key string) error
 	List(agentID string) []SessionInfo

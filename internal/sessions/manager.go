@@ -278,6 +278,17 @@ func (m *Manager) TruncateHistory(key string, keepLast int) {
 	s.Updated = time.Now()
 }
 
+// SetHistory replaces a session's message history with the given slice.
+func (m *Manager) SetHistory(key string, msgs []providers.Message) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if s, ok := m.sessions[key]; ok {
+		s.Messages = msgs
+		s.Updated = time.Now()
+	}
+}
+
 // Reset clears a session's history and summary.
 func (m *Manager) Reset(key string) {
 	m.mu.Lock()
