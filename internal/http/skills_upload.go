@@ -89,6 +89,10 @@ func (h *SkillsHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidRequest, "failed to read SKILL.md")})
 		return
 	}
+	if strings.TrimSpace(skillContent) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidRequest, "SKILL.md is empty")})
+		return
+	}
 
 	name, description, slug, frontmatter := parseSkillFrontmatter(skillContent)
 	if name == "" {

@@ -58,6 +58,14 @@ export function SkillsPage() {
     refresh();
   };
 
+  const handleCycleVisibility = async (skill: SkillInfo) => {
+    if (!skill.id) return;
+    const order = ["private", "internal", "public"] as const;
+    const idx = order.indexOf(skill.visibility as typeof order[number]);
+    const next = order[(idx + 1) % order.length];
+    await updateSkill(skill.id, { visibility: next });
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget?.id) return;
     setDeleteLoading(true);
@@ -143,9 +151,24 @@ export function SkillsPage() {
                     </td>
                     <td className="px-4 py-3">
                       {skill.visibility && (
-                        <Badge variant={visibilityColor[skill.visibility] as "default" | "secondary" | "outline"}>
-                          {skill.visibility}
-                        </Badge>
+                        skill.id ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCycleVisibility(skill)}
+                            title={t("visibility.clickToCycle")}
+                          >
+                            <Badge
+                              variant={visibilityColor[skill.visibility] as "default" | "secondary" | "outline"}
+                              className="cursor-pointer hover:opacity-80 transition-opacity"
+                            >
+                              {skill.visibility}
+                            </Badge>
+                          </button>
+                        ) : (
+                          <Badge variant={visibilityColor[skill.visibility] as "default" | "secondary" | "outline"}>
+                            {skill.visibility}
+                          </Badge>
+                        )
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">

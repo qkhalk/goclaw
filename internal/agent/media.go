@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/base64"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -103,6 +104,63 @@ func (l *Loop) persistMedia(sessionKey string, files []bus.MediaFile) []provider
 		slog.Debug("media: persisted file", "id", id, "kind", kind, "mime", mime, "agent", l.id)
 	}
 	return refs
+}
+
+// enrichDocumentPaths updates the last user message to include persisted file paths
+// in <media:document> tags. This allows skills (e.g. pdf skill via exec) to access
+// the file directly, matching how Claude Code skills work with file paths.
+func (l *Loop) enrichDocumentPaths(messages []providers.Message, refs []providers.MediaRef) {
+	if l.mediaStore == nil || len(messages) == 0 {
+		return
+	}
+	// Find last user message
+	lastIdx := -1
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			lastIdx = i
+			break
+		}
+	}
+	if lastIdx < 0 {
+		return
+	}
+
+	content := messages[lastIdx].Content
+	for _, ref := range refs {
+		if ref.Kind != "document" {
+			continue
+		}
+		p, err := l.mediaStore.LoadPath(ref.ID)
+		if err != nil {
+			continue
+		}
+		// Replace <media:document> or <media:document name="X"> with version that includes path.
+		// The hint tells the agent the file is directly accessible (no copy needed).
+		pathAttr := fmt.Sprintf(" path=%q", p)
+		old1 := "<media:document>"
+		new1 := "<media:document" + pathAttr + ">"
+		if strings.Contains(content, old1) {
+			content = strings.Replace(content, old1, new1, 1)
+			continue
+		}
+		// For named variant, inject path attribute
+		if idx := strings.Index(content, "<media:document name="); idx >= 0 {
+			closeIdx := strings.Index(content[idx:], ">")
+			if closeIdx >= 0 {
+				tag := content[idx : idx+closeIdx]
+				content = strings.Replace(content, tag+">", tag+pathAttr+">", 1)
+			}
+		}
+		// For Slack variant with file= attribute
+		if idx := strings.Index(content, "<media:document file="); idx >= 0 {
+			closeIdx := strings.Index(content[idx:], ">")
+			if closeIdx >= 0 {
+				tag := content[idx : idx+closeIdx]
+				content = strings.Replace(content, tag+">", tag+pathAttr+">", 1)
+			}
+		}
+	}
+	messages[lastIdx].Content = content
 }
 
 // mediaKindFromMime returns the media kind ("image", "video", "audio", "document")

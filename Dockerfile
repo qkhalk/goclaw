@@ -47,6 +47,7 @@ RUN set -eux; \
     fi; \
     if [ "$ENABLE_PYTHON" = "true" ]; then \
         apk add --no-cache python3 py3-pip; \
+        pip3 install --break-system-packages pypdf; \
     fi
 
 # Non-root user

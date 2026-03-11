@@ -14,20 +14,37 @@
     "actions": "Thao tác"
   },
   "noDescription": "Không có mô tả",
+  "visibility": {
+    "clickToCycle": "Nhấp để thay đổi hiển thị"
+  },
   "delete": {
     "title": "Xóa skill",
     "description": "Bạn có chắc chắn muốn xóa \"{{name}}\"? Hành động này không thể hoàn tác.",
     "confirmLabel": "Xóa"
   },
   "upload": {
-    "title": "Tải lên skill",
-    "description": "Tải lên tệp ZIP chứa SKILL.md ở thư mục gốc với YAML frontmatter (name, description, slug).",
+    "title": "Tải lên Skill",
+    "description": "Tải lên tệp ZIP chứa SKILL.md với YAML frontmatter (name, description, slug).",
     "button": "Tải lên",
     "uploading": "Đang tải lên...",
     "dropOrClick": "Nhấp hoặc kéo thả tệp .zip",
     "dropHere": "Thả tệp .zip vào đây",
     "onlyZip": "Chỉ chấp nhận tệp .zip",
-    "cancel": "Hủy"
+    "cancel": "Hủy",
+    "done": "Xong",
+    "tooLarge": "Tệp vượt quá giới hạn 20MB",
+    "invalidZip": "Tệp ZIP không hợp lệ",
+    "noSkillMd": "ZIP phải chứa SKILL.md ở thư mục gốc",
+    "emptySkillMd": "SKILL.md trống",
+    "noFrontmatter": "SKILL.md thiếu YAML frontmatter",
+    "nameRequired": "Cần có name trong SKILL.md frontmatter",
+    "invalidSlug": "Định dạng slug không hợp lệ",
+    "failed": "Tải lên thất bại",
+    "validating": "Đang xác thực...",
+    "validCount": "{{valid}} / {{total}} hợp lệ",
+    "uploadCount": "Tải lên ({{count}})",
+    "successCount": "{{success}} / {{total}} đã tải lên thành công",
+    "remove": "Xóa tệp"
   },
   "edit": {
     "title": "Chỉnh sửa skill",

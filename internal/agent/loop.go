@@ -247,6 +247,9 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	}
 	if len(docRefs) > 0 {
 		ctx = tools.WithMediaDocRefs(ctx, docRefs)
+		// Enrich the last user message with persisted file paths so skills can access
+		// documents via exec (e.g. pypdf). Only for current-turn refs (just persisted).
+		l.enrichDocumentPaths(messages, mediaRefs)
 	}
 
 	// 2c. Collect audio MediaRefs (historical + current) for read_audio tool.

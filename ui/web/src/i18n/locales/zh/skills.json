@@ -14,6 +14,9 @@
     "actions": "操作"
   },
   "noDescription": "暂无描述",
+  "visibility": {
+    "clickToCycle": "点击更改可见性"
+  },
   "delete": {
     "title": "删除Skill",
     "description": "确定要删除「{{name}}」吗？此操作无法撤销。",
@@ -27,7 +30,21 @@
     "dropOrClick": "点击或拖放 .zip 文件",
     "dropHere": "将 .zip 文件拖放到此处",
     "onlyZip": "只接受 .zip 文件",
-    "cancel": "取消"
+    "cancel": "取消",
+    "done": "完成",
+    "tooLarge": "文件超过 20MB 限制",
+    "invalidZip": "无效的 ZIP 文件",
+    "noSkillMd": "ZIP 必须包含根目录的 SKILL.md",
+    "emptySkillMd": "SKILL.md 为空",
+    "noFrontmatter": "SKILL.md 缺少 YAML frontmatter",
+    "nameRequired": "SKILL.md frontmatter 中需要 name",
+    "invalidSlug": "slug 格式无效",
+    "failed": "上传失败",
+    "validating": "验证中...",
+    "validCount": "{{valid}} / {{total}} 有效",
+    "uploadCount": "上传 ({{count}})",
+    "successCount": "{{success}} / {{total}} 上传成功",
+    "remove": "移除文件"
   },
   "edit": {
     "title": "编辑Skill",
