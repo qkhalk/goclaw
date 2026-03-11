@@ -12,6 +12,7 @@ import { useChatSessions } from "./hooks/use-chat-sessions";
 import { useChatMessages } from "./hooks/use-chat-messages";
 import { useChatSend } from "./hooks/use-chat-send";
 import { isOwnSession, parseSessionKey } from "@/lib/session-key";
+import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 
 export function ChatPage() {
   const { t } = useTranslation("chat");
@@ -129,6 +130,7 @@ export function ChatPage() {
   }, [abort, sessionKey]);
 
   const isMobile = useIsMobile();
+  useVirtualKeyboard();
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
 
   const handleSessionSelectMobile = useCallback(
@@ -187,7 +189,7 @@ export function ChatPage() {
       {/* Main chat area */}
       <div className="flex flex-1 flex-col">
         {isMobile && (
-          <div className="flex items-center border-b px-3 py-2">
+          <div className="flex items-center border-b px-3 py-2 landscape-compact">
             <button
               onClick={() => setChatSidebarOpen(true)}
               className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"

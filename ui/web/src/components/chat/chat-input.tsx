@@ -44,7 +44,10 @@ export function ChatInput({ onSend, onAbort, isRunning, disabled }: ChatInputPro
   }, []);
 
   return (
-    <div className="flex items-end gap-2 border-t bg-background p-4">
+    <div
+      className="flex items-end gap-2 border-t bg-background p-4 safe-bottom"
+      style={{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom) + var(--keyboard-height, 0px))` }}
+    >
       <textarea
         ref={textareaRef}
         value={value}
@@ -54,7 +57,7 @@ export function ChatInput({ onSend, onAbort, isRunning, disabled }: ChatInputPro
         placeholder={t("sendMessage")}
         disabled={disabled}
         rows={1}
-        className="flex-1 resize-none rounded-lg border bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+        className="flex-1 resize-none rounded-lg border bg-background px-4 py-2.5 text-base md:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
       />
       {isRunning ? (
         <Button
