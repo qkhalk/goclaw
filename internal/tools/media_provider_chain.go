@@ -175,18 +175,19 @@ func ExecuteWithChain(
 		cp, _ := p.(credentialProvider)
 
 		// Inject resolved provider type into params so callProvider can route correctly.
-		// This uses the actual DB provider_type instead of guessing from the name.
+		// Clone params to avoid mutating the original entry config.
 		resolvedType := ResolveProviderType(p)
-		if entry.Params == nil {
-			entry.Params = make(map[string]any)
+		callParams := make(map[string]any, len(entry.Params)+1)
+		for k, v := range entry.Params {
+			callParams[k] = v
 		}
-		entry.Params["_provider_type"] = resolvedType
+		callParams["_provider_type"] = resolvedType
 
 		// Retry loop for this provider
 		for attempt := 1; attempt <= entry.MaxRetries; attempt++ {
 			timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(entry.Timeout)*time.Second)
 
-			data, usage, callErr := fn(timeoutCtx, cp, entry.Provider, entry.Model, entry.Params)
+			data, usage, callErr := fn(timeoutCtx, cp, entry.Provider, entry.Model, callParams)
 			cancel()
 
 			if callErr == nil {
@@ -298,10 +299,11 @@ type typedProvider interface {
 // used by callProvider switch statements.
 var dbTypeToMediaType = map[string]string{
 	"gemini_native":    "gemini",
-	"openai":           "openai",
+	"openai_compat":    "openai_compat",
 	"openrouter":       "openrouter",
 	"minimax_native":   "minimax",
 	"dashscope":        "dashscope",
+	"bailian":          "dashscope",
 	"anthropic_native": "anthropic",
 	"suno":             "suno",
 }

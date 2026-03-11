@@ -315,7 +315,9 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			if base == "" {
 				base = "https://api.sunoapi.org"
 			}
-			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, ""))
+			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, base, "")
+			prov.WithProviderType(p.ProviderType)
+			registry.Register(prov)
 		default:
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
 			prov.WithProviderType(p.ProviderType)
