@@ -20,10 +20,11 @@ type TeamsMethods struct {
 	linkStore   store.AgentLinkStore // for auto-creating bidirectional links
 	agentRouter *agent.Router        // for cache invalidation
 	msgBus      *bus.MessageBus      // for pub/sub cache invalidation
+	eventBus    bus.EventPublisher
 }
 
-func NewTeamsMethods(teamStore store.TeamStore, agentStore store.AgentStore, linkStore store.AgentLinkStore, agentRouter *agent.Router, msgBus *bus.MessageBus) *TeamsMethods {
-	return &TeamsMethods{teamStore: teamStore, agentStore: agentStore, linkStore: linkStore, agentRouter: agentRouter, msgBus: msgBus}
+func NewTeamsMethods(teamStore store.TeamStore, agentStore store.AgentStore, linkStore store.AgentLinkStore, agentRouter *agent.Router, msgBus *bus.MessageBus, eventBus bus.EventPublisher) *TeamsMethods {
+	return &TeamsMethods{teamStore: teamStore, agentStore: agentStore, linkStore: linkStore, agentRouter: agentRouter, msgBus: msgBus, eventBus: eventBus}
 }
 
 // emitTeamCacheInvalidate broadcasts a cache invalidation event for team data.
@@ -159,6 +160,7 @@ func (m *TeamsMethods) handleCreate(ctx context.Context, client *gateway.Client,
 	// Invalidate agent + team tool caches so TEAM.md gets injected
 	m.invalidateTeamCaches(ctx, team.ID)
 
+	emitAudit(m.eventBus, client, "team.created", "team", team.ID.String())
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
 		"team": team,
 	}))
