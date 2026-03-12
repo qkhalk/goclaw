@@ -43,6 +43,8 @@ const (
 	// Team task lifecycle events.
 	EventTeamTaskClaimed   = "team.task.claimed"
 	EventTeamTaskCancelled = "team.task.cancelled"
+	EventTeamTaskApproved  = "team.task.approved"
+	EventTeamTaskRejected  = "team.task.rejected"
 
 	// Team CRUD events (admin operations).
 	EventTeamCreated       = "team.created"

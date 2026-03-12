@@ -44,6 +44,8 @@ func (m *TeamsMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodTeamsGet, m.handleGet)
 	router.Register(protocol.MethodTeamsDelete, m.handleDelete)
 	router.Register(protocol.MethodTeamsTaskList, m.handleTaskList)
+	router.Register(protocol.MethodTeamsTaskApprove, m.handleTaskApprove)
+	router.Register(protocol.MethodTeamsTaskReject, m.handleTaskReject)
 	router.Register(protocol.MethodTeamsMembersAdd, m.handleAddMember)
 	router.Register(protocol.MethodTeamsMembersRemove, m.handleRemoveMember)
 	router.Register(protocol.MethodTeamsUpdate, m.handleUpdate)
