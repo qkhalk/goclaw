@@ -286,7 +286,7 @@
       "sharedUsers": "共享用户",
       "sharedUsersTip": "始终共享工作区的特定用户ID。格式：channel:userId（例如 telegram:386246614）",
       "userIdPlaceholder": "输入用户ID（例如 telegram:386246614）",
-      "warning": "启用共享后，所有共享用户可以读写同一工作区目录中的文件。记忆和上下文文件仍按用户隔离。"
+      "warning": "启用共享后，所有共享用户可以读写同一工作区目录中的文件。记忆也会共享；上下文文件仍按用户隔离。切换此设置不会迁移现有数据——之前的用户独立记忆将无法访问。"
     },
     "compaction": {
       "title": "压缩",

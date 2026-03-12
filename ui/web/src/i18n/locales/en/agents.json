@@ -286,7 +286,7 @@
       "sharedUsers": "Shared Users",
       "sharedUsersTip": "Specific user IDs that always share workspace regardless of DM/Group settings. Format: channel:userId (e.g. telegram:386246614)",
       "userIdPlaceholder": "Enter user ID (e.g. telegram:386246614)",
-      "warning": "When sharing is enabled, all shared users can read and write files in the same workspace directory. Memory and context files remain isolated per user."
+      "warning": "When sharing is enabled, all shared users can read and write files in the same workspace directory. Memory is also shared; context files remain isolated per user. Toggling this setting does not migrate existing data — previous per-user memories will no longer be accessible."
     },
     "compaction": {
       "title": "Compaction",

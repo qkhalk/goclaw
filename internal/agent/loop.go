@@ -104,8 +104,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			cachedWs = ws
 		}
 		effectiveWorkspace := cachedWs.(string)
-		if !l.shouldShareWorkspace(req.UserID, req.PeerKind) {
+		shared := l.shouldShareWorkspace(req.UserID, req.PeerKind)
+		if !shared {
 			effectiveWorkspace = filepath.Join(effectiveWorkspace, sanitizePathSegment(req.UserID))
+		} else {
+			// Shared workspace → share memory across users too.
+			ctx = store.WithSharedMemory(ctx)
 		}
 		if err := os.MkdirAll(effectiveWorkspace, 0755); err != nil {
 			slog.Warn("failed to create user workspace directory", "workspace", effectiveWorkspace, "user", req.UserID, "error", err)
