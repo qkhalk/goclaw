@@ -236,10 +236,12 @@ export function StepAgent({ provider, model, onComplete, onBack, existingAgent }
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <div className="flex items-center justify-between">
-              {onBack ? (
-                <Button variant="ghost" onClick={onBack}>{t("common:back")}</Button>
-              ) : <span />}
+            <div className={`flex ${onBack ? "justify-between" : "justify-end"} gap-2`}>
+              {onBack && (
+                <Button variant="secondary" onClick={onBack}>
+                  ← {t("common.back")}
+                </Button>
+              )}
               <Button
                 onClick={handleSubmit}
                 disabled={loading || !agentKey.trim() || !isValidSlug(agentKey) || !description.trim()}
