@@ -428,7 +428,7 @@ func buildMemoryRecallSection(hasKG bool) []string {
 func buildWorkspaceSection(workspace string, sandboxEnabled bool, containerDir string) []string {
 	// Matching TS: when sandboxed, display container workdir; add guidance about host paths for file tools.
 	displayDir := workspace
-	guidance := "Treat this directory as the single global workspace for file operations unless explicitly instructed otherwise."
+	guidance := "All file tool paths resolve relative to this directory. Use relative paths (e.g. \"docs/notes.md\", \".\") — do not guess absolute paths."
 	if sandboxEnabled && containerDir != "" {
 		displayDir = containerDir
 		guidance = fmt.Sprintf(
