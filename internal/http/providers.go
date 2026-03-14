@@ -18,14 +18,14 @@ import (
 
 // ProvidersHandler handles LLM provider CRUD endpoints.
 type ProvidersHandler struct {
-	store          store.ProviderStore
-	secretStore    store.ConfigSecretsStore
-	token          string
-	providerReg    *providers.Registry
-	gatewayAddr    string                    // for injecting MCP bridge into Claude CLI providers
-	mcpLookup      providers.MCPServerLookup // optional: resolves per-agent MCP servers
-	cliMu          sync.Mutex                // serializes Claude CLI provider create to prevent duplicates
-	msgBus         *bus.MessageBus
+	store       store.ProviderStore
+	secretStore store.ConfigSecretsStore
+	token       string
+	providerReg *providers.Registry
+	gatewayAddr string                    // for injecting MCP bridge into Claude CLI providers
+	mcpLookup   providers.MCPServerLookup // optional: resolves per-agent MCP servers
+	cliMu       sync.Mutex                // serializes Claude CLI provider create to prevent duplicates
+	msgBus      *bus.MessageBus
 }
 
 // NewProvidersHandler creates a handler for provider management endpoints.
@@ -165,7 +165,7 @@ func (h *ProvidersHandler) handleListProviders(w http.ResponseWriter, r *http.Re
 		maskAPIKey(&providers[i])
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"providers": providers})
+	writeJSON(w, http.StatusOK, map[string]any{"providers": providers})
 }
 
 func (h *ProvidersHandler) handleCreateProvider(w http.ResponseWriter, r *http.Request) {
@@ -247,7 +247,7 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	var updates map[string]interface{}
+	var updates map[string]any
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&updates); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidJSON)})
 		return
