@@ -229,10 +229,7 @@ func runGateway() {
 	toolPE := tools.NewPolicyEngine(&cfg.Tools)
 
 	// Data directory for Phase 2 services
-	dataDir := os.Getenv("GOCLAW_DATA_DIR")
-	if dataDir == "" {
-		dataDir = config.ExpandHome("~/.goclaw/data")
-	}
+	dataDir := cfg.ResolvedDataDir()
 	os.MkdirAll(dataDir, 0755)
 
 	// Block exec from accessing sensitive directories (data dir, .goclaw, config file).
@@ -293,8 +290,9 @@ func runGateway() {
 	}
 
 	storeCfg := store.StoreConfig{
-		PostgresDSN:   cfg.Database.PostgresDSN,
-		EncryptionKey: os.Getenv("GOCLAW_ENCRYPTION_KEY"),
+		PostgresDSN:      cfg.Database.PostgresDSN,
+		EncryptionKey:    os.Getenv("GOCLAW_ENCRYPTION_KEY"),
+		SkillsStorageDir: filepath.Join(dataDir, "skills-store"),
 	}
 	pgStores, pgErr := pg.NewPGStores(storeCfg)
 	if pgErr != nil {
@@ -510,7 +508,7 @@ func runGateway() {
 	// Global skills live under ~/.goclaw/skills/ (user-managed), not data/skills/.
 	globalSkillsDir := os.Getenv("GOCLAW_SKILLS_DIR")
 	if globalSkillsDir == "" {
-		globalSkillsDir = filepath.Join(config.ExpandHome("~/.goclaw"), "skills")
+		globalSkillsDir = filepath.Join(dataDir, "skills")
 	}
 	// Bundled skills: shipped with the Docker image at /app/bundled-skills/.
 	// Lowest priority — managed (skills-store) and user-uploaded skills override these.
@@ -637,16 +635,16 @@ func runGateway() {
 	slog.Info("tool aliases registered", "count", len(toolsReg.Aliases()))
 
 	// Allow read_file to access skills directories and CLI workspaces (outside workspace).
-	// Skills can live in ~/.goclaw/skills/, ~/.agents/skills/, ~/.goclaw/skills-store/, etc.
-	// CLI workspaces live in ~/.goclaw/cli-workspaces/ (agent working files).
+	// Skills can live under dataDir/skills/, ~/.agents/skills/, dataDir/skills-store/, etc.
+	// CLI workspaces live in dataDir/cli-workspaces/ (agent working files).
 	homeDir, _ := os.UserHomeDir()
 	if readTool, ok := toolsReg.Get("read_file"); ok {
 		if pa, ok := readTool.(tools.PathAllowable); ok {
 			pa.AllowPaths(globalSkillsDir)
 			if homeDir != "" {
 				pa.AllowPaths(filepath.Join(homeDir, ".agents", "skills"))
-				pa.AllowPaths(filepath.Join(homeDir, ".goclaw", "cli-workspaces"))
 			}
+			pa.AllowPaths(filepath.Join(dataDir, "cli-workspaces"))
 			// Also allow the skills store directory (uploaded skill content).
 			if pgStores.Skills != nil {
 				pa.AllowPaths(pgStores.Skills.Dirs()...)
@@ -720,7 +718,7 @@ func runGateway() {
 	if mcpMgr != nil {
 		mcpToolLister = mcpMgr
 	}
-	agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH := wireHTTP(pgStores, cfg.Gateway.Token, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
+	agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH := wireHTTP(pgStores, cfg.Gateway.Token, cfg.Agents.Defaults.Workspace, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
 	if agentsH != nil {
 		server.SetAgentsHandler(agentsH)
 	}
