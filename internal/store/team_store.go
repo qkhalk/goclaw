@@ -323,6 +323,8 @@ type TeamStore interface {
 	ListTasks(ctx context.Context, teamID uuid.UUID, orderBy string, statusFilter string, userID string, channel string, chatID string) ([]TeamTaskData, error)
 	// GetTask returns a single task by ID with joined agent info.
 	GetTask(ctx context.Context, taskID uuid.UUID) (*TeamTaskData, error)
+	// GetTasksByIDs returns multiple tasks by IDs in a single query.
+	GetTasksByIDs(ctx context.Context, ids []uuid.UUID) ([]TeamTaskData, error)
 	// SearchTasks performs FTS search over task subject+description.
 	// userID: if non-empty, filter to tasks created by this user.
 	SearchTasks(ctx context.Context, teamID uuid.UUID, query string, limit int, userID string) ([]TeamTaskData, error)
