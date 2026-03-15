@@ -7,6 +7,8 @@
   "emptyDescription": "Tạo Team đầu tiên để bắt đầu.",
   "noMatchTitle": "Không tìm thấy Team phù hợp",
   "noMatchDescription": "Thử từ khóa tìm kiếm khác.",
+  "viewCard": "Dạng thẻ",
+  "viewList": "Dạng danh sách",
   "scope": {
     "all": "Tất cả phạm vi",
     "label": "Phạm vi"
@@ -20,6 +22,7 @@
     "lead": "Trưởng nhóm",
     "memberCount": "{{count}} thành viên",
     "memberCountPlural": "{{count}} thành viên",
+    "more": "khác",
     "deleteDescription": "Bạn có chắc chắn muốn xóa \"{{name}}\"? Tất cả thành viên, nhiệm vụ và cấu hình sẽ bị xóa vĩnh viễn.",
     "tabs": {
       "tasks": "Nhiệm vụ",

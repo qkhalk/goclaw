@@ -7,6 +7,8 @@
   "emptyDescription": "创建您的第一个Team以开始使用。",
   "noMatchTitle": "未找到匹配Team",
   "noMatchDescription": "请尝试其他搜索词。",
+  "viewCard": "卡片视图",
+  "viewList": "列表视图",
   "scope": {
     "all": "所有范围",
     "label": "范围"
@@ -20,6 +22,7 @@
     "lead": "负责人",
     "memberCount": "{{count}} 位成员",
     "memberCountPlural": "{{count}} 位成员",
+    "more": "更多",
     "deleteDescription": "确定要删除「{{name}}」吗？所有成员、任务和配置将被永久移除。",
     "tabs": {
       "tasks": "任务",

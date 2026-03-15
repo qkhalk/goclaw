@@ -65,8 +65,12 @@ type TeamData struct {
 	CreatedBy   string          `json:"created_by"`
 
 	// Joined fields (populated by queries that JOIN agents table)
-	LeadAgentKey     string `json:"lead_agent_key,omitempty"`
-	LeadDisplayName  string `json:"lead_display_name,omitempty"`
+	LeadAgentKey    string `json:"lead_agent_key,omitempty"`
+	LeadDisplayName string `json:"lead_display_name,omitempty"`
+
+	// Enriched fields (populated by ListTeams)
+	MemberCount int              `json:"member_count"`
+	Members     []TeamMemberData `json:"members,omitempty"`
 }
 
 // TeamMemberData represents a team member.
@@ -80,6 +84,7 @@ type TeamMemberData struct {
 	AgentKey    string `json:"agent_key,omitempty"`
 	DisplayName string `json:"display_name,omitempty"`
 	Frontmatter string `json:"frontmatter,omitempty"`
+	Emoji       string `json:"emoji,omitempty"`
 }
 
 // TeamTaskData represents a task in the team's shared task list.

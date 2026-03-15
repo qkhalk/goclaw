@@ -7,6 +7,8 @@
   "emptyDescription": "Create your first team to get started.",
   "noMatchTitle": "No matching teams",
   "noMatchDescription": "Try a different search term.",
+  "viewCard": "Card view",
+  "viewList": "List view",
   "scope": {
     "all": "All scopes",
     "label": "Scope"
@@ -20,6 +22,7 @@
     "lead": "Lead",
     "memberCount": "{{count}} member",
     "memberCountPlural": "{{count}} members",
+    "more": "more",
     "deleteDescription": "Are you sure you want to delete \"{{name}}\"? All members, tasks, and configuration will be permanently removed.",
     "tabs": {
       "tasks": "Tasks",

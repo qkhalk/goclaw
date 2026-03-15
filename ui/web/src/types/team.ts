@@ -32,6 +32,8 @@ export interface TeamData {
   created_by: string;
   created_at?: string;
   updated_at?: string;
+  member_count?: number;
+  members?: TeamMemberData[];
 }
 
 export interface TeamMemberData {
@@ -40,6 +42,7 @@ export interface TeamMemberData {
   agent_key?: string;
   display_name?: string;
   frontmatter?: string;
+  emoji?: string;
   role: "lead" | "member" | "reviewer";
   joined_at?: string;
 }

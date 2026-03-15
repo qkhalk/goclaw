@@ -38,6 +38,18 @@ export function TeamMembersDialog({
     if (open && !didRefresh.current) { didRefresh.current = true; refresh(); }
   }, [open, refresh]);
 
+  // Build emoji lookup from agents' other_config
+  const emojiMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of agents) {
+      const cfg = a.other_config as Record<string, unknown> | null;
+      if (cfg && typeof cfg.emoji === "string" && cfg.emoji) {
+        map.set(a.id, cfg.emoji);
+      }
+    }
+    return map;
+  }, [agents]);
+
   const memberIds = useMemo(() => new Set(members.map((m) => m.agent_id)), [members]);
   const available = useMemo(
     () => agents
@@ -105,7 +117,11 @@ export function TeamMembersDialog({
               key={m.agent_id}
               className={`group flex items-start gap-3 px-4 py-3 hover:bg-muted/30 ${i > 0 ? "border-t" : ""}`}
             >
-              <Bot className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+              {emojiMap.get(m.agent_id) ? (
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-base leading-none">{emojiMap.get(m.agent_id)}</span>
+              ) : (
+                <Bot className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium">
