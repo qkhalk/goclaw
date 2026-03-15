@@ -720,7 +720,7 @@ func runGateway() {
 	if mcpMgr != nil {
 		mcpToolLister = mcpMgr
 	}
-	agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH, pendingMessagesH, teamEventsH := wireHTTP(pgStores, cfg.Gateway.Token, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
+	agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH := wireHTTP(pgStores, cfg.Gateway.Token, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
 	if agentsH != nil {
 		server.SetAgentsHandler(agentsH)
 	}
@@ -763,6 +763,10 @@ func runGateway() {
 		server.SetPendingMessagesHandler(pendingMessagesH)
 	}
 
+	if secureCLIH != nil {
+		server.SetSecureCLIHandler(secureCLIH)
+	}
+
 	// Activity audit log API
 	if pgStores.Activity != nil {
 		server.SetActivityHandler(httpapi.NewActivityHandler(pgStores.Activity, cfg.Gateway.Token))
@@ -771,6 +775,16 @@ func runGateway() {
 	// Usage analytics API
 	if pgStores.Snapshots != nil {
 		server.SetUsageHandler(httpapi.NewUsageHandler(pgStores.Snapshots, pgStores.DB, cfg.Gateway.Token))
+	}
+
+	// API key management
+	// API documentation (OpenAPI spec + Swagger UI at /docs)
+	server.SetDocsHandler(httpapi.NewDocsHandler(cfg.Gateway.Token))
+
+	if pgStores != nil && pgStores.APIKeys != nil {
+		server.SetAPIKeysHandler(httpapi.NewAPIKeysHandler(pgStores.APIKeys, cfg.Gateway.Token, msgBus))
+		server.SetAPIKeyStore(pgStores.APIKeys)
+		httpapi.InitAPIKeyCache(pgStores.APIKeys, msgBus)
 	}
 
 	// Memory management API (wired directly, only needs MemoryStore + token)
@@ -1039,6 +1053,11 @@ func runGateway() {
 	// Register quota usage RPC.
 	// Pass DB so summary cards still work when quota is disabled (queries traces directly).
 	methods.NewQuotaMethods(quotaChecker, pgStores.DB).Register(server.Router())
+
+	// API key management RPC
+	if pgStores.APIKeys != nil {
+		methods.NewAPIKeysMethods(pgStores.APIKeys).Register(server.Router())
+	}
 
 	// Reload quota config on config changes via pub/sub.
 	if quotaChecker != nil {
