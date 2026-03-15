@@ -114,6 +114,7 @@ const (
 	MethodTeamsTaskComments  = "teams.tasks.comments"
 	MethodTeamsTaskEvents    = "teams.tasks.events"
 	MethodTeamsTaskCreate    = "teams.tasks.create"
+	MethodTeamsTaskDelete    = "teams.tasks.delete"
 	MethodTeamsTaskAssign    = "teams.tasks.assign"
 	MethodTeamsMembersAdd    = "teams.members.add"
 	MethodTeamsMembersRemove = "teams.members.remove"
