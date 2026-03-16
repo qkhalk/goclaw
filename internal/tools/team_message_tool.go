@@ -337,7 +337,7 @@ func (t *TeamMessageTool) publishTeammateMessage(fromKey, toKey, text string, me
 		teamMeta["team_task_id"] = teamTaskID.String()
 	}
 	// Pass team workspace so the receiving agent can access shared files.
-	if ws, err := workspaceDir(t.manager.dataDir, teamID, "", chatID); err == nil {
+	if ws, err := WorkspaceDir(t.manager.dataDir, teamID, chatID); err == nil {
 		teamMeta["team_workspace"] = ws
 	}
 	// Propagate trace context so the receiving agent's trace links back.

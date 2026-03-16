@@ -661,7 +661,7 @@ func handleTeammateMessage(
 		announceContent += "\n\nPresent this result to the user. Any media files are forwarded automatically. Do NOT search for files — the result above contains all relevant information."
 		// Append team workspace path so lead can locate files without searching.
 		if ws := inMeta["team_workspace"]; ws != "" {
-			announceContent += fmt.Sprintf("\n[Team workspace: %s — use workspace_read to read files, e.g. workspace_read(file_name=\"filename.md\")]", ws)
+			announceContent += fmt.Sprintf("\n[Team workspace: %s — use read_file/list_files to access shared files, e.g. list_files(path=\".\") then read_file(path=\"filename.md\")]", ws)
 		}
 
 		// Route to the lead's session on the original channel/chat.

@@ -42,10 +42,10 @@ const (
 
 // Team task list filter constants (for ListTasks statusFilter parameter).
 const (
-	TeamTaskFilterActive    = ""          // default: pending + in_progress + blocked
+	TeamTaskFilterActive    = "active" // pending + in_progress + blocked
 	TeamTaskFilterInReview  = "in_review" // only in_review tasks
 	TeamTaskFilterCompleted = "completed" // only completed tasks
-	TeamTaskFilterAll       = "all"       // all statuses
+	TeamTaskFilterAll       = "all"       // all statuses (default when "" passed)
 )
 
 // Team message type constants.

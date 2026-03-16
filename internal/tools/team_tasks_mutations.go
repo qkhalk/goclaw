@@ -109,9 +109,9 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 
 	// Compute the team workspace directory so member agents write files to the
 	// shared team folder (teams/{teamID}/{chatID}/) instead of their own personal workspace.
-	// This aligns write_file/create_image with workspace_read/workspace_write paths.
+	// WorkspaceInterceptor redirects write_file/create_image to this path automatically.
 	taskMeta := make(map[string]any)
-	if teamWsDir, err := workspaceDir(t.manager.dataDir, team.ID, "", chatID); err == nil {
+	if teamWsDir, err := WorkspaceDir(t.manager.dataDir, team.ID, chatID); err == nil {
 		taskMeta["team_workspace"] = teamWsDir
 	}
 	// Preserve original blocked_by list for blocker-result forwarding when task unblocks.
