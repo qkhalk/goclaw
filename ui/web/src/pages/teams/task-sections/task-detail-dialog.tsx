@@ -24,11 +24,12 @@ interface TaskDetailDialogProps {
   taskLookup?: Map<string, string>;
   memberLookup?: Map<string, string>;
   emojiLookup?: Map<string, string>;
+  onNavigateTask?: (taskId: string) => void;
 }
 
 export function TaskDetailDialog({
   task, teamId, isTeamV2, onClose,
-  getTaskDetail, deleteTask, taskLookup, memberLookup, emojiLookup,
+  getTaskDetail, deleteTask, taskLookup, memberLookup, emojiLookup, onNavigateTask,
 }: TaskDetailDialogProps) {
   const { t } = useTranslation("teams");
   const [events, setEvents] = useState<TeamTaskEvent[]>([]);
@@ -171,7 +172,14 @@ export function TaskDetailDialog({
               <span className="text-muted-foreground">{t("tasks.detail.blockedBy")}</span>{" "}
               <div className="mt-1 flex flex-wrap gap-1">
                 {task.blocked_by.map((id) => (
-                  <Badge key={id} variant="outline" className="text-xs">{taskLookup?.get(id) || id.slice(0, 8)}</Badge>
+                  <Badge
+                    key={id}
+                    variant="outline"
+                    className={"text-xs" + (onNavigateTask ? " cursor-pointer hover:bg-accent" : "")}
+                    onClick={onNavigateTask ? () => onNavigateTask(id) : undefined}
+                  >
+                    {taskLookup?.get(id) || id.slice(0, 8)}
+                  </Badge>
                 ))}
               </div>
             </div>
