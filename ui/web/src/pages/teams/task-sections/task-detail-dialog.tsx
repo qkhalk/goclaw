@@ -68,7 +68,7 @@ export function TaskDetailDialog({
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-h-[85vh] w-[95vw] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[85vh] w-[95vw] flex flex-col sm:max-w-4xl">
         <DialogHeader>
           <div className="flex items-center justify-between gap-2">
             <DialogTitle className="flex items-center gap-2">
@@ -85,7 +85,7 @@ export function TaskDetailDialog({
           </div>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto min-h-0 -mx-4 px-4 sm:-mx-6 sm:px-6">
           {/* Subject */}
           <div className="rounded-md border p-3">
             <p className="mb-1 text-xs font-medium text-muted-foreground">{t("tasks.detail.subject")}</p>

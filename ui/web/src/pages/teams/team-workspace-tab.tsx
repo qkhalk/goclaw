@@ -187,13 +187,13 @@ export function TeamWorkspaceTab({ teamId, scopes }: TeamWorkspaceTabProps) {
 
       {/* File content dialog */}
       <Dialog open={!!selectedFile} onOpenChange={() => setSelectedFile(null)}>
-        <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[80vh] max-w-2xl flex flex-col">
           <DialogHeader>
             <DialogTitle className="font-mono text-sm">
               {selectedFile?.file.name}
             </DialogTitle>
           </DialogHeader>
-          <pre className="mt-2 max-h-[60vh] overflow-auto rounded-md bg-muted p-4 text-xs">
+          <pre className="flex-1 min-h-0 overflow-auto rounded-md bg-muted p-4 text-xs -mx-4 sm:-mx-6">
             {selectedFile?.content || t("workspace.detail.empty")}
           </pre>
         </DialogContent>
