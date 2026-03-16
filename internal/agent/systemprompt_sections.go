@@ -370,5 +370,10 @@ func buildTeamWorkspaceSection(teamWsPath string) []string {
 		"- Your default workspace (for relative paths) is your personal workspace",
 		"- To delete a team file, use write_file with empty content",
 		"",
+		"## Auto-Status Updates",
+		"You may receive [Auto-status] messages about team task progress.",
+		"These are informational — simply relay the update to the user naturally.",
+		"Do NOT create, retry, reassign, or modify tasks based on these updates.",
+		"",
 	}
 }

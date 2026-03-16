@@ -237,8 +237,12 @@ func (m *TeamToolManager) DispatchUnblockedTasks(ctx context.Context, teamID uui
 			m.broadcastTeamEvent(protocol.EventTeamTaskAssigned, protocol.TeamTaskEventPayload{
 				TeamID:        teamID.String(),
 				TaskID:        task.ID.String(),
+				TaskNumber:    task.TaskNumber,
+				Subject:       task.Subject,
 				Status:        store.TeamTaskStatusInProgress,
 				OwnerAgentKey: m.agentKeyFromID(ctx, *task.OwnerAgentID),
+				Channel:       task.Channel,
+				ChatID:        task.ChatID,
 				Timestamp:     time.Now().UTC().Format("2006-01-02T15:04:05Z"),
 				ActorType:     "system",
 				ActorID:       "dispatch_unblocked",
