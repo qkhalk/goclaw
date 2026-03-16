@@ -65,17 +65,7 @@ func (p *DashScopeProvider) applyThinkingGuard(req ChatRequest) ChatRequest {
 		return req
 	}
 
-	// Determine if this model supports thinking:
-	//   1. Prefer the pre-computed hint from the agent loop (ModelSupportsThinking field).
-	//   2. Fall back to local map lookup.
-	var supportsThinking bool
-	if req.ModelSupportsThinking != nil {
-		supportsThinking = *req.ModelSupportsThinking
-	} else {
-		supportsThinking = p.ModelSupportsThinking(req.Model)
-	}
-
-	if supportsThinking {
+	if p.ModelSupportsThinking(req.Model) {
 		// Clone Options to avoid mutating caller's map
 		opts := make(map[string]any, len(req.Options)+2)
 		maps.Copy(opts, req.Options)
@@ -104,7 +94,7 @@ func (p *DashScopeProvider) ChatStream(ctx context.Context, req ChatRequest, onC
 
 	if len(req.Tools) > 0 {
 		slog.Debug("dashscope: tools present, falling back to non-streaming Chat")
-		resp, err := p.Chat(ctx, req)
+		resp, err := p.OpenAIProvider.Chat(ctx, req)
 		if err != nil {
 			return nil, err
 		}

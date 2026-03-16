@@ -112,38 +112,6 @@ func TestDashScopeThinkingNotInjected_WhenModelDoesNotSupport(t *testing.T) {
 	}
 }
 
-// TestDashScopeThinkingNotInjected_ViaHint verifies that the ModelSupportsThinking=false
-// hint suppresses injection even for a whitelisted model.
-func TestDashScopeThinkingNotInjected_ViaHint(t *testing.T) {
-	falseVal := false
-	body := callDashScopeStream(t, ChatRequest{
-		Model:                 "qwen3.5-plus", // on whitelist, but hint overrides
-		Messages:              []Message{{Role: "user", Content: "hi"}},
-		Options:               map[string]any{OptThinkingLevel: "high"},
-		ModelSupportsThinking: &falseVal,
-	})
-
-	if _, has := body["enable_thinking"]; has {
-		t.Error("enable_thinking should NOT be sent when ModelSupportsThinking=false hint is set")
-	}
-}
-
-// TestDashScopeThinkingInjected_ViaHint verifies that a true hint on a
-// non-whitelisted model still triggers injection (explicit caller override).
-func TestDashScopeThinkingInjected_ViaHint(t *testing.T) {
-	trueVal := true
-	body := callDashScopeStream(t, ChatRequest{
-		Model:                 "qwen3-plus", // not on whitelist, but hint explicitly allows
-		Messages:              []Message{{Role: "user", Content: "hi"}},
-		Options:               map[string]any{OptThinkingLevel: "low"},
-		ModelSupportsThinking: &trueVal,
-	})
-
-	if body["enable_thinking"] != true {
-		t.Errorf("enable_thinking = %v, want true when ModelSupportsThinking=true hint is set", body["enable_thinking"])
-	}
-}
-
 // TestDashScopeNoThinkingLevel verifies that without thinking_level,
 // enable_thinking is never injected regardless of model.
 func TestDashScopeNoThinkingLevel(t *testing.T) {
