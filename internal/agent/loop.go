@@ -155,11 +155,15 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// Non-lead members keep own workspace; team workspace is accessible via absolute path.
 	if req.TeamWorkspace == "" && l.teamStore != nil && l.agentUUID != uuid.Nil {
 		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil {
-			chatID := req.ChatID
-			if chatID == "" {
-				chatID = req.UserID
+			// Shared workspace: scope by teamID only. Isolated (default): scope by chatID too.
+			wsChat := req.ChatID
+			if wsChat == "" {
+				wsChat = req.UserID
 			}
-			if wsDir, err := tools.WorkspaceDir(l.dataDir, team.ID, chatID); err == nil {
+			if tools.IsSharedWorkspace(team.Settings) {
+				wsChat = ""
+			}
+			if wsDir, err := tools.WorkspaceDir(l.dataDir, team.ID, wsChat); err == nil {
 				ctx = tools.WithToolTeamWorkspace(ctx, wsDir)
 				if team.LeadAgentID == l.agentUUID {
 					ctx = tools.WithToolWorkspace(ctx, wsDir)
@@ -346,16 +350,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// knows images were received and stored (consistent with audio/video enrichment).
 	l.enrichImageIDs(messages, mediaRefs)
 
-	// 2f. Cross-session recovery: notify team leads about orphaned pending tasks
-	// and in-progress tasks being handled by delegates.
-	// Safe because Bước 1 (early ClaimTask) ensures running tasks are in_progress,
-	// so only truly un-spawned tasks remain pending.
+	// 2f. Cross-session task reminder: notify team leads about pending and in-progress tasks.
+	// Stale recovery (expired lock → pending) is handled by the background TaskTicker.
 	if l.teamStore != nil && l.agentUUID != uuid.Nil {
 		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil && team.LeadAgentID == l.agentUUID {
-			// Recover tasks with expired locks (stale in_progress → pending)
-			if recovered, err := l.teamStore.RecoverStaleTasks(ctx, team.ID); err == nil && recovered > 0 {
-				slog.Info("recovered stale tasks", "team", team.ID, "count", recovered)
-			}
 			if tasks, err := l.teamStore.ListTasks(ctx, team.ID, "newest", "active", req.UserID, "", "", 0); err == nil {
 				var stale []string
 				var inProgress []string
