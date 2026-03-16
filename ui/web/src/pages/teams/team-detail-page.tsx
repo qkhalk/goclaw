@@ -55,7 +55,7 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
         if (!cancelled) {
           setTeam(res.team);
           setMembers(res.members ?? []);
-          setScopes(scopeList);
+          setScopes(scopeList.filter((s) => s.chat_id));
         }
       } catch { /* ignore */ }
       finally { if (!cancelled) setLoading(false); }
