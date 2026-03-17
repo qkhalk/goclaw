@@ -24,7 +24,7 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 
 	// Gate: must list tasks before creating to prevent duplicates in concurrent group chat.
 	if ptd := PendingTeamDispatchFromCtx(ctx); ptd != nil && !ptd.HasListed() {
-		return ErrorResult("You must check existing tasks first. Call team_tasks(action=\"list\") to review the current task board before creating new tasks — this prevents duplicates in concurrent sessions.")
+		return ErrorResult("You must check existing tasks first. Call team_tasks(action=\"search\", query=\"<keywords>\") to check for similar tasks before creating — this saves tokens vs listing all. Alternatively use action=\"list\" to see the full board.")
 	}
 
 	subject, _ := args["subject"].(string)
