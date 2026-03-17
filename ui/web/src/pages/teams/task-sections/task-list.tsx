@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
+import { Pagination } from "@/components/shared/pagination";
+import { usePagination } from "@/hooks/use-pagination";
 import type { TeamTaskData, TeamTaskComment, TeamTaskEvent, TeamTaskAttachment } from "@/types/team";
 import type { TeamMemberData } from "@/types/team";
 import { taskStatusBadgeVariant, isTerminalStatus } from "./task-utils";
@@ -36,10 +38,12 @@ export function TaskList({
   const [deleting, setDeleting] = useState(false);
   const taskLookup = useMemo(() => buildTaskLookup(tasks), [tasks]);
   const memberLookup = useMemo(() => buildMemberLookup(members), [members]);
+  const { pageItems, pagination, setPage, setPageSize } = usePagination(tasks, { defaultPageSize: 20 });
 
-  const terminalTaskIds = useMemo(
-    () => tasks.filter((t) => isTerminalStatus(t.status)).map((t) => t.id),
-    [tasks],
+  // "Select all" applies to terminal tasks on the current page only.
+  const pageTerminalIds = useMemo(
+    () => pageItems.filter((t) => isTerminalStatus(t.status)).map((t) => t.id),
+    [pageItems],
   );
 
   // Clear selection when tasks change (e.g. after delete/refresh).
@@ -61,12 +65,18 @@ export function TaskList({
   }, []);
 
   const toggleSelectAll = useCallback(() => {
-    setSelectedIds((prev) =>
-      prev.size === terminalTaskIds.length && terminalTaskIds.length > 0
-        ? new Set()
-        : new Set(terminalTaskIds),
-    );
-  }, [terminalTaskIds]);
+    setSelectedIds((prev) => {
+      const allPageSelected = pageTerminalIds.length > 0 && pageTerminalIds.every((id) => prev.has(id));
+      if (allPageSelected) {
+        // Deselect current page's terminal tasks, keep other pages' selections.
+        const next = new Set(prev);
+        for (const id of pageTerminalIds) next.delete(id);
+        return next;
+      }
+      // Add current page's terminal tasks to selection.
+      return new Set([...prev, ...pageTerminalIds]);
+    });
+  }, [pageTerminalIds]);
 
   const handleBulkDelete = useCallback(async () => {
     if (!deleteTasksBulk || selectedIds.size === 0) return;
@@ -101,9 +111,9 @@ export function TaskList({
     deleteTask(teamId, taskId);
   };
 
-  const hasBulkDelete = !!deleteTasksBulk && terminalTaskIds.length > 0;
-  const allSelected = terminalTaskIds.length > 0 && selectedIds.size === terminalTaskIds.length;
-  const someSelected = selectedIds.size > 0 && !allSelected;
+  const hasBulkDelete = !!deleteTasksBulk && pageTerminalIds.length > 0;
+  const allPageSelected = pageTerminalIds.length > 0 && pageTerminalIds.every((id) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0 && !allPageSelected;
 
   const gridCols = hasBulkDelete
     ? "grid-cols-[36px_70px_1fr_90px_100px_60px_40px]"
@@ -135,7 +145,7 @@ export function TaskList({
               <input
                 type="checkbox"
                 className="h-4 w-4 cursor-pointer rounded border-muted-foreground/50 text-base accent-primary"
-                checked={allSelected}
+                checked={allPageSelected}
                 ref={(el) => { if (el) el.indeterminate = someSelected; }}
                 onChange={toggleSelectAll}
               />
@@ -148,7 +158,7 @@ export function TaskList({
           <span>{t("tasks.columns.priority")}</span>
           <span />
         </div>
-        {tasks.map((task) => {
+        {pageItems.map((task) => {
           const ownerEmoji = task.owner_agent_id && emojiLookup?.get(task.owner_agent_id);
           const isTerminal = isTerminalStatus(task.status);
           const isChecked = selectedIds.has(task.id);
@@ -217,6 +227,15 @@ export function TaskList({
           );
         })}
       </div>
+
+      <Pagination
+        page={pagination.page}
+        pageSize={pagination.pageSize}
+        total={pagination.total}
+        totalPages={pagination.totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
 
       {selectedTask && (
         <TaskDetailDialog
