@@ -39,6 +39,7 @@ type SystemPromptConfig struct {
 	AgentType     string                 // "open" or "predefined" — affects context file framing
 
 	HasSkillSearch     bool              // skill_search tool registered? (for search-mode prompt)
+	HasSkillManage     bool              // skill_manage tool registered + skill_evolve enabled for this agent
 	HasMCPToolSearch   bool              // mcp_tool_search tool registered? (MCP search mode)
 	HasKnowledgeGraph  bool              // knowledge_graph_search tool registered?
 	MCPToolDescs       map[string]string // MCP tool name → description (inline mode only)
@@ -75,6 +76,8 @@ var coreToolSummaries = map[string]string{
 	"datetime":      "Get current date/time with timezone support — use before creating cron jobs or time-sensitive operations",
 	"cron":          "Manage scheduled jobs and reminders",
 	"skill_search":     "Search available skills by keyword (weather, translate, github, etc.)",
+	"skill_manage":     "Create, patch, or delete skills from conversation experience",
+	"publish_skill":    "Register a skill directory in the system database, making it discoverable",
 	"use_skill":        "Invoke a skill by name and follow its instructions",
 	"mcp_tool_search":  "Search for available MCP external integration tools by keyword",
 	"browser":          "Browse web pages interactively",
@@ -191,8 +194,8 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 	// 4. ## Skills (full only) — skip during bootstrap
 	// SkillsSummary non-empty → inline mode (XML list in prompt, TS-style)
 	// SkillsSummary empty + HasSkillSearch → search mode (use skill_search tool)
-	if !isMinimal && !cfg.IsBootstrap && (cfg.SkillsSummary != "" || cfg.HasSkillSearch) {
-		lines = append(lines, buildSkillsSection(cfg.SkillsSummary, cfg.HasSkillSearch)...)
+	if !isMinimal && !cfg.IsBootstrap && (cfg.SkillsSummary != "" || cfg.HasSkillSearch || cfg.HasSkillManage) {
+		lines = append(lines, buildSkillsSection(cfg.SkillsSummary, cfg.HasSkillSearch, cfg.HasSkillManage)...)
 	}
 
 	// 4.5. ## MCP Tools (full only) — skip during bootstrap
@@ -367,11 +370,13 @@ func buildSelfEvolveSection() []string {
 	}
 }
 
-func buildSkillsSection(skillsSummary string, hasSkillSearch bool) []string {
+func buildSkillsSection(skillsSummary string, hasSkillSearch, hasSkillManage bool) []string {
+	var lines []string
+
 	if skillsSummary != "" {
 		// Inline mode: skills XML is in the prompt (like TS).
 		// Agent scans <available_skills> descriptions directly.
-		return []string{
+		lines = append(lines,
 			"## Skills (mandatory)",
 			"",
 			"Before replying, scan `<available_skills>` below.",
@@ -381,12 +386,10 @@ func buildSkillsSection(skillsSummary string, hasSkillSearch bool) []string {
 			"",
 			skillsSummary,
 			"",
-		}
-	}
-
-	if hasSkillSearch {
+		)
+	} else if hasSkillSearch {
 		// Search mode: too many skills to inline, agent uses skill_search tool.
-		return []string{
+		lines = append(lines,
 			"## Skills (mandatory)",
 			"",
 			"Before replying, check if a skill applies:",
@@ -400,10 +403,45 @@ func buildSkillsSection(skillsSummary string, hasSkillSearch bool) []string {
 			"- Prefer `skill_search` over `browser` or `web_search` when the domain might have a skill.",
 			"- If skill_search returns no results, fall back to other tools freely.",
 			"",
-		}
+		)
 	}
 
-	return nil
+	// Skill creation guidance: shown when skill_evolve=true and skill_manage is registered.
+	// Add parent ## Skills header if not already present from inline/search modes.
+	if hasSkillManage {
+		if skillsSummary == "" && !hasSkillSearch {
+			lines = append(lines, "## Skills", "")
+		}
+		lines = append(lines,
+			"### Skill Creation (recommended after complex tasks)",
+			"",
+			"After completing a complex task (5+ tool calls), consider:",
+			"\"Would this process be useful again in the future?\"",
+			"",
+			"SHOULD create skill when:",
+			"- Process is repeatable with different inputs",
+			"- Multiple steps that are easy to forget",
+			"- Domain-specific workflow others could benefit from",
+			"",
+			"SHOULD NOT create skill when:",
+			"- One-time task specific to this user/context",
+			"- Debugging or troubleshooting (too context-dependent)",
+			"- Simple tasks (< 5 tool calls)",
+			"- User explicitly said \"skip\" or declined",
+			"",
+			"Creating: `skill_manage(action=\"create\", content=\"---\\nname: ...\\nslug: ...\\ndescription: ...\\n---\\n# ...\")`",
+			"Improving: `skill_manage(action=\"patch\", slug=\"...\", find=\"...\", replace=\"...\")`",
+			"Removing: `skill_manage(action=\"delete\", slug=\"...\")`",
+			"",
+			"Constraints:",
+			"- You can only manage skills you created (not system or other users' skills)",
+			"- Quality over quantity — one excellent skill beats five mediocre ones",
+			"- Ask user before creating if unsure",
+			"",
+		)
+	}
+
+	return lines
 }
 
 func buildWorkspaceSection(workspace string, sandboxEnabled bool, containerDir string) []string {
