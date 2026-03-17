@@ -108,6 +108,7 @@ const (
 	MethodTeamsDelete   = "teams.delete"
 	MethodTeamsTaskList      = "teams.tasks.list"
 	MethodTeamsTaskGet       = "teams.tasks.get"
+	MethodTeamsTaskGetLight  = "teams.tasks.get-light"
 	MethodTeamsTaskApprove   = "teams.tasks.approve"
 	MethodTeamsTaskReject    = "teams.tasks.reject"
 	MethodTeamsTaskComment   = "teams.tasks.comment"
