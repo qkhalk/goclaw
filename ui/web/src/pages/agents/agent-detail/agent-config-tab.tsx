@@ -19,7 +19,6 @@ import {
   ContextPruningSection,
   SandboxSection,
   MemorySection,
-  OtherConfigSection,
   ThinkingSection,
   WorkspaceSharingSection,
 } from "./config-sections";
@@ -52,26 +51,10 @@ export function AgentConfigTab({ agent, onUpdate }: AgentConfigTabProps) {
   const otherObj = (agent.other_config ?? {}) as Record<string, unknown>;
   const initialThinkingLevel = (typeof otherObj.thinking_level === "string" ? otherObj.thinking_level : "off");
   const initialWsSharing = (otherObj.workspace_sharing ?? {}) as WorkspaceSharingConfig;
-  // Strip all managed keys so they don't leak into the raw JSON editor.
-  // General tab manages: emoji, self_evolve, description, skill_evolve, skill_nudge_interval
-  // Config tab manages: workspace_sharing, thinking_level
-  const {
-    workspace_sharing: _ws, thinking_level: _tl,
-    emoji: _emoji, self_evolve: _se, description: _desc,
-    skill_evolve: _ske, skill_nudge_interval: _sni,
-    ...otherWithoutManaged
-  } = otherObj;
 
   const [wsSharing, setWsSharing] = useState<WorkspaceSharingConfig>(initialWsSharing);
 
   const [thinkingLevel, setThinkingLevel] = useState(initialThinkingLevel);
-
-  const [otherEnabled, setOtherEnabled] = useState(
-    agent.other_config != null && Object.keys(otherWithoutManaged).length > 0,
-  );
-  const [otherJson, setOtherJson] = useState(
-    Object.keys(otherWithoutManaged).length > 0 ? JSON.stringify(otherWithoutManaged, null, 2) : "{}",
-  );
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -94,13 +77,10 @@ export function AgentConfigTab({ agent, onUpdate }: AgentConfigTabProps) {
       };
       // Preserve existing other_config fields not managed by this tab (e.g. emoji from General tab).
       const existing = (agent.other_config as Record<string, unknown> | null) ?? {};
-      let otherBase: Record<string, unknown> = { ...existing };
+      const otherBase: Record<string, unknown> = { ...existing };
       // Strip fields managed by this tab — they'll be re-added below from local state.
       delete otherBase.thinking_level;
       delete otherBase.workspace_sharing;
-      if (otherEnabled) {
-        try { Object.assign(otherBase, JSON.parse(otherJson)); } catch { /* keep existing */ }
-      }
       if (thinkingLevel && thinkingLevel !== "off") {
         otherBase.thinking_level = thinkingLevel;
       }
@@ -182,19 +162,6 @@ export function AgentConfigTab({ agent, onUpdate }: AgentConfigTabProps) {
         />
       </div>
 
-      {/* Advanced */}
-      <ConfigGroupHeader
-        title={t("configGroups.advanced")}
-        description={t("configGroups.advancedDesc")}
-      />
-      <div className="space-y-4">
-        <OtherConfigSection
-          enabled={otherEnabled}
-          value={otherJson}
-          onToggle={(v: boolean) => { setOtherEnabled(v); if (!v) setOtherJson("{}"); }}
-          onChange={setOtherJson}
-        />
-      </div>
 
       <StickySaveBar
         onSave={handleSave}
