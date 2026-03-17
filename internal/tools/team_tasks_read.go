@@ -169,7 +169,7 @@ func (t *TeamTasksTool) executeList(ctx context.Context, args map[string]any) *R
 		ptd.MarkListed()
 	}
 
-	tasks, err := t.manager.teamStore.ListTasks(ctx, team.ID, "priority", statusFilter, filterUserID, "", listChatID, offset)
+	tasks, err := t.manager.teamStore.ListTasks(ctx, team.ID, "priority", statusFilter, filterUserID, "", listChatID, 0, offset)
 	if err != nil {
 		return ErrorResult("failed to list tasks: " + err.Error())
 	}
