@@ -103,7 +103,7 @@
     "skillLearning": "Học kỹ năng",
     "skillLearningLabel": "Cho phép agent tạo và quản lý kỹ năng từ trải nghiệm",
     "skillLearningHint": "Khi được bật, agent có thể lưu lại quy trình làm việc tái sử dụng thành kỹ năng sau các tác vụ phức tạp. Agent sẽ được nhắc nhẹ để lưu các mẫu hữu ích. Cần bật tool skill_manage.",
-    "skillLearningInfo": "Sau các tác vụ phức tạp (5+ lệnh tool), agent có thể đề xuất lưu quy trình thành kỹ năng tái sử dụng. Cần sự đồng ý của người dùng trước khi tạo kỹ năng. Kỹ năng mặc định là riêng tư.",
+    "skillLearningInfo": "Sau các tác vụ phức tạp, agent có thể đề xuất lưu quy trình thành kỹ năng tái sử dụng. Luôn cần sự đồng ý của người dùng trước khi tạo kỹ năng. Kỹ năng mặc định là riêng tư.",
     "skillNudgeIntervalLabel": "Nhắc sau N lệnh tool",
     "skillNudgeIntervalHint": "Sau số lượng lệnh tool này, agent sẽ đề xuất lưu quy trình thành kỹ năng. Đặt 0 để tắt đề xuất sau tác vụ (hướng dẫn trong system prompt vẫn hiển thị).",
     "budget": "Ngân sách hàng tháng",

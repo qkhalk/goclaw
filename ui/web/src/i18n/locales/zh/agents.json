@@ -103,7 +103,7 @@
     "skillLearning": "技能学习",
     "skillLearningLabel": "允许Agent从经验中创建和管理技能",
     "skillLearningHint": "启用后，Agent可以在复杂任务后将可重用的工作流程保存为技能。Agent会被温和地提醒保存有用的模式。需要启用 skill_manage 工具。",
-    "skillLearningInfo": "在复杂任务（5+ 工具调用）后，Agent可能会建议将工作流程保存为可重用技能。创建技能前需要用户批准。技能默认为私有。",
+    "skillLearningInfo": "在复杂任务后，Agent可能会建议将工作流程保存为可重用技能。创建技能前始终需要用户批准。技能默认为私有。",
     "skillNudgeIntervalLabel": "N 次工具调用后提醒",
     "skillNudgeIntervalHint": "达到此工具调用次数后，Agent会建议将工作流程保存为技能。设为 0 可禁用任务后建议（系统提示词中的指导仍然显示）。",
     "budget": "月度预算",

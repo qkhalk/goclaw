@@ -103,7 +103,7 @@
     "skillLearning": "Skill Learning",
     "skillLearningLabel": "Allow agent to create and manage skills from experience",
     "skillLearningHint": "When enabled, the agent can capture reusable workflows as skills after complex tasks. The agent will be gently reminded to save useful patterns. Requires the skill_manage tool to be enabled.",
-    "skillLearningInfo": "After complex tasks (5+ tool calls), the agent may suggest saving the workflow as a reusable skill. User approval is required before any skill is created. Skills are private to the owner by default.",
+    "skillLearningInfo": "After complex tasks, the agent may suggest saving the workflow as a reusable skill. User approval is always required before any skill is created. Skills are private to the owner by default.",
     "skillNudgeIntervalLabel": "Nudge after N tool calls",
     "skillNudgeIntervalHint": "After this many tool calls, the agent will suggest saving the workflow as a skill. Set to 0 to disable post-task suggestions (system prompt guidance still shown).",
     "budget": "Monthly Budget",

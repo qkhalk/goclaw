@@ -103,54 +103,7 @@ export function AgentGeneralTab({ agent, onUpdate }: AgentGeneralTabProps) {
         onIsDefaultChange={setIsDefault}
       />
 
-      <Separator />
-
-      <LlmConfigSection
-        provider={provider}
-        onProviderChange={setProvider}
-        model={model}
-        onModelChange={setModel}
-        contextWindow={contextWindow}
-        onContextWindowChange={setContextWindow}
-        maxToolIterations={maxToolIterations}
-        onMaxToolIterationsChange={setMaxToolIterations}
-        savedProvider={agent.provider}
-        savedModel={agent.model}
-        onSaveBlockedChange={handleSaveBlockedChange}
-      />
-
-      <Separator />
-
-      <WorkspaceSection workspace={agent.workspace} />
-
-      {/* Budget */}
-      <Separator />
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <DollarSign className="h-4 w-4 text-emerald-500" />
-          <h3 className="text-sm font-medium">{t("general.budget")}</h3>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="budget" className="text-sm font-normal">
-            {t("general.budgetLabel")}
-          </Label>
-          <p className="text-xs text-muted-foreground">
-            {t("general.budgetHint")}
-          </p>
-        </div>
-        <Input
-          id="budget"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="0.00"
-          value={budgetDollars}
-          onChange={(e) => setBudgetDollars(e.target.value)}
-          className="max-w-[200px]"
-        />
-      </div>
-
-      {/* Self-Evolve (predefined agents only) */}
+      {/* Self-Evolve (predefined agents only) — right after Identity */}
       {agent.agent_type === "predefined" && (
         <>
           <Separator />
@@ -184,7 +137,7 @@ export function AgentGeneralTab({ agent, onUpdate }: AgentGeneralTabProps) {
         </>
       )}
 
-      {/* Skill Learning (predefined agents only) */}
+      {/* Skill Learning (predefined agents only) — right after Self-Evolve */}
       {agent.agent_type === "predefined" && (
         <>
           <Separator />
@@ -236,6 +189,53 @@ export function AgentGeneralTab({ agent, onUpdate }: AgentGeneralTabProps) {
           </div>
         </>
       )}
+
+      <Separator />
+
+      <LlmConfigSection
+        provider={provider}
+        onProviderChange={setProvider}
+        model={model}
+        onModelChange={setModel}
+        contextWindow={contextWindow}
+        onContextWindowChange={setContextWindow}
+        maxToolIterations={maxToolIterations}
+        onMaxToolIterationsChange={setMaxToolIterations}
+        savedProvider={agent.provider}
+        savedModel={agent.model}
+        onSaveBlockedChange={handleSaveBlockedChange}
+      />
+
+      <Separator />
+
+      <WorkspaceSection workspace={agent.workspace} />
+
+      {/* Budget */}
+      <Separator />
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <DollarSign className="h-4 w-4 text-emerald-500" />
+          <h3 className="text-sm font-medium">{t("general.budget")}</h3>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="budget" className="text-sm font-normal">
+            {t("general.budgetLabel")}
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            {t("general.budgetHint")}
+          </p>
+        </div>
+        <Input
+          id="budget"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          value={budgetDollars}
+          onChange={(e) => setBudgetDollars(e.target.value)}
+          className="max-w-[200px]"
+        />
+      </div>
 
       {/* Save */}
       {saveError && (
