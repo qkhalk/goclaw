@@ -23,15 +23,14 @@ type blockerSummary struct {
 }
 
 // taskListItem is the slim view returned by list/search actions.
+// Excludes UUIDs (owner_agent_id, created_by_agent_id) and task_number — model uses
+// agent keys and identifier instead.
 type taskListItem struct {
 	ID                uuid.UUID        `json:"id"`
-	TaskNumber        int              `json:"task_number"`
 	Identifier        string           `json:"identifier"`
 	Subject           string           `json:"subject"`
 	Status            string           `json:"status"`
-	OwnerAgentID      *uuid.UUID       `json:"owner_agent_id,omitempty"`
 	OwnerAgentKey     string           `json:"owner_agent_key,omitempty"`
-	CreatedByAgentID  *uuid.UUID       `json:"created_by_agent_id,omitempty"`
 	CreatedByAgentKey string           `json:"created_by_agent_key,omitempty"`
 	ProgressPercent   int              `json:"progress_percent,omitempty"`
 	ProgressStep      string           `json:"progress_step,omitempty"`
@@ -42,15 +41,12 @@ type taskListItem struct {
 // taskDetailItem is the slim view returned by the get action.
 type taskDetailItem struct {
 	ID                uuid.UUID        `json:"id"`
-	TaskNumber        int              `json:"task_number"`
 	Identifier        string           `json:"identifier"`
 	Subject           string           `json:"subject"`
 	Description       string           `json:"description,omitempty"`
 	Status            string           `json:"status"`
 	Result            *string          `json:"result,omitempty"`
-	OwnerAgentID      *uuid.UUID       `json:"owner_agent_id,omitempty"`
 	OwnerAgentKey     string           `json:"owner_agent_key,omitempty"`
-	CreatedByAgentID  *uuid.UUID       `json:"created_by_agent_id,omitempty"`
 	CreatedByAgentKey string           `json:"created_by_agent_key,omitempty"`
 	ProgressPercent   int              `json:"progress_percent,omitempty"`
 	ProgressStep      string           `json:"progress_step,omitempty"`
@@ -107,13 +103,10 @@ func (t *TeamTasksTool) resolveBlockers(ctx context.Context, blockedBy []uuid.UU
 func (t *TeamTasksTool) toListItem(ctx context.Context, task store.TeamTaskData) taskListItem {
 	return taskListItem{
 		ID:                task.ID,
-		TaskNumber:        task.TaskNumber,
 		Identifier:        task.Identifier,
 		Subject:           task.Subject,
 		Status:            task.Status,
-		OwnerAgentID:      task.OwnerAgentID,
 		OwnerAgentKey:     task.OwnerAgentKey,
-		CreatedByAgentID:  task.CreatedByAgentID,
 		CreatedByAgentKey: task.CreatedByAgentKey,
 		ProgressPercent:   task.ProgressPercent,
 		ProgressStep:      task.ProgressStep,
@@ -125,15 +118,12 @@ func (t *TeamTasksTool) toListItem(ctx context.Context, task store.TeamTaskData)
 func (t *TeamTasksTool) toDetailItem(ctx context.Context, task *store.TeamTaskData) taskDetailItem {
 	return taskDetailItem{
 		ID:                task.ID,
-		TaskNumber:        task.TaskNumber,
 		Identifier:        task.Identifier,
 		Subject:           task.Subject,
 		Description:       task.Description,
 		Status:            task.Status,
 		Result:            task.Result,
-		OwnerAgentID:      task.OwnerAgentID,
 		OwnerAgentKey:     task.OwnerAgentKey,
-		CreatedByAgentID:  task.CreatedByAgentID,
 		CreatedByAgentKey: task.CreatedByAgentKey,
 		ProgressPercent:   task.ProgressPercent,
 		ProgressStep:      task.ProgressStep,
