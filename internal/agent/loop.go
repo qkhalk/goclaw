@@ -369,7 +369,15 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					}
 					if t.Status == store.TeamTaskStatusInProgress {
 						age := time.Since(t.UpdatedAt).Truncate(time.Minute)
-						inProgress = append(inProgress, fmt.Sprintf("- %s: \"%s\" (in progress %s)", t.ID, t.Subject, age))
+						progressInfo := fmt.Sprintf("in progress %s", age)
+						if t.ProgressPercent > 0 {
+							if t.ProgressStep != "" {
+								progressInfo = fmt.Sprintf("%d%% — %s, %s", t.ProgressPercent, t.ProgressStep, age)
+							} else {
+								progressInfo = fmt.Sprintf("%d%%, %s", t.ProgressPercent, age)
+							}
+						}
+						inProgress = append(inProgress, fmt.Sprintf("- %s: \"%s\" (%s)", t.ID, t.Subject, progressInfo))
 					}
 				}
 				var parts []string
@@ -392,6 +400,28 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 						providers.Message{Role: "assistant", Content: "I see the task status. Let me handle accordingly."},
 					)
 				}
+			}
+		}
+	}
+
+	// 2g. Member task reminder: inject task context for members working on dispatched tasks.
+	// Caches task subject/number for mid-loop progress nudge (avoids extra DB query).
+	var memberTaskSubject string
+	var memberTaskNumber int
+	if req.TeamTaskID != "" && l.teamStore != nil {
+		if taskUUID, err := uuid.Parse(req.TeamTaskID); err == nil {
+			if task, err := l.teamStore.GetTask(ctx, taskUUID); err == nil && task != nil {
+				memberTaskSubject = task.Subject
+				memberTaskNumber = task.TaskNumber
+				reminder := fmt.Sprintf(
+					"[System] You are working on team task #%d: %q. "+
+						"Stay focused on this task. Your final response becomes the task result — make it clear and complete. "+
+						"For long tasks, report progress: team_tasks(action=\"progress\", percent=50, text=\"status\").",
+					task.TaskNumber, task.Subject)
+				messages = append(messages,
+					providers.Message{Role: "user", Content: reminder},
+					providers.Message{Role: "assistant", Content: "Understood. I'll focus on this task and report progress."},
+				)
 			}
 		}
 	}
@@ -434,6 +464,8 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// Skill evolution: budget pressure nudge state (sent at most once each per run).
 	var skillNudge70Sent, skillNudge90Sent bool
 	var skillPostscriptSent bool
+
+	// Member progress nudge: remind dispatched members to report progress (every 10 iterations).
 
 	// Inject retry hook so channels can update placeholder on LLM retries.
 	ctx = providers.WithRetryHook(ctx, func(attempt, maxAttempts int, err error) {
@@ -490,6 +522,27 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					Content: i18n.T(locale, i18n.MsgSkillNudge70Pct),
 				})
 			}
+		}
+
+		// Member progress nudge: remind to report progress every 10 iterations.
+		// Suggests percent based on iteration ratio — model can adjust but has a baseline.
+		if req.TeamTaskID != "" && memberTaskSubject != "" && iteration > 0 && iteration%10 == 0 {
+			var nudge string
+			if maxIter > 0 {
+				suggestedPct := iteration * 100 / maxIter
+				nudge = fmt.Sprintf(
+					"[System] You are at iteration %d/%d (~%d%% of budget) working on task #%d: %q. "+
+						"Report your progress now: team_tasks(action=\"progress\", percent=%d, text=\"what you've accomplished so far\"). "+
+						"Adjust percent based on actual work completed.",
+					iteration, maxIter, suggestedPct, memberTaskNumber, memberTaskSubject, suggestedPct)
+			} else {
+				nudge = fmt.Sprintf(
+					"[System] You are at iteration %d working on task #%d: %q. "+
+						"Report your progress now: team_tasks(action=\"progress\", percent=50, text=\"what you've accomplished so far\"). "+
+						"Adjust percent based on actual work completed.",
+					iteration, memberTaskNumber, memberTaskSubject)
+			}
+			messages = append(messages, providers.Message{Role: "user", Content: nudge})
 		}
 
 		// Emit activity event: thinking phase
