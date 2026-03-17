@@ -391,19 +391,6 @@
       "high": "Cao",
       "highDesc": "~32K ngân sách token"
     },
-    "qualityGates": {
-      "title": "Cổng chất lượng",
-      "description": "Xác thực đầu ra ủy quyền trước khi trả về cho người gọi",
-      "noGates": "Chưa cấu hình cổng chất lượng. Nhấp \"Thêm cổng\" để tạo.",
-      "addGate": "Thêm cổng",
-      "gateNumber": "Cổng #{{number}}",
-      "type": "Loại",
-      "reviewerAgentKey": "Khóa agent đánh giá",
-      "command": "Lệnh",
-      "blockOnFailure": "Chặn khi thất bại",
-      "maxRetries": "Số lần thử lại tối đa",
-      "timeout": "Hết giờ (giây)"
-    },
     "otherConfig": {
       "title": "Cấu hình khác",
       "description": "Cấu hình JSON bổ sung cho các cài đặt nâng cao không được đề cập trong các mục khác",

@@ -316,22 +316,6 @@ Filter all security events by grepping for the `security.` prefix in log output.
 
 ---
 
-## 8. Hook Recursion Prevention
-
-The hook system (quality gates) can trigger infinite recursion: an agent evaluator delegates to a reviewer → delegation completes → fires quality gate → delegates to reviewer again → infinite loop.
-
-A context flag `hooks.WithSkipHooks(ctx, true)` prevents this. Three injection points set the flag:
-
-| Injection Point | Why |
-|----------------|-----|
-| Agent evaluator | Delegating to the reviewer for quality checks must not re-trigger gates |
-| Evaluate-optimize loop | All internal generator/evaluator delegations skip gates |
-| Agent eval callback (cmd layer) | When the hook engine itself triggers delegation |
-
-`DelegateManager.Delegate()` checks `hooks.SkipHooksFromContext(ctx)` before applying quality gates. If the flag is set, gates are skipped entirely.
-
----
-
 ## 9. Group File Writer Restrictions
 
 In group chats (Telegram), write-sensitive operations are restricted to designated writers. This prevents unauthorized users from modifying agent files or resetting sessions in shared groups.
@@ -410,8 +394,6 @@ When concurrency limits are hit, the error message is written for LLM reasoning:
 | `internal/tools/types.go` | PathDenyable interface definition |
 | `internal/tools/filesystem.go` | Denied path checking (`checkDeniedPath` helper) |
 | `internal/tools/filesystem_list.go` | Denied path support + directory filtering |
-| `internal/hooks/context.go` | WithSkipHooks / SkipHooksFromContext (recursion prevention) |
-| `internal/hooks/engine.go` | Hook engine, evaluator registry |
 | `internal/gateway/methods/pairing.go` | Pairing RPC methods (request, approve, deny, list, revoke) |
 | `internal/store/pg/pairing.go` | Pairing store implementation (code generation, TTLs) |
 | `internal/store/pairing_store.go` | Pairing store interface definition |
@@ -422,7 +404,7 @@ When concurrency limits are hit, the error message is written for LLM reasoning:
 
 | Document | Relevant Content |
 |----------|-----------------|
-| [03-tools-system.md](./03-tools-system.md) | Shell deny patterns, exec approval, PathDenyable, delegation system, quality gates |
+| [03-tools-system.md](./03-tools-system.md) | Shell deny patterns, exec approval, PathDenyable, delegation system |
 | [04-gateway-protocol.md](./04-gateway-protocol.md) | WebSocket auth, RBAC, rate limiting |
 | [06-store-data-model.md](./06-store-data-model.md) | API key encryption, agent access control pipeline |
 | [07-bootstrap-skills-memory.md](./07-bootstrap-skills-memory.md) | Context file merging, virtual files |
