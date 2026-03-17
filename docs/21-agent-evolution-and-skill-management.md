@@ -8,6 +8,56 @@ Three subsystems enable agents to evolve their behavior and capture reusable wor
 | Skill Learning | Agent learns to create skills from experience | System prompt guidance + nudges + consent | `skill_evolve` |
 | Skill Management | Create, patch, delete, grant skills | `skill_manage` tool + HTTP/WS API | (always available when skill_evolve=true) |
 
+```mermaid
+graph TB
+    subgraph ADMIN["Admin Configuration"]
+        SE["self_evolve = true"]
+        SKE["skill_evolve = true"]
+    end
+
+    subgraph EVOLUTION["Agent Evolution"]
+        SOUL["SOUL.md<br/>(tone/voice)"]
+        SKILL["Skill Creation<br/>(reusable workflows)"]
+    end
+
+    subgraph PROMPT["System Prompt Injection"]
+        SEP["Self-Evolve Section<br/>CAN / MUST NOT"]
+        SKP["Skill Creation Section<br/>SHOULD / SHOULD NOT"]
+    end
+
+    subgraph LOOP["Agent Loop"]
+        N70["70% budget nudge"]
+        N90["90% budget nudge"]
+        PS["Postscript suggestion"]
+    end
+
+    subgraph TOOLS["Tools"]
+        WF["write_file → SOUL.md"]
+        SM["skill_manage<br/>(create/patch/delete)"]
+    end
+
+    subgraph STORE["Storage"]
+        FS["Filesystem<br/>(skills-store/)"]
+        DB["PostgreSQL<br/>(skills table)"]
+        GRANTS["Grants<br/>(agent/user)"]
+    end
+
+    SE --> SEP
+    SKE --> SKP
+    SKE --> N70 & N90 & PS
+    SEP --> WF
+    SKP --> SM
+    PS -.->|user consent| SM
+    WF --> SOUL
+    SM --> FS & DB
+    DB --> GRANTS
+
+    style ADMIN fill:#e8f5e9,stroke:#2e7d32
+    style LOOP fill:#fff3e0,stroke:#ef6c00
+    style TOOLS fill:#e3f2fd,stroke:#1565c0
+    style STORE fill:#f3e5f5,stroke:#7b1fa2
+```
+
 ---
 
 ## 1. Self-Evolution (SOUL.md)
@@ -96,36 +146,30 @@ Open agents always get `skillEvolve=false` regardless of DB setting.
 
 ### 2.3 Lifecycle Flow
 
-```
-Admin enables skill_evolve in agent config
-       │
-       ▼
-System prompt includes "### Skill Creation" guidance
-       │
-       ▼
-Agent processes user request (think→act→observe loop)
-       │
-       ├─ At 70% iteration budget ─► ephemeral nudge (soft suggestion)
-       ├─ At 90% iteration budget ─► ephemeral nudge (moderate urgency)
-       │
-       ▼
-Agent completes task (totalToolCalls >= skill_nudge_interval?)
-       │
-       ├─ No  ─► Normal response, no postscript
-       │
-       ├─ Yes ─► Postscript appended:
-       │         "Want me to save the process as a reusable skill?"
-       │         User replies "save as skill" or "skip"
-       │                │
-       │                ├─ "skip" ─► No action
-       │                │
-       │                └─ "save as skill" ─► Agent calls skill_manage(action="create")
-       │                                      │
-       │                                      ▼
-       │                              Skill created, auto-granted,
-       │                              available on next turn
-       │
-       └─ skill_manage filtered from LLM when skill_evolve=false
+```mermaid
+flowchart TD
+    A["Admin enables<br/>skill_evolve"] --> B["System prompt includes<br/>Skill Creation guidance"]
+    B --> C["Agent processes request<br/>(think→act→observe)"]
+    C --> D{"Iteration budget<br/>milestone?"}
+    D -->|"≥ 70%"| E["Ephemeral nudge<br/>(soft suggestion)"]
+    D -->|"≥ 90%"| F["Ephemeral nudge<br/>(moderate urgency)"]
+    D -->|"< 70%"| G["Continue processing"]
+    E --> G
+    F --> G
+    G --> H["Agent completes task"]
+    H --> I{"totalToolCalls ≥<br/>skill_nudge_interval?"}
+    I -->|No| J["Normal response"]
+    I -->|Yes| K["Postscript appended:<br/>Save as skill? or skip?"]
+    K --> L{"User reply"}
+    L -->|"skip"| M["No action"]
+    L -->|"save as skill"| N["Agent calls<br/>skill_manage(create)"]
+    N --> O["Skill created +<br/>auto-granted"]
+    O --> P["Available on<br/>next turn"]
+
+    style A fill:#e8f5e9,stroke:#2e7d32
+    style K fill:#fff3e0,stroke:#ef6c00
+    style N fill:#e3f2fd,stroke:#1565c0
+    style O fill:#f3e5f5,stroke:#7b1fa2
 ```
 
 ### 2.4 System Prompt Guidance
@@ -242,52 +286,43 @@ Admin management via HTTP API + WebSocket RPC. Grants system controls per-agent 
 | `find` | string | patch | Exact text to find in current SKILL.md |
 | `replace` | string | patch | Replacement text |
 
-**Create flow:**
+**Operations flow:**
 
-```
-content string
-    │
-    ├─ Size check (max 100KB)
-    ├─ Security scan (GuardSkillContent)
-    ├─ Parse frontmatter (name, description, slug)
-    ├─ Slug validation (lowercase alphanumeric + hyphens)
-    ├─ System skill conflict check
-    ├─ Version + directory creation
-    ├─ Write SKILL.md to skills-store/{slug}/{version}/
-    ├─ SHA-256 hash
-    ├─ DB insert (CreateSkillManaged with advisory lock)
-    ├─ Auto-grant to calling agent
-    ├─ Cache invalidation (BumpVersion)
-    └─ Dependency scan (best-effort, warn only)
-```
+```mermaid
+flowchart LR
+    subgraph CREATE["action = create"]
+        direction TB
+        C1["Content string"] --> C2["Size ≤ 100KB?"]
+        C2 --> C3["Security scan"]
+        C3 --> C4["Parse frontmatter"]
+        C4 --> C5["Slug validation"]
+        C5 --> C6["System skill<br/>conflict check"]
+        C6 --> C7["Write SKILL.md<br/>to versioned dir"]
+        C7 --> C8["DB insert<br/>(advisory lock)"]
+        C8 --> C9["Auto-grant +<br/>dep scan"]
+    end
 
-**Patch flow:**
+    subgraph PATCH["action = patch"]
+        direction TB
+        P1["slug + find/replace"] --> P2["Exists?<br/>System skill?"]
+        P2 --> P3["Ownership check"]
+        P3 --> P4["Read current +<br/>apply patch"]
+        P4 --> P5["Security scan<br/>patched content"]
+        P5 --> P6["New version<br/>(advisory lock)"]
+        P6 --> P7["Copy companions +<br/>DB update"]
+    end
 
-```
-slug + find + replace
-    │
-    ├─ Skill exists? System skill?
-    ├─ Ownership check (owner only)
-    ├─ Read current SKILL.md
-    ├─ Apply find/replace
-    ├─ Security scan on patched content
-    ├─ Get next version (with advisory lock)
-    ├─ Write new SKILL.md
-    ├─ Copy companion files (scripts, assets)
-    ├─ DB update (version, file_path, file_hash)
-    └─ Cache invalidation
-```
+    subgraph DELETE["action = delete"]
+        direction TB
+        D1["slug"] --> D2["Exists?<br/>System skill?"]
+        D2 --> D3["Ownership check"]
+        D3 --> D4["Move to .trash/"]
+        D4 --> D5["DB archive +<br/>cascade grants"]
+    end
 
-**Delete flow:**
-
-```
-slug
-    │
-    ├─ Skill exists? System skill?
-    ├─ Ownership check (owner only)
-    ├─ Soft-delete disk: mv skills-store/{slug} → .trash/{slug}.{timestamp}
-    ├─ DB archive: status='archived', cascade delete grants
-    └─ Cache invalidation
+    style CREATE fill:#e8f5e9,stroke:#2e7d32
+    style PATCH fill:#fff3e0,stroke:#ef6c00
+    style DELETE fill:#ffebee,stroke:#c62828
 ```
 
 ### 3.3 publish_skill Tool
@@ -333,29 +368,60 @@ All endpoints require authentication (`authMiddleware`). Mutation endpoints requ
 
 ### 3.6 Grants & Visibility
 
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> private : Skill created
+    private --> internal : GrantToAgent / GrantToUser
+    internal --> private : Last grant revoked
+    internal --> public : Admin promotes
+
+    state private {
+        [*] : Owner only
+    }
+    state internal {
+        [*] : Granted agents/users
+    }
+    state public {
+        [*] : All agents
+    }
 ```
-Skill created with visibility = "private"
-        │
-        ▼
-Auto-grant to creating agent
-  → visibility auto-promoted to "internal"
-        │
-        ▼
-ListAccessible query includes:
-  - is_system = true       (all system skills)
-  - visibility = 'public'  (anyone)
-  - visibility = 'private' (owner only)
-  - visibility = 'internal' (agents/users with grants)
-        │
-        ▼
-Revoke last grant → auto-demotes "internal" → "private"
-```
+
+**Access resolution** (`ListAccessible` query):
+
+| Visibility | Who can access |
+|------------|---------------|
+| `public` | All agents |
+| `internal` | Agents/users with explicit grants |
+| `private` | Owner only |
+| `is_system=true` | All agents (always) |
 
 Grant/revoke operations require **ownership or admin role**.
 
 ---
 
 ## 4. Security Model
+
+```mermaid
+flowchart TB
+    REQ["Skill mutation request"] --> L1{"Layer 1:<br/>Content Guard"}
+    L1 -->|"violation"| REJECT["Rejected"]
+    L1 -->|"safe"| L2{"Layer 2:<br/>Ownership Check"}
+    L2 -->|"not owner<br/>& not admin"| REJECT
+    L2 -->|"owner or admin"| L3{"Layer 3:<br/>System Skill?"}
+    L3 -->|"is_system=true"| REJECT
+    L3 -->|"custom skill"| L4{"Layer 4:<br/>Filesystem Safety"}
+    L4 -->|"symlink / traversal /<br/>size exceeded"| REJECT
+    L4 -->|"safe"| OK["Mutation applied"]
+
+    style REJECT fill:#ffebee,stroke:#c62828
+    style OK fill:#e8f5e9,stroke:#2e7d32
+    style L1 fill:#fff3e0,stroke:#ef6c00
+    style L2 fill:#e3f2fd,stroke:#1565c0
+    style L3 fill:#f3e5f5,stroke:#7b1fa2
+    style L4 fill:#fce4ec,stroke:#ad1457
+```
 
 ### 4.1 Content Guard (`guard.go`)
 
