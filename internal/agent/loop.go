@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -96,13 +97,16 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// Per-user workspace isolation.
 	// Workspace path comes from user_agent_profiles (includes channel segment
 	// for cross-channel isolation). Cached in userWorkspaces to avoid repeated DB queries.
+	isTeamSession := bootstrap.IsTeamSession(req.SessionKey)
 	if l.workspace != "" && req.UserID != "" {
 		cachedWs, loaded := l.userWorkspaces.Load(req.UserID)
 		if !loaded {
 			// First request for this user: get/create profile → returns stored workspace.
 			// Also seeds per-user context files on first chat.
+			// Team-dispatched sessions skip seeding — members process tasks with full
+			// capabilities, no bootstrap/user onboarding needed.
 			ws := l.workspace
-			if l.ensureUserFiles != nil {
+			if l.ensureUserFiles != nil && !isTeamSession {
 				var err error
 				ws, err = l.ensureUserFiles(ctx, l.agentUUID, req.UserID, l.agentType, l.workspace, req.Channel)
 				if err != nil {
@@ -411,6 +415,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	var finalContent string
 	var finalThinking string
 	var asyncToolCalls []string    // track async spawn tool names for fallback
+	var bootstrapWriteDetected bool // track if write_file was called during bootstrap
 	var mediaResults []MediaResult // media files from tool MEDIA: results
 	var deliverables []string      // actual content from tool outputs (for team task results)
 	var blockReplies int           // count of block.reply events emitted (for dedup in consumer)
@@ -481,6 +486,18 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			}
 		} else {
 			toolDefs = l.tools.ProviderDefs()
+		}
+
+		// Bootstrap mode: restrict API tool definitions to write_file only (open agents).
+		// Predefined agents keep all tools — BOOTSTRAP.md guides behavior.
+		if hadBootstrap && l.agentType != "predefined" {
+			var bootstrapDefs []providers.ToolDefinition
+			for _, td := range toolDefs {
+				if bootstrapToolAllowlist[td.Function.Name] {
+					bootstrapDefs = append(bootstrapDefs, td)
+				}
+			}
+			toolDefs = bootstrapDefs
 		}
 
 		chatReq := providers.ChatRequest{
@@ -759,6 +776,9 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					teamTaskSpawns++
 				}
 			}
+			if hadBootstrap && bootstrapToolAllowlist[tc.Name] {
+				bootstrapWriteDetected = true
+			}
 
 			toolResultPayload := map[string]any{
 				"name":      tc.Name,
@@ -904,6 +924,9 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 						teamTaskSpawns++
 					}
 				}
+				if hadBootstrap && bootstrapToolAllowlist[r.tc.Name] {
+					bootstrapWriteDetected = true
+				}
 
 				parToolResultPayload := map[string]any{
 					"name":      r.tc.Name,
@@ -1006,6 +1029,26 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		Content:  finalContent,
 		Thinking: finalThinking,
 	})
+
+	// Bootstrap nudge: if model didn't call write_file on turn 2+, inject reminder
+	// into session history so the next turn sees it. Appended to pendingMsgs so it's
+	// flushed in the single Save below (avoids double I/O).
+	// Note: the nudge counts as a "user" turn in history, which accelerates auto-cleanup
+	// by one turn — acceptable since bootstrap should complete in 2-3 turns anyway.
+	if hadBootstrap && l.bootstrapCleanup != nil {
+		nudgeUserTurns := 1
+		for _, m := range history {
+			if m.Role == "user" {
+				nudgeUserTurns++
+			}
+		}
+		if !bootstrapWriteDetected && nudgeUserTurns >= 2 && nudgeUserTurns < bootstrapAutoCleanupTurns {
+			pendingMsgs = append(pendingMsgs, providers.Message{
+				Role:    "user",
+				Content: "[System] You haven't completed onboarding yet. Please update USER.md with the user's details and clear BOOTSTRAP.md as instructed.",
+			})
+		}
+	}
 
 	// Flush all buffered messages to session atomically.
 	// This ensures concurrent runs never see each other's in-progress messages.
