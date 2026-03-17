@@ -525,6 +525,18 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			toolDefs = bootstrapDefs
 		}
 
+		// Hide skill_manage from LLM when skill_evolve is off.
+		// Tool stays in the registry (shared) but won't appear in API tool definitions.
+		if !l.skillEvolve {
+			filtered := toolDefs[:0:0]
+			for _, td := range toolDefs {
+				if td.Function.Name != "skill_manage" {
+					filtered = append(filtered, td)
+				}
+			}
+			toolDefs = filtered
+		}
+
 		chatReq := providers.ChatRequest{
 			Messages: messages,
 			Tools:    toolDefs,

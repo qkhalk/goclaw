@@ -132,8 +132,17 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		}
 	}
 
-	// Build MCP tool descriptions for inline mode (not search mode).
+	// Build tool list, filtering out skill_manage when skill_evolve is off.
 	toolNames := l.filteredToolNames()
+	if !l.skillEvolve {
+		filtered := toolNames[:0:0]
+		for _, n := range toolNames {
+			if n != "skill_manage" {
+				filtered = append(filtered, n)
+			}
+		}
+		toolNames = filtered
+	}
 	var mcpToolDescs map[string]string
 	if !hasMCPToolSearch {
 		mcpToolDescs = l.buildMCPToolDescs(toolNames)

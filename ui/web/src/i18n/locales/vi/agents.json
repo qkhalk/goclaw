@@ -102,7 +102,7 @@
     "selfEvolutionInfo": "Agent sẽ tiến hóa phong cách theo thời gian qua các cập nhật SOUL.md. Chỉ phong cách và giọng điệu bị ảnh hưởng — nhận dạng và quy tắc quy trình làm việc vẫn cố định.",
     "skillLearning": "Học kỹ năng",
     "skillLearningLabel": "Cho phép agent tạo và quản lý kỹ năng từ trải nghiệm",
-    "skillLearningHint": "Khi được bật, agent có thể lưu lại quy trình làm việc tái sử dụng thành kỹ năng sau các tác vụ phức tạp. Agent sẽ được nhắc nhẹ để lưu các mẫu hữu ích. Cần bật tool skill_manage.",
+    "skillLearningHint": "Khi được bật, agent nhận hướng dẫn và nhắc nhở nhẹ để lưu lại quy trình làm việc tái sử dụng thành kỹ năng sau các tác vụ phức tạp. Tool skill_manage được bật mặc định.",
     "skillLearningInfo": "Sau các tác vụ phức tạp, agent có thể đề xuất lưu quy trình thành kỹ năng tái sử dụng. Luôn cần sự đồng ý của người dùng trước khi tạo kỹ năng. Kỹ năng mặc định là riêng tư.",
     "skillNudgeIntervalLabel": "Nhắc sau N lệnh tool",
     "skillNudgeIntervalHint": "Sau số lượng lệnh tool này, agent sẽ đề xuất lưu quy trình thành kỹ năng. Đặt 0 để tắt đề xuất sau tác vụ (hướng dẫn trong system prompt vẫn hiển thị).",
