@@ -133,6 +133,7 @@ export const Methods = {
   TEAMS_DELETE: "teams.delete",
   TEAMS_TASK_LIST: "teams.tasks.list",
   TEAMS_TASK_GET: "teams.tasks.get",
+  TEAMS_TASK_GET_LIGHT: "teams.tasks.get-light",
   TEAMS_TASK_APPROVE: "teams.tasks.approve",
   TEAMS_TASK_REJECT: "teams.tasks.reject",
   TEAMS_TASK_COMMENT: "teams.tasks.comment",
@@ -186,6 +187,7 @@ export const Events = {
   TEAM_TASK_PROGRESS: "team.task.progress",
   TEAM_TASK_COMMENTED: "team.task.commented",
   TEAM_TASK_ASSIGNED: "team.task.assigned",
+  TEAM_TASK_DISPATCHED: "team.task.dispatched",
   TEAM_TASK_DELETED: "team.task.deleted",
 
   // Team messages
@@ -224,7 +226,7 @@ export const TEAM_RELATED_EVENTS: Set<string> = new Set([
   Events.TEAM_TASK_COMPLETED, Events.TEAM_TASK_CANCELLED,
   Events.TEAM_TASK_REVIEWED, Events.TEAM_TASK_APPROVED,
   Events.TEAM_TASK_REJECTED, Events.TEAM_TASK_PROGRESS,
-  Events.TEAM_TASK_COMMENTED, Events.TEAM_TASK_ASSIGNED, Events.TEAM_TASK_DELETED,
+  Events.TEAM_TASK_COMMENTED, Events.TEAM_TASK_ASSIGNED, Events.TEAM_TASK_DISPATCHED, Events.TEAM_TASK_DELETED,
   Events.TEAM_MESSAGE_SENT,
   Events.TEAM_CREATED, Events.TEAM_UPDATED, Events.TEAM_DELETED,
   Events.TEAM_MEMBER_ADDED, Events.TEAM_MEMBER_REMOVED,
