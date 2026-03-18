@@ -120,7 +120,8 @@ export function useAgentHeartbeat(agentId: string) {
       setSaving(true);
       try {
         await ws.call(Methods.HEARTBEAT_TOGGLE, { agentId, enabled });
-        setConfig((prev) => (prev ? { ...prev, enabled } : prev));
+        // Wait for backend to compute nextRunAt, then refresh.
+        setTimeout(() => refresh(), 2000);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to toggle heartbeat";
         toast.error(msg);
@@ -128,7 +129,7 @@ export function useAgentHeartbeat(agentId: string) {
         setSaving(false);
       }
     },
-    [ws, agentId],
+    [ws, agentId, refresh],
   );
 
   const update = useCallback(
@@ -142,6 +143,8 @@ export function useAgentHeartbeat(agentId: string) {
           { agentId, ...params },
         );
         setConfig(res.heartbeat);
+        // Delayed refresh to pick up any backend-computed state (e.g. nextRunAt).
+        setTimeout(() => refresh(), 2000);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to save heartbeat";
         setError(msg);
@@ -151,7 +154,7 @@ export function useAgentHeartbeat(agentId: string) {
         setSaving(false);
       }
     },
-    [ws, agentId],
+    [ws, agentId, refresh],
   );
 
   const test = useCallback(async () => {
