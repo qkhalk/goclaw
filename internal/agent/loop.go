@@ -83,6 +83,9 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	if l.sandboxCfg != nil {
 		ctx = tools.WithSandboxConfig(ctx, l.sandboxCfg)
 	}
+	if l.shellDenyGroups != nil {
+		ctx = store.WithShellDenyGroups(ctx, l.shellDenyGroups)
+	}
 
 	// Workspace scope propagation (delegation origin → workspace tools).
 	if req.WorkspaceChannel != "" {
