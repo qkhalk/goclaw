@@ -104,6 +104,10 @@ var coreToolSummaries = map[string]string{
 	"team_tasks":              "Team task board — track progress, manage dependencies (spawn auto-creates delegation tasks)",
 	"team_message":            "Send messages to teammates (progress updates, questions)",
 
+	// Legacy tool aliases — kept for backward compatibility with older clients
+	"edit_file":      "Alias for edit — Edit a file by replacing exact text matches",
+	"sessions_spawn": "Alias for spawn — Spawn a self-clone subagent to handle a task in the background",
+
 	// Claude Code tool aliases — enable Claude Code skills without modification
 	"Read":       "Alias for read_file — Read file contents",
 	"Write":      "Alias for write_file — Create or overwrite files",
