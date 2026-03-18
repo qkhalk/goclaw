@@ -47,6 +47,7 @@ func (m *HeartbeatMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodHeartbeatLogs, m.handleLogs)
 	router.Register(protocol.MethodHeartbeatChecklistGet, m.handleChecklistGet)
 	router.Register(protocol.MethodHeartbeatChecklistSet, m.handleChecklistSet)
+	router.Register(protocol.MethodHeartbeatTargets, m.handleTargets)
 }
 
 func (m *HeartbeatMethods) handleGet(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
@@ -74,7 +75,7 @@ func (m *HeartbeatMethods) handleGet(ctx context.Context, client *gateway.Client
 			client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{"heartbeat": nil}))
 			return
 		}
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("get", err)))
 		return
 	}
 
@@ -116,7 +117,7 @@ func (m *HeartbeatMethods) handleSet(ctx context.Context, client *gateway.Client
 	// Load existing or create new.
 	hb, err := m.hbStore.Get(ctx, agentUUID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("set.load", err)))
 		return
 	}
 	if hb == nil {
@@ -187,7 +188,7 @@ func (m *HeartbeatMethods) handleSet(ctx context.Context, client *gateway.Client
 	}
 
 	if err := m.hbStore.Upsert(ctx, hb); err != nil {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("set.upsert", err)))
 		return
 	}
 
@@ -222,7 +223,7 @@ func (m *HeartbeatMethods) handleToggle(ctx context.Context, client *gateway.Cli
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, "heartbeat not configured"))
 			return
 		}
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("op", err)))
 		return
 	}
 
@@ -233,7 +234,7 @@ func (m *HeartbeatMethods) handleToggle(ctx context.Context, client *gateway.Cli
 	}
 
 	if err := m.hbStore.Upsert(ctx, hb); err != nil {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("op", err)))
 		return
 	}
 
@@ -301,7 +302,7 @@ func (m *HeartbeatMethods) handleLogs(ctx context.Context, client *gateway.Clien
 
 	logs, total, err := m.hbStore.ListLogs(ctx, agentUUID, params.Limit, params.Offset)
 	if err != nil {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("op", err)))
 		return
 	}
 
@@ -336,7 +337,7 @@ func (m *HeartbeatMethods) handleChecklistGet(ctx context.Context, client *gatew
 
 	files, err := m.agentStore.GetAgentContextFiles(ctx, agentUUID)
 	if err != nil {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("op", err)))
 		return
 	}
 
@@ -378,7 +379,7 @@ func (m *HeartbeatMethods) handleChecklistSet(ctx context.Context, client *gatew
 	}
 
 	if err := m.agentStore.SetAgentContextFile(ctx, agentUUID, "HEARTBEAT.md", params.Content); err != nil {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("op", err)))
 		return
 	}
 
@@ -387,6 +388,42 @@ func (m *HeartbeatMethods) handleChecklistSet(ctx context.Context, client *gatew
 		"length":  len([]rune(params.Content)),
 	}))
 	emitAudit(m.eventBus, client, "heartbeat.checklist.set", "heartbeat", params.AgentID)
+}
+
+func (m *HeartbeatMethods) handleTargets(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	var params struct {
+		AgentID string `json:"agentId"`
+	}
+	if req.Params != nil {
+		json.Unmarshal(req.Params, &params)
+	}
+	if params.AgentID == "" {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "agentId")))
+		return
+	}
+
+	agentUUID, err := uuid.Parse(params.AgentID)
+	if err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, "invalid agentId"))
+		return
+	}
+
+	targets, err := m.hbStore.ListDeliveryTargets(ctx, agentUUID)
+	if err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("targets", err)))
+		return
+	}
+
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
+		"targets": targets,
+	}))
+}
+
+// heartbeatInternalErr logs the real error and returns a safe message for the client.
+func heartbeatInternalErr(action string, err error) string {
+	slog.Error("heartbeat RPC error", "action", action, "error", err)
+	return "internal error"
 }
 
 func (m *HeartbeatMethods) emitCacheInvalidate(agentID string) {

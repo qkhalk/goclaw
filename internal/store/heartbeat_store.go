@@ -65,7 +65,8 @@ type HeartbeatRunLog struct {
 }
 
 // StaggerOffset returns a deterministic offset for spreading heartbeats evenly.
-// Uses FNV-1a hash of agent ID to produce a value in [0, intervalSec).
+// Uses FNV-1a hash of agent ID to produce a value in [0, 10% of intervalSec).
+// Capped at 10% to avoid user-visible delay while still preventing thundering herd.
 func StaggerOffset(agentID uuid.UUID, intervalSec int) time.Duration {
 	if intervalSec <= 0 {
 		return 0
@@ -75,7 +76,11 @@ func StaggerOffset(agentID uuid.UUID, intervalSec int) time.Duration {
 		h ^= uint32(b)
 		h *= 16777619 // FNV prime
 	}
-	offset := int(h) % intervalSec
+	maxOffset := intervalSec / 10 // 10% of interval
+	if maxOffset < 1 {
+		maxOffset = 1
+	}
+	offset := int(h) % maxOffset
 	if offset < 0 {
 		offset = -offset
 	}
@@ -92,6 +97,14 @@ type HeartbeatEvent struct {
 	Reason   string `json:"reason,omitempty"` // skip reason
 }
 
+// DeliveryTarget represents a known channel+chatID pair from session history.
+type DeliveryTarget struct {
+	Channel string `json:"channel"`
+	ChatID  string `json:"chatId"`
+	Title   string `json:"title,omitempty"` // chat/group title from session metadata
+	Kind    string `json:"kind"`            // "dm" or "group"
+}
+
 // HeartbeatStore manages agent heartbeat configurations and run logs.
 type HeartbeatStore interface {
 	Get(ctx context.Context, agentID uuid.UUID) (*AgentHeartbeat, error)
@@ -103,6 +116,9 @@ type HeartbeatStore interface {
 	// Logs
 	InsertLog(ctx context.Context, log *HeartbeatRunLog) error
 	ListLogs(ctx context.Context, agentID uuid.UUID, limit, offset int) ([]HeartbeatRunLog, int, error)
+
+	// Delivery targets — distinct (channel, chatID) from session history for an agent.
+	ListDeliveryTargets(ctx context.Context, agentID uuid.UUID) ([]DeliveryTarget, error)
 
 	// Events
 	SetOnEvent(fn func(HeartbeatEvent))

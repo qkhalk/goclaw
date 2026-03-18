@@ -30,6 +30,7 @@ const (
 type TickerConfig struct {
 	Store    store.HeartbeatStore
 	Agents   store.AgentStore
+	Sessions store.SessionStore // optional: for cleaning up isolated heartbeat sessions
 	MsgBus   *bus.MessageBus
 	Sched    *scheduler.Scheduler
 	RunAgent func(ctx context.Context, req agent.RunRequest) <-chan scheduler.RunOutcome
@@ -39,6 +40,7 @@ type TickerConfig struct {
 type Ticker struct {
 	store    store.HeartbeatStore
 	agents   store.AgentStore
+	sessions store.SessionStore
 	msgBus   *bus.MessageBus
 	sched    *scheduler.Scheduler
 	runAgent func(ctx context.Context, req agent.RunRequest) <-chan scheduler.RunOutcome
@@ -54,6 +56,7 @@ func NewTicker(cfg TickerConfig) *Ticker {
 	return &Ticker{
 		store:    cfg.Store,
 		agents:   cfg.Agents,
+		sessions: cfg.Sessions,
 		msgBus:   cfg.MsgBus,
 		sched:    cfg.Sched,
 		runAgent: cfg.RunAgent,
@@ -183,16 +186,21 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 	})
 
 	// [4] Build prompt.
-	prompt := "Read HEARTBEAT.md if it exists. Follow it strictly.\nIf nothing needs attention, reply HEARTBEAT_OK."
+	prompt := "Execute your heartbeat checklist now."
 	if hb.Prompt != nil && *hb.Prompt != "" {
 		prompt = *hb.Prompt
 	}
 
 	extraSystem := fmt.Sprintf(
 		"[Heartbeat Check-in]\nThis is a periodic heartbeat run for agent %s.\n"+
-			"Your HEARTBEAT.md checklist:\n---\n%s\n---\n"+
-			"Follow the checklist. If everything is OK, reply with HEARTBEAT_OK.\n"+
-			"If something needs attention, describe it clearly — your response will be delivered to the configured channel.",
+			"Your checklist:\n---\n%s\n---\n"+
+			"RULES:\n"+
+			"- EXECUTE the tasks in the checklist using your tools. Do NOT just read or quote the checklist back.\n"+
+			"- Your response will be delivered to the configured channel as-is.\n"+
+			"- HEARTBEAT_OK suppression: If your response contains the token HEARTBEAT_OK anywhere, "+
+			"the ENTIRE response is suppressed and NOT delivered to the channel.\n"+
+			"- Use HEARTBEAT_OK ONLY when there is nothing to deliver (e.g. monitoring checks all passed, no news).\n"+
+			"- Do NOT include HEARTBEAT_OK if the checklist asks you to send content (jokes, greetings, reports, etc.).",
 		agentKey, checklistContent,
 	)
 
@@ -244,7 +252,7 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 
 	// [6] Process result.
 	if lastErr != nil {
-		t.finishRun(ctx, hb, agentKey, "error", lastErr.Error(), "", durationMS, 0, 0)
+		t.finishRun(ctx, hb, sessionKey, agentKey, "error", lastErr.Error(), "", durationMS, 0, 0)
 		return
 	}
 
@@ -258,7 +266,7 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 	}
 
 	if !deliver {
-		t.finishRun(ctx, hb, agentKey, "suppressed", "", truncate(result.Content, maxSummaryLen), durationMS, inputTokens, outputTokens)
+		t.finishRun(ctx, hb, sessionKey, agentKey, "suppressed", "", truncate(result.Content, maxSummaryLen), durationMS, inputTokens, outputTokens)
 		return
 	}
 
@@ -271,10 +279,10 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 		})
 	}
 
-	t.finishRun(ctx, hb, agentKey, "ok", "", truncate(cleaned, maxSummaryLen), durationMS, inputTokens, outputTokens)
+	t.finishRun(ctx, hb, sessionKey, agentKey, "ok", "", truncate(cleaned, maxSummaryLen), durationMS, inputTokens, outputTokens)
 }
 
-func (t *Ticker) finishRun(ctx context.Context, hb store.AgentHeartbeat, agentKey, status, errMsg, summary string, durationMS, inputTokens, outputTokens int) {
+func (t *Ticker) finishRun(ctx context.Context, hb store.AgentHeartbeat, sessionKey, agentKey, status, errMsg, summary string, durationMS, inputTokens, outputTokens int) {
 	agentIDStr := hb.AgentID.String()
 	now := time.Now()
 
@@ -317,6 +325,13 @@ func (t *Ticker) finishRun(ctx context.Context, hb store.AgentHeartbeat, agentKe
 
 	if err := t.store.UpdateState(ctx, hb.ID, newState); err != nil {
 		slog.Warn("heartbeat.update_state_failed", "agent_id", agentIDStr, "error", err)
+	}
+
+	// Cleanup isolated session — data is already in heartbeat_run_logs.
+	if hb.IsolatedSession && t.sessions != nil && sessionKey != "" {
+		if err := t.sessions.Delete(sessionKey); err != nil {
+			slog.Debug("heartbeat.session_cleanup_failed", "session_key", sessionKey, "error", err)
+		}
 	}
 
 	// Emit event.
@@ -383,18 +398,14 @@ func (t *Ticker) readChecklist(ctx context.Context, agentID uuid.UUID) string {
 }
 
 // processResponse implements smart suppression.
-// If response contains HEARTBEAT_OK and cleaned content is within threshold, suppress delivery.
-func processResponse(response string, ackMaxChars int) (deliver bool, cleaned string) {
+// If response contains HEARTBEAT_OK, agent confirms everything is fine — always suppress.
+// Only deliver when HEARTBEAT_OK is absent (agent found something needing attention).
+func processResponse(response string, _ int) (deliver bool, cleaned string) {
 	const ackToken = "HEARTBEAT_OK"
-	if !strings.Contains(response, ackToken) {
-		return true, response // has alert, deliver as-is
+	if strings.Contains(response, ackToken) {
+		return false, "" // agent says OK → suppress regardless of extra content
 	}
-	cleaned = strings.ReplaceAll(response, ackToken, "")
-	cleaned = strings.TrimSpace(cleaned)
-	if len([]rune(cleaned)) <= ackMaxChars {
-		return false, "" // suppress
-	}
-	return true, cleaned // over threshold, deliver cleaned version
+	return true, response // no OK token → something needs attention, deliver
 }
 
 // isWithinActiveHours checks if current time falls within the configured active hours.

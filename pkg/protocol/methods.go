@@ -92,6 +92,7 @@ const (
 	MethodHeartbeatLogs         = "heartbeat.logs"
 	MethodHeartbeatChecklistGet = "heartbeat.checklist.get"
 	MethodHeartbeatChecklistSet = "heartbeat.checklist.set"
+	MethodHeartbeatTargets      = "heartbeat.targets"
 )
 
 // Channel instances management

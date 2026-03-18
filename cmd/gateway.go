@@ -711,6 +711,7 @@ func runGateway() {
 	heartbeatTicker := heartbeat.NewTicker(heartbeat.TickerConfig{
 		Store:    pgStores.Heartbeats,
 		Agents:   pgStores.Agents,
+		Sessions: pgStores.Sessions,
 		MsgBus:   msgBus,
 		Sched:    sched,
 		RunAgent: makeHeartbeatRunFn(sched),

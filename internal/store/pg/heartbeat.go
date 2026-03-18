@@ -89,8 +89,8 @@ func (s *PGHeartbeatStore) Upsert(ctx context.Context, hb *store.AgentHeartbeat)
 		`INSERT INTO agent_heartbeats (agent_id, enabled, interval_sec, prompt, provider_id, model,
 		        isolated_session, light_context, ack_max_chars, max_retries,
 		        active_hours_start, active_hours_end, timezone,
-		        channel, chat_id, metadata, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
+		        channel, chat_id, next_run_at, metadata, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$18)
 		 ON CONFLICT (agent_id) DO UPDATE SET
 		        enabled = EXCLUDED.enabled,
 		        interval_sec = EXCLUDED.interval_sec,
@@ -106,13 +106,14 @@ func (s *PGHeartbeatStore) Upsert(ctx context.Context, hb *store.AgentHeartbeat)
 		        timezone = EXCLUDED.timezone,
 		        channel = EXCLUDED.channel,
 		        chat_id = EXCLUDED.chat_id,
+		        next_run_at = EXCLUDED.next_run_at,
 		        metadata = EXCLUDED.metadata,
 		        updated_at = EXCLUDED.updated_at
 		 RETURNING id, created_at, updated_at`,
 		hb.AgentID, hb.Enabled, hb.IntervalSec, hb.Prompt, hb.ProviderID, hb.Model,
 		hb.IsolatedSession, hb.LightContext, hb.AckMaxChars, hb.MaxRetries,
 		hb.ActiveHoursStart, hb.ActiveHoursEnd, hb.Timezone,
-		hb.Channel, hb.ChatID, meta, now,
+		hb.Channel, hb.ChatID, hb.NextRunAt, meta, now,
 	).Scan(&hb.ID, &hb.CreatedAt, &hb.UpdatedAt)
 	if err != nil {
 		return err
@@ -268,4 +269,61 @@ func (s *PGHeartbeatStore) ListLogs(ctx context.Context, agentID uuid.UUID, limi
 		return nil, 0, err
 	}
 	return logs, total, nil
+}
+
+// ListDeliveryTargets returns distinct (channel, chatID, title, kind) pairs from sessions for an agent.
+// Uses idx_sessions_agent (btree on agent_id) for fast lookup.
+// Session key format: agent:{key}:{channel}:{kind}:{chatId}
+func (s *PGHeartbeatStore) ListDeliveryTargets(ctx context.Context, agentID uuid.UUID) ([]store.DeliveryTarget, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT DISTINCT ON (s.channel, chat_id)
+		    s.channel,
+		    split_part(s.session_key, ':', 5) AS chat_id,
+		    COALESCE(
+		        s.metadata->>'chat_title',
+		        cc.display_name,
+		        CASE WHEN cc.username != '' THEN '@' || cc.username ELSE '' END,
+		        ''
+		    ) AS title,
+		    CASE
+		        WHEN s.session_key LIKE '%:group:%' THEN 'group'
+		        WHEN s.session_key LIKE '%:direct:%' THEN 'dm'
+		        ELSE 'other'
+		    END AS kind
+		 FROM sessions s
+		 LEFT JOIN channel_contacts cc
+		    ON cc.sender_id = split_part(s.session_key, ':', 5)
+		   AND cc.channel_type = s.channel
+		 WHERE s.agent_id = $1
+		   AND s.channel IS NOT NULL AND s.channel != ''
+		   AND s.session_key NOT LIKE '%:heartbeat%'
+		   AND s.session_key NOT LIKE '%:cron%'
+		   AND s.session_key NOT LIKE '%:subagent%'
+		   AND s.session_key NOT LIKE '%:team:%'
+		 ORDER BY s.channel, chat_id, title`,
+		agentID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var targets []store.DeliveryTarget
+	seen := make(map[string]bool)
+	for rows.Next() {
+		var t store.DeliveryTarget
+		if err := rows.Scan(&t.Channel, &t.ChatID, &t.Title, &t.Kind); err != nil {
+			return nil, err
+		}
+		// Deduplicate by channel+chatID (sessions can have multiple rows for same target).
+		key := t.Channel + ":" + t.ChatID
+		if t.ChatID != "" && !seen[key] {
+			seen[key] = true
+			targets = append(targets, t)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return targets, nil
 }
