@@ -24,6 +24,7 @@ import (
 	zalopersonal "github.com/nextlevelbuilder/goclaw/internal/channels/zalo/personal"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
+	"github.com/nextlevelbuilder/goclaw/internal/heartbeat"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway/methods"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
@@ -171,6 +172,12 @@ func runGateway() {
 	// Cron tool (agent-facing, matching TS cron-tool.ts)
 	toolsReg.Register(tools.NewCronTool(pgStores.Cron))
 	slog.Info("cron tool registered")
+
+	// Heartbeat tool (agent-facing)
+	heartbeatTool := tools.NewHeartbeatTool(pgStores.Heartbeats, pgStores.ConfigPermissions)
+	heartbeatTool.SetAgentStore(pgStores.Agents)
+	toolsReg.Register(heartbeatTool)
+	slog.Info("heartbeat tool registered")
 
 	// Session tools (list, status, history, send)
 	toolsReg.Register(tools.NewSessionsListTool())
@@ -398,7 +405,7 @@ func runGateway() {
 
 	// Register all RPC methods
 	server.SetLogTee(logTee)
-	pairingMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee)
+	pairingMethods, heartbeatMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats)
 
 	// Wire pairing event broadcasts to all WS clients.
 	pairingMethods.SetBroadcaster(server.BroadcastEvent)
@@ -700,6 +707,29 @@ func runGateway() {
 		slog.Warn("cron service failed to start", "error", err)
 	}
 
+	// Start heartbeat ticker (routes through scheduler's cron lane)
+	heartbeatTicker := heartbeat.NewTicker(heartbeat.TickerConfig{
+		Store:    pgStores.Heartbeats,
+		Agents:   pgStores.Agents,
+		MsgBus:   msgBus,
+		Sched:    sched,
+		RunAgent: makeHeartbeatRunFn(sched),
+	})
+	heartbeatTicker.SetOnEvent(func(event store.HeartbeatEvent) {
+		server.BroadcastEvent(*protocol.NewEvent(protocol.EventHeartbeat, event))
+	})
+	heartbeatTicker.Start()
+
+	// Wire heartbeat wake function to tool + RPC + cron wakeMode
+	heartbeatTool.SetWakeFn(heartbeatTicker.Wake)
+	heartbeatMethods.SetWakeFn(heartbeatTicker.Wake)
+	heartbeatMethods.SetAgentStore(pgStores.Agents)
+	cronHeartbeatWakeFn = func(agentID string) {
+		if id, err := uuid.Parse(agentID); err == nil {
+			heartbeatTicker.Wake(id)
+		}
+	}
+
 	// Adaptive throttle: reduce per-session concurrency when nearing the summary threshold.
 	// This prevents concurrent runs from racing with summarization.
 	// Uses calibrated token estimation (actual prompt tokens from last LLM call)
@@ -842,9 +872,10 @@ func runGateway() {
 		// Broadcast shutdown event
 		server.BroadcastEvent(*protocol.NewEvent(protocol.EventShutdown, nil))
 
-		// Stop channels, cron, and task ticker
+		// Stop channels, cron, heartbeat, and task ticker
 		channelMgr.StopAll(context.Background())
 		pgStores.Cron.Stop()
+		heartbeatTicker.Stop()
 		if taskTicker != nil {
 			taskTicker.Stop()
 		}
