@@ -104,7 +104,7 @@ func runGateway() {
 	// Register providers from DB (overrides config providers).
 	if pgStores.Providers != nil {
 		dbGatewayAddr := loopbackAddr(cfg.Gateway.Host, cfg.Gateway.Port)
-		registerProvidersFromDB(providerRegistry, pgStores.Providers, pgStores.ConfigSecrets, dbGatewayAddr, cfg.Gateway.Token, pgStores.MCP)
+		registerProvidersFromDB(providerRegistry, pgStores.Providers, pgStores.ConfigSecrets, dbGatewayAddr, cfg.Gateway.Token, pgStores.MCP, cfg)
 	}
 
 	setupMemoryEmbeddings(cfg, pgStores, providerRegistry)
@@ -295,6 +295,9 @@ func runGateway() {
 		mcpToolLister = mcpMgr
 	}
 	agentsH, skillsH, tracesH, mcpH, customToolsH, channelInstancesH, providersH, delegationsH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH := wireHTTP(pgStores, cfg.Gateway.Token, cfg.Agents.Defaults.Workspace, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
+	if providersH != nil {
+		providersH.SetAPIBaseFallback(cfg.Providers.APIBaseForType)
+	}
 	if agentsH != nil {
 		server.SetAgentsHandler(agentsH)
 	}

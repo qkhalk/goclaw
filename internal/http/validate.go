@@ -42,8 +42,9 @@ var agentAllowedFields = map[string]bool{
 
 var providerAllowedFields = map[string]bool{
 	"name": true, "provider_type": true, "api_key": true,
-	"base_url": true, "default_model": true, "extra_headers": true,
-	"config": true, "enabled": true, "display_order": true,
+	"api_base": true, "base_url": true, "default_model": true,
+	"extra_headers": true, "config": true, "enabled": true,
+	"display_name": true, "display_order": true, "settings": true,
 }
 
 var customToolAllowedFields = map[string]bool{

@@ -73,9 +73,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	if l.subagentsCfg != nil {
 		ctx = tools.WithSubagentConfig(ctx, l.subagentsCfg)
 	}
-	// Pass the agent's model so subagents inherit it instead of the system default.
+	// Pass the agent's model and provider so subagents inherit the correct combo.
 	if l.model != "" {
 		ctx = tools.WithParentModel(ctx, l.model)
+	}
+	if l.provider != nil {
+		ctx = tools.WithParentProvider(ctx, l.provider.Name())
 	}
 	if l.memoryCfg != nil {
 		ctx = tools.WithMemoryConfig(ctx, l.memoryCfg)
