@@ -13,6 +13,10 @@ import (
 // mediaDocNameRe extracts name and path attributes from <media:document> tags.
 var mediaDocNameRe = regexp.MustCompile(`<media:document\b[^>]*\bname="([^"]+)"[^>]*\bpath="([^"]+)"`)
 
+// mediaDocPathNameRe matches path-before-name ordering and Slack file= variant.
+var mediaDocPathNameRe = regexp.MustCompile(`<media:document\b[^>]*\bpath="([^"]+)"[^>]*\b(?:name|file)="([^"]+)"`)
+
+
 // ExtractMediaNameMap parses message content for <media:document name="X" path="Y"> tags
 // and returns a map from absolute file path to original filename.
 func ExtractMediaNameMap(content string) map[string]string {
@@ -22,9 +26,8 @@ func ExtractMediaNameMap(content string) map[string]string {
 			nameMap[m[2]] = m[1] // path → name
 		}
 	}
-	// Also match path before name: <media:document path="Y" name="X">
-	altRe := regexp.MustCompile(`<media:document\b[^>]*\bpath="([^"]+)"[^>]*\bname="([^"]+)"`)
-	for _, m := range altRe.FindAllStringSubmatch(content, -1) {
+	// Also match path-before-name ordering and Slack file= variant.
+	for _, m := range mediaDocPathNameRe.FindAllStringSubmatch(content, -1) {
 		if len(m) == 3 {
 			if _, exists := nameMap[m[1]]; !exists {
 				nameMap[m[1]] = m[2] // path → name
@@ -51,16 +54,22 @@ func copyMediaToWorkspace(mediaPaths []string, wsDir string, nameMap map[string]
 
 	var copied []string
 	for _, src := range mediaPaths {
-		srcInfo, err := os.Stat(src)
+		srcInfo, err := os.Lstat(src)
 		if err != nil {
 			slog.Debug("workspace_media: source file not found", "path", src, "error", err)
+			continue
+		}
+		// Skip symlinks to prevent following to unexpected locations.
+		if srcInfo.Mode()&os.ModeSymlink != 0 {
+			slog.Debug("workspace_media: skipping symlink", "path", src)
 			continue
 		}
 
 		// Use original filename if available, otherwise fall back to UUID name.
 		baseName := filepath.Base(src)
 		if origName, ok := nameMap[src]; ok && origName != "" {
-			baseName = origName
+			// Strip directory components to prevent path traversal (e.g. "../../etc/crontab").
+			baseName = filepath.Base(origName)
 		}
 		if baseName == "." || baseName == ".." || baseName == "" {
 			slog.Debug("workspace_media: skipping invalid filename", "path", src)
@@ -79,12 +88,11 @@ func copyMediaToWorkspace(mediaPaths []string, wsDir string, nameMap map[string]
 			dst = deduplicatePath(attachDir, baseName)
 		}
 
-		// Hard link first (same filesystem, no disk usage), fallback to copy.
-		if err := os.Link(src, dst); err != nil {
-			if err := copyFile(src, dst); err != nil {
-				slog.Warn("workspace_media: failed to copy file", "src", src, "dst", dst, "error", err)
-				continue
-			}
+		// Always copy (not hard link) to maintain isolation — members modifying
+		// workspace files must not affect the original media store.
+		if err := copyFile(src, dst); err != nil {
+			slog.Warn("workspace_media: failed to copy file", "src", src, "dst", dst, "error", err)
+			continue
 		}
 
 		slog.Info("workspace_media: copied to team workspace",
