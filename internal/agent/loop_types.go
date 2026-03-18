@@ -370,6 +370,7 @@ type RunRequest struct {
 	TraceName         string          // override trace name (default: "chat <agentID>")
 	TraceTags         []string        // additional tags for the trace (e.g. "cron")
 	MaxIterations     int             // per-request override (0 = use agent default, must be lower)
+	ModelOverride     string          // per-request model override (heartbeat uses cheaper model)
 	LightContext      bool            // skip loading context files (only inject ExtraSystemPrompt)
 
 	// Run classification

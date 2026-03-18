@@ -128,6 +128,8 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
           setChecklist={hb.setChecklist}
           fetchTargets={hb.fetchTargets}
           refresh={hb.refresh}
+          agentProvider={agent?.provider}
+          agentModel={agent?.model}
         />
       )}
 

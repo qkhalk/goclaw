@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Play, Loader2, ChevronDown, Heart, Clock, Send, FileText } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Play, Loader2, ChevronDown, Heart, Clock, Send, FileText, Cpu } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -15,7 +15,9 @@ import {
 } from "@/components/ui/select";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useChannels } from "@/pages/channels/hooks/use-channels";
+import { useProviders } from "@/pages/providers/hooks/use-providers";
 import { useUiStore } from "@/stores/use-ui-store";
+import { ProviderModelSelect } from "@/components/shared/provider-model-select";
 import type { HeartbeatConfig, DeliveryTarget } from "@/pages/agents/hooks/use-agent-heartbeat";
 
 interface HeartbeatConfigDialogProps {
@@ -23,19 +25,25 @@ interface HeartbeatConfigDialogProps {
   onOpenChange: (open: boolean) => void;
   config: HeartbeatConfig | null;
   saving: boolean;
-  update: (params: Partial<HeartbeatConfig>) => Promise<void>;
+  update: (params: Partial<HeartbeatConfig> & { providerName?: string }) => Promise<void>;
   test: () => Promise<void>;
   getChecklist: () => Promise<string>;
   setChecklist: (content: string) => Promise<void>;
   fetchTargets: () => Promise<DeliveryTarget[]>;
   refresh: () => Promise<void>;
+  /** Agent's current provider name (used as default for heartbeat). */
+  agentProvider?: string;
+  /** Agent's current model (used as default for heartbeat). */
+  agentModel?: string;
 }
 
 export function HeartbeatConfigDialog({
   open, onOpenChange, config, saving, update, test, getChecklist, setChecklist, fetchTargets, refresh,
+  agentProvider, agentModel,
 }: HeartbeatConfigDialogProps) {
   const { t } = useTranslation("agents");
   const { channels: availableChannels } = useChannels();
+  const { providers } = useProviders();
   const channelNames = Object.keys(availableChannels);
   const userTz = useUiStore((s) => s.timezone);
   const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -53,6 +61,8 @@ export function HeartbeatConfigDialog({
   const [timezone, setTimezone] = useState("");
   const [channel, setChannel] = useState("");
   const [chatId, setChatId] = useState("");
+  const [hbProvider, setHbProvider] = useState("");
+  const [hbModel, setHbModel] = useState("");
   const [checklist, setChecklistState] = useState("");
   const [originalChecklist, setOriginalChecklist] = useState("");
   const [checklistLoading, setChecklistLoading] = useState(false);
@@ -73,6 +83,13 @@ export function HeartbeatConfigDialog({
     }
   }, [getChecklist]);
 
+  // Map providerId UUID → provider name for the select component.
+  const providerNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of providers) map[p.id] = p.name;
+    return map;
+  }, [providers]);
+
   // Sync form state only when dialog opens (false→true).
   useEffect(() => {
     if (!open) return;
@@ -88,9 +105,14 @@ export function HeartbeatConfigDialog({
       setTimezone(config.timezone || defaultTz);
       setChannel(config.channel ?? "");
       setChatId(config.chatId ?? "");
+      // Map stored providerId UUID → name for the select
+      setHbProvider(config.providerId ? (providerNameById[config.providerId] ?? "") : "");
+      setHbModel(config.model ?? "");
     } else {
       // First-time setup defaults
       setTimezone(defaultTz);
+      setHbProvider("");
+      setHbModel("");
     }
     setShowAdvanced(false);
     loadChecklist();
@@ -117,6 +139,8 @@ export function HeartbeatConfigDialog({
       timezone: timezone || undefined,
       channel: channel || undefined,
       chatId: chatId || undefined,
+      model: hbModel || undefined,
+      providerName: hbProvider || undefined,
     });
     if (checklist !== originalChecklist) {
       await setChecklist(checklist);
@@ -162,6 +186,27 @@ export function HeartbeatConfigDialog({
               />
               <span className="text-xs text-muted-foreground">min</span>
             </div>
+          </div>
+
+          {/* ── Provider / Model override ── */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-3.5 w-3.5 text-violet-500" />
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("heartbeat.sectionModel")}
+              </h4>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("heartbeat.modelHint")}</p>
+            <ProviderModelSelect
+              provider={hbProvider}
+              onProviderChange={setHbProvider}
+              model={hbModel}
+              onModelChange={setHbModel}
+              allowEmpty
+              showVerify={!!(hbProvider && hbModel)}
+              providerPlaceholder={agentProvider ? `(${agentProvider})` : "(agent default)"}
+              modelPlaceholder={agentModel ? `(${agentModel})` : "(agent default)"}
+            />
           </div>
 
           {/* ── Delivery — WHERE it sends ── */}

@@ -438,6 +438,8 @@
     "activeHoursStart": "Bắt đầu (HH:MM)",
     "activeHoursEnd": "Kết thúc (HH:MM)",
     "timezone": "Múi giờ",
+    "sectionModel": "Model",
+    "modelHint": "Ghi đè provider/model cho heartbeat. Để trống để dùng mặc định của agent.",
     "sectionDelivery": "Gửi kết quả",
     "channel": "Kênh",
     "channelPlaceholder": "Chọn kênh",

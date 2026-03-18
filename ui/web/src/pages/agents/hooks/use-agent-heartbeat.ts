@@ -11,6 +11,8 @@ export interface HeartbeatConfig {
   intervalSec: number;
   ackMaxChars: number;
   maxRetries: number;
+  providerId?: string;
+  model?: string;
   isolatedSession: boolean;
   lightContext: boolean;
   activeHoursStart?: string;

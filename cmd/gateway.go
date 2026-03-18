@@ -728,6 +728,7 @@ func runGateway() {
 	heartbeatTool.SetWakeFn(heartbeatTicker.Wake)
 	heartbeatMethods.SetWakeFn(heartbeatTicker.Wake)
 	heartbeatMethods.SetAgentStore(pgStores.Agents)
+	heartbeatMethods.SetProviderStore(pgStores.Providers)
 	cronHeartbeatWakeFn = func(agentID string) {
 		if id, err := uuid.Parse(agentID); err == nil {
 			heartbeatTicker.Wake(id)

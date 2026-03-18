@@ -618,10 +618,16 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			toolDefs = filtered
 		}
 
+		// Use per-request model override if set (e.g. heartbeat uses cheaper model).
+		model := l.model
+		if req.ModelOverride != "" {
+			model = req.ModelOverride
+		}
+
 		chatReq := providers.ChatRequest{
 			Messages: messages,
 			Tools:    toolDefs,
-			Model:    l.model,
+			Model:    model,
 			Options: map[string]any{
 				providers.OptMaxTokens:   l.effectiveMaxTokens(),
 				providers.OptTemperature: 0.7,

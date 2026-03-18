@@ -438,6 +438,8 @@
     "activeHoursStart": "Active From (HH:MM)",
     "activeHoursEnd": "Active Until (HH:MM)",
     "timezone": "Timezone",
+    "sectionModel": "Model",
+    "modelHint": "Override provider/model for heartbeat runs. Leave empty to use agent defaults.",
     "sectionDelivery": "Delivery",
     "channel": "Channel",
     "channelPlaceholder": "Select channel",

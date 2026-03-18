@@ -438,6 +438,8 @@
     "activeHoursStart": "开始时间（HH:MM）",
     "activeHoursEnd": "结束时间（HH:MM）",
     "timezone": "时区",
+    "sectionModel": "模型",
+    "modelHint": "覆盖心跳运行的提供者/模型。留空使用代理默认值。",
     "sectionDelivery": "推送设置",
     "channel": "渠道",
     "channelPlaceholder": "选择渠道",
