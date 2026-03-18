@@ -307,8 +307,8 @@ export function HeartbeatConfigDialog({
                 value={checklist}
                 onChange={(e) => setChecklistState(e.target.value)}
                 placeholder={t("heartbeat.checklistPlaceholder")}
-                rows={10}
-                className="text-base md:text-sm font-mono resize-y"
+                rows={15}
+                className="text-base md:text-sm font-mono resize-y min-h-[200px] sm:min-h-[400px]"
               />
             )}
           </div>
