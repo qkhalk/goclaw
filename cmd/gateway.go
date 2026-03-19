@@ -408,7 +408,7 @@ func runGateway() {
 
 	// Register all RPC methods
 	server.SetLogTee(logTee)
-	pairingMethods, heartbeatMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats)
+	pairingMethods, heartbeatMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions)
 
 	// Wire pairing event broadcasts to all WS clients.
 	pairingMethods.SetBroadcaster(server.BroadcastEvent)

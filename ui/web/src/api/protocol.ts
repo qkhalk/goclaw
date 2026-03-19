@@ -162,6 +162,11 @@ export const Methods = {
   HEARTBEAT_CHECKLIST_SET: "heartbeat.checklist.set",
   HEARTBEAT_TARGETS: "heartbeat.targets",
 
+  // Config permissions
+  CONFIG_PERMISSIONS_LIST: "config.permissions.list",
+  CONFIG_PERMISSIONS_GRANT: "config.permissions.grant",
+  CONFIG_PERMISSIONS_REVOKE: "config.permissions.revoke",
+
   // Phase 3+ - NICE TO HAVE
   LOGS_TAIL: "logs.tail",
 } as const;

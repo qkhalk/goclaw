@@ -88,7 +88,8 @@
       "shares": "Chia sẻ",
       "links": "Liên kết",
       "skills": "Skill",
-      "instances": "Phiên bản người dùng"
+      "instances": "Phiên bản người dùng",
+      "permissions": "Phân quyền"
     },
     "summonFailed": "Triệu hồi thất bại",
     "evolving": "Đang tiến hóa",
@@ -467,6 +468,18 @@
     "refresh": "Làm mới",
     "noLogs": "Chưa có nhật ký heartbeat.",
     "logsPagination": "{{from}}–{{to}} / {{total}}"
+  },
+  "permissions": {
+    "title": "Phân quyền cấu hình",
+    "description": "Quản lý ai có thể thay đổi heartbeat, cron, context files qua chat.",
+    "scope": "Phạm vi",
+    "configType": "Loại cấu hình",
+    "userId": "ID người dùng",
+    "permission": "Quyền",
+    "allTypes": "Tất cả (*)",
+    "empty": "Chưa có quy tắc phân quyền. Chủ sở hữu agent có toàn quyền mặc định.",
+    "addRule": "Thêm quy tắc",
+    "userIdPlaceholder": "Tìm liên hệ hoặc nhập ID..."
   },
   "toast": {
     "created": "Đã tạo agent",

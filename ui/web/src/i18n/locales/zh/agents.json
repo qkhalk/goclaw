@@ -88,7 +88,8 @@
       "shares": "共享",
       "links": "链接",
       "skills": "Skill",
-      "instances": "用户实例"
+      "instances": "用户实例",
+      "permissions": "权限"
     },
     "summonFailed": "召唤失败",
     "evolving": "进化中",
@@ -467,6 +468,18 @@
     "refresh": "刷新",
     "noLogs": "暂无心跳日志。",
     "logsPagination": "{{from}}–{{to}} / 共 {{total}}"
+  },
+  "permissions": {
+    "title": "配置权限",
+    "description": "控制谁可以通过聊天修改心跳、定时任务和上下文文件。",
+    "scope": "范围",
+    "configType": "配置类型",
+    "userId": "用户 ID",
+    "permission": "权限",
+    "allTypes": "全部 (*)",
+    "empty": "未配置权限规则。代理所有者默认拥有完全权限。",
+    "addRule": "添加规则",
+    "userIdPlaceholder": "搜索联系人或输入 ID..."
   },
   "toast": {
     "created": "代理已创建",

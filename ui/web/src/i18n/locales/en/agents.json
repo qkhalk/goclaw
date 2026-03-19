@@ -88,7 +88,8 @@
       "shares": "Shares",
       "links": "Links",
       "skills": "Skills",
-      "instances": "Instances"
+      "instances": "Instances",
+      "permissions": "Permissions"
     },
     "summonFailed": "Summon Failed",
     "evolving": "Evolving",
@@ -467,6 +468,18 @@
     "refresh": "Refresh",
     "noLogs": "No heartbeat logs yet.",
     "logsPagination": "{{from}}–{{to}} of {{total}}"
+  },
+  "permissions": {
+    "title": "Config Permissions",
+    "description": "Control who can modify heartbeat, cron, and context files via chat.",
+    "scope": "Scope",
+    "configType": "Config Type",
+    "userId": "User ID",
+    "permission": "Permission",
+    "allTypes": "All (*)",
+    "empty": "No permission rules configured. Agent owner has full access by default.",
+    "addRule": "Add Rule",
+    "userIdPlaceholder": "Search contacts or type ID..."
   },
   "toast": {
     "created": "Agent created",
