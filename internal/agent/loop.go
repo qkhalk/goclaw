@@ -928,6 +928,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 			// Record result for loop detection.
 			loopDetector.recordResult(argsHash, result.ForLLM)
+			loopDetector.recordMutation(tc.Name)
 
 			if result.Async {
 				asyncToolCalls = append(asyncToolCalls, tc.Name)
@@ -1005,6 +1006,32 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				// Warning: inject message so model knows to change strategy.
 				slog.Warn("tool loop warning", "agent", l.id, "tool", tc.Name, "message", msg)
 				messages = append(messages, providers.Message{Role: "user", Content: msg})
+			}
+
+			// Check for read-only streak (no write/edit actions).
+			if level, msg := loopDetector.detectReadOnlyStreak(); level != "" {
+				if level == "critical" {
+					slog.Warn("tool loop critical: read-only streak",
+						"streak", loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
+					finalContent = msg
+					break
+				}
+				slog.Warn("tool loop warning: read-only streak",
+					"streak", loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
+				messages = append(messages, providers.Message{Role: "user", Content: msg})
+			}
+
+			// Check for same tool returning identical results with different args.
+			if rh := hashResult(result.ForLLM); rh != "" {
+				if level, msg := loopDetector.detectSameResult(tc.Name, rh); level != "" {
+					if level == "critical" {
+						slog.Warn("tool loop critical: same result",
+							"tool", tc.Name, "agent", l.id, "run", req.RunID)
+						finalContent = msg
+						break
+					}
+					messages = append(messages, providers.Message{Role: "user", Content: msg})
+				}
 			}
 		} else {
 			// Multiple tools: parallel execution via goroutines.
@@ -1095,6 +1122,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				// Record for loop detection.
 				argsHash := loopDetector.record(r.tc.Name, r.tc.Arguments)
 				loopDetector.recordResult(argsHash, r.result.ForLLM)
+				loopDetector.recordMutation(r.tc.Name)
 
 				if r.result.Async {
 					asyncToolCalls = append(asyncToolCalls, r.tc.Name)
@@ -1173,7 +1201,38 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					slog.Warn("tool loop warning", "agent", l.id, "tool", r.tc.Name, "message", msg)
 					messages = append(messages, providers.Message{Role: "user", Content: msg})
 				}
+
+				// Check for same tool returning identical results with different args.
+				if rh := hashResult(r.result.ForLLM); rh != "" {
+					if level, msg := loopDetector.detectSameResult(r.tc.Name, rh); level != "" {
+						if level == "critical" {
+							slog.Warn("tool loop critical: same result",
+								"tool", r.tc.Name, "agent", l.id, "run", req.RunID)
+							finalContent = msg
+							loopStuck = true
+							break
+						}
+						messages = append(messages, providers.Message{Role: "user", Content: msg})
+					}
+				}
 			}
+
+			// Check read-only streak after processing all parallel results.
+			if !loopStuck {
+				if level, msg := loopDetector.detectReadOnlyStreak(); level != "" {
+					if level == "critical" {
+						slog.Warn("tool loop critical: read-only streak",
+							"streak", loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
+						finalContent = msg
+						loopStuck = true
+					} else {
+						slog.Warn("tool loop warning: read-only streak",
+							"streak", loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
+						messages = append(messages, providers.Message{Role: "user", Content: msg})
+					}
+				}
+			}
+
 			if loopStuck {
 				break
 			}
