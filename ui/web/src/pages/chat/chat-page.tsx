@@ -108,11 +108,11 @@ export function ChatPage() {
   const handleAgentChange = useCallback(
     (newAgentId: string) => {
       setAgentId(newAgentId);
-      const newKey = `agent:${newAgentId}:ws-${userId}-${Date.now().toString(36)}`;
+      const newKey = `agent:${newAgentId}:ws:direct:${crypto.randomUUID()}`;
       setSessionKey(newKey);
       navigate(`/chat/${encodeURIComponent(newKey)}`);
     },
-    [navigate, userId],
+    [navigate],
   );
 
   const handleSend = useCallback(
@@ -235,7 +235,7 @@ export function ChatPage() {
               disabled={!connected}
             />
           ) : (
-            <div className="flex items-center gap-2 border-t bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+            <div className="mx-3 mb-3 flex items-center gap-2 rounded-xl border bg-muted/50 px-4 py-3 text-sm text-muted-foreground shadow-sm">
               <Eye className="h-4 w-4" />
               {t("readOnly")}
             </div>
