@@ -34,6 +34,7 @@ type telegramInstanceConfig struct {
 	MediaMaxBytes   int64    `json:"media_max_bytes,omitempty"` // deprecated: use media_max_mb
 	LinkPreview     *bool    `json:"link_preview,omitempty"`
 	BlockReply      *bool    `json:"block_reply,omitempty"`
+	ForceIPv4       bool     `json:"force_ipv4,omitempty"`
 	AllowFrom       []string `json:"allow_from,omitempty"`
 }
 
@@ -99,6 +100,7 @@ func buildChannel(name string, creds json.RawMessage, cfg json.RawMessage,
 		MediaMaxBytes:  resolveMediaMaxBytes(ic),
 		LinkPreview:    ic.LinkPreview,
 		BlockReply:     ic.BlockReply,
+		ForceIPv4:      ic.ForceIPv4,
 	}
 
 	// DB instances default to "pairing" for groups (secure by default).
