@@ -183,8 +183,7 @@ func (s *PGAgentStore) Update(ctx context.Context, id uuid.UUID, updates map[str
 }
 
 func (s *PGAgentStore) Delete(ctx context.Context, id uuid.UUID) error {
-	// Soft delete
-	_, err := s.db.ExecContext(ctx, "UPDATE agents SET deleted_at = NOW() WHERE id = $1", id)
+	_, err := s.db.ExecContext(ctx, "DELETE FROM agents WHERE id = $1", id)
 	return err
 }
 

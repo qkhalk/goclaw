@@ -30,7 +30,7 @@ type ReadFileTool struct {
 	sandboxMgr       sandbox.Manager         // nil = direct host access
 	contextFileIntc  *ContextFileInterceptor // nil = no virtual FS routing
 	memIntc          *MemoryInterceptor      // nil = no memory routing
-	groupWriterCache *store.GroupWriterCache // nil = no group read restriction
+	permStore store.ConfigPermissionStore // nil = no group read restriction
 }
 
 // SetContextFileInterceptor enables virtual FS routing for context files.
@@ -43,9 +43,9 @@ func (t *ReadFileTool) SetMemoryInterceptor(intc *MemoryInterceptor) {
 	t.memIntc = intc
 }
 
-// SetGroupWriterCache enables group read restriction for SOUL.md/AGENTS.md.
-func (t *ReadFileTool) SetGroupWriterCache(c *store.GroupWriterCache) {
-	t.groupWriterCache = c
+// SetConfigPermStore enables group read restriction for SOUL.md/AGENTS.md.
+func (t *ReadFileTool) SetConfigPermStore(s store.ConfigPermissionStore) {
+	t.permStore = s
 }
 
 func NewReadFileTool(workspace string, restrict bool) *ReadFileTool {
@@ -92,10 +92,10 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *Result
 	}
 
 	// Group read restriction: block non-writers from reading SOUL.md/AGENTS.md
-	if t.groupWriterCache != nil {
+	if t.permStore != nil {
 		base := filepath.Base(path)
 		if base == bootstrap.SoulFile || base == bootstrap.AgentsFile {
-			if err := store.CheckGroupWritePermission(ctx, t.groupWriterCache); err != nil {
+			if err := store.CheckFileWriterPermission(ctx, t.permStore); err != nil {
 				return ErrorResult(fmt.Sprintf("permission denied: %s is restricted in this group", base))
 			}
 		}

@@ -50,9 +50,9 @@ type InterceptorAware interface {
 	SetMemoryInterceptor(*MemoryInterceptor)
 }
 
-// GroupWriterAware tools receive a GroupWriterCache for group permission checks.
-type GroupWriterAware interface {
-	SetGroupWriterCache(*store.GroupWriterCache)
+// ConfigPermAware tools receive a ConfigPermissionStore for group permission checks.
+type ConfigPermAware interface {
+	SetConfigPermStore(store.ConfigPermissionStore)
 }
 
 // WorkspaceInterceptorAware tools can receive a WorkspaceInterceptor for team workspace validation.

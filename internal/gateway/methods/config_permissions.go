@@ -48,7 +48,7 @@ func (m *ConfigPermissionsMethods) handleList(ctx context.Context, client *gatew
 		return
 	}
 
-	perms, err := m.permStore.List(ctx, agentUUID, params.ConfigType)
+	perms, err := m.permStore.List(ctx, agentUUID, params.ConfigType, "")
 	if err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, configPermInternalErr("list", err)))
 		return

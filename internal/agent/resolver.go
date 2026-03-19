@@ -75,8 +75,8 @@ type ResolverDeps struct {
 	// Skill access store — for per-agent skill visibility filtering
 	SkillAccessStore store.SkillAccessStore
 
-	// Group file writer cache
-	GroupWriterCache *store.GroupWriterCache
+	// Config permission store for group file writer checks
+	ConfigPermStore store.ConfigPermissionStore
 
 	// Persistent media storage for cross-turn image/document access
 	MediaStore *media.Store
@@ -349,7 +349,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			SkillNudgeInterval:     ag.ParseSkillNudgeInterval(),
 			WorkspaceSharing:       ag.ParseWorkspaceSharing(),
 			ShellDenyGroups:        ag.ParseShellDenyGroups(),
-			GroupWriterCache:       deps.GroupWriterCache,
+			ConfigPermStore:        deps.ConfigPermStore,
 			TeamStore:              deps.TeamStore,
 			SecureCLIStore:         deps.SecureCLIStore,
 			MediaStore:             deps.MediaStore,

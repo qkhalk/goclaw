@@ -19,8 +19,8 @@ type WriteFileTool struct {
 	sandboxMgr       sandbox.Manager
 	contextFileIntc  *ContextFileInterceptor // nil = no virtual FS routing
 	memIntc          *MemoryInterceptor      // nil = no memory routing
-	groupWriterCache *store.GroupWriterCache // nil = no group write restriction
-	workspaceIntc    *WorkspaceInterceptor   // nil = no team workspace validation
+	permStore     store.ConfigPermissionStore // nil = no group write restriction
+	workspaceIntc *WorkspaceInterceptor      // nil = no team workspace validation
 }
 
 // DenyPaths adds path prefixes that write_file must reject.
@@ -38,9 +38,9 @@ func (t *WriteFileTool) SetMemoryInterceptor(intc *MemoryInterceptor) {
 	t.memIntc = intc
 }
 
-// SetGroupWriterCache enables group write permission checks.
-func (t *WriteFileTool) SetGroupWriterCache(c *store.GroupWriterCache) {
-	t.groupWriterCache = c
+// SetConfigPermStore enables group write permission checks.
+func (t *WriteFileTool) SetConfigPermStore(s store.ConfigPermissionStore) {
+	t.permStore = s
 }
 
 // SetWorkspaceInterceptor enables team workspace validation and event broadcasting.
@@ -103,8 +103,8 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *Resul
 	}
 
 	// Group write permission check
-	if t.groupWriterCache != nil {
-		if err := store.CheckGroupWritePermission(ctx, t.groupWriterCache); err != nil {
+	if t.permStore != nil {
+		if err := store.CheckFileWriterPermission(ctx, t.permStore); err != nil {
 			return ErrorResult(err.Error())
 		}
 	}
