@@ -60,13 +60,12 @@ SCHEDULE TYPES (schedule.kind):
   { "kind": "cron", "expr": "<5-field cron expression>", "tz": "<optional IANA timezone, e.g. Asia/Ho_Chi_Minh; omit to use gateway default>" }
 
 CRITICAL CONSTRAINTS:
-- name must be a valid slug (lowercase letters, numbers, hyphens only)
-- message is required for add action
-- schedule is required for add action
+- "name" must be a valid slug (lowercase letters, numbers, hyphens only)
+- For action="add": send the job inside "job", "message" is required and "schedule" is required
+- For action="update", send changes inside "patch"
 - Default: jobs run as isolated agent turns with the specified message
 - Before creating or updating a scheduled job, call the datetime tool first to get the precise current time and unix_ms timestamp. Do NOT guess or estimate timestamps.
-
-Use jobId as the canonical identifier; id is accepted for compatibility.`
+- Use "jobId" as the canonical identifier; "id" is accepted for compatibility.`
 }
 
 func (t *CronTool) Parameters() map[string]any {
