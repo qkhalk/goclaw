@@ -53,6 +53,8 @@ type SessionInfo struct {
 // SessionListOpts holds pagination options for ListPaged.
 type SessionListOpts struct {
 	AgentID string
+	Channel string // optional: filter by channel prefix ("ws", "telegram", etc.)
+	UserID  string // optional: filter by user_id
 	Limit   int
 	Offset  int
 }

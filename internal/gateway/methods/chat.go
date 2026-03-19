@@ -119,7 +119,7 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 	runID := uuid.NewString()
 	sessionKey := params.SessionKey
 	if sessionKey == "" {
-		sessionKey = sessions.SessionKey(params.AgentID, "ws-"+client.ID())
+		sessionKey = sessions.BuildWSSessionKey(params.AgentID, uuid.NewString())
 	}
 
 	// Detach from HTTP request context so agent runs survive page navigation/reconnect.
@@ -190,7 +190,7 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			Message:    message,
 			Media:      mediaFiles,
 			Channel:    "ws",
-			ChatID:     client.ID(),
+			ChatID:     userID, // use stable userID for team/workspace isolation (not ephemeral client.ID())
 			RunID:      runID,
 			UserID:     userID,
 			Stream:     params.Stream,
@@ -237,7 +237,7 @@ func (m *ChatMethods) handleHistory(ctx context.Context, client *gateway.Client,
 
 	sessionKey := params.SessionKey
 	if sessionKey == "" {
-		sessionKey = sessions.SessionKey(params.AgentID, "ws-"+client.ID())
+		sessionKey = sessions.BuildWSSessionKey(params.AgentID, uuid.NewString())
 	}
 
 	history := m.sessions.GetHistory(sessionKey)
