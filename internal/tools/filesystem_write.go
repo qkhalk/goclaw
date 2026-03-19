@@ -121,13 +121,25 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *Resul
 
 	// Virtual FS: route memory files to DB
 	if t.memIntc != nil {
-		if mwr, err := t.memIntc.WriteFile(ctx, path, content); mwr.Handled {
+		if mwr, err := t.memIntc.WriteFile(ctx, path, content, appendMode); mwr.Handled {
 			if err != nil {
 				return ErrorResult(fmt.Sprintf("failed to write memory file: %v", err))
 			}
 			msg := fmt.Sprintf("Memory file written: %s (%d bytes)", path, len(content))
 			if mwr.KGTriggered {
 				msg += "\n\n[Knowledge graph extraction triggered in background. The knowledge system may take a moment to fully update with new entities and relationships.]"
+			}
+			if mwr.PreviousContent != "" {
+				prev := mwr.PreviousContent
+				prevRunes := []rune(prev)
+				if len(prevRunes) > 4000 {
+					prev = string(prevRunes[:4000]) + "\n... (truncated)"
+				}
+				msg += fmt.Sprintf("\n\n⚠️ WARNING: This file had existing content (%d chars) that was replaced. "+
+					"If the old content below contains information not present in your new version, "+
+					"please re-write the file to merge both.\n\n"+
+					"--- PREVIOUS CONTENT ---\n%s\n--- END PREVIOUS CONTENT ---",
+					len([]rune(mwr.PreviousContent)), prev)
 			}
 			return SilentResult(msg)
 		}
