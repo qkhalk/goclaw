@@ -196,6 +196,7 @@ export const Events = {
   TEAM_TASK_CLAIMED: "team.task.claimed",
   TEAM_TASK_COMPLETED: "team.task.completed",
   TEAM_TASK_CANCELLED: "team.task.cancelled",
+  TEAM_TASK_FAILED: "team.task.failed",
   TEAM_TASK_REVIEWED: "team.task.reviewed",
   TEAM_TASK_APPROVED: "team.task.approved",
   TEAM_TASK_REJECTED: "team.task.rejected",
