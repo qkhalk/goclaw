@@ -8,6 +8,10 @@ permissions:
   contents: write
   packages: write
 
+env:
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+  DOCKERHUB_IMAGE: digitop/goclaw
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -73,9 +77,6 @@ jobs:
     needs: release
     if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
-    env:
-      GHCR_IMAGE: ghcr.io/${{ github.repository }}
-      DOCKERHUB_IMAGE: digitop/goclaw
     strategy:
       matrix:
         include:
@@ -191,9 +192,6 @@ jobs:
     needs: release
     if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
-    env:
-      GHCR_IMAGE: ghcr.io/${{ github.repository }}
-      DOCKERHUB_IMAGE: digitop/goclaw
     steps:
       - uses: actions/checkout@v4
 
@@ -236,10 +234,10 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
-  # Notify Discord on new release
+  # Notify Discord on new release (runs even if docker jobs fail)
   notify-discord:
     needs: [release, build-binaries, docker-images, docker-web]
-    if: needs.release.outputs.released == 'true'
+    if: always() && needs.release.outputs.released == 'true' && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - name: Send Discord notification
