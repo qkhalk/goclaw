@@ -154,6 +154,12 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *Result
 		return ErrorResult(err.Error())
 	}
 
+	// Block binary files — reading them wastes context with garbled data.
+	if isBinaryFileExt(resolved) {
+		ext := strings.ToLower(filepath.Ext(resolved))
+		return ErrorResult(fmt.Sprintf("cannot read binary file (%s). Use the appropriate tool: read_image for images, read_document for documents, read_audio for audio, read_video for video.", ext))
+	}
+
 	data, err := os.ReadFile(resolved)
 	if err != nil {
 		msg := fmt.Sprintf("failed to read file: %v", err)
@@ -258,6 +264,29 @@ func checkDeniedPath(resolved, workspace string, deniedPrefixes []string) error 
 		}
 	}
 	return nil
+}
+
+// binaryFileExts are file extensions that should not be read as text.
+// Reading these wastes context with garbled binary data.
+var binaryFileExts = map[string]bool{
+	// Images
+	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
+	".bmp": true, ".ico": true, ".tiff": true, ".tif": true,
+	// Audio
+	".mp3": true, ".wav": true, ".ogg": true, ".flac": true, ".aac": true, ".m4a": true,
+	// Video
+	".mp4": true, ".avi": true, ".mov": true, ".mkv": true, ".webm": true,
+	// Archives
+	".zip": true, ".tar": true, ".gz": true, ".bz2": true, ".7z": true, ".rar": true,
+	// Documents (binary)
+	".pdf": true, ".docx": true, ".xlsx": true, ".pptx": true,
+	// Executables
+	".exe": true, ".dll": true, ".so": true, ".dylib": true,
+}
+
+// isBinaryFileExt returns true if the file extension indicates a binary file.
+func isBinaryFileExt(path string) bool {
+	return binaryFileExts[strings.ToLower(filepath.Ext(path))]
 }
 
 // resolvePath resolves a path relative to the workspace and validates it.
