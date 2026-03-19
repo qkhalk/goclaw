@@ -35,17 +35,17 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   const activityRef = useRef<RunActivity | null>(null);
   const blockRepliesRef = useRef<ChatMessage[]>([]);
 
-  // Clear streaming/run state when session changes, but keep messages
-  // until new history loads to avoid a flash of empty content.
-  const [prevKey, setPrevKey] = useState(sessionKey);
-  if (sessionKey !== prevKey) {
-    setPrevKey(sessionKey);
-    // Don't clear messages — they'll be replaced by loadHistory()
+  // Reset streaming/run state when session changes.
+  // Messages are NOT cleared here — loadHistory() will replace them atomically.
+  // loading is NOT set to true — avoids full-page flash while history loads.
+  const prevKeyRef = useRef(sessionKey);
+  useEffect(() => {
+    if (sessionKey === prevKeyRef.current) return;
+    prevKeyRef.current = sessionKey;
     setStreamText(null);
     setThinkingText(null);
     setToolStream([]);
     setIsRunning(false);
-    setLoading(true);
     setActivity(null);
     setBlockReplies([]);
     setTeamTasks([]);
@@ -56,7 +56,7 @@ export function useChatMessages(sessionKey: string, agentId: string) {
     toolStreamRef.current = [];
     activityRef.current = null;
     blockRepliesRef.current = [];
-  }
+  }, [sessionKey]);
 
   // Load history (no loading spinner — the empty state placeholder is shown instead)
   const loadHistory = useCallback(async () => {
