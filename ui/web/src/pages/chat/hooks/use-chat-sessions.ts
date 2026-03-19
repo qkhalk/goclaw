@@ -45,11 +45,18 @@ export function useChatSessions(agentId: string) {
     return `agent:${agentId}:ws:direct:${convId}`;
   }, [agentId]);
 
+  const deleteSession = useCallback(async (key: string) => {
+    if (!connected) return;
+    await ws.call(Methods.SESSIONS_DELETE, { key });
+    await loadSessions();
+  }, [ws, connected, loadSessions]);
+
   return {
     sessions,
     loading,
     error,
     refresh: loadSessions,
     buildNewSessionKey,
+    deleteSession,
   };
 }
