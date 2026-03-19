@@ -40,6 +40,7 @@
   "delete": {
     "title": "Xóa agent",
     "description": "Xóa vĩnh viễn agent này, tất cả tệp ngữ cảnh, session và cấu hình. Hành động này không thể hoàn tác.",
+    "deleteWarning": "Thao tác này sẽ xóa vĩnh viễn agent và TẤT CẢ dữ liệu liên quan bao gồm: phiên chat, tin nhắn, cron job, heartbeat, bộ nhớ, đồ thị tri thức, kỹ năng, cấu hình kênh, đội nhóm, file workspace và quyền hạn. Không thể hoàn tác.",
     "detailDescription": "Bạn có chắc chắn muốn xóa \"{{name}}\"? Tất cả tệp ngữ cảnh, session và cấu hình sẽ bị xóa vĩnh viễn.",
     "confirmLabel": "Xóa",
     "defaultCannotDelete": "Agent mặc định không thể bị xóa."
@@ -470,16 +471,31 @@
     "logsPagination": "{{from}}–{{to}} / {{total}}"
   },
   "permissions": {
-    "title": "Phân quyền cấu hình",
-    "description": "Quản lý ai có thể thay đổi heartbeat, cron, context files qua chat.",
-    "scope": "Phạm vi",
-    "configType": "Loại cấu hình",
-    "userId": "ID người dùng",
-    "permission": "Quyền",
-    "allTypes": "Tất cả (*)",
-    "empty": "Chưa có quy tắc phân quyền. Chủ sở hữu agent có toàn quyền mặc định.",
+    "title": "Quyền hạn",
+    "description": "Quản lý ai được phép thay đổi cấu hình agent và file. Chủ sở hữu luôn có quyền đầy đủ.",
     "addRule": "Thêm quy tắc",
-    "userIdPlaceholder": "Tìm liên hệ hoặc nhập ID..."
+    "fileWriters": "Người viết file",
+    "configPerms": "Quyền cấu hình",
+    "noRules": "Chưa có quy tắc. Chủ sở hữu mặc định có đầy đủ quyền.",
+    "userIdPlaceholder": "Tìm liên hệ hoặc nhập ID...",
+    "scopePlaceholder": "Chọn hoặc nhập phạm vi...",
+    "types": {
+      "file_writer": "Quyền viết file",
+      "file_writer_desc": "Ai được chỉnh sửa file và quản lý cron trong nhóm chat. Người đầu tiên tự động được thêm.",
+      "heartbeat": "Heartbeat",
+      "heartbeat_desc": "Ai được cấu hình lịch heartbeat qua chat.",
+      "cron": "Cron",
+      "cron_desc": "Ai được tạo và quản lý cron job qua chat.",
+      "context_files": "File ngữ cảnh",
+      "context_files_desc": "Ai được chỉnh sửa file nhận dạng agent (SOUL.md, v.v.) qua chat.",
+      "all": "Tất cả (*)",
+      "all_desc": "Toàn quyền cho mọi loại cấu hình."
+    },
+    "scopes": {
+      "agent": "Agent (riêng tư)",
+      "group_all": "Tất cả nhóm",
+      "global": "Toàn cục"
+    }
   },
   "toast": {
     "created": "Đã tạo agent",

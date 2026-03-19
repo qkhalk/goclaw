@@ -11,6 +11,7 @@ export interface ConfigPermission {
   userId: string;
   permission: string; // "allow" | "deny"
   grantedBy?: string;
+  metadata?: Record<string, string>; // {displayName, username}
   createdAt: string;
   updatedAt: string;
 }
@@ -37,11 +38,11 @@ export function useConfigPermissions(agentId: string | undefined) {
   }, [ws, agentId]);
 
   const grant = useCallback(
-    async (scope: string, configType: string, userId: string, permission: string) => {
+    async (scope: string, configType: string, userId: string, permission: string, metadata?: Record<string, string>) => {
       if (!agentId) return;
       try {
         await ws.call(Methods.CONFIG_PERMISSIONS_GRANT, {
-          agentId, scope, configType, userId, permission,
+          agentId, scope, configType, userId, permission, metadata,
         });
         toast.success("Permission granted");
         await load();
