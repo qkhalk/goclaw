@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format";
@@ -40,7 +41,7 @@ function sessionLabel(session: SessionInfo): string {
   return scope.length > 24 ? scope.slice(0, 21) + "…" : scope;
 }
 
-export function SessionSwitcher({ sessions, activeKey, onSelect, loading }: SessionSwitcherProps) {
+export const SessionSwitcher = memo(function SessionSwitcher({ sessions, activeKey, onSelect, loading }: SessionSwitcherProps) {
   const { t } = useTranslation("common");
 
   if (sessions.length === 0 && loading) {
@@ -90,4 +91,4 @@ export function SessionSwitcher({ sessions, activeKey, onSelect, loading }: Sess
       })}
     </div>
   );
-}
+});

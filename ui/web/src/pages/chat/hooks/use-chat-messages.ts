@@ -35,12 +35,12 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   const activityRef = useRef<RunActivity | null>(null);
   const blockRepliesRef = useRef<ChatMessage[]>([]);
 
-  // Synchronously clear state during render when session changes.
-  // This prevents a flash of old messages before the useEffect fires.
+  // Clear streaming/run state when session changes, but keep messages
+  // until new history loads to avoid a flash of empty content.
   const [prevKey, setPrevKey] = useState(sessionKey);
   if (sessionKey !== prevKey) {
     setPrevKey(sessionKey);
-    setMessages([]);
+    // Don't clear messages — they'll be replaced by loadHistory()
     setStreamText(null);
     setThinkingText(null);
     setToolStream([]);

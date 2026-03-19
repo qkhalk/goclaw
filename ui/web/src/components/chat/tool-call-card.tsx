@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Wrench, Check, AlertTriangle, Loader2, ChevronDown, ChevronRight, Zap } from "lucide-react";
+import { Wrench, AlertTriangle, Loader2, ChevronDown, ChevronRight, Zap } from "lucide-react";
 import type { ToolStreamEntry } from "@/types/chat";
 
 const isSkillTool = (name: string) => name === "use_skill";
@@ -89,7 +89,7 @@ function ToolIcon({ phase, isSkill }: { phase: ToolStreamEntry["phase"]; isSkill
   }
   switch (phase) {
     case "calling": return <Loader2 className={`${cls} animate-spin text-blue-500`} />;
-    case "completed": return <Check className={`${cls} text-green-500`} />;
+    case "completed": return <Wrench className={`${cls} text-blue-500`} />;
     case "error": return <AlertTriangle className={`${cls} text-red-500`} />;
     default: return <Wrench className={`${cls} text-muted-foreground`} />;
   }
@@ -102,7 +102,7 @@ function PhaseLabel({ phase, isSkill }: { phase: ToolStreamEntry["phase"]; isSki
     : { calling: t("toolRunning"), completed: t("toolDone"), error: t("toolFailed") };
   const colors: Record<string, string> = {
     calling: "text-blue-500",
-    completed: "text-green-500",
+    completed: "text-blue-500",
     error: "text-red-500",
   };
   return <span className={`text-[11px] ${colors[phase] ?? "text-muted-foreground"}`}>{labels[phase] ?? phase}</span>;

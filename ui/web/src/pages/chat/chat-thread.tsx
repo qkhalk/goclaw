@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Bot } from "lucide-react";
 import { MessageBubble } from "@/components/chat/message-bubble";
@@ -70,7 +70,7 @@ function buildDisplayItems(messages: ChatMessage[]): DisplayItem[] {
   return items;
 }
 
-export function ChatThread({
+export const ChatThread = memo(function ChatThread({
   messages, streamText, thinkingText, toolStream, blockReplies,
   activity, teamTasks, isRunning, loading, scrollTrigger = 0,
 }: ChatThreadProps) {
@@ -101,7 +101,15 @@ export function ChatThread({
   }
 
   return (
-    <div ref={ref} onScroll={onScroll} className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+    <div
+      ref={ref}
+      onScroll={onScroll}
+      className="flex-1 overflow-y-auto overscroll-contain px-4 py-4"
+      style={{
+        backgroundImage: "radial-gradient(circle, var(--color-border) 1px, transparent 1px)",
+        backgroundSize: "24px 24px",
+      }}
+    >
       <div className="mx-auto max-w-3xl space-y-3">
         {displayItems.map((item) => {
           switch (item.kind) {
@@ -127,7 +135,7 @@ export function ChatThread({
       </div>
     </div>
   );
-}
+});
 
 /** Renders multiple consecutive tool-only messages as a single compact card */
 function MergedToolGroup({ msgs }: { msgs: ChatMessage[] }) {
