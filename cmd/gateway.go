@@ -788,6 +788,9 @@ func runGateway() {
 		}
 	})
 
+	// Slow tool notification subscriber — direct outbound when tool exceeds adaptive threshold.
+	wireSlowToolNotifySubscriber(msgBus)
+
 	// Start inbound message consumer (channel → scheduler → agent → channel)
 	consumerTeamStore := pgStores.Teams
 
