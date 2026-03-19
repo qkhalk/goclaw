@@ -117,8 +117,8 @@ func runGateway() {
 		// Wire announce queue for batched subagent result delivery (matching TS debounce pattern)
 		announceQueue := tools.NewAnnounceQueue(1000, 20,
 			func(sessionKey string, items []tools.AnnounceQueueItem, meta tools.AnnounceMetadata) {
-				remainingActive := subagentMgr.CountRunningForParent(meta.ParentAgent)
-				content := tools.FormatBatchedAnnounce(items, remainingActive)
+				roster := subagentMgr.RosterForParent(meta.ParentAgent)
+				content := tools.FormatBatchedAnnounce(items, roster)
 				senderID := fmt.Sprintf("subagent:batch-%d", len(items))
 				label := items[0].Label
 				if len(items) > 1 {
@@ -152,9 +152,6 @@ func runGateway() {
 					Metadata: batchMeta,
 					Media:    batchMedia,
 				})
-			},
-			func(parentID string) int {
-				return subagentMgr.CountRunningForParent(parentID)
 			},
 		)
 		subagentMgr.SetAnnounceQueue(announceQueue)
