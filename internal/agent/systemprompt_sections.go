@@ -262,6 +262,18 @@ func buildChannelFormattingHint(channelType string) []string {
 	}
 }
 
+// buildGroupChatReplyHint returns guidance for group chats about not responding
+// to replies that are directed at other people, not the bot.
+func buildGroupChatReplyHint() []string {
+	return []string{
+		"## Reply Context",
+		"",
+		"A reply to your message does NOT always mean they are talking to you.",
+		"If someone replies to your message but the content addresses or @mentions another person and doesn't ask you anything, use NO_REPLY — it's not your conversation.",
+		"",
+	}
+}
+
 // personaFileNames are the context files that define agent identity/behavior.
 // These are injected early in the system prompt (primacy zone) and reinforced
 // at the end (recency zone) to prevent persona drift in long conversations.

@@ -250,6 +250,11 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 		lines = append(lines, hint...)
 	}
 
+	// 9.6. Group chat reply hint — remind bot to check reply content, not just reply context
+	if cfg.PeerKind == "group" {
+		lines = append(lines, buildGroupChatReplyHint()...)
+	}
+
 	// 10. Extra system prompt (wrapped in tags for context isolation)
 	if cfg.ExtraPrompt != "" {
 		header := "## Additional Context"
