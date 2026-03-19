@@ -25,6 +25,7 @@ var InternalChannels = map[string]bool{
 	"system":   true,
 	"subagent": true,
 	"browser":  true,
+	"ws":       true, // WebSocket — responses delivered via events/RPC, not outbound dispatch
 }
 
 // IsInternalChannel checks if a channel name is internal.
