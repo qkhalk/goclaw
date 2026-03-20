@@ -1333,11 +1333,46 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		finalContent += req.ContentSuffix
 	}
 
-	pendingMsgs = append(pendingMsgs, providers.Message{
+	// Collect forwarded media + dedup + populate sizes BEFORE saving to session,
+	// so we can attach output MediaRefs to the assistant message for history reload.
+	for _, mf := range req.ForwardMedia {
+		ct := mf.MimeType
+		if ct == "" {
+			ct = mimeFromExt(filepath.Ext(mf.Path))
+		}
+		mediaResults = append(mediaResults, MediaResult{Path: mf.Path, ContentType: ct})
+	}
+	mediaResults = deduplicateMedia(mediaResults)
+	for i := range mediaResults {
+		if mediaResults[i].Size == 0 {
+			if info, err := os.Stat(mediaResults[i].Path); err == nil {
+				mediaResults[i].Size = info.Size()
+			}
+		}
+	}
+
+	// Build final assistant message with output media refs for history persistence.
+	assistantMsg := providers.Message{
 		Role:     "assistant",
 		Content:  finalContent,
 		Thinking: finalThinking,
-	})
+	}
+	for _, mr := range mediaResults {
+		kind := "document"
+		if strings.HasPrefix(mr.ContentType, "image/") {
+			kind = "image"
+		} else if strings.HasPrefix(mr.ContentType, "audio/") {
+			kind = "audio"
+		} else if strings.HasPrefix(mr.ContentType, "video/") {
+			kind = "video"
+		}
+		assistantMsg.MediaRefs = append(assistantMsg.MediaRefs, providers.MediaRef{
+			ID:       filepath.Base(mr.Path),
+			MimeType: mr.ContentType,
+			Kind:     kind,
+		})
+	}
+	pendingMsgs = append(pendingMsgs, assistantMsg)
 
 	// Bootstrap nudge: if model didn't call write_file on turn 2+, inject reminder
 	// into session history so the next turn sees it. Appended to pendingMsgs so it's
@@ -1413,19 +1448,6 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 	// 5. Maybe summarize
 	l.maybeSummarize(ctx, req.SessionKey)
-
-	// Include forwarded media from delegation results (not cleaned up like req.Media)
-	for _, mf := range req.ForwardMedia {
-		ct := mf.MimeType
-		if ct == "" {
-			ct = mimeFromExt(filepath.Ext(mf.Path))
-		}
-		mediaResults = append(mediaResults, MediaResult{Path: mf.Path, ContentType: ct})
-	}
-
-	// Deduplicate media by path — prevents the same image being sent twice
-	// (e.g. once via ForwardMedia and again when the LLM reads the file).
-	mediaResults = deduplicateMedia(mediaResults)
 
 	return &RunResult{
 		Content:        finalContent,

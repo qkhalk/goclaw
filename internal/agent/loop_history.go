@@ -482,7 +482,7 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 	if l.compactionCfg != nil && l.compactionCfg.MaxHistoryShare > 0 {
 		historyShare = l.compactionCfg.MaxHistoryShare
 	}
-	minMessages := 50
+	minMessages := 200
 	if l.compactionCfg != nil && l.compactionCfg.MinMessages > 0 {
 		minMessages = l.compactionCfg.MinMessages
 	}
