@@ -272,6 +272,7 @@ export const BoardContainer = memo(function BoardContainer({
             isTeamV2={isTeamV2}
             groupBy={groupBy}
             emojiLookup={emojiLookup}
+            memberLookup={memberLookup}
             taskLookup={taskLookup}
             onTaskClick={handleTaskClick}
             onDeleteTask={deleteTask ? handleDeleteTask : undefined}
