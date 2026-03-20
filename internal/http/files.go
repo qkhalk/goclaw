@@ -106,7 +106,7 @@ func (h *FilesHandler) handleServe(w http.ResponseWriter, r *http.Request) {
 
 // findInWorkspace searches the workspace directory tree for a file by basename.
 // Returns the absolute path if found, empty string otherwise.
-// Only searches under "generated/" subdirectories to limit scope.
+// Searches team directories including generated/ and system/ subdirs.
 func (h *FilesHandler) findInWorkspace(basename string) string {
 	if h.workspace == "" || basename == "" {
 		return ""
@@ -117,16 +117,16 @@ func (h *FilesHandler) findInWorkspace(basename string) string {
 			return filepath.SkipDir
 		}
 		if d.IsDir() {
-			// Only descend into "generated" directories (and their parents).
 			name := d.Name()
-			if name == "generated" || name == "teams" || name == h.workspace {
+			// Allow workspace root + known directory structures
+			if name == "teams" || name == "generated" || name == "system" || path == h.workspace {
 				return nil
 			}
-			// Allow date directories under generated/ (e.g. 2026-03-20)
+			// Allow date directories (e.g. 2026-03-20)
 			if len(name) == 10 && name[4] == '-' {
 				return nil
 			}
-			// Allow team/user ID directories
+			// Allow team/user ID directories (UUIDs, numeric IDs)
 			if strings.Contains(name, "-") || isNumeric(name) {
 				return nil
 			}

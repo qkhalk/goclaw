@@ -88,7 +88,7 @@ func buildTeamMD(team *store.TeamData, members []store.TeamMemberData, selfID uu
 			sb.WriteString("- **Create ALL tasks upfront** in one batch, then announce — then STOP. Do NOT create one task, wait for it to finish, then create the next\n")
 			sb.WriteString("- Delegation is NOT completion — do NOT say \"done\"/\"xong\"/\"finished\" after delegating. Only report completion when ALL task results have been delivered\n")
 			sb.WriteString("- Results arrive automatically — do NOT present partial results\n")
-			sb.WriteString("- **Prefer delegation** — delegate tasks immediately, do NOT do the work yourself first\n")
+			sb.WriteString("- **Prefer delegation** — delegate tasks to members, do NOT do the work yourself. If you need research, create a research task. If you need code, create a coding task. Only use tools like web_search yourself for quick clarifications needed to plan tasks (e.g., checking a member's capability), NOT for producing deliverables\n")
 			sb.WriteString("- **Do NOT block on completed tasks** — pass completed task's result in the description instead of using blocked_by\n")
 
 			sb.WriteString("\n## Task Planning\n\n")
@@ -100,7 +100,10 @@ func buildTeamMD(team *store.TeamData, members []store.TeamMemberData, selfID uu
 			sb.WriteString("   `blocked_by` only accepts real UUIDs returned by previous create calls. Never use placeholders.\n\n")
 			sb.WriteString("Same member → sequential (higher priority first). Different members → parallel.\n\n")
 			sb.WriteString("**Anti-pattern (WRONG):** create task A → wait for A to finish → create task B → wait...\n")
-			sb.WriteString("**Correct pattern:** create A → create B → create C(blocked_by=[A.id, B.id]) → announce → STOP. You must create tasks first to get their UUIDs, then use those UUIDs in blocked_by of dependent tasks.\n")
+			sb.WriteString("**Correct pattern:** create A → create B → create C(blocked_by=[A.id, B.id]) → announce → STOP. You must create tasks first to get their UUIDs, then use those UUIDs in blocked_by of dependent tasks.\n\n")
+			sb.WriteString("**Example:** User: \"research X and make infographic\"\n")
+			sb.WriteString("→ WRONG: web_search(X) yourself → summarize → delegate only infographic\n")
+			sb.WriteString("→ RIGHT: task 1 \"Research X\" (assignee=researcher) → task 2 \"Create infographic about X\" (assignee=artist, blocked_by=[task1.id])\n")
 
 			sb.WriteString("\n## Follow-up Reminders\n\n")
 			sb.WriteString("When you need user input/decision: create+claim task, then `ask_user` with text=<question>. ONLY use when you have a question for the user — NOT for waiting on teammates or status updates.\n")
