@@ -63,15 +63,18 @@ function isFileLink(href: string | undefined): boolean {
   return false;
 }
 
-/** Convert a local file path to a /v1/files/ URL for serving */
+/** Convert a local file path to a /v1/files/ URL for serving.
+ *  For relative paths, uses just the filename so the backend fallback search
+ *  can find generated files regardless of the directory the LLM wrote. */
 function toFileUrl(href: string, token?: string): string {
   let url: string;
   if (href.startsWith("/v1/files/") || href.includes("/v1/files/")) {
     url = href;
   } else {
-    // For relative paths, strip leading ./ or ../ and route through /v1/files/
-    const cleaned = href.replace(/^\.\.?\//, "");
-    url = `/v1/files/${cleaned}`;
+    // For relative paths, use just the basename — the backend will search
+    // the workspace for the file by name (goclaw_gen_* names are unique).
+    const basename = href.split("/").pop() ?? href;
+    url = `/v1/files/${basename}`;
   }
   // Append auth token as query param (server accepts ?token= for file serving)
   if (token) {

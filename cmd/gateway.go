@@ -386,7 +386,7 @@ func runGateway() {
 
 	// Workspace file serving endpoint — serves files by absolute path, auth-token protected.
 	// Supports media from any agent workspace (each agent has its own workspace from DB).
-	server.SetFilesHandler(httpapi.NewFilesHandler(cfg.Gateway.Token))
+	server.SetFilesHandler(httpapi.NewFilesHandler(cfg.Gateway.Token, workspace))
 
 	// Storage file management — browse/delete files under the resolved workspace directory.
 	// Uses GOCLAW_WORKSPACE (or default ~/.goclaw/workspace) so it works correctly
