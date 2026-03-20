@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { useClipboard } from "@/hooks/use-clipboard";
+import { useAuthStore } from "@/stores/use-auth-store";
 import { Check, Copy, Download, FileText } from "lucide-react";
 import { ImageLightbox } from "./image-lightbox";
 import {
@@ -63,13 +64,21 @@ function isFileLink(href: string | undefined): boolean {
 }
 
 /** Convert a local file path to a /v1/files/ URL for serving */
-function toFileUrl(href: string): string {
-  if (href.startsWith("/v1/files/")) return href;
-  if (href.includes("/v1/files/")) return href;
-  // For relative paths, try resolving via /v1/files/ with the path
-  // Strip leading ./ or ../
-  const cleaned = href.replace(/^\.\.?\//, "");
-  return `/v1/files/${cleaned}`;
+function toFileUrl(href: string, token?: string): string {
+  let url: string;
+  if (href.startsWith("/v1/files/") || href.includes("/v1/files/")) {
+    url = href;
+  } else {
+    // For relative paths, strip leading ./ or ../ and route through /v1/files/
+    const cleaned = href.replace(/^\.\.?\//, "");
+    url = `/v1/files/${cleaned}`;
+  }
+  // Append auth token as query param (server accepts ?token= for file serving)
+  if (token) {
+    const sep = url.includes("?") ? "&" : "?";
+    url += `${sep}token=${encodeURIComponent(token)}`;
+  }
+  return url;
 }
 
 /** File type detection from name */
@@ -91,6 +100,7 @@ function fileNameFromHref(href: string): string {
 }
 
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+  const token = useAuthStore((s) => s.token);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const openLightbox = useCallback((src: string, alt: string) => setLightbox({ src, alt }), []);
   const [filePreview, setFilePreview] = useState<{ name: string; href: string; content: string; mediaType?: "image" | "audio" | "video" } | null>(null);
@@ -103,10 +113,13 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
       setFilePreview({ name, href, content: "", mediaType: media });
       return;
     }
-    // Text/code files: fetch content
+    // Text/code files: fetch content (href already includes ?token= from toFileUrl)
     setFileLoading(true);
     fetch(href)
-      .then((res) => res.text())
+      .then((res) => {
+        if (!res.ok) throw new Error(res.statusText);
+        return res.text();
+      })
       .then((text) => setFilePreview({ name, href, content: text }))
       .catch(() => window.open(href, "_blank"))
       .finally(() => setFileLoading(false));
@@ -139,8 +152,8 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           },
           a({ href, children }) {
             if (isFileLink(href)) {
-              const resolvedHref = toFileUrl(href!);
-              const name = typeof children === "string" ? children : fileNameFromHref(resolvedHref);
+              const resolvedHref = toFileUrl(href!, token);
+              const name = typeof children === "string" ? children : fileNameFromHref(href!);
               return (
                 <span className="inline-flex items-center gap-0.5 rounded border bg-muted/50 text-[0.85em] font-medium">
                   <button
