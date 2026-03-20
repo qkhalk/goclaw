@@ -63,7 +63,7 @@ export function ActiveRunZone({
           </div>
         )}
 
-        {isRunning && (
+        {(isRunning || activity?.phase === "leader_processing") && (
           <ActivityIndicator activity={activity} isRunning={isRunning} />
         )}
       </div>

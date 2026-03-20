@@ -143,6 +143,16 @@ func runGateway() {
 				for _, item := range items {
 					batchMedia = append(batchMedia, item.Media...)
 				}
+				// Notify clients that leader is processing team results
+				// (bridges UI gap between last task.completed and announce run.started).
+				msgBus.Broadcast(bus.Event{
+					Name: protocol.EventTeamLeaderProcessing,
+					Payload: map[string]any{
+						"agentId": meta.ParentAgent,
+						"tasks":   len(items),
+					},
+				})
+
 				msgBus.PublishInbound(bus.InboundMessage{
 					Channel:  "system",
 					SenderID: senderID,

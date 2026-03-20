@@ -4,7 +4,7 @@ import type { Message } from "./session";
 
 /** Activity phase tracking during agent run */
 export interface RunActivity {
-  phase: "thinking" | "tool_exec" | "streaming" | "compacting" | "retrying";
+  phase: "thinking" | "tool_exec" | "streaming" | "compacting" | "retrying" | "leader_processing";
   tool?: string;
   tools?: string[];
   iteration?: number;

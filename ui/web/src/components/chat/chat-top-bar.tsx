@@ -19,6 +19,7 @@ const phaseLabels: Record<RunActivity["phase"], string> = {
   streaming: "Responding…",
   compacting: "Compacting…",
   retrying: "Retrying…",
+  leader_processing: "Processing team results…",
 };
 
 export function ChatTopBar({ agentId, isRunning, isBusy, activity, teamTasks }: ChatTopBarProps) {

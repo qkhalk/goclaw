@@ -433,14 +433,24 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   useWsEvent(Events.TEAM_TASK_PROGRESS, onTaskProgress);
   useWsEvent(Events.TEAM_TASK_ASSIGNED, onTaskAssigned);
 
+  // Leader processing: backend emits when announce queue drains (before announce run starts).
+  const handleLeaderProcessing = useCallback((payload: unknown) => {
+    const event = payload as { agentId?: string; tasks?: number };
+    if (event?.agentId === agentIdRef.current) {
+      activityRef.current = { phase: "leader_processing" };
+      setActivity(activityRef.current);
+    }
+  }, []);
+  useWsEvent(Events.TEAM_LEADER_PROCESSING, handleLeaderProcessing);
+
   // Add a local message optimistically (shown immediately, replaced on next loadHistory)
   const addLocalMessage = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg]);
   }, []);
 
-  // isBusy: true when main agent is running OR team tasks are active.
-  // Used for stop button visibility, top bar status, empty state check.
-  const isBusy = isRunning || teamTasks.length > 0;
+  // isBusy: true when main agent is running, team tasks are active,
+  // or leader is processing team results before announce run starts.
+  const isBusy = isRunning || teamTasks.length > 0 || activity?.phase === "leader_processing";
 
   return {
     messages,
