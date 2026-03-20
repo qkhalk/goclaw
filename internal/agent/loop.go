@@ -396,6 +396,8 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 	// 2g. Cross-session task reminder: notify team leads about pending and in-progress tasks.
 	// Stale recovery (expired lock → pending) is handled by the background TaskTicker.
+	// Reminders are injected BEFORE the user message so the user's actual message is always
+	// the last message — prevents trailing assistant messages that proxy providers reject.
 	if l.teamStore != nil && l.agentUUID != uuid.Nil {
 		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil && team.LeadAgentID == l.agentUUID {
 			if tasks, err := l.teamStore.ListTasks(ctx, team.ID, "newest", "active", req.UserID, "", "", 0, 0); err == nil {
@@ -434,16 +436,20 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				}
 				if len(parts) > 0 {
 					reminder := "[System] " + strings.Join(parts, "\n\n")
+					// Pop user message, inject reminder, push user message back
+					userMsg := messages[len(messages)-1]
+					messages = messages[:len(messages)-1]
 					messages = append(messages,
 						providers.Message{Role: "user", Content: reminder},
 						providers.Message{Role: "assistant", Content: "I see the task status. Let me handle accordingly."},
+						userMsg,
 					)
 				}
 			}
 		}
 	}
 
-	// 2g. Member task reminder: inject task context for members working on dispatched tasks.
+	// 2h. Member task reminder: inject task context for members working on dispatched tasks.
 	// Caches task subject/number for mid-loop progress nudge (avoids extra DB query).
 	var memberTaskSubject string
 	var memberTaskNumber int
@@ -457,9 +463,13 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 						"Stay focused on this task. Your final response becomes the task result — make it clear and complete. "+
 						"For long tasks, report progress: team_tasks(action=\"progress\", percent=50, text=\"status\").",
 					task.TaskNumber, task.Subject)
+				// Pop user message, inject reminder, push user message back
+				userMsg := messages[len(messages)-1]
+				messages = messages[:len(messages)-1]
 				messages = append(messages,
 					providers.Message{Role: "user", Content: reminder},
 					providers.Message{Role: "assistant", Content: "Understood. I'll focus on this task and report progress."},
+					userMsg,
 				)
 			}
 		}
