@@ -29,90 +29,70 @@ func (t *CronTool) Name() string { return "cron" }
 
 func (t *CronTool) Description() string {
 	return `Manage Gateway cron jobs.
-	Always send a JSON object with an "action" field.
+Always send a JSON object with an "action" field.
 
-	VALID ACTIONS AND EXACT PAYLOAD SHAPES:
-	1) status
-	{
-	"action": "status"
-	}
+VALID ACTIONS AND EXACT PAYLOAD SHAPES:
+1) status
+{ "action": "status" }
 
-	2) list
-	{
-	"action": "list",
-	"includeDisabled": true|false   // optional, default false
-	}
+2) list
+{ "action": "list", "includeDisabled": true|false }
 
-	3) add
-	{
-	"action": "add",
-	"job": {
-		"name": "string",             // required, lowercase slug: [a-z0-9-]+
-		"schedule": { ... },          // required
-		"message": "string",          // required
-		"deliver": true|false,        // optional, default false
-		"channel": "string",          // optional
-		"to": "string",               // optional
-		"agentId": "string",          // optional, defaults to current agent
-		"deleteAfterRun": true|false  // optional, default true for schedule.kind="at"
-	}
-	}
+3) add
+{
+  "action": "add",
+  "job": {
+    "name": "string",             // required, lowercase slug: [a-z0-9-]+
+    "schedule": { ... },          // required
+    "message": "string",          // required
+    "deliver": true|false,        // optional, default false
+    "channel": "string",          // optional, auto-filled from current channel context
+    "to": "string",               // optional
+    "agentId": "string",          // optional, defaults to current agent
+    "deleteAfterRun": true|false  // optional, default true for schedule.kind="at"
+  }
+}
 
-	4) update
-	{
-	"action": "update",
-	"jobId": "string",              // required
-	"patch": {
-		"name": "string",             // optional
-		"schedule": { ... },          // optional
-		"message": "string",          // optional
-		"deliver": true|false,        // optional
-		"channel": "string",          // optional
-		"to": "string",               // optional
-		"agentId": "string",          // optional
-		"deleteAfterRun": true|false, // optional
-		"disabled": true|false        // optional
-	}
-	}
+4) update
+{
+  "action": "update",
+  "jobId": "string",
+  "patch": {
+    "name": "string",
+    "schedule": { ... },
+    "message": "string",
+    "deliver": true|false,
+    "channel": "string",
+    "to": "string",
+    "agentId": "string",
+    "deleteAfterRun": true|false,
+    "disabled": true|false
+  }
+}
 
-	5) remove
-	{
-	"action": "remove",
-	"jobId": "string"
-	}
+5) remove
+{ "action": "remove", "jobId": "string" }
 
-	6) run
-	{
-	"action": "run",
-	"jobId": "string"
-	}
+6) run
+{ "action": "run", "jobId": "string" }
 
-	7) runs
-	{
-	"action": "runs",
-	"jobId": "string"
-	}
+7) runs
+{ "action": "runs", "jobId": "string" }
 
-	SCHEDULE SCHEMA:
+SCHEDULE SCHEMA:
+- at: { "kind": "at", "atMs": <unix-milliseconds> }
+- every: { "kind": "every", "everyMs": <interval-ms> }
+- cron: { "kind": "cron", "expr": "<5-field cron>", "tz": "<IANA timezone, e.g. Asia/Ho_Chi_Minh; omit for gateway default>" }
 
-	- at:
-	{ "kind": "at", "atMs": <unix-milliseconds> }
-
-	- every:
-	{ "kind": "every", "everyMs": <interval-ms> }
-
-	- cron:
-	{ "kind": "cron", "expr": "<5-field cron expression>", "tz": "<optional IANA timezone>" }
-
-	RULES:
-	- For action="add", send the job inside "job". Do not place job fields at the root level.
-	- For action="update", send changes inside "patch". Do not place patch fields at the root level.
-	- Always use "jobId". Do not use "id" unless explicitly required by older compatibility code.
-	- "name", "schedule", and "message" are required for add.
-	- "name" must match: lowercase letters, numbers, hyphens only.
-	- Before creating or updating a scheduled job, call the datetime tool first to get the precise current time and unix_ms timestamp. Never guess timestamps.
-	- Omit optional fields when unknown; do not invent placeholder values like "", 0, or null unless required.
-	- Jobs run as isolated agent turns using the provided "message".`
+RULES:
+- For action="add", send the job inside "job". Do not place job fields at the root level.
+- For action="update", send changes inside "patch". Do not place patch fields at the root level.
+- Always use "jobId". Do not use "id".
+- "name", "schedule", and "message" are required for add.
+- "name" must match: lowercase letters, numbers, hyphens only.
+- Before creating or updating a scheduled job, call the datetime tool first to get the precise current time and unix_ms timestamp. Never guess timestamps.
+- Omit optional fields when unknown; do not invent placeholder values like "", 0, or null unless required.
+- Jobs run as isolated agent turns using the provided "message".`
 }
 
 func (t *CronTool) Parameters() map[string]any {
