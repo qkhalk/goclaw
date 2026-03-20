@@ -50,9 +50,26 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
-/** Check if a URL points to a local file via /v1/files/ endpoint */
+/** Common file extensions for generated/local files */
+const LOCAL_FILE_EXT_RE = /\.(png|jpg|jpeg|gif|webp|svg|bmp|mp3|wav|ogg|flac|aac|m4a|mp4|webm|mkv|avi|mov|pdf|doc|docx|xls|xlsx|csv|txt|md|json|zip)$/i;
+
+/** Check if a URL points to a local file (via /v1/files/ or relative path) */
 function isFileLink(href: string | undefined): boolean {
-  return !!href && (href.startsWith("/v1/files/") || href.includes("/v1/files/"));
+  if (!href) return false;
+  if (href.startsWith("/v1/files/") || href.includes("/v1/files/")) return true;
+  // Detect relative paths with file extensions (e.g. ./system/generated/file.png)
+  if ((href.startsWith("./") || href.startsWith("../")) && LOCAL_FILE_EXT_RE.test(href)) return true;
+  return false;
+}
+
+/** Convert a local file path to a /v1/files/ URL for serving */
+function toFileUrl(href: string): string {
+  if (href.startsWith("/v1/files/")) return href;
+  if (href.includes("/v1/files/")) return href;
+  // For relative paths, try resolving via /v1/files/ with the path
+  // Strip leading ./ or ../
+  const cleaned = href.replace(/^\.\.?\//, "");
+  return `/v1/files/${cleaned}`;
 }
 
 /** File type detection from name */
@@ -122,19 +139,20 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           },
           a({ href, children }) {
             if (isFileLink(href)) {
-              const name = typeof children === "string" ? children : fileNameFromHref(href ?? "");
+              const resolvedHref = toFileUrl(href!);
+              const name = typeof children === "string" ? children : fileNameFromHref(resolvedHref);
               return (
                 <span className="inline-flex items-center gap-0.5 rounded border bg-muted/50 text-[0.85em] font-medium">
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 px-1.5 py-0.5 text-primary hover:bg-muted cursor-pointer rounded-l"
-                    onClick={(e) => { e.preventDefault(); handleFileClick(href!, name); }}
+                    onClick={(e) => { e.preventDefault(); handleFileClick(resolvedHref, name); }}
                   >
                     <FileText className="h-3.5 w-3.5" />
                     {children}
                   </button>
                   <a
-                    href={href}
+                    href={resolvedHref}
                     download={name}
                     className="inline-flex items-center px-1 py-0.5 text-muted-foreground hover:bg-muted cursor-pointer rounded-r border-l"
                     onClick={(e) => e.stopPropagation()}

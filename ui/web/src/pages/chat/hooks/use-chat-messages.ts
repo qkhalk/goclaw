@@ -411,12 +411,17 @@ export function useChatMessages(sessionKey: string, agentId: string) {
     setMessages((prev) => [...prev, msg]);
   }, []);
 
+  // isBusy: true when main agent is running OR team tasks are active.
+  // Used for stop button visibility, top bar status, empty state check.
+  const isBusy = isRunning || teamTasks.length > 0;
+
   return {
     messages,
     streamText,
     thinkingText,
     toolStream,
     isRunning,
+    isBusy,
     loading,
     activity,
     blockReplies,
