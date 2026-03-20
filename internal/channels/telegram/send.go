@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegoapi"
 	tu "github.com/mymmrac/telego/telegoutil"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
@@ -38,31 +40,39 @@ func stripHTML(s string) string {
 	return html.UnescapeString(htmlTagRe.ReplaceAllString(s, ""))
 }
 
-// isRetryableNetworkErr checks if a Telegram API error is a transient network error worth retrying.
-// Includes post-connect network stalls and 5xx server errors.
+// isRetryableNetworkErr checks if a Telegram API error is a transient network/server error
+// worth retrying. Covers transport-level failures and Telegram 5xx server errors.
 func isRetryableNetworkErr(err error) bool {
 	if err == nil {
 		return false
 	}
+	// Check for Telegram API 5xx errors via typed error.
+	var apiErr *telegoapi.Error
+	if errors.As(err, &apiErr) && apiErr.ErrorCode >= 500 {
+		return true
+	}
+	// Transport-level errors (timeout, reset, DNS, etc.)
 	s := err.Error()
 	return strings.Contains(s, "timeout") ||
 		strings.Contains(s, "connection reset") ||
 		strings.Contains(s, "broken pipe") ||
 		strings.Contains(s, "EOF") ||
-		strings.Contains(s, "lookup") || // DNS resolution failure
-		strings.Contains(s, "502") ||    // Bad Gateway
-		strings.Contains(s, "503") ||    // Service Unavailable
-		strings.Contains(s, "504")       // Gateway Timeout
+		strings.Contains(s, "lookup") // DNS resolution failure
 }
 
-// isPostConnectNetworkErr check if the error likely occurred AFTER reaching the server
-// (timeout, connection reset, EOF) vs before (DNS lookup failure).
+// isPostConnectNetworkErr checks if the error likely occurred AFTER reaching the server
+// (timeout, connection reset, EOF) vs before (DNS lookup failure, connection refused).
+// Used to decide if a request may have landed despite the error.
 func isPostConnectNetworkErr(err error) bool {
 	if err == nil {
 		return false
 	}
+	// Telegram 5xx means the server received the request.
+	var apiErr *telegoapi.Error
+	if errors.As(err, &apiErr) && apiErr.ErrorCode >= 500 {
+		return true
+	}
 	s := err.Error()
-	// Exclude "lookup" (DNS) and "connection refused" as they are safe pre-connect errors.
 	return (strings.Contains(s, "timeout") ||
 		strings.Contains(s, "connection reset") ||
 		strings.Contains(s, "broken pipe") ||
