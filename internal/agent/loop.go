@@ -584,6 +584,21 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			messages = append(messages, providers.Message{Role: "user", Content: nudge})
 		}
 
+		// Iteration budget nudge: when model has used 75% of iterations without
+		// producing any text response, warn it to start summarizing.
+		if maxIter > 0 && iteration > 1 && iteration == maxIter*3/4 && finalContent == "" {
+			messages = append(messages, providers.Message{
+				Role:    "user",
+				Content: "[System] You have used 75% of your iteration budget without providing a text response. Start summarizing your findings and respond to the user within the next few iterations.",
+			})
+		}
+
+		// Inject iteration progress into context so tools can adapt (e.g. web_fetch reduces maxChars).
+		iterCtx := tools.WithIterationProgress(ctx, tools.IterationProgress{
+			Current: iteration,
+			Max:     maxIter,
+		})
+
 		// Emit activity event: thinking phase
 		emitRun(AgentEvent{
 			Type:    protocol.AgentEventActivity,
@@ -643,6 +658,16 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				filtered = append(filtered, td)
 			}
 			toolDefs = filtered
+		}
+
+		// Final iteration: strip all tools to force a text-only response.
+		// Without this the model may keep requesting tools and exit with "...".
+		if iteration == maxIter {
+			toolDefs = nil
+			messages = append(messages, providers.Message{
+				Role:    "user",
+				Content: "[System] Final iteration reached. Summarize all findings and respond to the user now. No more tool calls allowed.",
+			})
 		}
 
 		// Use per-request model override if set (e.g. heartbeat uses cheaper model).
@@ -924,7 +949,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				}
 			}
 			if result == nil {
-				result = l.tools.ExecuteWithContext(ctx, registryName, tc.Arguments, req.Channel, req.ChatID, req.PeerKind, req.SessionKey, nil)
+				result = l.tools.ExecuteWithContext(iterCtx, registryName, tc.Arguments, req.Channel, req.ChatID, req.PeerKind, req.SessionKey, nil)
 			}
 			stopSlowTimer()
 
@@ -1100,7 +1125,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 						}
 					}
 					if result == nil {
-						result = l.tools.ExecuteWithContext(ctx, registryName, tc.Arguments, req.Channel, req.ChatID, req.PeerKind, req.SessionKey, nil)
+						result = l.tools.ExecuteWithContext(iterCtx, registryName, tc.Arguments, req.Channel, req.ChatID, req.PeerKind, req.SessionKey, nil)
 					}
 					stopSlowTimer()
 					l.emitToolSpanEnd(ctx, spanID, spanStart, result)

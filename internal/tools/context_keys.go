@@ -412,6 +412,26 @@ func RunMediaNamesFromCtx(ctx context.Context) map[string]string {
 	return v
 }
 
+// --- Iteration progress (loop → tools) ---
+
+const ctxIterProgress toolContextKey = "tool_iter_progress"
+
+// IterationProgress carries the agent loop's current iteration state
+// so tools can adapt behaviour (e.g. reduce output size) as the budget shrinks.
+type IterationProgress struct {
+	Current int
+	Max     int
+}
+
+func WithIterationProgress(ctx context.Context, p IterationProgress) context.Context {
+	return context.WithValue(ctx, ctxIterProgress, p)
+}
+
+func IterationProgressFromCtx(ctx context.Context) (IterationProgress, bool) {
+	v, ok := ctx.Value(ctxIterProgress).(IterationProgress)
+	return v, ok
+}
+
 // --- Per-agent sandbox config override ---
 
 const ctxSandboxCfg toolContextKey = "tool_sandbox_config"
