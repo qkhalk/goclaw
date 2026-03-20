@@ -147,9 +147,7 @@
     "contextWindow": "Cửa sổ ngữ cảnh",
     "contextWindowHint": "Giới hạn token cho ngữ cảnh model.",
     "maxToolIterations": "Số lần lặp công cụ tối đa",
-    "maxToolIterationsHint": "Số lần gọi công cụ tối đa mỗi yêu cầu.",
-    "stripAssistantPrefill": "Loại bỏ Assistant Prefill",
-    "stripAssistantPrefillHint": "Loại bỏ tin nhắn assistant ở cuối trước khi gửi đến LLM (dùng cho proxy provider)"
+    "maxToolIterationsHint": "Số lần gọi công cụ tối đa mỗi yêu cầu."
   },
   "workspace": {
     "title": "Workspace",

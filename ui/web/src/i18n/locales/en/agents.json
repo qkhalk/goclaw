@@ -147,9 +147,7 @@
     "contextWindow": "Context Window",
     "contextWindowHint": "Token limit for the model context.",
     "maxToolIterations": "Max Tool Iterations",
-    "maxToolIterationsHint": "Max tool calls per request.",
-    "stripAssistantPrefill": "Strip Assistant Prefill",
-    "stripAssistantPrefillHint": "Remove trailing assistant messages before LLM call (for proxy providers)"
+    "maxToolIterationsHint": "Max tool calls per request."
   },
   "workspace": {
     "title": "Workspace",

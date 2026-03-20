@@ -147,9 +147,7 @@
     "contextWindow": "上下文窗口",
     "contextWindowHint": "模型上下文的令牌限制。",
     "maxToolIterations": "最大工具迭代次数",
-    "maxToolIterationsHint": "每次请求最大工具调用次数。",
-    "stripAssistantPrefill": "移除 Assistant Prefill",
-    "stripAssistantPrefillHint": "发送到 LLM 前移除末尾的 assistant 消息（适用于代理提供商）"
+    "maxToolIterationsHint": "每次请求最大工具调用次数。"
   },
   "workspace": {
     "title": "工作区",

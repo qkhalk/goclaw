@@ -646,14 +646,13 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		}
 
 		// Use per-request model override if set (e.g. heartbeat uses cheaper model).
-		chatMessages := messages
 		model := l.model
 		if req.ModelOverride != "" {
 			model = req.ModelOverride
 		}
 
 		chatReq := providers.ChatRequest{
-			Messages: chatMessages,
+			Messages: messages,
 			Tools:    toolDefs,
 			Model:    model,
 			Options: map[string]any{
@@ -899,10 +898,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			argsJSON, _ := json.Marshal(tc.Arguments)
 			slog.Info("tool call", "agent", l.id, "tool", tc.Name, "args_len", len(argsJSON))
 
-			argsHash := loopDetector.record(tc.Name, tc.Arguments)
+			registryName := l.resolveToolCallName(tc.Name)
+			argsHash := loopDetector.record(registryName, tc.Arguments)
 
 			toolSpanStart := time.Now().UTC()
-			registryName := l.resolveToolCallName(tc.Name)
 			toolSpanID := l.emitToolSpanStart(ctx, toolSpanStart, tc.Name, tc.ID, string(argsJSON))
 
 			stopSlowTimer := toolTiming.StartSlowTimer(tc.Name, l.id, req.RunID, slowToolEnabled, emitRun)
@@ -936,7 +935,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 			// Record result for loop detection.
 			loopDetector.recordResult(argsHash, result.ForLLM)
-			loopDetector.recordMutation(tc.Name)
+			loopDetector.recordMutation(registryName)
 
 			if result.Async {
 				asyncToolCalls = append(asyncToolCalls, tc.Name)
@@ -956,7 +955,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					teamTaskSpawns++
 				}
 			}
-			if hadBootstrap && bootstrapToolAllowlist[tc.Name] {
+			if hadBootstrap && bootstrapToolAllowlist[registryName] {
 				bootstrapWriteDetected = true
 			}
 
@@ -1006,14 +1005,14 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			pendingMsgs = append(pendingMsgs, toolMsg)
 
 			// Check for tool call loop after recording result.
-			if level, msg := loopDetector.detect(tc.Name, argsHash); level != "" {
+			if level, msg := loopDetector.detect(registryName, argsHash); level != "" {
 				if level == "critical" {
-					slog.Warn("tool loop critical", "agent", l.id, "tool", tc.Name, "message", msg)
-					finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + tc.Name + " without making progress. Please try rephrasing your request."
+					slog.Warn("tool loop critical", "agent", l.id, "tool", registryName, "message", msg)
+					finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + registryName + " without making progress. Please try rephrasing your request."
 					break
 				}
 				// Warning: inject message so model knows to change strategy.
-				slog.Warn("tool loop warning", "agent", l.id, "tool", tc.Name, "message", msg)
+				slog.Warn("tool loop warning", "agent", l.id, "tool", registryName, "message", msg)
 				messages = append(messages, providers.Message{Role: "user", Content: msg})
 			}
 
@@ -1032,10 +1031,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 			// Check for same tool returning identical results with different args.
 			if rh := hashResult(result.ForLLM); rh != "" {
-				if level, msg := loopDetector.detectSameResult(tc.Name, rh); level != "" {
+				if level, msg := loopDetector.detectSameResult(registryName, rh); level != "" {
 					if level == "critical" {
 						slog.Warn("tool loop critical: same result",
-							"tool", tc.Name, "agent", l.id, "run", req.RunID)
+							"tool", registryName, "agent", l.id, "run", req.RunID)
 						finalContent = msg
 						break
 					}
@@ -1047,11 +1046,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			// Tool instances are immutable (context-based) so concurrent access is safe.
 			// Results are collected then processed sequentially for deterministic ordering.
 			type indexedResult struct {
-				idx       int
-				tc        providers.ToolCall
-				result    *tools.Result
-				argsJSON  string
-				spanStart time.Time
+				idx          int
+				tc           providers.ToolCall
+				registryName string
+				result       *tools.Result
+				argsJSON     string
+				spanStart    time.Time
 			}
 
 			// 1. Emit all tool.call events upfront (client sees all calls starting)
@@ -1104,7 +1104,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					}
 					stopSlowTimer()
 					l.emitToolSpanEnd(ctx, spanID, spanStart, result)
-					resultCh <- indexedResult{idx: idx, tc: tc, result: result, argsJSON: string(argsJSON), spanStart: spanStart}
+					resultCh <- indexedResult{idx: idx, tc: tc, registryName: registryName, result: result, argsJSON: string(argsJSON), spanStart: spanStart}
 				}(i, tc)
 			}
 
@@ -1130,9 +1130,9 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				toolTiming.Record(r.tc.Name, time.Since(r.spanStart).Milliseconds())
 
 				// Record for loop detection.
-				argsHash := loopDetector.record(r.tc.Name, r.tc.Arguments)
+				argsHash := loopDetector.record(r.registryName, r.tc.Arguments)
 				loopDetector.recordResult(argsHash, r.result.ForLLM)
-				loopDetector.recordMutation(r.tc.Name)
+				loopDetector.recordMutation(r.registryName)
 
 				if r.result.Async {
 					asyncToolCalls = append(asyncToolCalls, r.tc.Name)
@@ -1147,12 +1147,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				}
 
 				// Count successful spawn calls for orphan detection (post-execution).
-				if l.resolveToolCallName(r.tc.Name) == "spawn" && !r.result.IsError {
+				if r.registryName == "spawn" && !r.result.IsError {
 					if tid, _ := r.tc.Arguments["team_task_id"].(string); tid != "" {
 						teamTaskSpawns++
 					}
 				}
-				if hadBootstrap && bootstrapToolAllowlist[r.tc.Name] {
+				if hadBootstrap && bootstrapToolAllowlist[r.registryName] {
 					bootstrapWriteDetected = true
 				}
 
@@ -1202,23 +1202,23 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				pendingMsgs = append(pendingMsgs, toolMsg)
 
 				// Check for tool call loop.
-				if level, msg := loopDetector.detect(r.tc.Name, argsHash); level != "" {
+				if level, msg := loopDetector.detect(r.registryName, argsHash); level != "" {
 					if level == "critical" {
-						slog.Warn("tool loop critical", "agent", l.id, "tool", r.tc.Name, "message", msg)
-						finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + r.tc.Name + " without making progress. Please try rephrasing your request."
+						slog.Warn("tool loop critical", "agent", l.id, "tool", r.registryName, "message", msg)
+						finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + r.registryName + " without making progress. Please try rephrasing your request."
 						loopStuck = true
 						break
 					}
-					slog.Warn("tool loop warning", "agent", l.id, "tool", r.tc.Name, "message", msg)
+					slog.Warn("tool loop warning", "agent", l.id, "tool", r.registryName, "message", msg)
 					messages = append(messages, providers.Message{Role: "user", Content: msg})
 				}
 
 				// Check for same tool returning identical results with different args.
 				if rh := hashResult(r.result.ForLLM); rh != "" {
-					if level, msg := loopDetector.detectSameResult(r.tc.Name, rh); level != "" {
+					if level, msg := loopDetector.detectSameResult(r.registryName, rh); level != "" {
 						if level == "critical" {
 							slog.Warn("tool loop critical: same result",
-								"tool", r.tc.Name, "agent", l.id, "run", req.RunID)
+								"tool", r.registryName, "agent", l.id, "run", req.RunID)
 							finalContent = msg
 							loopStuck = true
 							break

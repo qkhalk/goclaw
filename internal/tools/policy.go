@@ -423,7 +423,7 @@ func StripToolPrefix(tmpl, name string) string {
 	if stripped == name {
 		return name // prefix didn't match
 	}
-	stripped = strings.TrimLeft(stripped, "_")
+	stripped = strings.TrimPrefix(stripped, "_")
 	if stripped == "" {
 		return name // nothing left after stripping
 	}

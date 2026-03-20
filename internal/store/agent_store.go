@@ -3,10 +3,26 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 )
+
+// sanitizeToolCallPrefix strips characters not in [a-z0-9_{}] from the prefix.
+// This matches the UI-side regex and prevents injection via direct API calls.
+func sanitizeToolCallPrefix(s string) string {
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '{' || r == '}' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
 
 // Agent type constants.
 const (
@@ -73,6 +89,8 @@ func (a *AgentData) ParseToolsConfig() *config.ToolPolicySpec {
 			}
 		}
 	}
+	// Sanitize: only allow [a-z0-9_{}] to prevent injection via API bypass.
+	c.ToolCallPrefix = sanitizeToolCallPrefix(c.ToolCallPrefix)
 	return &c
 }
 
@@ -164,21 +182,6 @@ func (a *AgentData) ParseMaxTokens() int {
 		return 0
 	}
 	return cfg.MaxTokens
-}
-
-// ParseStripAssistantPrefill extracts strip_assistant_prefill from other_config JSONB.
-// When true, trailing assistant messages are removed before sending to LLM (for proxy providers).
-func (a *AgentData) ParseStripAssistantPrefill() bool {
-	if len(a.OtherConfig) == 0 {
-		return false
-	}
-	var cfg struct {
-		StripAssistantPrefill bool `json:"strip_assistant_prefill"`
-	}
-	if json.Unmarshal(a.OtherConfig, &cfg) != nil {
-		return false
-	}
-	return cfg.StripAssistantPrefill
 }
 
 // ParseSelfEvolve extracts self_evolve from other_config JSONB.
