@@ -66,7 +66,7 @@ func (l *Loop) shouldShareMemory() bool {
 }
 
 // shouldShareKnowledgeGraph returns true if knowledge graph should be shared
-// across all users (query by team_id instead of per-user scoping).
+// across all users of the agent (agent-level, no per-user scoping).
 func (l *Loop) shouldShareKnowledgeGraph() bool {
 	return l.workspaceSharing != nil && l.workspaceSharing.ShareKnowledgeGraph
 }
