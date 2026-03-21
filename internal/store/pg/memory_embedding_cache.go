@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 // embeddingCacheEntry holds data for a single cache row.
@@ -24,10 +22,21 @@ func (s *PGMemoryStore) lookupEmbeddingCache(ctx context.Context, hashes []strin
 		return nil, nil
 	}
 
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT hash, embedding FROM embedding_cache WHERE hash = ANY($1) AND provider = $2 AND model = $3`,
-		pq.Array(hashes), provider, model,
+	// Build positional params: $1..$N for hashes, $N+1 for provider, $N+2 for model
+	placeholders := make([]string, len(hashes))
+	args := make([]any, 0, len(hashes)+2)
+	for i, h := range hashes {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args = append(args, h)
+	}
+	args = append(args, provider, model)
+
+	query := fmt.Sprintf(
+		"SELECT hash, embedding FROM embedding_cache WHERE hash IN (%s) AND provider = $%d AND model = $%d",
+		strings.Join(placeholders, ","), len(hashes)+1, len(hashes)+2,
 	)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("lookup embedding cache: %w", err)
 	}
@@ -51,24 +60,47 @@ func (s *PGMemoryStore) lookupEmbeddingCache(ctx context.Context, hashes []strin
 }
 
 // writeEmbeddingCache batch-upserts embedding cache entries.
+// Gracefully skips on dimension mismatch (schema uses vector(1536)).
 func (s *PGMemoryStore) writeEmbeddingCache(ctx context.Context, entries []embeddingCacheEntry, provider, model string) error {
 	if len(entries) == 0 {
 		return nil
 	}
 
 	now := time.Now()
-	for _, e := range entries {
-		dims := len(e.Embedding)
-		vecStr := vectorToString(e.Embedding)
-		_, err := s.db.ExecContext(ctx,
-			`INSERT INTO embedding_cache (hash, provider, model, embedding, dims, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4::vector, $5, $6, $6)
-			 ON CONFLICT (hash, provider, model)
-			 DO UPDATE SET embedding = EXCLUDED.embedding, dims = EXCLUDED.dims, updated_at = EXCLUDED.updated_at`,
-			e.Hash, provider, model, vecStr, dims, now,
-		)
+
+	// Process in batches of 100 to avoid exceeding max query params
+	const batchSize = 100
+	for start := 0; start < len(entries); start += batchSize {
+		end := start + batchSize
+		if end > len(entries) {
+			end = len(entries)
+		}
+		batch := entries[start:end]
+
+		var sb strings.Builder
+		sb.WriteString(`INSERT INTO embedding_cache (hash, provider, model, embedding, dims, created_at, updated_at) VALUES `)
+		args := make([]any, 0, len(batch)*6)
+		for i, e := range batch {
+			if i > 0 {
+				sb.WriteByte(',')
+			}
+			base := i * 6
+			fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d::vector,$%d,$%d,$%d)",
+				base+1, base+2, base+3, base+4, base+5, base+6, base+6)
+			args = append(args, e.Hash, provider, model, vectorToString(e.Embedding), len(e.Embedding), now)
+		}
+		sb.WriteString(` ON CONFLICT (hash, provider, model) DO UPDATE SET embedding = EXCLUDED.embedding, dims = EXCLUDED.dims, updated_at = EXCLUDED.updated_at`)
+
+		_, err := s.db.ExecContext(ctx, sb.String(), args...)
 		if err != nil {
-			return fmt.Errorf("write embedding cache hash=%s: %w", e.Hash, err)
+			// pgvector dimension mismatch — skip cache gracefully
+			if strings.Contains(err.Error(), "dimensions") {
+				slog.Warn("embedding cache skipped: vector dimension mismatch",
+					"provider", provider, "model", model,
+					"actual_dims", len(batch[0].Embedding), "error", err)
+				return nil
+			}
+			return fmt.Errorf("batch write embedding cache: %w", err)
 		}
 	}
 	return nil
@@ -80,9 +112,11 @@ func parseVector(s string) ([]float32, error) {
 	if len(s) < 2 {
 		return nil, fmt.Errorf("vector string too short: %q", s)
 	}
-	// Strip surrounding brackets
+	// Strip surrounding brackets ([] from pgvector, () as fallback)
 	s = strings.TrimPrefix(s, "[")
 	s = strings.TrimSuffix(s, "]")
+	s = strings.TrimPrefix(s, "(")
+	s = strings.TrimSuffix(s, ")")
 	if s == "" {
 		return nil, nil
 	}

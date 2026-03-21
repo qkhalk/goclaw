@@ -212,7 +212,7 @@ func (s *PGMemoryStore) IndexDocument(ctx context.Context, agentID, userID, path
 		}
 
 		if len(cached) > 0 {
-			slog.Info("embedding cache hit",
+			slog.Debug("embedding cache hit",
 				"path", path, "cached", len(cached), "uncached", len(uncachedTexts))
 		}
 
@@ -229,6 +229,10 @@ func (s *PGMemoryStore) IndexDocument(ctx context.Context, agentID, userID, path
 
 		// Write fresh embeddings back to cache
 		if len(freshEmbeddings) > 0 {
+			if len(freshEmbeddings) != len(uncachedTexts) {
+				slog.Warn("embedding API returned mismatched count",
+					"expected", len(uncachedTexts), "got", len(freshEmbeddings))
+			}
 			var cacheEntries []embeddingCacheEntry
 			for j, emb := range freshEmbeddings {
 				if j < len(uncachedIdxs) {
