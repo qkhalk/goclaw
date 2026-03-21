@@ -35,7 +35,7 @@ export function ImageLightbox({ src, alt, fileName, size, onClose }: ImageLightb
           href={src}
           download={displayName}
           onClick={(e) => e.stopPropagation()}
-          className="rounded-full bg-black/50 p-2 text-white hover:bg-black/70 transition-colors cursor-pointer"
+          className="rounded-full bg-white/90 dark:bg-neutral-800/90 p-2.5 text-neutral-700 dark:text-neutral-200 shadow-md ring-1 ring-black/10 dark:ring-white/10 hover:bg-white dark:hover:bg-neutral-700 transition-colors cursor-pointer"
           title="Download"
         >
           <Download className="h-5 w-5" />
@@ -43,7 +43,7 @@ export function ImageLightbox({ src, alt, fileName, size, onClose }: ImageLightb
         <button
           type="button"
           onClick={onClose}
-          className="rounded-full bg-black/50 p-2 text-white hover:bg-black/70 transition-colors cursor-pointer"
+          className="rounded-full bg-white/90 dark:bg-neutral-800/90 p-2.5 text-neutral-700 dark:text-neutral-200 shadow-md ring-1 ring-black/10 dark:ring-white/10 hover:bg-white dark:hover:bg-neutral-700 transition-colors cursor-pointer"
         >
           <X className="h-5 w-5" />
         </button>

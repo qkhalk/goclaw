@@ -185,10 +185,10 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
                     href={resolvedSrc}
                     download={displayName}
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute top-1.5 right-1.5 flex items-center justify-center rounded-md bg-black/60 p-1 text-white shadow-md opacity-0 transition-opacity group-hover/img:opacity-100 hover:bg-black/80 cursor-pointer"
+                    className="absolute top-2 right-2 flex items-center justify-center rounded-lg bg-white/90 dark:bg-neutral-800/90 p-1.5 text-neutral-700 dark:text-neutral-200 shadow-md ring-1 ring-black/10 dark:ring-white/10 opacity-0 transition-opacity group-hover/img:opacity-100 hover:bg-white dark:hover:bg-neutral-700 cursor-pointer"
                     title="Download"
                   >
-                    <Download className="h-4 w-4" />
+                    <Download className="h-4.5 w-4.5" />
                   </a>
                 )}
               </span>
