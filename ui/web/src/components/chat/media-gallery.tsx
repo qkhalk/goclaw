@@ -72,19 +72,38 @@ export function MediaGallery({ items }: MediaGalleryProps) {
       {images.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {images.map((item, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setLightboxIdx(i)}
-              className="relative overflow-hidden rounded-lg border cursor-pointer"
-            >
-              <img
-                src={item.path}
-                alt={item.fileName ?? ""}
-                className="h-40 w-full object-cover"
-                loading="lazy"
-              />
-            </button>
+            <div key={i} className="group relative overflow-hidden rounded-lg border">
+              <button
+                type="button"
+                onClick={() => setLightboxIdx(i)}
+                className="block w-full cursor-pointer"
+              >
+                <img
+                  src={item.path}
+                  alt={item.fileName ?? ""}
+                  className="h-40 w-full object-cover"
+                  loading="lazy"
+                />
+              </button>
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between px-2 pb-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="flex min-w-0 flex-col text-xs text-white drop-shadow-sm">
+                  {item.fileName && <span className="truncate">{item.fileName}</span>}
+                  {item.size != null && item.size > 0 && (
+                    <span className="text-white/70">{formatSize(item.size)}</span>
+                  )}
+                </div>
+                <a
+                  href={item.path}
+                  download={item.fileName ?? "image"}
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0 rounded-md bg-black/60 p-1 text-white shadow-md hover:bg-black/80 transition-colors cursor-pointer"
+                  title="Download"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -121,6 +140,8 @@ export function MediaGallery({ items }: MediaGalleryProps) {
         <ImageLightbox
           src={images[lightboxIdx]!.path}
           alt={images[lightboxIdx]!.fileName ?? ""}
+          fileName={images[lightboxIdx]!.fileName}
+          size={images[lightboxIdx]!.size}
           onClose={() => setLightboxIdx(null)}
         />
       )}

@@ -166,18 +166,32 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           },
           img({ src, alt, ...props }) {
             const resolvedSrc = isFileLink(src) ? toFileUrl(src!, token) : src;
+            const displayName = alt || fileNameFromHref(src ?? "");
             return (
-              <img
-                src={resolvedSrc}
-                alt={alt ?? "image"}
-                className="max-w-sm rounded-lg border shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
-                loading="lazy"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (resolvedSrc) openLightbox(resolvedSrc, alt ?? "image");
-                }}
-                {...props}
-              />
+              <span className="group/img relative inline-block overflow-hidden rounded-lg border shadow-sm">
+                <img
+                  src={resolvedSrc}
+                  alt={alt ?? "image"}
+                  className="block max-w-sm cursor-pointer hover:opacity-90 transition-opacity"
+                  loading="lazy"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (resolvedSrc) openLightbox(resolvedSrc, alt ?? "image");
+                  }}
+                  {...props}
+                />
+                {resolvedSrc && (
+                  <a
+                    href={resolvedSrc}
+                    download={displayName}
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute top-1.5 right-1.5 flex items-center justify-center rounded-md bg-black/60 p-1 text-white shadow-md opacity-0 transition-opacity group-hover/img:opacity-100 hover:bg-black/80 cursor-pointer"
+                    title="Download"
+                  >
+                    <Download className="h-4 w-4" />
+                  </a>
+                )}
+              </span>
             );
           },
           table({ children, ...props }) {
