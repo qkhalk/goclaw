@@ -96,7 +96,14 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
           {/* License */}
           <div className="grid grid-cols-[140px_1fr] items-baseline gap-2 text-sm">
             <span className="text-muted-foreground">{t("about.license")}</span>
-            <span className="font-medium">MIT</span>
+            <a
+              href="https://creativecommons.org/licenses/by-nc/4.0/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              CC BY-NC 4.0
+            </a>
           </div>
 
           {/* Documentation */}

@@ -1,4 +1,4 @@
-import { Moon, Sun, PanelLeftClose, PanelLeftOpen, Menu, LogOut, Globe, Clock, Building2, ChevronDown, Check, User, KeyRound, FileText, Info } from "lucide-react";
+import { Moon, Sun, PanelLeftClose, PanelLeftOpen, Menu, LogOut, Globe, Clock, Building2, ChevronDown, Check, User, KeyRound, Info } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
@@ -25,6 +25,7 @@ export function Topbar() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setMobileSidebarOpen = useUiStore((s) => s.setMobileSidebarOpen);
   const isMobile = useIsMobile();
+  const [showAbout, setShowAbout] = useState(false);
 
   const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
@@ -51,16 +52,14 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-2">
-        <a
-          href="https://docs.goclaw.sh"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => setShowAbout(true)}
           className="flex items-center gap-1 cursor-pointer rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          title={t("documents")}
+          title={t("about.menuItem")}
         >
-          <FileText className="h-4 w-4 shrink-0" />
-          <span className="hidden sm:inline">{t("documents")}</span>
-        </a>
+          <Info className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">{t("about.menuItem")}</span>
+        </button>
 
         <Select value={language} onValueChange={(v) => setLanguage(v as Language)}>
           <SelectTrigger
@@ -102,6 +101,8 @@ export function Topbar() {
 
         <UserMenu />
       </div>
+
+      <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
     </header>
   );
 }
@@ -114,7 +115,6 @@ function UserMenu() {
   const { currentTenant, currentTenantName, tenants, isCrossTenant, isMultiTenant, currentTenantId } = useTenants();
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showAbout, setShowAbout] = useState(false);
   const navigate = useNavigate();
 
   const tenantLabel = currentTenant?.name || currentTenantName || "";
@@ -206,15 +206,6 @@ function UserMenu() {
             <span>{t("apiKeys")}</span>
           </button>
 
-          {/* About */}
-          <button
-            onClick={() => { setOpen(false); setShowAbout(true); }}
-            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-          >
-            <Info className="h-3.5 w-3.5 shrink-0" />
-            <span>{t("about.menuItem")}</span>
-          </button>
-
           <div className="my-1 border-t" />
 
           {/* Logout */}
@@ -239,7 +230,6 @@ function UserMenu() {
       onConfirm={() => { setShowLogoutConfirm(false); logout(); }}
     />
 
-    <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
     </>
   );
 }
