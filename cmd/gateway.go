@@ -185,7 +185,7 @@ func runGateway() {
 		slog.Info("subagent system enabled", "tools", []string{"spawn"})
 	}
 
-	skillsLoader, skillSearchTool, globalSkillsDir, bundledSkillsDir := setupSkillsSystem(cfg, workspace, dataDir, pgStores, toolsReg, providerRegistry, msgBus)
+	skillsLoader, skillSearchTool, globalSkillsDir, bundledSkillsDir, builtinSkillsDir := setupSkillsSystem(cfg, workspace, dataDir, pgStores, toolsReg, providerRegistry, msgBus)
 	_ = skillSearchTool // used via wireExtras → skillsLoader; kept for type clarity
 
 	// DateTime tool (precise time for cron scheduling, memory timestamps, etc.)
@@ -250,6 +250,10 @@ func runGateway() {
 			if pgStores.Skills != nil {
 				pa.AllowPaths(pgStores.Skills.Dirs()...)
 			}
+			// Allow builtin skills dir (fallback when managed copy is missing).
+			pa.AllowPaths(builtinSkillsDir)
+			// Allow tenant-scoped skills-store dirs (dataDir/tenants/{slug}/skills-store/).
+			pa.AllowPaths(filepath.Join(dataDir, "tenants"))
 		}
 	}
 
