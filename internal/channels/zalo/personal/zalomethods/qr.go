@@ -110,7 +110,7 @@ func (m *QRMethods) runQRFlow(ctx context.Context, client *gateway.Client, insta
 		return
 	}
 
-	if err := m.instanceStore.Update(context.Background(), instanceID, map[string]any{
+	if err := m.instanceStore.Update(ctx, instanceID, map[string]any{
 		"credentials": string(credsJSON),
 	}); err != nil {
 		slog.Error("Zalo Personal QR: save credentials failed", "instance", instanceIDStr, "error", err)
