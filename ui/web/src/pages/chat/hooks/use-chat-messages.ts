@@ -61,6 +61,11 @@ export function useChatMessages(sessionKey: string, agentId: string) {
     blockRepliesRef.current = [];
     cancelAnimationFrame(rafHandleRef.current);
     rafPendingRef.current = false;
+    // Clear messages when navigating away from a session (empty key).
+    // When switching to another session, loadHistory() will replace them.
+    if (!sessionKey) {
+      setMessages([]);
+    }
   }, [sessionKey]);
 
   // Load history (no loading spinner — the empty state placeholder is shown instead)
