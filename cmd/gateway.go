@@ -289,7 +289,7 @@ func runGateway() {
 	server.SetPolicyEngine(permPE)
 	server.SetPairingService(pgStores.Pairing)
 	server.SetMessageBus(msgBus)
-	server.SetOAuthHandler(httpapi.NewOAuthHandler(cfg.Gateway.Token, pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
+	server.SetOAuthHandler(httpapi.NewOAuthHandler(pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
 
 	// contextFileInterceptor is created inside wireExtras.
 	// Declared here so it can be passed to registerAllMethods → AgentsMethods
@@ -313,7 +313,8 @@ func runGateway() {
 	if mcpMgr != nil {
 		mcpToolLister = mcpMgr
 	}
-	agentsH, skillsH, tracesH, mcpH, channelInstancesH, providersH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH, mcpUserCredsH := wireHTTP(pgStores, cfg.Gateway.Token, cfg.Agents.Defaults.Workspace, dataDir, bundledSkillsDir, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
+	httpapi.InitGatewayToken(cfg.Gateway.Token)
+	agentsH, skillsH, tracesH, mcpH, channelInstancesH, providersH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH, mcpUserCredsH := wireHTTP(pgStores, cfg.Agents.Defaults.Workspace, dataDir, bundledSkillsDir, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
 	if providersH != nil {
 		providersH.SetAPIBaseFallback(cfg.Providers.APIBaseForType)
 	}
@@ -327,7 +328,7 @@ func runGateway() {
 		server.SetTracesHandler(tracesH)
 	}
 	// External wake/trigger API
-	wakeH := httpapi.NewWakeHandler(agentRouter, cfg.Gateway.Token)
+	wakeH := httpapi.NewWakeHandler(agentRouter)
 	if postTurn != nil {
 		wakeH.SetPostTurnProcessor(postTurn)
 	}
@@ -351,7 +352,7 @@ func runGateway() {
 		server.SetTeamEventsHandler(teamEventsH)
 	}
 	if pgStores != nil && pgStores.Teams != nil {
-		server.SetTeamAttachmentsHandler(httpapi.NewTeamAttachmentsHandler(pgStores.Teams, cfg.Gateway.Token, workspace))
+		server.SetTeamAttachmentsHandler(httpapi.NewTeamAttachmentsHandler(pgStores.Teams, workspace))
 	}
 	if builtinToolsH != nil {
 		server.SetBuiltinToolsHandler(builtinToolsH)
@@ -371,23 +372,23 @@ func runGateway() {
 
 	// Activity audit log API
 	if pgStores.Activity != nil {
-		server.SetActivityHandler(httpapi.NewActivityHandler(pgStores.Activity, cfg.Gateway.Token))
+		server.SetActivityHandler(httpapi.NewActivityHandler(pgStores.Activity))
 	}
 
 	// Usage analytics API
 	if pgStores.Snapshots != nil {
-		server.SetUsageHandler(httpapi.NewUsageHandler(pgStores.Snapshots, pgStores.DB, cfg.Gateway.Token))
+		server.SetUsageHandler(httpapi.NewUsageHandler(pgStores.Snapshots, pgStores.DB))
 	}
 
 	// Runtime package management (install/uninstall system/pip/npm packages)
-	server.SetPackagesHandler(httpapi.NewPackagesHandler(cfg.Gateway.Token))
+	server.SetPackagesHandler(httpapi.NewPackagesHandler())
 
 	// API key management
 	// API documentation (OpenAPI spec + Swagger UI at /docs)
-	server.SetDocsHandler(httpapi.NewDocsHandler(cfg.Gateway.Token))
+	server.SetDocsHandler(httpapi.NewDocsHandler())
 
 	if pgStores != nil && pgStores.APIKeys != nil {
-		server.SetAPIKeysHandler(httpapi.NewAPIKeysHandler(pgStores.APIKeys, cfg.Gateway.Token, msgBus))
+		server.SetAPIKeysHandler(httpapi.NewAPIKeysHandler(pgStores.APIKeys, msgBus))
 		server.SetAPIKeyStore(pgStores.APIKeys)
 		httpapi.InitAPIKeyCache(pgStores.APIKeys, msgBus)
 	}
@@ -399,29 +400,29 @@ func runGateway() {
 
 	// Memory management API (wired directly, only needs MemoryStore + token)
 	if pgStores != nil && pgStores.Memory != nil {
-		server.SetMemoryHandler(httpapi.NewMemoryHandler(pgStores.Memory, cfg.Gateway.Token))
+		server.SetMemoryHandler(httpapi.NewMemoryHandler(pgStores.Memory))
 	}
 
 	// Knowledge graph API
 	if pgStores != nil && pgStores.KnowledgeGraph != nil {
-		server.SetKnowledgeGraphHandler(httpapi.NewKnowledgeGraphHandler(pgStores.KnowledgeGraph, providerRegistry, cfg.Gateway.Token))
+		server.SetKnowledgeGraphHandler(httpapi.NewKnowledgeGraphHandler(pgStores.KnowledgeGraph, providerRegistry))
 	}
 
 	// Workspace file serving endpoint — serves files by absolute path, auth-token protected.
 	// Supports media from any agent workspace (each agent has its own workspace from DB).
-	server.SetFilesHandler(httpapi.NewFilesHandler(cfg.Gateway.Token, workspace, dataDir))
+	server.SetFilesHandler(httpapi.NewFilesHandler(workspace, dataDir))
 
 	// Storage file management — browse/delete files under the resolved workspace directory.
 	// Uses GOCLAW_WORKSPACE (or default ~/.goclaw/workspace) so it works correctly
 	// in Docker deployments where volumes are mounted outside ~/.goclaw/.
-	server.SetStorageHandler(httpapi.NewStorageHandler(workspace, cfg.Gateway.Token))
+	server.SetStorageHandler(httpapi.NewStorageHandler(workspace))
 
 	// Media upload endpoint — accepts multipart file uploads, returns temp path + MIME type.
-	server.SetMediaUploadHandler(httpapi.NewMediaUploadHandler(cfg.Gateway.Token))
+	server.SetMediaUploadHandler(httpapi.NewMediaUploadHandler())
 
 	// Media serve endpoint — serves persisted media files by ID for WS/web clients.
 	if mediaStore != nil {
-		server.SetMediaServeHandler(httpapi.NewMediaServeHandler(mediaStore, cfg.Gateway.Token))
+		server.SetMediaServeHandler(httpapi.NewMediaServeHandler(mediaStore))
 	}
 
 	// Seed + apply builtin tool disables
@@ -907,7 +908,7 @@ func runGateway() {
 	// Tenant management RPC + HTTP
 	if pgStores.Tenants != nil {
 		methods.NewTenantsMethods(pgStores.Tenants, msgBus, workspace).Register(server.Router())
-		server.SetTenantsHandler(httpapi.NewTenantsHandler(pgStores.Tenants, cfg.Gateway.Token, msgBus, workspace))
+		server.SetTenantsHandler(httpapi.NewTenantsHandler(pgStores.Tenants, msgBus, workspace))
 		server.Router().SetTenantStore(pgStores.Tenants)
 		// Permission cache for tenant membership checks (tenant role, agent access, etc.)
 		permCache := cache.NewPermissionCache()

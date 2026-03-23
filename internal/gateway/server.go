@@ -162,7 +162,7 @@ func (s *Server) BuildMux() *http.ServeMux {
 
 	// OpenAI-compatible chat completions
 	isManaged := s.agentStore != nil
-	chatHandler := httpapi.NewChatCompletionsHandler(s.agents, s.sessions, s.cfg.Gateway.Token, isManaged)
+	chatHandler := httpapi.NewChatCompletionsHandler(s.agents, s.sessions, isManaged)
 	if s.rateLimiter.Enabled() {
 		chatHandler.SetRateLimiter(s.rateLimiter.Allow)
 	}
@@ -172,7 +172,7 @@ func (s *Server) BuildMux() *http.ServeMux {
 	mux.Handle("/v1/chat/completions", chatHandler)
 
 	// OpenResponses protocol
-	responsesHandler := httpapi.NewResponsesHandler(s.agents, s.sessions, s.cfg.Gateway.Token)
+	responsesHandler := httpapi.NewResponsesHandler(s.agents, s.sessions)
 	if s.postTurn != nil {
 		responsesHandler.SetPostTurnProcessor(s.postTurn)
 	}
@@ -180,7 +180,7 @@ func (s *Server) BuildMux() *http.ServeMux {
 
 	// Direct tool invocation
 	if s.tools != nil {
-		toolsHandler := httpapi.NewToolsInvokeHandler(s.tools, s.cfg.Gateway.Token, s.agentStore)
+		toolsHandler := httpapi.NewToolsInvokeHandler(s.tools, s.agentStore)
 		mux.Handle("/v1/tools/invoke", toolsHandler)
 	}
 
@@ -663,7 +663,7 @@ func StartTestServer(s *Server, ctx context.Context) (addr string, start func())
 	mux.HandleFunc("/health", s.handleHealth)
 
 	isManaged := s.agentStore != nil
-	chatHandler := httpapi.NewChatCompletionsHandler(s.agents, s.sessions, s.cfg.Gateway.Token, isManaged)
+	chatHandler := httpapi.NewChatCompletionsHandler(s.agents, s.sessions, isManaged)
 	if s.rateLimiter.Enabled() {
 		chatHandler.SetRateLimiter(s.rateLimiter.Allow)
 	}
@@ -672,14 +672,14 @@ func StartTestServer(s *Server, ctx context.Context) (addr string, start func())
 	}
 	mux.Handle("/v1/chat/completions", chatHandler)
 
-	responsesHandler := httpapi.NewResponsesHandler(s.agents, s.sessions, s.cfg.Gateway.Token)
+	responsesHandler := httpapi.NewResponsesHandler(s.agents, s.sessions)
 	if s.postTurn != nil {
 		responsesHandler.SetPostTurnProcessor(s.postTurn)
 	}
 	mux.Handle("/v1/responses", responsesHandler)
 
 	if s.tools != nil {
-		toolsHandler := httpapi.NewToolsInvokeHandler(s.tools, s.cfg.Gateway.Token, s.agentStore)
+		toolsHandler := httpapi.NewToolsInvokeHandler(s.tools, s.agentStore)
 		mux.Handle("/v1/tools/invoke", toolsHandler)
 	}
 
