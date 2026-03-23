@@ -54,7 +54,7 @@ export function Topbar() {
           href="https://docs.goclaw.sh"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 cursor-pointer rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          className="flex items-center gap-1 cursor-pointer rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           title={t("documents")}
         >
           <FileText className="h-4 w-4 shrink-0" />
@@ -64,7 +64,7 @@ export function Topbar() {
         <Select value={language} onValueChange={(v) => setLanguage(v as Language)}>
           <SelectTrigger
             title={t("language")}
-            className="h-auto w-auto gap-1 border-0 bg-transparent px-2 py-1.5 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-0 dark:bg-transparent dark:hover:bg-accent **:data-radix-select-icon:hidden"
+            className="h-auto w-auto gap-1 border-0 bg-transparent px-2 py-1.5 text-sm text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-0 dark:bg-transparent dark:hover:bg-accent **:data-radix-select-icon:hidden"
           >
             <Globe className="h-4 w-4 shrink-0" />
             <span className="hidden sm:inline"><SelectValue /></span>
@@ -79,7 +79,7 @@ export function Topbar() {
         <Select value={timezone} onValueChange={setTimezone}>
           <SelectTrigger
             title={t("timezone")}
-            className="h-auto w-auto gap-1 border-0 bg-transparent px-2 py-1.5 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-0 dark:bg-transparent dark:hover:bg-accent **:data-radix-select-icon:hidden"
+            className="h-auto w-auto gap-1 border-0 bg-transparent px-2 py-1.5 text-sm text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-0 dark:bg-transparent dark:hover:bg-accent **:data-radix-select-icon:hidden"
           >
             <Clock className="h-4 w-4 shrink-0" />
             <span className="hidden sm:inline"><SelectValue /></span>
@@ -133,7 +133,7 @@ function UserMenu() {
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button
-          className="flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          className="flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           title={userId || t("logout")}
         >
           <User className="h-4 w-4 shrink-0" />
