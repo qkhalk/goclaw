@@ -142,7 +142,7 @@ func (s *PGSessionStore) AddMessage(ctx context.Context, key string, msg provide
 
 	// Stamp message creation time if not already set.
 	if msg.CreatedAt == nil {
-		now := time.Now()
+		now := time.Now().UTC()
 		msg.CreatedAt = &now
 	}
 
