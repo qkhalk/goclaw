@@ -257,3 +257,28 @@ func requireTenantID(ctx context.Context) (uuid.UUID, error) {
 	}
 	return tid, nil
 }
+
+// --- Scope-based helpers (composable alternative to tenantClauseN) ---
+// Use these for new code. Old tenantClauseN/tenantClauseNAlias remain for existing callers.
+
+// scopeClause extracts QueryScope from context and generates WHERE conditions.
+// Drop-in replacement for tenantClauseN that supports future project-level scoping.
+func scopeClause(ctx context.Context, startParam int) (clause string, args []any, nextParam int, err error) {
+	scope, err := store.ScopeFromContext(ctx)
+	if err != nil {
+		return "", nil, startParam, err
+	}
+	clause, args, nextParam = scope.WhereClause(startParam)
+	return clause, args, nextParam, nil
+}
+
+// scopeClauseAlias is like scopeClause but qualifies columns with a table alias.
+// SECURITY: alias is interpolated into SQL — callers MUST pass hardcoded string literals only.
+func scopeClauseAlias(ctx context.Context, startParam int, alias string) (clause string, args []any, nextParam int, err error) {
+	scope, err := store.ScopeFromContext(ctx)
+	if err != nil {
+		return "", nil, startParam, err
+	}
+	clause, args, nextParam = scope.WhereClauseAlias(startParam, alias)
+	return clause, args, nextParam, nil
+}
