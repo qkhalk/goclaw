@@ -1059,6 +1059,14 @@ func runGateway() {
 		slog.Info("Tailscale enabled. Consider setting GOCLAW_HOST=127.0.0.1 for localhost-only + Tailscale access")
 	}
 
+	// Security warnings
+	if strings.Contains(cfg.Database.PostgresDSN, ":goclaw@") {
+		slog.Warn("security.default_db_password: using default Postgres password — run ./prepare-env.sh to generate a strong one")
+	}
+	if len(cfg.Gateway.AllowedOrigins) == 0 {
+		slog.Warn("security.cors_open: no allowed_origins configured — all WebSocket origins accepted. Set gateway.allowed_origins for production")
+	}
+
 	if err := server.Start(ctx); err != nil {
 		slog.Error("gateway error", "error", err)
 		os.Exit(1)
