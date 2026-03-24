@@ -340,7 +340,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	for rs.iteration < maxIter {
 		rs.iteration++
 
-		slog.Debug("agent rs.iteration", "agent", l.id, "rs.iteration", rs.iteration, "messages", len(messages))
+		slog.Debug("agent iteration", "agent", l.id, "iteration", rs.iteration, "messages", len(messages))
 
 		// Skill evolution: budget pressure nudges at 70% and 90% of iteration budget.
 		// Ephemeral (in-memory only, not persisted to session) — LLM sees them during this run only.
@@ -369,13 +369,13 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			if maxIter > 0 {
 				suggestedPct := rs.iteration * 100 / maxIter
 				nudge = fmt.Sprintf(
-					"[System] You are at rs.iteration %d/%d (~%d%% of budget) working on task #%d: %q. "+
+					"[System] You are at iteration %d/%d (~%d%% of budget) working on task #%d: %q. "+
 						"Report your progress now: team_tasks(action=\"progress\", percent=%d, text=\"what you've accomplished so far\"). "+
 						"Adjust percent based on actual work completed.",
 					rs.iteration, maxIter, suggestedPct, memberTaskNumber, memberTaskSubject, suggestedPct)
 			} else {
 				nudge = fmt.Sprintf(
-					"[System] You are at rs.iteration %d working on task #%d: %q. "+
+					"[System] You are at iteration %d working on task #%d: %q. "+
 						"Report your progress now: team_tasks(action=\"progress\", percent=50, text=\"what you've accomplished so far\"). "+
 						"Adjust percent based on actual work completed.",
 					rs.iteration, memberTaskNumber, memberTaskSubject)
@@ -403,7 +403,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			Type:    protocol.AgentEventActivity,
 			AgentID: l.id,
 			RunID:   req.RunID,
-			Payload: map[string]any{"phase": "thinking", "rs.iteration": rs.iteration},
+			Payload: map[string]any{"phase": "thinking", "iteration": rs.iteration},
 		})
 
 		// Build provider request with policy-filtered tools
@@ -478,7 +478,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			toolDefs = nil
 			messages = append(messages, providers.Message{
 				Role:    "user",
-				Content: "[System] Final rs.iteration reached. Summarize all findings and respond to the user now. No more tool calls allowed.",
+				Content: "[System] Final iteration reached. Summarize all findings and respond to the user now. No more tool calls allowed.",
 			})
 		}
 
@@ -545,7 +545,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		if err != nil {
 			l.emitLLMSpanEnd(ctx, llmSpanID, llmSpanStart, nil, err)
-			return nil, fmt.Errorf("LLM call failed (rs.iteration %d): %w", rs.iteration, err)
+			return nil, fmt.Errorf("LLM call failed (iteration %d): %w", rs.iteration, err)
 		}
 
 		l.emitLLMSpanEnd(ctx, llmSpanID, llmSpanStart, resp, nil)
@@ -600,7 +600,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					Type:    protocol.AgentEventActivity,
 					AgentID: l.id,
 					RunID:   req.RunID,
-					Payload: map[string]any{"phase": "compacting", "rs.iteration": rs.iteration},
+					Payload: map[string]any{"phase": "compacting", "iteration": rs.iteration},
 				})
 				if compacted := l.compactMessagesInPlace(ctx, messages); compacted != nil {
 					messages = compacted
@@ -617,7 +617,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		// Inject a system hint so the model can retry with shorter output.
 		if resp.FinishReason == "length" && len(resp.ToolCalls) > 0 {
 			slog.Warn("output truncated (max_tokens), tool calls may have incomplete args",
-				"agent", l.id, "rs.iteration", rs.iteration, "max_tokens", l.effectiveMaxTokens())
+				"agent", l.id, "iteration", rs.iteration, "max_tokens", l.effectiveMaxTokens())
 			messages = append(messages,
 				providers.Message{Role: "assistant", Content: resp.Content},
 				providers.Message{
@@ -717,7 +717,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					"phase":     "tool_exec",
 					"tool":      toolNames[0],
 					"tools":     toolNames,
-					"rs.iteration": rs.iteration,
+					"iteration": rs.iteration,
 				},
 			})
 		}
