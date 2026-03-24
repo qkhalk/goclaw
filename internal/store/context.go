@@ -183,16 +183,29 @@ func TenantIDFromContext(ctx context.Context) uuid.UUID {
 }
 
 // WithCrossTenant returns a context flagged for cross-tenant access.
-// Used by owner/system admin callers who can access all tenants.
+// Deprecated: Only used by skills store (is_system dual-visibility pattern).
+// All other callers must use explicit tenant context or unscoped store methods.
 func WithCrossTenant(ctx context.Context) context.Context {
 	return context.WithValue(ctx, CrossTenantKey, true)
 }
 
 // IsCrossTenant returns true if the caller has cross-tenant access.
+// Deprecated: Only used by skills store and inline pg/*.go tenant checks.
+// Permission guards should use IsOwnerRole(). SQL queries use tenantClauseN() (no bypass).
 func IsCrossTenant(ctx context.Context) bool {
 	v, _ := ctx.Value(CrossTenantKey).(bool)
 	return v
 }
+
+// IsOwnerRole returns true if the caller has the "owner" role.
+// Replaces IsCrossTenant for permission guards.
+func IsOwnerRole(ctx context.Context) bool {
+	return RoleFromContext(ctx) == string(RoleOwner)
+}
+
+// RoleOwner is the owner role constant for context checks.
+// Must match permissions.RoleOwner.
+const RoleOwner = "owner"
 
 // WithTenantSlug returns a new context with the given tenant slug.
 func WithTenantSlug(ctx context.Context, slug string) context.Context {

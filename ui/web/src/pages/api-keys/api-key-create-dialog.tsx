@@ -50,9 +50,9 @@ interface Props {
 
 export function ApiKeyCreateDialog({ open, onOpenChange, onCreate }: Props) {
   const { t } = useTranslation("api-keys");
-  const { isCrossTenant, tenants, currentTenantId } = useTenants();
+  const { isOwner, tenants, currentTenantId } = useTenants();
 
-  const defaultTenant = isCrossTenant
+  const defaultTenant = isOwner
     ? currentTenantId || SYSTEM_TENANT
     : SYSTEM_TENANT;
 
@@ -79,7 +79,7 @@ export function ApiKeyCreateDialog({ open, onOpenChange, onCreate }: Props) {
         scopes,
         expires_in: expiryOption && expiryOption.seconds > 0 ? expiryOption.seconds : undefined,
       };
-      if (isCrossTenant && tenantValue !== SYSTEM_TENANT) {
+      if (isOwner && tenantValue !== SYSTEM_TENANT) {
         input.tenant_id = tenantValue;
       }
       await onCreate(input);
@@ -105,7 +105,7 @@ export function ApiKeyCreateDialog({ open, onOpenChange, onCreate }: Props) {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Name + Tenant row */}
-          <div className={`grid gap-4 ${isCrossTenant ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+          <div className={`grid gap-4 ${isOwner ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
             <div className="space-y-1.5">
               <Label htmlFor="key-name">{t("form.name")}</Label>
               <Input
@@ -118,7 +118,7 @@ export function ApiKeyCreateDialog({ open, onOpenChange, onCreate }: Props) {
               />
             </div>
 
-            {isCrossTenant && (
+            {isOwner && (
               <div className="space-y-1.5">
                 <Label htmlFor="key-tenant" className="flex items-center gap-1.5">
                   <Building2 className="h-3.5 w-3.5" />
