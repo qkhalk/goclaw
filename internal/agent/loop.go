@@ -288,42 +288,20 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// 3. Buffer new messages — write to session only AFTER the run completes.
 	// This prevents concurrent runs from seeing each other's in-progress messages.
 	// NOTE: pendingMsgs stores text + lightweight MediaRefs (not base64 images).
-	var pendingMsgs []providers.Message
+	// Initialized here before rs is created; moved to rs after construction.
+	var initPendingMsgs []providers.Message
 	if !req.HideInput {
-		pendingMsgs = append(pendingMsgs, providers.Message{
+		initPendingMsgs = append(initPendingMsgs, providers.Message{
 			Role:      "user",
 			Content:   req.Message,
 			MediaRefs: mediaRefs,
 		})
 	}
 
-	// 4. Run LLM iteration loop
-	var loopDetector toolLoopState // detects repeated no-progress tool calls
-	var totalUsage providers.Usage
-	iteration := 0
-	totalToolCalls := 0
-	var finalContent string
-	var finalThinking string
-	var asyncToolCalls []string    // track async spawn tool names for fallback
-	var bootstrapWriteDetected bool // track if write_file was called during bootstrap
-	var mediaResults []MediaResult // media files from tool MEDIA: results
-	var deliverables []string      // actual content from tool outputs (for team task results)
-	var blockReplies int           // count of block.reply events emitted (for dedup in consumer)
-	var lastBlockReply string      // last block reply content
-	var checkpointFlushedMsgs int  // messages flushed mid-run for crash safety (#294)
-
-	// Mid-loop compaction: summarize in-memory messages when context exceeds threshold.
-	// Uses same config as maybeSummarize (contextWindow * historyShare).
-	var midLoopCompacted bool
-
-	// Team task orphan detection: track team_tasks create vs spawn calls.
-	// If the LLM creates tasks but forgets to spawn, inject a reminder.
-	var teamTaskCreates int // count of team_tasks action=create calls
-	var teamTaskSpawns int  // count of spawn calls with team_task_id
-
-	// Skill evolution: budget pressure nudge state (sent at most once each per run).
-	var skillNudge70Sent, skillNudge90Sent bool
-	var skillPostscriptSent bool
+	// 4. Run LLM iteration loop — all mutable state encapsulated in runState.
+	rs := &runState{
+		pendingMsgs: initPendingMsgs,
+	}
 
 	// Member progress nudge: remind dispatched members to report progress (every 6 iterations).
 
@@ -359,24 +337,24 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		}
 	}
 
-	for iteration < maxIter {
-		iteration++
+	for rs.iteration < maxIter {
+		rs.iteration++
 
-		slog.Debug("agent iteration", "agent", l.id, "iteration", iteration, "messages", len(messages))
+		slog.Debug("agent rs.iteration", "agent", l.id, "rs.iteration", rs.iteration, "messages", len(messages))
 
 		// Skill evolution: budget pressure nudges at 70% and 90% of iteration budget.
 		// Ephemeral (in-memory only, not persisted to session) — LLM sees them during this run only.
 		if l.skillEvolve && maxIter > 0 {
 			locale := store.LocaleFromContext(ctx)
-			iterPct := float64(iteration) / float64(maxIter)
-			if iterPct >= 0.90 && !skillNudge90Sent {
-				skillNudge90Sent = true
+			iterPct := float64(rs.iteration) / float64(maxIter)
+			if iterPct >= 0.90 && !rs.skillNudge90Sent {
+				rs.skillNudge90Sent = true
 				messages = append(messages, providers.Message{
 					Role:    "user",
 					Content: i18n.T(locale, i18n.MsgSkillNudge90Pct),
 				})
-			} else if iterPct >= 0.70 && !skillNudge70Sent {
-				skillNudge70Sent = true
+			} else if iterPct >= 0.70 && !rs.skillNudge70Sent {
+				rs.skillNudge70Sent = true
 				messages = append(messages, providers.Message{
 					Role:    "user",
 					Content: i18n.T(locale, i18n.MsgSkillNudge70Pct),
@@ -386,28 +364,28 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		// Member progress nudge: remind to report progress every 6 iterations.
 		// Suggests percent based on iteration ratio — model can adjust but has a baseline.
-		if req.TeamTaskID != "" && memberTaskSubject != "" && iteration > 0 && iteration%6 == 0 {
+		if req.TeamTaskID != "" && memberTaskSubject != "" && rs.iteration > 0 && rs.iteration%6 == 0 {
 			var nudge string
 			if maxIter > 0 {
-				suggestedPct := iteration * 100 / maxIter
+				suggestedPct := rs.iteration * 100 / maxIter
 				nudge = fmt.Sprintf(
-					"[System] You are at iteration %d/%d (~%d%% of budget) working on task #%d: %q. "+
+					"[System] You are at rs.iteration %d/%d (~%d%% of budget) working on task #%d: %q. "+
 						"Report your progress now: team_tasks(action=\"progress\", percent=%d, text=\"what you've accomplished so far\"). "+
 						"Adjust percent based on actual work completed.",
-					iteration, maxIter, suggestedPct, memberTaskNumber, memberTaskSubject, suggestedPct)
+					rs.iteration, maxIter, suggestedPct, memberTaskNumber, memberTaskSubject, suggestedPct)
 			} else {
 				nudge = fmt.Sprintf(
-					"[System] You are at iteration %d working on task #%d: %q. "+
+					"[System] You are at rs.iteration %d working on task #%d: %q. "+
 						"Report your progress now: team_tasks(action=\"progress\", percent=50, text=\"what you've accomplished so far\"). "+
 						"Adjust percent based on actual work completed.",
-					iteration, memberTaskNumber, memberTaskSubject)
+					rs.iteration, memberTaskNumber, memberTaskSubject)
 			}
 			messages = append(messages, providers.Message{Role: "user", Content: nudge})
 		}
 
 		// Iteration budget nudge: when model has used 75% of iterations without
 		// producing any text response, warn it to start summarizing.
-		if maxIter > 0 && iteration > 1 && iteration == maxIter*3/4 && finalContent == "" {
+		if maxIter > 0 && rs.iteration > 1 && rs.iteration == maxIter*3/4 && rs.finalContent == "" {
 			messages = append(messages, providers.Message{
 				Role:    "user",
 				Content: "[System] You have used 75% of your iteration budget without providing a text response. Start summarizing your findings and respond to the user within the next few iterations.",
@@ -416,7 +394,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		// Inject iteration progress into context so tools can adapt (e.g. web_fetch reduces maxChars).
 		iterCtx := tools.WithIterationProgress(ctx, tools.IterationProgress{
-			Current: iteration,
+			Current: rs.iteration,
 			Max:     maxIter,
 		})
 
@@ -425,7 +403,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			Type:    protocol.AgentEventActivity,
 			AgentID: l.id,
 			RunID:   req.RunID,
-			Payload: map[string]any{"phase": "thinking", "iteration": iteration},
+			Payload: map[string]any{"phase": "thinking", "rs.iteration": rs.iteration},
 		})
 
 		// Build provider request with policy-filtered tools
@@ -496,11 +474,11 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		// Final iteration: strip all tools to force a text-only response.
 		// Without this the model may keep requesting tools and exit with "...".
-		if iteration == maxIter {
+		if rs.iteration == maxIter {
 			toolDefs = nil
 			messages = append(messages, providers.Message{
 				Role:    "user",
-				Content: "[System] Final iteration reached. Summarize all findings and respond to the user now. No more tool calls allowed.",
+				Content: "[System] Final rs.iteration reached. Summarize all findings and respond to the user now. No more tool calls allowed.",
 			})
 		}
 
@@ -540,7 +518,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		var err error
 
 		llmSpanStart := time.Now().UTC()
-		llmSpanID := l.emitLLMSpanStart(ctx, llmSpanStart, iteration, messages)
+		llmSpanID := l.emitLLMSpanStart(ctx, llmSpanStart, rs.iteration, messages)
 
 		if req.Stream {
 			resp, err = l.provider.ChatStream(ctx, chatReq, func(chunk providers.StreamChunk) {
@@ -567,7 +545,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		if err != nil {
 			l.emitLLMSpanEnd(ctx, llmSpanID, llmSpanStart, nil, err)
-			return nil, fmt.Errorf("LLM call failed (iteration %d): %w", iteration, err)
+			return nil, fmt.Errorf("LLM call failed (rs.iteration %d): %w", rs.iteration, err)
 		}
 
 		l.emitLLMSpanEnd(ctx, llmSpanID, llmSpanStart, resp, nil)
@@ -593,16 +571,16 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		}
 
 		if resp.Usage != nil {
-			totalUsage.PromptTokens += resp.Usage.PromptTokens
-			totalUsage.CompletionTokens += resp.Usage.CompletionTokens
-			totalUsage.TotalTokens += resp.Usage.TotalTokens
-			totalUsage.ThinkingTokens += resp.Usage.ThinkingTokens
+			rs.totalUsage.PromptTokens += resp.Usage.PromptTokens
+			rs.totalUsage.CompletionTokens += resp.Usage.CompletionTokens
+			rs.totalUsage.TotalTokens += resp.Usage.TotalTokens
+			rs.totalUsage.ThinkingTokens += resp.Usage.ThinkingTokens
 		}
 
 		// Mid-loop compaction: same threshold as maybeSummarize (contextWindow * historyShare)
 		// but applied to in-memory messages during the run. Prevents context overflow for
 		// long-running agents (e.g. delegated research tasks that accumulate many tool results).
-		if !midLoopCompacted && l.contextWindow > 0 {
+		if !rs.midLoopCompacted && l.contextWindow > 0 {
 			historyShare := config.DefaultHistoryShare
 			if l.compactionCfg != nil && l.compactionCfg.MaxHistoryShare > 0 {
 				historyShare = l.compactionCfg.MaxHistoryShare
@@ -617,12 +595,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			}
 
 			if promptTokens >= threshold {
-				midLoopCompacted = true
+				rs.midLoopCompacted = true
 				emitRun(AgentEvent{
 					Type:    protocol.AgentEventActivity,
 					AgentID: l.id,
 					RunID:   req.RunID,
-					Payload: map[string]any{"phase": "compacting", "iteration": iteration},
+					Payload: map[string]any{"phase": "compacting", "rs.iteration": rs.iteration},
 				})
 				if compacted := l.compactMessagesInPlace(ctx, messages); compacted != nil {
 					messages = compacted
@@ -639,7 +617,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		// Inject a system hint so the model can retry with shorter output.
 		if resp.FinishReason == "length" && len(resp.ToolCalls) > 0 {
 			slog.Warn("output truncated (max_tokens), tool calls may have incomplete args",
-				"agent", l.id, "iteration", iteration, "max_tokens", l.effectiveMaxTokens())
+				"agent", l.id, "rs.iteration", rs.iteration, "max_tokens", l.effectiveMaxTokens())
 			messages = append(messages,
 				providers.Message{Role: "assistant", Content: resp.Content},
 				providers.Message{
@@ -658,20 +636,20 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			if forLLM, forSession := l.drainInjectChannel(req.InjectCh, emitRun); len(forLLM) > 0 {
 				messages = append(messages, providers.Message{Role: "assistant", Content: resp.Content})
 				messages = append(messages, forLLM...)
-				pendingMsgs = append(pendingMsgs, providers.Message{Role: "assistant", Content: resp.Content})
-				pendingMsgs = append(pendingMsgs, forSession...)
+				rs.pendingMsgs = append(rs.pendingMsgs, providers.Message{Role: "assistant", Content: resp.Content})
+				rs.pendingMsgs = append(rs.pendingMsgs, forSession...)
 				continue
 			}
 
-			finalContent = resp.Content
-			finalThinking = resp.Thinking
+			rs.finalContent = resp.Content
+			rs.finalThinking = resp.Thinking
 			break
 		}
 
 		// Ensure globally unique tool call IDs (OpenAI-compatible APIs return 400 on duplicates).
 		// Skip if raw content is present (Anthropic thinking passback) to avoid desync.
 		if resp.RawAssistantContent == nil {
-			resp.ToolCalls = uniquifyToolCallIDs(resp.ToolCalls, req.RunID, iteration)
+			resp.ToolCalls = uniquifyToolCallIDs(resp.ToolCalls, req.RunID, rs.iteration)
 		}
 
 		// Build assistant message with tool calls
@@ -684,15 +662,15 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			RawAssistantContent: resp.RawAssistantContent, // preserve thinking blocks for Anthropic passback
 		}
 		messages = append(messages, assistantMsg)
-		pendingMsgs = append(pendingMsgs, assistantMsg)
+		rs.pendingMsgs = append(rs.pendingMsgs, assistantMsg)
 
 		// Emit block.reply for intermediate assistant content during tool iterations.
 		// Non-streaming channels (Zalo, Discord, WhatsApp) would otherwise lose this text.
 		if resp.Content != "" {
 			sanitized := SanitizeAssistantContent(resp.Content)
 			if sanitized != "" && !IsSilentReply(sanitized) {
-				blockReplies++
-				lastBlockReply = sanitized
+				rs.blockReplies++
+				rs.lastBlockReply = sanitized
 				emitRun(AgentEvent{
 					Type:    protocol.AgentEventBlockReply,
 					AgentID: l.id,
@@ -707,20 +685,20 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		for _, tc := range resp.ToolCalls {
 			if l.resolveToolCallName(tc.Name) == "team_tasks" {
 				if action, _ := tc.Arguments["action"].(string); action == "create" {
-					teamTaskCreates++
+					rs.teamTaskCreates++
 				}
 			}
 		}
 
 		// Tool budget check: soft stop when total tool calls exceed the per-agent limit.
 		// Same pattern as maxIterations — no error thrown, LLM summarizes and returns.
-		totalToolCalls += len(resp.ToolCalls)
-		if l.maxToolCalls > 0 && totalToolCalls > l.maxToolCalls {
+		rs.totalToolCalls += len(resp.ToolCalls)
+		if l.maxToolCalls > 0 && rs.totalToolCalls > l.maxToolCalls {
 			slog.Warn("security.tool_budget_exceeded",
-				"agent", l.id, "total", totalToolCalls, "limit", l.maxToolCalls)
+				"agent", l.id, "total", rs.totalToolCalls, "limit", l.maxToolCalls)
 			messages = append(messages, providers.Message{
 				Role:    "user",
-				Content: fmt.Sprintf("[System] Tool call budget reached (%d/%d). Do NOT call any more tools. Summarize results so far and respond to the user.", totalToolCalls, l.maxToolCalls),
+				Content: fmt.Sprintf("[System] Tool call budget reached (%d/%d). Do NOT call any more tools. Summarize results so far and respond to the user.", rs.totalToolCalls, l.maxToolCalls),
 			})
 			continue // one more LLM call for summarization, then loop exits (no tool calls)
 		}
@@ -739,7 +717,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					"phase":     "tool_exec",
 					"tool":      toolNames[0],
 					"tools":     toolNames,
-					"iteration": iteration,
+					"rs.iteration": rs.iteration,
 				},
 			})
 		}
@@ -759,7 +737,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			slog.Info("tool call", "agent", l.id, "tool", tc.Name, "args_len", len(argsJSON))
 
 			registryName := l.resolveToolCallName(tc.Name)
-			argsHash := loopDetector.record(registryName, tc.Arguments)
+			argsHash := rs.loopDetector.record(registryName, tc.Arguments)
 
 			toolSpanStart := time.Now().UTC()
 			toolSpanID := l.emitToolSpanStart(ctx, toolSpanStart, tc.Name, tc.ID, string(argsJSON))
@@ -794,11 +772,11 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			toolTiming.Record(tc.Name, time.Since(toolSpanStart).Milliseconds())
 
 			// Record result for loop detection.
-			loopDetector.recordResult(argsHash, result.ForLLM)
-			loopDetector.recordMutation(registryName)
+			rs.loopDetector.recordResult(argsHash, result.ForLLM)
+			rs.loopDetector.recordMutation(registryName)
 
 			if result.Async {
-				asyncToolCalls = append(asyncToolCalls, tc.Name)
+				rs.asyncToolCalls = append(rs.asyncToolCalls, tc.Name)
 			}
 
 			if result.IsError {
@@ -812,11 +790,11 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			// Count successful spawn calls for orphan detection (post-execution).
 			if registryName == "spawn" && !result.IsError {
 				if tid, _ := tc.Arguments["team_task_id"].(string); tid != "" {
-					teamTaskSpawns++
+					rs.teamTaskSpawns++
 				}
 			}
 			if hadBootstrap && bootstrapToolAllowlist[registryName] {
-				bootstrapWriteDetected = true
+				rs.bootstrapWriteDetected = true
 			}
 
 			toolResultPayload := map[string]any{
@@ -846,10 +824,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					if ct == "" {
 						ct = mimeFromExt(filepath.Ext(mf.Path))
 					}
-					mediaResults = append(mediaResults, MediaResult{Path: mf.Path, ContentType: ct})
+					rs.mediaResults = append(rs.mediaResults, MediaResult{Path: mf.Path, ContentType: ct})
 				}
 			} else if mr := parseMediaResult(result.ForLLM); mr != nil {
-				mediaResults = append(mediaResults, *mr)
+				rs.mediaResults = append(rs.mediaResults, *mr)
 			}
 			// Auto-attach workspace media to task (covers create_image/audio/video).
 			if teamWs := tools.ToolTeamWorkspaceFromCtx(ctx); teamWs != "" {
@@ -858,7 +836,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				}
 			}
 			if result.Deliverable != "" {
-				deliverables = append(deliverables, result.Deliverable)
+				rs.deliverables = append(rs.deliverables, result.Deliverable)
 			}
 
 			toolMsg := providers.Message{
@@ -868,13 +846,13 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				IsError:    result.IsError,
 			}
 			messages = append(messages, toolMsg)
-			pendingMsgs = append(pendingMsgs, toolMsg)
+			rs.pendingMsgs = append(rs.pendingMsgs, toolMsg)
 
 			// Check for tool call loop after recording result.
-			if level, msg := loopDetector.detect(registryName, argsHash); level != "" {
+			if level, msg := rs.loopDetector.detect(registryName, argsHash); level != "" {
 				if level == "critical" {
 					slog.Warn("tool loop critical", "agent", l.id, "tool", registryName, "message", msg)
-					finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + registryName + " without making progress. Please try rephrasing your request."
+					rs.finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + registryName + " without making progress. Please try rephrasing your request."
 					break
 				}
 				// Warning: inject message so model knows to change strategy.
@@ -883,25 +861,25 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			}
 
 			// Check for read-only streak (no write/edit actions).
-			if level, msg := loopDetector.detectReadOnlyStreak(); level != "" {
+			if level, msg := rs.loopDetector.detectReadOnlyStreak(); level != "" {
 				if level == "critical" {
 					slog.Warn("tool loop critical: read-only streak",
-						"streak", loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
-					finalContent = msg
+						"streak", rs.loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
+					rs.finalContent = msg
 					break
 				}
 				slog.Warn("tool loop warning: read-only streak",
-					"streak", loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
+					"streak", rs.loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
 				messages = append(messages, providers.Message{Role: "user", Content: msg})
 			}
 
 			// Check for same tool returning identical results with different args.
 			if rh := hashResult(result.ForLLM); rh != "" {
-				if level, msg := loopDetector.detectSameResult(registryName, rh); level != "" {
+				if level, msg := rs.loopDetector.detectSameResult(registryName, rh); level != "" {
 					if level == "critical" {
 						slog.Warn("tool loop critical: same result",
 							"tool", registryName, "agent", l.id, "run", req.RunID)
-						finalContent = msg
+						rs.finalContent = msg
 						break
 					}
 					messages = append(messages, providers.Message{Role: "user", Content: msg})
@@ -1004,12 +982,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				toolTiming.Record(r.tc.Name, time.Since(r.spanStart).Milliseconds())
 
 				// Record for loop detection.
-				argsHash := loopDetector.record(r.registryName, r.tc.Arguments)
-				loopDetector.recordResult(argsHash, r.result.ForLLM)
-				loopDetector.recordMutation(r.registryName)
+				argsHash := rs.loopDetector.record(r.registryName, r.tc.Arguments)
+				rs.loopDetector.recordResult(argsHash, r.result.ForLLM)
+				rs.loopDetector.recordMutation(r.registryName)
 
 				if r.result.Async {
-					asyncToolCalls = append(asyncToolCalls, r.tc.Name)
+					rs.asyncToolCalls = append(rs.asyncToolCalls, r.tc.Name)
 				}
 
 				if r.result.IsError {
@@ -1023,11 +1001,11 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				// Count successful spawn calls for orphan detection (post-execution).
 				if r.registryName == "spawn" && !r.result.IsError {
 					if tid, _ := r.tc.Arguments["team_task_id"].(string); tid != "" {
-						teamTaskSpawns++
+						rs.teamTaskSpawns++
 					}
 				}
 				if hadBootstrap && bootstrapToolAllowlist[r.registryName] {
-					bootstrapWriteDetected = true
+					rs.bootstrapWriteDetected = true
 				}
 
 				parToolResultPayload := map[string]any{
@@ -1057,10 +1035,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 						if ct == "" {
 							ct = mimeFromExt(filepath.Ext(mf.Path))
 						}
-						mediaResults = append(mediaResults, MediaResult{Path: mf.Path, ContentType: ct})
+						rs.mediaResults = append(rs.mediaResults, MediaResult{Path: mf.Path, ContentType: ct})
 					}
 				} else if mr := parseMediaResult(r.result.ForLLM); mr != nil {
-					mediaResults = append(mediaResults, *mr)
+					rs.mediaResults = append(rs.mediaResults, *mr)
 				}
 				// Auto-attach workspace media to task (covers create_image/audio/video).
 				if teamWs := tools.ToolTeamWorkspaceFromCtx(ctx); teamWs != "" {
@@ -1069,7 +1047,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					}
 				}
 				if r.result.Deliverable != "" {
-					deliverables = append(deliverables, r.result.Deliverable)
+					rs.deliverables = append(rs.deliverables, r.result.Deliverable)
 				}
 
 				toolMsg := providers.Message{
@@ -1079,13 +1057,13 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					IsError:    r.result.IsError,
 				}
 				messages = append(messages, toolMsg)
-				pendingMsgs = append(pendingMsgs, toolMsg)
+				rs.pendingMsgs = append(rs.pendingMsgs, toolMsg)
 
 				// Check for tool call loop.
-				if level, msg := loopDetector.detect(r.registryName, argsHash); level != "" {
+				if level, msg := rs.loopDetector.detect(r.registryName, argsHash); level != "" {
 					if level == "critical" {
 						slog.Warn("tool loop critical", "agent", l.id, "tool", r.registryName, "message", msg)
-						finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + r.registryName + " without making progress. Please try rephrasing your request."
+						rs.finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + r.registryName + " without making progress. Please try rephrasing your request."
 						loopStuck = true
 						break
 					}
@@ -1095,11 +1073,11 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 				// Check for same tool returning identical results with different args.
 				if rh := hashResult(r.result.ForLLM); rh != "" {
-					if level, msg := loopDetector.detectSameResult(r.registryName, rh); level != "" {
+					if level, msg := rs.loopDetector.detectSameResult(r.registryName, rh); level != "" {
 						if level == "critical" {
 							slog.Warn("tool loop critical: same result",
 								"tool", r.registryName, "agent", l.id, "run", req.RunID)
-							finalContent = msg
+							rs.finalContent = msg
 							loopStuck = true
 							break
 						}
@@ -1110,15 +1088,15 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 			// Check read-only streak after processing all parallel results.
 			if !loopStuck {
-				if level, msg := loopDetector.detectReadOnlyStreak(); level != "" {
+				if level, msg := rs.loopDetector.detectReadOnlyStreak(); level != "" {
 					if level == "critical" {
 						slog.Warn("tool loop critical: read-only streak",
-							"streak", loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
-						finalContent = msg
+							"streak", rs.loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
+						rs.finalContent = msg
 						loopStuck = true
 					} else {
 						slog.Warn("tool loop warning: read-only streak",
-							"streak", loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
+							"streak", rs.loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)
 						messages = append(messages, providers.Message{Role: "user", Content: msg})
 					}
 				}
@@ -1134,37 +1112,37 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		// so the next LLM call sees: [tool results...] + [user follow-ups...].
 		if forLLM, forSession := l.drainInjectChannel(req.InjectCh, emitRun); len(forLLM) > 0 {
 			messages = append(messages, forLLM...)
-			pendingMsgs = append(pendingMsgs, forSession...)
+			rs.pendingMsgs = append(rs.pendingMsgs, forSession...)
 		}
 
 		// Periodic checkpoint: flush pending messages to session every 5 iterations
 		// to limit data loss on container crash (#294). Trade-off: partial visibility
 		// to concurrent reads vs full data loss on crash.
 		// AddMessage writes to in-memory cache; Save persists to DB. We must clear
-		// pendingMsgs after AddMessage to prevent double-add in the final flush.
+		// rs.pendingMsgs after AddMessage to prevent double-add in the final flush.
 		const checkpointInterval = 5
-		if iteration > 0 && iteration%checkpointInterval == 0 && len(pendingMsgs) > 0 {
-			for _, msg := range pendingMsgs {
+		if rs.iteration > 0 && rs.iteration%checkpointInterval == 0 && len(rs.pendingMsgs) > 0 {
+			for _, msg := range rs.pendingMsgs {
 				l.sessions.AddMessage(ctx, req.SessionKey, msg)
 			}
-			checkpointFlushedMsgs += len(pendingMsgs)
-			pendingMsgs = pendingMsgs[:0]
+			rs.checkpointFlushedMsgs += len(rs.pendingMsgs)
+			rs.pendingMsgs = rs.pendingMsgs[:0]
 			l.sessions.Save(ctx, req.SessionKey) //nolint:errcheck — best-effort persistence
 		}
 
 	}
 
 	// 5. Full sanitization pipeline (matching TS extractAssistantText + sanitizeUserFacingText)
-	finalContent = SanitizeAssistantContent(finalContent)
+	rs.finalContent = SanitizeAssistantContent(rs.finalContent)
 
 	// 4b. Config leak detection — disabled: too many false positives
 	// (e.g. agent explaining public architecture mentioning SOUL.md etc.)
-	// finalContent = StripConfigLeak(finalContent, l.agentType)
+	// rs.finalContent = StripConfigLeak(rs.finalContent, l.agentType)
 
 	// 6. Handle NO_REPLY: save to session for context but mark as silent.
 	// Matching TS: NO_REPLY is saved (via resolveSilentReplyFallbackText) but
 	// filtered at the payload level before delivery.
-	isSilent := IsSilentReply(finalContent)
+	isSilent := IsSilentReply(rs.finalContent)
 
 	// 5b. Skill evolution: postscript suggestion after complex tasks.
 	// Fires when skill_evolve=true AND the run involved enough tool calls to warrant a skill.
@@ -1172,25 +1150,25 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// consent ("save as skill") before anything is created. No mid-loop injection, no async
 	// goroutine, no session contamination — the next user turn naturally triggers skill creation.
 	if l.skillEvolve && l.skillNudgeInterval > 0 &&
-		totalToolCalls >= l.skillNudgeInterval &&
-		finalContent != "" && !isSilent && !skillPostscriptSent {
-		skillPostscriptSent = true
+		rs.totalToolCalls >= l.skillNudgeInterval &&
+		rs.finalContent != "" && !isSilent && !rs.skillPostscriptSent {
+		rs.skillPostscriptSent = true
 		locale := store.LocaleFromContext(ctx)
-		finalContent += "\n\n---\n_" + i18n.T(locale, i18n.MsgSkillNudgePostscript) + "_"
+		rs.finalContent += "\n\n---\n_" + i18n.T(locale, i18n.MsgSkillNudgePostscript) + "_"
 	}
 
 	// 7. Fallback for empty content
-	if finalContent == "" {
-		if len(asyncToolCalls) > 0 {
-			finalContent = "..."
+	if rs.finalContent == "" {
+		if len(rs.asyncToolCalls) > 0 {
+			rs.finalContent = "..."
 		} else {
-			finalContent = "..."
+			rs.finalContent = "..."
 		}
 	}
 
 	// Append content suffix (e.g. image markdown for WS) before saving to session.
-	if req.ContentSuffix != "" && !strings.Contains(finalContent, req.ContentSuffix) {
-		finalContent += req.ContentSuffix
+	if req.ContentSuffix != "" && !strings.Contains(rs.finalContent, req.ContentSuffix) {
+		rs.finalContent += req.ContentSuffix
 	}
 
 	// Collect forwarded media + dedup + populate sizes BEFORE saving to session,
@@ -1200,13 +1178,13 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		if ct == "" {
 			ct = mimeFromExt(filepath.Ext(mf.Path))
 		}
-		mediaResults = append(mediaResults, MediaResult{Path: mf.Path, ContentType: ct})
+		rs.mediaResults = append(rs.mediaResults, MediaResult{Path: mf.Path, ContentType: ct})
 	}
-	mediaResults = deduplicateMedia(mediaResults)
-	for i := range mediaResults {
-		if mediaResults[i].Size == 0 {
-			if info, err := os.Stat(mediaResults[i].Path); err == nil {
-				mediaResults[i].Size = info.Size()
+	rs.mediaResults = deduplicateMedia(rs.mediaResults)
+	for i := range rs.mediaResults {
+		if rs.mediaResults[i].Size == 0 {
+			if info, err := os.Stat(rs.mediaResults[i].Path); err == nil {
+				rs.mediaResults[i].Size = info.Size()
 			}
 		}
 	}
@@ -1214,10 +1192,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	// Build final assistant message with output media refs for history persistence.
 	assistantMsg := providers.Message{
 		Role:     "assistant",
-		Content:  finalContent,
-		Thinking: finalThinking,
+		Content:  rs.finalContent,
+		Thinking: rs.finalThinking,
 	}
-	for _, mr := range mediaResults {
+	for _, mr := range rs.mediaResults {
 		kind := "document"
 		if strings.HasPrefix(mr.ContentType, "image/") {
 			kind = "image"
@@ -1232,10 +1210,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			Kind:     kind,
 		})
 	}
-	pendingMsgs = append(pendingMsgs, assistantMsg)
+	rs.pendingMsgs = append(rs.pendingMsgs, assistantMsg)
 
 	// Bootstrap nudge: if model didn't call write_file on turn 2+, inject reminder
-	// into session history so the next turn sees it. Appended to pendingMsgs so it's
+	// into session history so the next turn sees it. Appended to rs.pendingMsgs so it's
 	// flushed in the single Save below (avoids double I/O).
 	// Note: the nudge counts as a "user" turn in history, which accelerates auto-cleanup
 	// by one turn — acceptable since bootstrap should complete in 2-3 turns anyway.
@@ -1246,8 +1224,8 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				nudgeUserTurns++
 			}
 		}
-		if !bootstrapWriteDetected && nudgeUserTurns >= 2 && nudgeUserTurns < bootstrapAutoCleanupTurns {
-			pendingMsgs = append(pendingMsgs, providers.Message{
+		if !rs.bootstrapWriteDetected && nudgeUserTurns >= 2 && nudgeUserTurns < bootstrapAutoCleanupTurns {
+			rs.pendingMsgs = append(rs.pendingMsgs, providers.Message{
 				Role:    "user",
 				Content: "[System] You haven't completed onboarding yet. Please update USER.md with the user's details and clear BOOTSTRAP.md as instructed.",
 			})
@@ -1256,7 +1234,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 	// Flush all buffered messages to session atomically.
 	// This ensures concurrent runs never see each other's in-progress messages.
-	for _, msg := range pendingMsgs {
+	for _, msg := range rs.pendingMsgs {
 		l.sessions.AddMessage(ctx, req.SessionKey, msg)
 	}
 
@@ -1267,14 +1245,14 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 	// Write session metadata (matching TS session entry updates)
 	l.sessions.UpdateMetadata(ctx, req.SessionKey, l.model, l.provider.Name(), req.Channel)
-	l.sessions.AccumulateTokens(ctx, req.SessionKey, int64(totalUsage.PromptTokens), int64(totalUsage.CompletionTokens))
+	l.sessions.AccumulateTokens(ctx, req.SessionKey, int64(rs.totalUsage.PromptTokens), int64(rs.totalUsage.CompletionTokens))
 
 	// Calibrate token estimation: store actual prompt tokens + message count.
 	// Next time EstimateTokensWithCalibration() is called, it uses this as a base
 	// instead of the chars/3 heuristic (more accurate for multilingual content).
-	if totalUsage.PromptTokens > 0 {
-		msgCount := len(history) + checkpointFlushedMsgs + len(pendingMsgs)
-		l.sessions.SetLastPromptTokens(ctx, req.SessionKey, totalUsage.PromptTokens, msgCount)
+	if rs.totalUsage.PromptTokens > 0 {
+		msgCount := len(history) + rs.checkpointFlushedMsgs + len(rs.pendingMsgs)
+		l.sessions.SetLastPromptTokens(ctx, req.SessionKey, rs.totalUsage.PromptTokens, msgCount)
 	}
 
 	l.sessions.Save(ctx, req.SessionKey)
@@ -1301,25 +1279,25 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 	// 8. Metadata Stripping: Clean internal [[...]] tags for user-facing content
 	// (Session version is already saved in assistantMsg above)
-	finalContent = StripMessageDirectives(finalContent)
+	rs.finalContent = StripMessageDirectives(rs.finalContent)
 	if isSilent {
 		slog.Info("agent loop: NO_REPLY detected, suppressing delivery",
 			"agent", l.id, "session", req.SessionKey)
-		finalContent = ""
+		rs.finalContent = ""
 	}
 
 	// 9. Maybe summarize
 	l.maybeSummarize(ctx, req.SessionKey)
 
 	return &RunResult{
-		Content:        finalContent,
+		Content:        rs.finalContent,
 		RunID:          req.RunID,
-		Iterations:     iteration,
-		Usage:          &totalUsage,
-		Media:          mediaResults,
-		Deliverables:   deliverables,
-		BlockReplies:   blockReplies,
-		LastBlockReply: lastBlockReply,
+		Iterations:     rs.iteration,
+		Usage:          &rs.totalUsage,
+		Media:          rs.mediaResults,
+		Deliverables:   rs.deliverables,
+		BlockReplies:   rs.blockReplies,
+		LastBlockReply: rs.lastBlockReply,
 	}, nil
 }
 
