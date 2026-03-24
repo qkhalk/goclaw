@@ -65,9 +65,10 @@ func (h *StorageHandler) tenantBaseDir(r *http.Request) string {
 	return config.TenantDataDir(h.baseDir, tid, slug)
 }
 
-// protectedDirs are top-level directories where deletion is blocked
-// (managed separately via the Skills page).
-var protectedDirs = []string{"skills", "skills-store"}
+// protectedDirs are top-level directories where upload, move, and deletion are blocked.
+// These are system-managed: skills (managed via Skills page), media (managed via media handler),
+// tenants (tenant isolation root — each tenant's data is scoped internally).
+var protectedDirs = []string{"skills", "skills-store", "media", "tenants"}
 
 func isProtectedPath(rel string) bool {
 	top := rel

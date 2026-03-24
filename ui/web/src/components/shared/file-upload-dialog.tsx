@@ -12,7 +12,7 @@ const BLOCKED_EXTENSIONS = new Set([
   ".exe", ".sh", ".bat", ".cmd", ".ps1", ".com", ".msi", ".scr",
 ]);
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB — matches backend tools.MaxFileSizeBytes
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB — matches backend tools.MaxFileSizeBytes
 
 type FileStatus = "checking" | "ready" | "uploading" | "success" | "error";
 

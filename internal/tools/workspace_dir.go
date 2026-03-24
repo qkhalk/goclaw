@@ -11,7 +11,7 @@ import (
 
 // Workspace limits shared across workspace interceptor and HTTP upload handlers.
 const (
-	maxFileSizeBytes = 10 * 1024 * 1024 // 10MB
+	maxFileSizeBytes = 50 * 1024 * 1024 // 50MB
 	maxFilesPerScope = 100
 
 	// MaxFileSizeBytes is the exported form of maxFileSizeBytes for HTTP handlers.
