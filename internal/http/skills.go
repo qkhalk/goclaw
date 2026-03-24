@@ -203,7 +203,7 @@ func (h *SkillsHandler) handleInstallDeps(w http.ResponseWriter, r *http.Request
 	if !h.requireMasterTenant(w, r) {
 		return
 	}
-	dirs := h.skills.ListSystemSkillDirs()
+	dirs := h.skills.ListSystemSkillDirs(r.Context())
 	if len(dirs) == 0 {
 		writeJSON(w, http.StatusOK, map[string]string{"message": "no system skills"})
 		return
@@ -342,7 +342,7 @@ func (h *SkillsHandler) rescanAndUpdate() (updated int, results []depResult) {
 		if manifest == nil || manifest.IsEmpty() {
 			// No deps needed — if archived, recover to active and clear stale deps.
 			if sk.Status == "archived" {
-				_ = h.skills.StoreMissingDeps(id, nil)
+				_ = h.skills.StoreMissingDeps(masterCtx, id, nil)
 				_ = h.skills.UpdateSkill(masterCtx, id, map[string]any{"status": "active"})
 				results = append(results, depResult{Slug: sk.Slug, Status: "active"})
 				updated++
@@ -354,7 +354,7 @@ func (h *SkillsHandler) rescanAndUpdate() (updated int, results []depResult) {
 		}
 
 		ok, missing := skills.CheckSkillDeps(manifest)
-		_ = h.skills.StoreMissingDeps(id, missing)
+		_ = h.skills.StoreMissingDeps(masterCtx, id, missing)
 
 		switch {
 		case ok && sk.Status == "archived":
@@ -471,7 +471,7 @@ func (h *SkillsHandler) handleToggle(w http.ResponseWriter, r *http.Request) {
 			manifest := h.scanWithFallback(sk)
 			if manifest != nil && !manifest.IsEmpty() {
 				depOk, missing := skills.CheckSkillDeps(manifest)
-				_ = h.skills.StoreMissingDeps(id, missing)
+				_ = h.skills.StoreMissingDeps(r.Context(), id, missing)
 				if depOk {
 					newStatus = "active"
 				} else {
