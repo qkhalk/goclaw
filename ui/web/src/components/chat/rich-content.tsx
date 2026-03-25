@@ -308,12 +308,13 @@ interface RichContentProps {
 }
 
 export function RichContent({ content, role }: RichContentProps) {
-  const blocks = parseRichContent(deduplicateMediaLinks(content));
+  const cleaned = deduplicateMediaLinks(content);
+  const blocks = parseRichContent(cleaned);
 
   // If no special blocks found, render as plain markdown (fast path)
   const first = blocks[0];
   if (blocks.length === 1 && first?.type === "markdown") {
-    return <MarkdownRenderer content={content} className={role === "user" ? "text-sm" : ""} />;
+    return <MarkdownRenderer content={cleaned} className={role === "user" ? "text-sm" : ""} />;
   }
 
   return (
