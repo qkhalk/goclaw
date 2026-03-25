@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { X, Download } from "lucide-react";
-import { formatSize } from "@/lib/file-helpers";
+import { formatSize, toDownloadUrl } from "@/lib/file-helpers";
+import { useMediaUrl } from "@/hooks/use-media-url";
 
 interface ImageLightboxProps {
   src: string;
@@ -24,6 +25,7 @@ export function ImageLightbox({ src, alt, fileName, size, onClose }: ImageLightb
   }, [handleKeyDown]);
 
   const displayName = fileName || alt || "image";
+  const cachedSrc = useMediaUrl(src);
 
   return (
     <div
@@ -32,7 +34,7 @@ export function ImageLightbox({ src, alt, fileName, size, onClose }: ImageLightb
     >
       <div className="absolute top-4 right-4 flex items-center gap-2">
         <a
-          href={src}
+          href={toDownloadUrl(src)}
           download={displayName}
           onClick={(e) => e.stopPropagation()}
           className="rounded-full bg-white/90 dark:bg-neutral-800/90 p-2.5 text-neutral-700 dark:text-neutral-200 shadow-md ring-1 ring-black/10 dark:ring-white/10 hover:bg-white dark:hover:bg-neutral-700 transition-colors cursor-pointer"
@@ -49,7 +51,7 @@ export function ImageLightbox({ src, alt, fileName, size, onClose }: ImageLightb
         </button>
       </div>
       <img
-        src={src}
+        src={cachedSrc}
         alt={alt ?? "image"}
         className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
         onClick={(e) => e.stopPropagation()}

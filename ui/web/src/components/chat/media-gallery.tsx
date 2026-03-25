@@ -2,7 +2,8 @@ import { useState, useCallback } from "react";
 import { Download, FileText, FileCode, Music, Film, File } from "lucide-react";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { MarkdownRenderer } from "@/components/shared/markdown-renderer";
-import { formatSize } from "@/lib/file-helpers";
+import { formatSize, toDownloadUrl } from "@/lib/file-helpers";
+import { useMediaUrl } from "@/hooks/use-media-url";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,15 @@ function isMarkdownExt(name: string): boolean {
 function isMediaKind(kind: string): "image" | "audio" | "video" | null {
   if (kind === "image" || kind === "audio" || kind === "video") return kind;
   return null;
+}
+
+/** Image with blob-cached src to prevent flickering on session switch. */
+function CachedImage({ src, alt, className, loading, onClick }: {
+  src: string; alt: string; className?: string; loading?: "lazy" | "eager";
+  onClick?: () => void;
+}) {
+  const cachedSrc = useMediaUrl(src);
+  return <img src={cachedSrc} alt={alt} className={className} loading={loading} onClick={onClick} />;
 }
 
 export function MediaGallery({ items }: MediaGalleryProps) {
@@ -78,7 +88,7 @@ export function MediaGallery({ items }: MediaGalleryProps) {
                 onClick={() => setLightboxIdx(i)}
                 className="block w-full cursor-pointer"
               >
-                <img
+                <CachedImage
                   src={item.path}
                   alt={item.fileName ?? ""}
                   className="h-40 w-full object-cover"
@@ -94,7 +104,7 @@ export function MediaGallery({ items }: MediaGalleryProps) {
                   )}
                 </div>
                 <a
-                  href={item.path}
+                  href={toDownloadUrl(item.path)}
                   download={item.fileName ?? "image"}
                   onClick={(e) => e.stopPropagation()}
                   className="shrink-0 rounded-lg bg-white/90 dark:bg-neutral-800/90 p-1.5 text-neutral-700 dark:text-neutral-200 shadow-md ring-1 ring-black/10 dark:ring-white/10 hover:bg-white dark:hover:bg-neutral-700 transition-colors cursor-pointer"
@@ -124,7 +134,7 @@ export function MediaGallery({ items }: MediaGalleryProps) {
                 )}
               </button>
               <a
-                href={item.path}
+                href={toDownloadUrl(item.path)}
                 download={item.fileName ?? "file"}
                 className="flex items-center px-2 py-1.5 text-muted-foreground hover:bg-muted cursor-pointer rounded-r-md border-l"
                 onClick={(e) => e.stopPropagation()}
@@ -158,7 +168,7 @@ export function MediaGallery({ items }: MediaGalleryProps) {
             <DialogHeader className="flex-row items-center gap-2 pr-10">
               <DialogTitle className="truncate text-base flex-1">{preview.name}</DialogTitle>
               <a
-                href={preview.href}
+                href={toDownloadUrl(preview.href)}
                 download={preview.name}
                 className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted"
               >
