@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tracing"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
@@ -142,19 +141,15 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 
 	chatID := ToolChatIDFromCtx(ctx)
 
-	// Shared workspace: scope by teamID only. Isolated (default): scope by chatID too.
-	wsChat := chatID
-	if IsSharedWorkspace(team.Settings) {
-		wsChat = ""
-	}
-
-	// Compute the team workspace directory (tenant-scoped) so member agents
-	// write files to the shared team folder instead of their own personal workspace.
+	// Compute team workspace via layered pipeline: tenant → team → user/chat.
+	shared := IsSharedWorkspace(team.Settings)
 	taskMeta := make(map[string]any)
-	tenantBase := config.TenantWorkspace(t.manager.dataDir, store.TenantIDFromContext(ctx), store.TenantSlugFromContext(ctx))
-	if teamWsDir, err := WorkspaceDir(tenantBase, team.ID, wsChat); err == nil {
-		taskMeta["team_workspace"] = teamWsDir
-	}
+	teamWsDir := ResolveWorkspace(t.manager.dataDir,
+		TenantLayer(store.TenantIDFromContext(ctx), store.TenantSlugFromContext(ctx)),
+		TeamLayer(team.ID),
+		UserChatLayer(chatID, shared),
+	)
+	taskMeta["team_workspace"] = teamWsDir
 	// Auto-collect media files from current run to team workspace.
 	// When leader received files from user and creates a task, copy those
 	// files to the team workspace so members can access them via read_file.
