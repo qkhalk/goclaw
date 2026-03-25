@@ -16,7 +16,7 @@ import (
 // FilesHandler serves files over HTTP with Bearer token auth.
 // Accepts absolute paths — the auth token protects against unauthorized access.
 // When an exact path is not found, falls back to searching the workspace for
-// generated files by basename (goclaw_gen_* filenames are globally unique).
+// generated files by basename (media filenames include timestamps and are globally unique).
 type FilesHandler struct {
 	workspace string // workspace root for fallback file search
 	dataDir   string // data directory root for tenant path validation
@@ -109,7 +109,7 @@ func (h *FilesHandler) handleServe(w http.ResponseWriter, r *http.Request) {
 	info, err := os.Stat(absPath)
 	if err != nil || info.IsDir() {
 		// Fallback: search workspace for file by basename (handles LLM-hallucinated paths).
-		// Generated filenames (goclaw_gen_*) include nanosecond timestamps and are globally unique.
+		// Generated media filenames include timestamps and are globally unique.
 		// For ft= signed requests, search from workspace root (no tenant context available);
 		// for bearer requests, scope to tenant workspace.
 		ws := h.tenantWorkspace(r)
