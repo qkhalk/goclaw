@@ -241,6 +241,42 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		)
 	}
 
+	// Build RunContext from all resolved values and inject as single context key.
+	// This provides a typed, inspectable snapshot of all loop-injected context.
+	// Individual With* keys above remain for backward compat during transition.
+	providerName := ""
+	if l.provider != nil {
+		providerName = l.provider.Name()
+	}
+	rc := &store.RunContext{
+		AgentID:             l.agentUUID,
+		AgentKey:            l.id,
+		TenantID:            l.tenantID,
+		UserID:              req.UserID,
+		AgentType:           l.agentType,
+		SenderID:            req.SenderID,
+		SelfEvolve:          l.selfEvolve,
+		SharedMemory:        store.IsSharedMemory(ctx),
+		SharedKG:            store.IsSharedKG(ctx),
+		RestrictToWorkspace: l.restrictToWs != nil && *l.restrictToWs,
+		BuiltinToolSettings: l.builtinToolSettings,
+		ChannelType:         req.ChannelType,
+		SubagentsCfg:        l.subagentsCfg,
+		ParentModel:         l.model,
+		ParentProvider:      providerName,
+		MemoryCfg:           l.memoryCfg,
+		SandboxCfg:          l.sandboxCfg,
+		ShellDenyGroups:     l.shellDenyGroups,
+		Workspace:           tools.ToolWorkspaceFromCtx(ctx),
+		TeamWorkspace:       tools.ToolTeamWorkspaceFromCtx(ctx),
+		TeamID:              tools.ToolTeamIDFromCtx(ctx),
+		WorkspaceChannel:    req.WorkspaceChannel,
+		WorkspaceChatID:     req.WorkspaceChatID,
+		TeamTaskID:          req.TeamTaskID,
+		AgentToolKey:        l.id,
+	}
+	ctx = store.WithRunContext(ctx, rc)
+
 	return contextSetupResult{
 		ctx:                  ctx,
 		resolvedTeamSettings: resolvedTeamSettings,
