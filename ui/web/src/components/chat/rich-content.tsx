@@ -177,7 +177,9 @@ function isMarkdownFile(name: string, mime: string): boolean {
   return /\.(md|mdx|markdown)$/i.test(name) || mime.startsWith("text/markdown");
 }
 
-function FileBlock({ name, mime, content }: { name: string; mime: string; content: string }) {
+function FileBlock({ name: rawName, mime, content }: { name: string; mime: string; content: string }) {
+  // Strip query params (e.g. ?ft=token) from filename for display and extension detection
+  const name = rawName.replace(/\?.*$/, "");
   const [open, setOpen] = useState(false);
 
   const handleDownload = useCallback(() => {
