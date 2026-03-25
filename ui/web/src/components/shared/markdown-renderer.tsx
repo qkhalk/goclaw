@@ -12,6 +12,7 @@ import { toFileUrl, toDownloadUrl } from "@/lib/file-helpers";
 import { useMediaUrl } from "@/hooks/use-media-url";
 import { Check, Copy, Download, FileText } from "lucide-react";
 import { ImageLightbox } from "./image-lightbox";
+import { useChatImageGallery } from "@/components/chat/chat-image-gallery-context";
 import {
   Dialog,
   DialogContent,
@@ -124,8 +125,16 @@ function CachedMarkdownImg({ src, alt, openLightbox, ...props }: {
 }
 
 export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+  const gallery = useChatImageGallery();
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
-  const openLightbox = useCallback((src: string, alt: string) => setLightbox({ src, alt }), []);
+  // Use conversation-wide gallery if available (has images), else fall back to local lightbox
+  const openLightbox = useCallback((src: string, alt: string) => {
+    if (gallery.allImages.length > 0) {
+      gallery.openImage(src);
+    } else {
+      setLightbox({ src, alt });
+    }
+  }, [gallery]);
   const [filePreview, setFilePreview] = useState<{ name: string; href: string; content: string; mediaType?: "image" | "audio" | "video" } | null>(null);
   const [fileLoading, setFileLoading] = useState(false);
 

@@ -54,6 +54,7 @@ export const Methods = {
   CHAT_HISTORY: "chat.history",
   CHAT_ABORT: "chat.abort",
   CHAT_INJECT: "chat.inject",
+  CHAT_SESSION_STATUS: "chat.session.status",
 
   // Agents management
   AGENTS_LIST: "agents.list",

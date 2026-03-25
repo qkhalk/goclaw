@@ -1,9 +1,9 @@
 import { useState, useCallback } from "react";
 import { Download, FileText, FileCode, Music, Film, File } from "lucide-react";
-import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { MarkdownRenderer } from "@/components/shared/markdown-renderer";
 import { formatSize, toDownloadUrl } from "@/lib/file-helpers";
 import { useMediaUrl } from "@/hooks/use-media-url";
+import { useChatImageGallery } from "./chat-image-gallery-context";
 import {
   Dialog,
   DialogContent,
@@ -45,7 +45,7 @@ function CachedImage({ src, alt, className, loading, onClick }: {
 }
 
 export function MediaGallery({ items }: MediaGalleryProps) {
-  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const { openImage } = useChatImageGallery();
   const [preview, setPreview] = useState<{
     name: string;
     href: string;
@@ -85,7 +85,7 @@ export function MediaGallery({ items }: MediaGalleryProps) {
             <div key={i} className="group relative overflow-hidden rounded-lg border">
               <button
                 type="button"
-                onClick={() => setLightboxIdx(i)}
+                onClick={() => openImage(item.path)}
                 className="block w-full cursor-pointer"
               >
                 <CachedImage
@@ -144,16 +144,6 @@ export function MediaGallery({ items }: MediaGalleryProps) {
             </div>
           ))}
         </div>
-      )}
-
-      {lightboxIdx !== null && images[lightboxIdx] && (
-        <ImageLightbox
-          src={images[lightboxIdx]!.path}
-          alt={images[lightboxIdx]!.fileName ?? ""}
-          fileName={images[lightboxIdx]!.fileName}
-          size={images[lightboxIdx]!.size}
-          onClose={() => setLightboxIdx(null)}
-        />
       )}
 
       {loading && (
