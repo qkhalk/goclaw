@@ -46,6 +46,12 @@ func (s QueryScope) WhereClause(startParam int) (clause string, args []any, next
 // Used in JOIN queries to avoid column ambiguity.
 // SECURITY: alias is interpolated into SQL — callers MUST pass hardcoded string literals only.
 func (s QueryScope) WhereClauseAlias(startParam int, alias string) (clause string, args []any, nextParam int) {
+	// Defense-in-depth: only allow simple alphanumeric aliases to prevent SQL injection.
+	for _, c := range alias {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+			return "", nil, startParam
+		}
+	}
 	clause = fmt.Sprintf(" AND %s.tenant_id = $%d", alias, startParam)
 	args = []any{s.TenantID}
 	nextParam = startParam + 1
