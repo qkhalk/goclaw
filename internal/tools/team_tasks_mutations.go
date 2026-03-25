@@ -481,6 +481,19 @@ func (t *TeamTasksTool) executeAttach(ctx context.Context, args map[string]any) 
 		return ErrorResult("failed to attach file: " + err.Error())
 	}
 
+	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskAttachmentAdded, protocol.TeamTaskEventPayload{
+		TeamID:     team.ID.String(),
+		TaskID:     taskID.String(),
+		TaskNumber: task.TaskNumber,
+		Subject:    task.Subject,
+		UserID:     store.UserIDFromContext(ctx),
+		Channel:    ToolChannelFromCtx(ctx),
+		ChatID:     chatID,
+		Timestamp:  time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+		ActorType:  "agent",
+		ActorID:    t.manager.agentKeyFromID(ctx, agentID),
+	})
+
 	return NewResult(fmt.Sprintf("File attached to task #%d \"%s\" (id: %s).", task.TaskNumber, task.Subject, taskID))
 }
 

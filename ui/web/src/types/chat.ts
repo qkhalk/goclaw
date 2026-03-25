@@ -22,6 +22,8 @@ export interface ActiveTeamTask {
   ownerDisplayName?: string;
   progressPercent?: number;
   progressStep?: string;
+  commentCount?: number;
+  attachmentCount?: number;
 }
 
 /** Media item for gallery display */
