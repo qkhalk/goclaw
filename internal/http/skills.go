@@ -30,11 +30,12 @@ type SkillsHandler struct {
 	bundledDir     string // original bundled skills dir (fallback for broken managed copies)
 	msgBus         *bus.MessageBus
 	tenantCfgStore store.SkillTenantConfigStore
+	tenantStore    store.TenantStore
 }
 
 // NewSkillsHandler creates a handler for skill management endpoints.
-func NewSkillsHandler(skills *pg.PGSkillStore, baseDir, dataDir, bundledDir string, msgBus *bus.MessageBus, tenantCfgStore store.SkillTenantConfigStore) *SkillsHandler {
-	return &SkillsHandler{skills: skills, baseDir: baseDir, dataDir: dataDir, bundledDir: bundledDir, msgBus: msgBus, tenantCfgStore: tenantCfgStore}
+func NewSkillsHandler(skills *pg.PGSkillStore, baseDir, dataDir, bundledDir string, msgBus *bus.MessageBus, tenantCfgStore store.SkillTenantConfigStore, tenantStore store.TenantStore) *SkillsHandler {
+	return &SkillsHandler{skills: skills, baseDir: baseDir, dataDir: dataDir, bundledDir: bundledDir, msgBus: msgBus, tenantCfgStore: tenantCfgStore, tenantStore: tenantStore}
 }
 
 // tenantSkillsDir returns the skills-store directory scoped to the requesting tenant.
@@ -78,8 +79,9 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/skills/install-dep", h.adminMiddleware(h.handleInstallDep))
 	mux.HandleFunc("GET /v1/skills/runtimes", h.adminMiddleware(h.handleRuntimes))
 	mux.HandleFunc("POST /v1/skills/{id}/toggle", h.adminMiddleware(h.handleToggle))
-	mux.HandleFunc("PUT /v1/skills/{id}/tenant-config", h.adminMiddleware(h.handleSetTenantConfig))
-	mux.HandleFunc("DELETE /v1/skills/{id}/tenant-config", h.adminMiddleware(h.handleDeleteTenantConfig))
+	// Per-tenant overrides: tenant-level admin check inside handler (not system admin).
+	mux.HandleFunc("PUT /v1/skills/{id}/tenant-config", h.authMiddleware(h.handleSetTenantConfig))
+	mux.HandleFunc("DELETE /v1/skills/{id}/tenant-config", h.authMiddleware(h.handleDeleteTenantConfig))
 }
 
 func (h *SkillsHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -525,12 +527,11 @@ func (h *SkillsHandler) handleSetTenantConfig(w http.ResponseWriter, r *http.Req
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "tenant config not available"})
 		return
 	}
-	locale := store.LocaleFromContext(r.Context())
-	tid := store.TenantIDFromContext(r.Context())
-	if tid == uuid.Nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tenant context required"})
+	if !requireTenantAdmin(w, r, h.tenantStore) {
 		return
 	}
+	locale := store.LocaleFromContext(r.Context())
+	tid := store.TenantIDFromContext(r.Context())
 
 	idStr := r.PathValue("id")
 	skillID, err := uuid.Parse(idStr)
@@ -542,7 +543,7 @@ func (h *SkillsHandler) handleSetTenantConfig(w http.ResponseWriter, r *http.Req
 	var body struct {
 		Enabled bool `json:"enabled"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidJSON)})
 		return
 	}
@@ -553,6 +554,7 @@ func (h *SkillsHandler) handleSetTenantConfig(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	emitAudit(h.msgBus, r, "skill.tenant_config.set", "skill", idStr)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
@@ -562,12 +564,11 @@ func (h *SkillsHandler) handleDeleteTenantConfig(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "tenant config not available"})
 		return
 	}
-	locale := store.LocaleFromContext(r.Context())
-	tid := store.TenantIDFromContext(r.Context())
-	if tid == uuid.Nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tenant context required"})
+	if !requireTenantAdmin(w, r, h.tenantStore) {
 		return
 	}
+	locale := store.LocaleFromContext(r.Context())
+	tid := store.TenantIDFromContext(r.Context())
 
 	idStr := r.PathValue("id")
 	skillID, err := uuid.Parse(idStr)
@@ -582,5 +583,6 @@ func (h *SkillsHandler) handleDeleteTenantConfig(w http.ResponseWriter, r *http.
 		return
 	}
 
+	emitAudit(h.msgBus, r, "skill.tenant_config.deleted", "skill", idStr)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
