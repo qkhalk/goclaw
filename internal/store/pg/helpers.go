@@ -212,33 +212,6 @@ func tableHasUpdatedAt(table string) bool {
 
 // --- Tenant filter helpers ---
 
-// tenantClauseN returns an " AND tenant_id = $N" clause and the tenant UUID as the arg.
-// Always requires tenant_id in context (fail-closed). No cross-tenant bypass.
-func tenantClauseN(ctx context.Context, paramN int) (clause string, args []any, err error) {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return "", nil, fmt.Errorf("tenant_id required")
-	}
-	return fmt.Sprintf(" AND tenant_id = $%d", paramN), []any{tid}, nil
-}
-
-// tenantClauseNAlias is like tenantClauseN but qualifies tenant_id with a table alias
-// to avoid ambiguity in JOIN queries (e.g. " AND d.tenant_id = $3").
-// SECURITY: alias is interpolated into SQL — callers MUST pass hardcoded string literals only.
-func tenantClauseNAlias(ctx context.Context, paramN int, alias string) (clause string, args []any, err error) {
-	// Guard: only allow simple alphanumeric aliases (a-z, 0-9, underscore) to prevent SQL injection.
-	for _, c := range alias {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
-			return "", nil, fmt.Errorf("invalid table alias: %q", alias)
-		}
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return "", nil, fmt.Errorf("tenant_id required")
-	}
-	return fmt.Sprintf(" AND %s.tenant_id = $%d", alias, paramN), []any{tid}, nil
-}
-
 // tenantIDForInsert returns the tenant UUID for INSERT operations.
 // Falls back to MasterTenantID when no tenant in context.
 func tenantIDForInsert(ctx context.Context) uuid.UUID {
@@ -258,8 +231,9 @@ func requireTenantID(ctx context.Context) (uuid.UUID, error) {
 	return tid, nil
 }
 
-// --- Scope-based helpers (composable alternative to tenantClauseN) ---
-// Use these for new code. Old tenantClauseN/tenantClauseNAlias remain for existing callers.
+// --- Scope-based query helpers ---
+// Generate WHERE clauses for tenant + optional project-level isolation.
+// Uses store.QueryScope which extracts scope from context (fail-closed).
 
 // scopeClause extracts QueryScope from context and generates WHERE conditions.
 // Drop-in replacement for tenantClauseN that supports future project-level scoping.
