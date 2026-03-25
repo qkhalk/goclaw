@@ -11,6 +11,7 @@
 #
 #   Without dashboard:  docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 #   With OTel tracing:  docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.otel.yml up -d --build
+#   With Claude CLI:    add -f docker-compose.claude-cli.yml to auto-sync host ~/.claude credentials
 
 services:
   goclaw:
@@ -40,7 +41,6 @@ services:
     volumes:
       - goclaw-data:/app/data
       - goclaw-workspace:/app/workspace
-      - ${HOME}/.claude:/app/.claude-host:ro
     security_opt:
       - no-new-privileges:true
     init: true
