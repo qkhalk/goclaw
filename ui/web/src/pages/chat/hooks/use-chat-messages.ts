@@ -139,12 +139,18 @@ export function useChatMessages(sessionKey: string, agentId: string) {
     }
   }, [ws, agentId, sessionKey]);
 
-  // Load history when session changes
+  // Load history and restore active tasks when session changes
   useEffect(() => {
     if (sessionKey) {
       loadHistory();
+      // Restore active team tasks (fire-and-forget — teams module may not be configured)
+      ws.call<{ tasks?: ActiveTeamTask[] }>(Methods.TEAMS_TASK_ACTIVE_BY_SESSION, { sessionKey })
+        .then((res) => {
+          if (res.tasks && res.tasks.length > 0) setTeamTasks(res.tasks);
+        })
+        .catch(() => {}); // teams not configured or RPC not registered
     }
-  }, [sessionKey, loadHistory]);
+  }, [sessionKey, loadHistory, ws]);
 
   // Called before sending a message so the event handler knows to capture run.started
   const expectRun = useCallback(() => {
