@@ -82,6 +82,9 @@ func SignFileURLs(content, secret string) string {
 	content = strings.ReplaceAll(content, "/v1/files/v1/files/", "/v1/files/")
 	content = strings.ReplaceAll(content, "/v1/files/v1/media/", "/v1/media/")
 	content = strings.ReplaceAll(content, "/v1/media/v1/media/", "/v1/media/")
+	// Heal legacy: convert bare absolute paths in markdown links to /v1/files/ URLs.
+	// Agent text may embed ![img](/app/workspace/...) — these need the /v1/files/ prefix to be served.
+	content = barePathInLinkRe.ReplaceAllString(content, "](/v1/files$1)")
 	// Heal legacy: clean ?ft=... from markdown link display text [name?ft=xxx](...) → [name](...)
 	content = linkTextFtRe.ReplaceAllString(content, "[$1]")
 	// Sign URLs
@@ -100,6 +103,11 @@ func SignFileURLs(content, secret string) string {
 // linkTextFtRe matches markdown link text containing ?ft=... e.g. [filename.md?ft=xxx](...)
 // Captures the clean name before ?ft= for replacement.
 var linkTextFtRe = regexp.MustCompile(`\[([^\]\s?]+)\?ft=[^\]]*\]`)
+
+// barePathInLinkRe matches markdown link URLs that are bare absolute paths (not /v1/ URLs).
+// Captures the absolute path so we can prepend /v1/files. Only matches inside ](...)
+// to avoid false positives in prose text.
+var barePathInLinkRe = regexp.MustCompile(`\]\((/(?:app|home|tmp|opt|data|workspace)[^\s)"'<>]*)\)`)
 
 // staleTokenRe matches ?ft=... or &ft=... query parameter (greedy to end of URL segment).
 var staleTokenRe = regexp.MustCompile(`[?&]ft=[^\s)"'<>&]*`)
