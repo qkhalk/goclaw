@@ -120,7 +120,7 @@ func (s *PGCronStore) ListJobs(ctx context.Context, includeDisabled bool, agentI
 		args = append(args, userID)
 		argIdx++
 	}
-	clause, targs, tErr := tenantClauseN(ctx, argIdx)
+	clause, targs, _, tErr := scopeClause(ctx, argIdx)
 	if tErr != nil {
 		slog.Warn("cron.ListJobs: tenant context missing, returning empty (fail-closed)", "error", tErr)
 		return nil

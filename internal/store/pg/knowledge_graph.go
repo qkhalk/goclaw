@@ -64,7 +64,7 @@ func (s *PGKnowledgeGraphStore) GetEntity(ctx context.Context, agentID, userID, 
 	eid := mustParseUUID(entityID)
 
 	if store.IsSharedKG(ctx) {
-		tc, tcArgs, err := tenantClauseN(ctx, 3)
+		tc, tcArgs, _, err := scopeClause(ctx, 3)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +77,7 @@ func (s *PGKnowledgeGraphStore) GetEntity(ctx context.Context, agentID, userID, 
 		return scanEntity(row)
 	}
 
-	tc, tcArgs, err := tenantClauseN(ctx, 4)
+	tc, tcArgs, _, err := scopeClause(ctx, 4)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (s *PGKnowledgeGraphStore) DeleteEntity(ctx context.Context, agentID, userI
 	aid := mustParseUUID(agentID)
 	eid := mustParseUUID(entityID)
 	if store.IsSharedKG(ctx) {
-		tc, tcArgs, err := tenantClauseN(ctx, 3)
+		tc, tcArgs, _, err := scopeClause(ctx, 3)
 		if err != nil {
 			return err
 		}
@@ -104,7 +104,7 @@ func (s *PGKnowledgeGraphStore) DeleteEntity(ctx context.Context, agentID, userI
 		)
 		return err
 	}
-	tc, tcArgs, err := tenantClauseN(ctx, 4)
+	tc, tcArgs, _, err := scopeClause(ctx, 4)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (s *PGKnowledgeGraphStore) ListEntities(ctx context.Context, agentID, userI
 		args = append(args, opts.EntityType)
 		idx++
 	}
-	tc, tcArgs, err := tenantClauseN(ctx, idx)
+	tc, tcArgs, _, err := scopeClause(ctx, idx)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +228,7 @@ func (s *PGKnowledgeGraphStore) ilikeSearchEntities(ctx context.Context, agentID
 		args = append(args, userID)
 		idx++
 	}
-	tc, tcArgs, err := tenantClauseN(ctx, idx)
+	tc, tcArgs, _, err := scopeClause(ctx, idx)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +283,7 @@ func (s *PGKnowledgeGraphStore) vectorSearchEntities(ctx context.Context, embedd
 		args = append(args, userID)
 		idx++
 	}
-	tc, tcArgs, err := tenantClauseN(ctx, idx)
+	tc, tcArgs, _, err := scopeClause(ctx, idx)
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +393,7 @@ func (s *PGKnowledgeGraphStore) DeleteRelation(ctx context.Context, agentID, use
 	aid := mustParseUUID(agentID)
 	rid := mustParseUUID(relationID)
 	if store.IsSharedKG(ctx) {
-		tc, tcArgs, err := tenantClauseN(ctx, 3)
+		tc, tcArgs, _, err := scopeClause(ctx, 3)
 		if err != nil {
 			return err
 		}
@@ -403,7 +403,7 @@ func (s *PGKnowledgeGraphStore) DeleteRelation(ctx context.Context, agentID, use
 		)
 		return err
 	}
-	tc, tcArgs, err := tenantClauseN(ctx, 4)
+	tc, tcArgs, _, err := scopeClause(ctx, 4)
 	if err != nil {
 		return err
 	}
@@ -421,7 +421,7 @@ func (s *PGKnowledgeGraphStore) ListRelations(ctx context.Context, agentID, user
 	var q string
 	var args []any
 	if store.IsSharedKG(ctx) {
-		tc, tcArgs, err := tenantClauseN(ctx, 3)
+		tc, tcArgs, _, err := scopeClause(ctx, 3)
 		if err != nil {
 			return nil, err
 		}
@@ -433,7 +433,7 @@ func (s *PGKnowledgeGraphStore) ListRelations(ctx context.Context, agentID, user
 		ORDER BY created_at DESC`
 		args = append([]any{aid, eid}, tcArgs...)
 	} else {
-		tc, tcArgs, err := tenantClauseN(ctx, 4)
+		tc, tcArgs, _, err := scopeClause(ctx, 4)
 		if err != nil {
 			return nil, err
 		}
@@ -467,7 +467,7 @@ func (s *PGKnowledgeGraphStore) ListAllRelations(ctx context.Context, agentID, u
 		args = append(args, userID)
 		idx++
 	}
-	tc, tcArgs, err := tenantClauseN(ctx, idx)
+	tc, tcArgs, _, err := scopeClause(ctx, idx)
 	if err != nil {
 		return nil, err
 	}
@@ -594,7 +594,7 @@ func (s *PGKnowledgeGraphStore) PruneByConfidence(ctx context.Context, agentID, 
 	var res sql.Result
 	var err error
 	if store.IsSharedKG(ctx) {
-		tc, tcArgs, tcErr := tenantClauseN(ctx, 3)
+		tc, tcArgs, _, tcErr := scopeClause(ctx, 3)
 		if tcErr != nil {
 			return 0, tcErr
 		}
@@ -603,7 +603,7 @@ func (s *PGKnowledgeGraphStore) PruneByConfidence(ctx context.Context, agentID, 
 			append([]any{aid, minConfidence}, tcArgs...)...,
 		)
 	} else {
-		tc, tcArgs, tcErr := tenantClauseN(ctx, 4)
+		tc, tcArgs, _, tcErr := scopeClause(ctx, 4)
 		if tcErr != nil {
 			return 0, tcErr
 		}
@@ -631,7 +631,7 @@ func (s *PGKnowledgeGraphStore) Stats(ctx context.Context, agentID, userID strin
 		args = append(args, userID)
 		idx++
 	}
-	tc, tcArgs, err := tenantClauseN(ctx, idx)
+	tc, tcArgs, _, err := scopeClause(ctx, idx)
 	if err != nil {
 		return nil, err
 	}
