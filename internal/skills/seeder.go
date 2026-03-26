@@ -12,13 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
-	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // SystemSkillStore is the minimal interface needed by the seeder.
 type SystemSkillStore interface {
-	UpsertSystemSkill(ctx context.Context, p pg.SkillCreateParams) (uuid.UUID, bool, string, error)
+	UpsertSystemSkill(ctx context.Context, p store.SkillCreateParams) (uuid.UUID, bool, string, error)
 	GetNextVersion(ctx context.Context, slug string) int
 	BumpVersion()
 	UpdateSkill(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
@@ -104,7 +103,7 @@ func (s *Seeder) Seed(ctx context.Context) (seeded int, skipped int, skills []se
 		destDir := filepath.Join(s.managedDir, slug, fmt.Sprintf("%d", version))
 
 		desc := description
-		p := pg.SkillCreateParams{
+		p := store.SkillCreateParams{
 			Name:        name,
 			Slug:        slug,
 			Description: &desc,

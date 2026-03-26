@@ -13,7 +13,7 @@ import (
 // Returns (id, changed, actualFilePath, error).
 // When hash is unchanged, returns the existing file_path from DB so the caller
 // uses the correct directory for dep scanning (not a non-existent next-version dir).
-func (s *PGSkillStore) UpsertSystemSkill(ctx context.Context, p SkillCreateParams) (uuid.UUID, bool, string, error) {
+func (s *PGSkillStore) UpsertSystemSkill(ctx context.Context, p store.SkillCreateParams) (uuid.UUID, bool, string, error) {
 	// Check if skill already exists
 	var existingID uuid.UUID
 	var existingHash *string

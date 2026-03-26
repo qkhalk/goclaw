@@ -11,21 +11,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// SkillCreateParams holds parameters for creating a managed skill.
-type SkillCreateParams struct {
-	Name        string
-	Slug        string
-	Description *string
-	OwnerID     string
-	Visibility  string
-	Status      string // "active", "archived" (missing deps), or "deleted" (user-deleted)
-	Version     int
-	FilePath    string
-	FileSize    int64
-	FileHash    *string
-	Frontmatter map[string]string // parsed YAML frontmatter from SKILL.md
-}
-
 func (s *PGSkillStore) CreateSkill(name, slug string, description *string, ownerID, visibility string, version int, filePath string, fileSize int64, fileHash *string) error {
 	id := store.GenNewID()
 	_, err := s.db.Exec(
@@ -126,7 +111,7 @@ func tenantSlugAdvisoryLock(tenantID uuid.UUID, slug string) int64 {
 // callers from racing on version calculation and upsert.
 // The RETURNING id clause ensures the actual row ID is returned (new insert or
 // existing row on conflict), so callers always receive a valid ID.
-func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p SkillCreateParams) (uuid.UUID, error) {
+func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p store.SkillCreateParams) (uuid.UUID, error) {
 	if err := store.ValidateUserID(p.OwnerID); err != nil {
 		return uuid.Nil, err
 	}

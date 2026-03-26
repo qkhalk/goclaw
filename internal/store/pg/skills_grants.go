@@ -201,21 +201,8 @@ type SkillGrantInfo struct {
 	GrantedBy     string    `json:"granted_by"`
 }
 
-// SkillWithGrantStatus represents a skill with its grant status for a specific agent.
-type SkillWithGrantStatus struct {
-	ID          uuid.UUID `json:"id"`
-	Name        string    `json:"name"`
-	Slug        string    `json:"slug"`
-	Description string    `json:"description"`
-	Visibility  string    `json:"visibility"`
-	Version     int       `json:"version"`
-	Granted     bool      `json:"granted"`
-	PinnedVer   *int      `json:"pinned_version,omitempty"`
-	IsSystem    bool      `json:"is_system"`
-}
-
 // ListWithGrantStatus returns all active skills with grant status for a specific agent.
-func (s *PGSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid.UUID) ([]SkillWithGrantStatus, error) {
+func (s *PGSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid.UUID) ([]store.SkillWithGrantStatus, error) {
 	tc, tcArgs, _, err := scopeClause(ctx, 2)
 	if err != nil {
 		return nil, err
@@ -238,9 +225,9 @@ func (s *PGSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid.UUI
 	}
 	defer rows.Close()
 
-	var result []SkillWithGrantStatus
+	var result []store.SkillWithGrantStatus
 	for rows.Next() {
-		var r SkillWithGrantStatus
+		var r store.SkillWithGrantStatus
 		if err := rows.Scan(&r.ID, &r.Name, &r.Slug, &r.Description, &r.Visibility, &r.Version, &r.Granted, &r.PinnedVer, &r.IsSystem); err != nil {
 			slog.Warn("skill_grants: scan error in ListWithGrantStatus", "error", err)
 			continue
