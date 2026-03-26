@@ -142,10 +142,14 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 		h.providerReg.RegisterForTenant(p.TenantID, providers.NewClaudeCLIProvider(cliPath, cliOpts...))
 		return
 	}
-	// Ollama doesn't need an API key — inject a dummy value like startup does.
+	// Ollama doesn't need an API key — handle before the key guard (same as startup).
 	// In Docker, swap localhost → host.docker.internal so the container can reach the host.
 	if p.ProviderType == store.ProviderOllama {
-		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, "ollama", config.DockerLocalhost(p.APIBase), "llama3.3"))
+		host := p.APIBase
+		if host == "" {
+			host = "http://localhost:11434"
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, "ollama", config.DockerLocalhost(host+"/v1"), "llama3.3"))
 		return
 	}
 	if p.APIKey == "" {

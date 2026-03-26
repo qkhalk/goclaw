@@ -21,12 +21,18 @@ func InDocker() bool {
 	return dockerCached
 }
 
-// DockerLocalhost rewrites localhost in url to host.docker.internal
+// DockerLocalhost rewrites localhost or 127.0.0.1 in url to host.docker.internal
 // when running inside Docker, so the container can reach host services.
-// Returns the url unchanged when not in Docker or when it doesn't contain localhost.
+// Returns the url unchanged when not in Docker or when it doesn't reference loopback.
 func DockerLocalhost(url string) string {
-	if InDocker() && strings.Contains(url, "localhost") {
+	if !InDocker() {
+		return url
+	}
+	if strings.Contains(url, "localhost") {
 		return strings.Replace(url, "localhost", "host.docker.internal", 1)
+	}
+	if strings.Contains(url, "127.0.0.1") {
+		return strings.Replace(url, "127.0.0.1", "host.docker.internal", 1)
 	}
 	return url
 }
