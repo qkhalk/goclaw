@@ -119,7 +119,7 @@ func (t *PublishSkillTool) Execute(ctx context.Context, args map[string]any) *Re
 	}
 
 	// Version + destination (tenant-scoped)
-	version := t.skills.GetNextVersion(slug)
+	version := t.skills.GetNextVersion(ctx, slug)
 	destDir := filepath.Join(t.tenantSkillsDir(ctx), slug, fmt.Sprintf("%d", version))
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return ErrorResult(fmt.Sprintf("failed to create destination: %v", err))

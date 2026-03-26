@@ -159,6 +159,7 @@ type authResult struct {
 	Authenticated bool
 	KeyData       *store.APIKeyData // non-nil when authenticated via API key
 	TenantID      uuid.UUID         // resolved tenant; always concrete after resolution
+	TenantSlug    string            // resolved tenant slug for filesystem paths
 }
 
 // resolveAuth determines the caller's role from the request.
@@ -187,9 +188,11 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 			if tid, err := uuid.Parse(tenantVal); err == nil {
 				if t, err := pkgTenantCache.GetTenant(r.Context(), tid); err == nil && t != nil {
 					res.TenantID = t.ID
+					res.TenantSlug = t.Slug
 				}
 			} else if t, err := pkgTenantCache.GetTenantBySlug(r.Context(), tenantVal); err == nil && t != nil {
 				res.TenantID = t.ID
+				res.TenantSlug = t.Slug
 			}
 		}
 		if res.TenantID == uuid.Nil {
@@ -206,6 +209,12 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 			res.TenantID = store.MasterTenantID
 		} else {
 			res.TenantID = keyData.TenantID
+			// Resolve tenant slug for filesystem path scoping.
+			if pkgTenantCache != nil {
+				if t, err := pkgTenantCache.GetTenant(r.Context(), keyData.TenantID); err == nil && t != nil {
+					res.TenantSlug = t.Slug
+				}
+			}
 		}
 		return res
 	}
@@ -262,6 +271,9 @@ func enrichContext(ctx context.Context, r *http.Request, auth authResult) contex
 		tenantID = store.MasterTenantID
 	}
 	ctx = store.WithTenantID(ctx, tenantID)
+	if auth.TenantSlug != "" {
+		ctx = store.WithTenantSlug(ctx, auth.TenantSlug)
+	}
 	slog.Debug("security.http_auth_resolved",
 		"path", r.URL.Path,
 		"role", string(auth.Role),

@@ -111,10 +111,12 @@ func (s *PGSkillStore) DeleteSkill(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// slugAdvisoryLock returns a stable int64 lock key derived from a slug string,
-// suitable for use with pg_advisory_xact_lock.
-func slugAdvisoryLock(slug string) int64 {
+// tenantSlugAdvisoryLock returns a stable int64 lock key derived from tenant ID + slug,
+// suitable for use with pg_advisory_xact_lock. Tenant-scoped so different tenants
+// uploading the same slug don't contend on the same lock.
+func tenantSlugAdvisoryLock(tenantID uuid.UUID, slug string) int64 {
 	h := fnv.New64a()
+	h.Write(tenantID[:])
 	h.Write([]byte(slug))
 	return int64(h.Sum64())
 }
@@ -143,25 +145,25 @@ func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p SkillCreatePara
 	}
 	defer tx.Rollback()
 
-	// Acquire advisory lock scoped to this transaction so concurrent calls for
-	// the same slug serialize version calculation and the upsert atomically.
-	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", slugAdvisoryLock(p.Slug)); err != nil {
-		return uuid.Nil, fmt.Errorf("advisory lock: %w", err)
-	}
-
-	// Compute next version atomically under the lock.
-	var version int
-	if err := tx.QueryRowContext(ctx,
-		"SELECT COALESCE(MAX(version), 0) + 1 FROM skills WHERE slug = $1",
-		p.Slug,
-	).Scan(&version); err != nil {
-		return uuid.Nil, fmt.Errorf("get next version: %w", err)
-	}
-
 	// Resolve tenant_id: default to MasterTenantID if no tenant in context.
 	tenantID := store.TenantIDFromContext(ctx)
 	if tenantID == uuid.Nil {
 		tenantID = store.MasterTenantID
+	}
+
+	// Acquire advisory lock scoped to this transaction so concurrent calls for
+	// the same (tenant, slug) pair serialize version calculation and the upsert atomically.
+	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", tenantSlugAdvisoryLock(tenantID, p.Slug)); err != nil {
+		return uuid.Nil, fmt.Errorf("advisory lock: %w", err)
+	}
+
+	// Compute next version atomically under the lock, scoped to tenant.
+	var version int
+	if err := tx.QueryRowContext(ctx,
+		"SELECT COALESCE(MAX(version), 0) + 1 FROM skills WHERE slug = $1 AND tenant_id = $2",
+		p.Slug, tenantID,
+	).Scan(&version); err != nil {
+		return uuid.Nil, fmt.Errorf("get next version: %w", err)
 	}
 
 	id := store.GenNewID()
@@ -215,14 +217,15 @@ func (s *PGSkillStore) GetSkillFilePath(ctx context.Context, id uuid.UUID) (file
 	return filePath, slug, version, isSystem, err == nil
 }
 
-// GetNextVersion returns the next version number for a skill slug.
+// GetNextVersion returns the next version number for a skill slug, scoped to tenant.
 // NOTE: This function has an inherent race condition — two concurrent callers
 // for the same slug can receive the same version number. Use it only for
 // informational purposes (e.g. display). For write paths, use CreateSkillManaged
 // which computes the version atomically under a pg_advisory_xact_lock.
-func (s *PGSkillStore) GetNextVersion(slug string) int {
+func (s *PGSkillStore) GetNextVersion(ctx context.Context, slug string) int {
+	tid := tenantIDForInsert(ctx)
 	var maxVersion int
-	s.db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM skills WHERE slug = $1", slug).Scan(&maxVersion)
+	s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(version), 0) FROM skills WHERE slug = $1 AND tenant_id = $2", slug, tid).Scan(&maxVersion)
 	return maxVersion + 1
 }
 
@@ -230,17 +233,18 @@ func (s *PGSkillStore) GetNextVersion(slug string) int {
 // Safe for concurrent write paths (patch, create). Returns version and a cleanup func
 // that MUST be called to release the lock (commits the transaction).
 func (s *PGSkillStore) GetNextVersionLocked(ctx context.Context, slug string) (int, func() error, error) {
+	tenantID := tenantIDForInsert(ctx)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, nil, fmt.Errorf("begin tx: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", slugAdvisoryLock(slug)); err != nil {
+	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", tenantSlugAdvisoryLock(tenantID, slug)); err != nil {
 		tx.Rollback()
 		return 0, nil, fmt.Errorf("advisory lock: %w", err)
 	}
 	var version int
 	if err := tx.QueryRowContext(ctx,
-		"SELECT COALESCE(MAX(version), 0) + 1 FROM skills WHERE slug = $1", slug,
+		"SELECT COALESCE(MAX(version), 0) + 1 FROM skills WHERE slug = $1 AND tenant_id = $2", slug, tenantID,
 	).Scan(&version); err != nil {
 		tx.Rollback()
 		return 0, nil, fmt.Errorf("get next version: %w", err)

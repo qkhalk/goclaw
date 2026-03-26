@@ -115,7 +115,7 @@ func (h *SkillsHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Determine version (always increment — includes archived skills so re-upload gets v2+)
-	version := h.skills.GetNextVersion(slug)
+	version := h.skills.GetNextVersion(r.Context(), slug)
 
 	// Extract to filesystem: tenant-scoped skills-store/slug/version/
 	tenantSkillsBase := h.tenantSkillsDir(r)

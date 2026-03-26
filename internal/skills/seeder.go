@@ -19,7 +19,7 @@ import (
 // SystemSkillStore is the minimal interface needed by the seeder.
 type SystemSkillStore interface {
 	UpsertSystemSkill(ctx context.Context, p pg.SkillCreateParams) (uuid.UUID, bool, string, error)
-	GetNextVersion(slug string) int
+	GetNextVersion(ctx context.Context, slug string) int
 	BumpVersion()
 	UpdateSkill(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 	StoreMissingDeps(ctx context.Context, id uuid.UUID, missing []string) error
@@ -100,7 +100,7 @@ func (s *Seeder) Seed(ctx context.Context) (seeded int, skipped int, skills []se
 			fmMap = parseSimpleYAML(fm)
 		}
 
-		version := s.store.GetNextVersion(slug)
+		version := s.store.GetNextVersion(ctx, slug)
 		destDir := filepath.Join(s.managedDir, slug, fmt.Sprintf("%d", version))
 
 		desc := description
