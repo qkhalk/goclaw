@@ -53,7 +53,7 @@ export function UpdateBanner() {
           </span>
           <button
             onClick={handleUpdate}
-            className="font-medium text-accent hover:underline cursor-pointer"
+            className="font-medium text-accent bg-accent/10 hover:bg-accent/20 px-3 py-1 rounded-md cursor-pointer transition-colors"
           >
             {t('update.now', 'Update Now')}
           </button>
@@ -81,7 +81,7 @@ export function UpdateBanner() {
           <span className="text-text-primary">{t('update.ready', 'Update installed! Restart to apply.')}</span>
           <button
             onClick={handleRestart}
-            className="font-medium text-accent hover:underline cursor-pointer"
+            className="font-medium text-accent bg-accent/10 hover:bg-accent/20 px-3 py-1 rounded-md cursor-pointer transition-colors"
           >
             {t('update.restart', 'Restart Now')}
           </button>
@@ -91,7 +91,7 @@ export function UpdateBanner() {
       {state === 'error' && (
         <>
           <span className="text-error">{t('update.failed', 'Update failed.')}</span>
-          <button onClick={handleUpdate} className="font-medium text-accent hover:underline cursor-pointer">
+          <button onClick={handleUpdate} className="font-medium text-accent bg-accent/10 hover:bg-accent/20 px-3 py-1 rounded-md cursor-pointer transition-colors">
             {t('update.retry', 'Retry')}
           </button>
           <div className="flex-1" />
