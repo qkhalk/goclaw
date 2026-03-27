@@ -250,3 +250,8 @@ func (s *SQLiteTracingStore) DeleteTracesOlderThan(ctx context.Context, cutoff t
 	}
 	return res.RowsAffected()
 }
+
+// ListCodexPoolSpans is not supported in SQLite (Codex pool is a standard-edition feature).
+func (s *SQLiteTracingStore) ListCodexPoolSpans(_ context.Context, _, _ uuid.UUID, _ []string, _ int) ([]store.CodexPoolSpan, error) {
+	return nil, nil
+}
