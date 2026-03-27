@@ -356,6 +356,16 @@ func hasBootstrapFile(files []bootstrap.ContextFile) bool {
 	return false
 }
 
+// findContextFileContent returns the content of a context file by name, or "" if not found.
+func findContextFileContent(files []bootstrap.ContextFile, name string) string {
+	for _, f := range files {
+		if f.Path == name {
+			return f.Content
+		}
+	}
+	return ""
+}
+
 // hasTeamWorkspace checks if team_tasks is in the tool list (indicates team context).
 func hasTeamWorkspace(toolNames []string) bool {
 	return slices.Contains(toolNames, "team_tasks")

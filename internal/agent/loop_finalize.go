@@ -130,30 +130,9 @@ func (l *Loop) finalizeRun(
 		}
 	}
 
-	// Flush all buffered messages to session atomically.
-	for _, msg := range rs.pendingMsgs {
-		l.sessions.AddMessage(ctx, req.SessionKey, msg)
-	}
-
-	// Persist adaptive tool timing to session metadata.
-	if serialized := toolTiming.Serialize(); serialized != "" {
-		l.sessions.SetSessionMetadata(ctx, req.SessionKey, map[string]string{"tool_timing": serialized})
-	}
-
-	// Write session metadata (matching TS session entry updates)
-	l.sessions.UpdateMetadata(ctx, req.SessionKey, l.model, l.provider.Name(), req.Channel)
-	l.sessions.AccumulateTokens(ctx, req.SessionKey, int64(rs.totalUsage.PromptTokens), int64(rs.totalUsage.CompletionTokens))
-
-	// Calibrate token estimation: store actual prompt tokens + message count.
-	if rs.totalUsage.PromptTokens > 0 {
-		msgCount := len(history) + rs.checkpointFlushedMsgs + len(rs.pendingMsgs)
-		l.sessions.SetLastPromptTokens(ctx, req.SessionKey, rs.totalUsage.PromptTokens, msgCount)
-	}
-
-	l.sessions.Save(ctx, req.SessionKey)
-
 	// Bootstrap auto-cleanup: after enough conversation turns, remove BOOTSTRAP.md.
 	// If USER.md is still the blank template, inject a reminder so the agent fills it.
+	// Must run BEFORE session flush so the nudge message is persisted to history.
 	if hadBootstrap && l.bootstrapCleanup != nil {
 		userTurns := 1 // current user message
 		for _, m := range history {
@@ -182,6 +161,28 @@ func (l *Loop) finalizeRun(
 			}
 		}
 	}
+
+	// Flush all buffered messages to session atomically.
+	for _, msg := range rs.pendingMsgs {
+		l.sessions.AddMessage(ctx, req.SessionKey, msg)
+	}
+
+	// Persist adaptive tool timing to session metadata.
+	if serialized := toolTiming.Serialize(); serialized != "" {
+		l.sessions.SetSessionMetadata(ctx, req.SessionKey, map[string]string{"tool_timing": serialized})
+	}
+
+	// Write session metadata (matching TS session entry updates)
+	l.sessions.UpdateMetadata(ctx, req.SessionKey, l.model, l.provider.Name(), req.Channel)
+	l.sessions.AccumulateTokens(ctx, req.SessionKey, int64(rs.totalUsage.PromptTokens), int64(rs.totalUsage.CompletionTokens))
+
+	// Calibrate token estimation: store actual prompt tokens + message count.
+	if rs.totalUsage.PromptTokens > 0 {
+		msgCount := len(history) + rs.checkpointFlushedMsgs + len(rs.pendingMsgs)
+		l.sessions.SetLastPromptTokens(ctx, req.SessionKey, rs.totalUsage.PromptTokens, msgCount)
+	}
+
+	l.sessions.Save(ctx, req.SessionKey)
 
 	// 8. Metadata Stripping: Clean internal [[...]] tags for user-facing content
 	rs.finalContent = StripMessageDirectives(rs.finalContent)

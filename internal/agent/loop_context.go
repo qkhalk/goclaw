@@ -97,24 +97,38 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		ctx = tools.WithTeamTaskID(ctx, req.TeamTaskID)
 	}
 
-	// --- Workspace resolution (layered pipeline) ---
+	// --- Per-user file seeding + workspace resolution ---
+	// Seeding must run before buildMessages→resolveContextFiles reads context files.
+	// Team sessions skip: members process tasks from leader, not end-user onboarding.
+	// SeedUserFiles is idempotent — safe to call even if files already exist.
+	// ensureUserFiles both seeds files AND returns effective workspace, so we capture
+	// the workspace here to avoid a second DB call in the workspace resolution block.
+	isTeamSession := bootstrap.IsTeamSession(req.SessionKey)
+	var ensuredWs string // workspace path returned by ensureUserFiles (empty if not called)
+	if req.UserID != "" && l.ensureUserFiles != nil && !isTeamSession {
+		if _, seeded := l.userFilesSeeded.Load(req.UserID); !seeded {
+			ws, err := l.ensureUserFiles(ctx, l.agentUUID, req.UserID, l.agentType, l.workspace, req.Channel)
+			if err != nil {
+				slog.Warn("failed to ensure user context files", "error", err)
+			} else {
+				ensuredWs = ws
+			}
+			l.userFilesSeeded.Store(req.UserID, true)
+		}
+	}
+
+	// Workspace resolution (layered pipeline).
 	// Layer order: tenant → team → project (future) → user/chat
 	// Two entry modes: solo agent (base = l.workspace) or team context (base = l.dataDir).
 	// Result is always a single folder set via WithToolWorkspace.
-
-	// Solo agent workspace: resolve base from user profile or agent config.
-	isTeamSession := bootstrap.IsTeamSession(req.SessionKey)
 	if l.workspace != "" && req.UserID != "" {
 		cachedWs, loaded := l.userWorkspaces.Load(req.UserID)
 		if !loaded {
-			ws := l.workspace
-			if l.ensureUserFiles != nil && !isTeamSession {
-				var err error
-				ws, err = l.ensureUserFiles(ctx, l.agentUUID, req.UserID, l.agentType, l.workspace, req.Channel)
-				if err != nil {
-					slog.Warn("failed to ensure user context files", "error", err)
-					ws = l.workspace
-				}
+			// Use workspace from ensureUserFiles if available (avoids second DB call),
+			// otherwise fall back to agent's default workspace.
+			ws := ensuredWs
+			if ws == "" {
+				ws = l.workspace
 			}
 			ws = config.ExpandHome(ws)
 			if !filepath.IsAbs(ws) {

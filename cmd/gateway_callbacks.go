@@ -22,12 +22,30 @@ func buildEnsureUserFiles(as store.AgentStore, configPermStore store.ConfigPermi
 		if err != nil {
 			return effectiveWs, err
 		}
+
+		// Seed context files:
+		// - isNew: always seed (first-time user)
+		// - !isNew: only seed when user has NO context files at all.
+		//   This handles the EnsureUserProfile (HTTP API) pre-creation case where profile
+		//   exists but context files were never seeded. We check for zero files rather than
+		//   calling SeedUserFiles unconditionally to avoid re-seeding BOOTSTRAP.md after
+		//   auto-cleanup (which DELETEs the row — SeedUserFiles would treat it as missing).
+		needSeed := isNew
 		if !isNew {
-			return effectiveWs, nil // already profiled = already seeded
+			existing, qErr := as.GetUserContextFiles(ctx, agentID, userID)
+			if qErr == nil && len(existing) == 0 {
+				needSeed = true
+			}
+		}
+		if needSeed {
+			if _, seedErr := bootstrap.SeedUserFiles(ctx, as, agentID, userID, agentType); seedErr != nil {
+				slog.Warn("failed to seed user context files", "error", seedErr, "agent", agentID, "user", userID)
+			}
 		}
 
 		// Auto-add first group member as a file writer (bootstrap the allowlist).
-		if configPermStore != nil && (strings.HasPrefix(userID, "group:") || strings.HasPrefix(userID, "guild:")) {
+		// Only needed for truly new profiles — existing groups already have their writers.
+		if isNew && configPermStore != nil && (strings.HasPrefix(userID, "group:") || strings.HasPrefix(userID, "guild:")) {
 			senderID := store.SenderIDFromContext(ctx)
 			if senderID != "" {
 				parts := strings.SplitN(senderID, "|", 2)
@@ -47,12 +65,10 @@ func buildEnsureUserFiles(as store.AgentStore, configPermStore store.ConfigPermi
 				}); addErr != nil {
 					slog.Warn("failed to auto-add group file writer", "error", addErr, "sender", numericID, "group", userID)
 				}
-				// No bus broadcast needed — Grant already invalidates cache
 			}
 		}
 
-		_, err = bootstrap.SeedUserFiles(ctx, as, agentID, userID, agentType)
-		return effectiveWs, err
+		return effectiveWs, nil
 	}
 }
 

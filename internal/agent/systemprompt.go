@@ -169,6 +169,16 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 			"If the user's first message contains enough info (name, language, timezone), write USER.md immediately — do NOT wait for multiple turns.",
 			"",
 		)
+	} else if content := findContextFileContent(cfg.ContextFiles, bootstrap.UserFile); content != "" && !isUserFilePopulated(content) {
+		// BOOTSTRAP.md already cleaned up but USER.md is still blank — persistent nudge
+		lines = append(lines,
+			"## USER PROFILE INCOMPLETE",
+			"",
+			"USER.md exists but hasn't been filled in yet.",
+			"During conversation, naturally learn the user's name, language, and timezone.",
+			"Once you have this info, silently call write_file to update USER.md with their details.",
+			"",
+		)
 	}
 
 	// 1.7. # Persona — SOUL.md + IDENTITY.md injected early (primacy zone)

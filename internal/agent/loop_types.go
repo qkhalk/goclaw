@@ -79,7 +79,8 @@ type Loop struct {
 	ensureUserFiles   EnsureUserFilesFunc
 	contextFileLoader ContextFileLoaderFunc
 	bootstrapCleanup  BootstrapCleanupFunc
-	userWorkspaces    sync.Map // userID → string (expanded workspace path from user_agent_profiles)
+	userWorkspaces  sync.Map // userID → string (expanded workspace path from user_agent_profiles)
+	userFilesSeeded sync.Map // userID → bool (whether SeedUserFiles has been called this instance)
 
 	// Compaction config (memory flush settings)
 	compactionCfg *config.CompactionConfig
