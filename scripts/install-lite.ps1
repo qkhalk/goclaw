@@ -23,7 +23,7 @@ $InstallDir = Join-Path $env:LOCALAPPDATA "GoClaw Lite"
 if (-not $Version) {
     Write-Host "-> Fetching latest desktop release..." -ForegroundColor Cyan
     try {
-        $releases = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases" -ErrorAction Stop
+        $releases = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases?per_page=100" -ErrorAction Stop
     } catch {
         Write-Host "Failed to fetch releases: $_" -ForegroundColor Red
         Write-Host "Check: https://github.com/$Repo/releases" -ForegroundColor Yellow
