@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
+import { IconBlocked, IconChat, IconPaperclip } from '../common/Icons'
+import { isTaskLocked, TERMINAL_STATUSES } from '../../types/team'
 import type { TeamTaskData } from '../../types/team'
-import { isTaskLocked } from '../../types/team'
 
 /** Priority: plain text color, matching web kanban-card.tsx */
 const PRIORITY_STYLE: Record<number, { label: string; color: string }> = {
@@ -10,7 +11,6 @@ const PRIORITY_STYLE: Record<number, { label: string; color: string }> = {
   3: { label: 'P-3', color: 'text-red-500' },
 }
 
-const TERMINAL = new Set(['completed', 'failed', 'cancelled'])
 
 interface KanbanCardProps {
   task: TeamTaskData
@@ -24,7 +24,7 @@ export function KanbanCard({ task, ownerName, ownerEmoji, onClick }: KanbanCardP
   const blocked = task.status === 'blocked'
   const prio = PRIORITY_STYLE[task.priority] ?? PRIORITY_STYLE[0]
   const hasBlockers = task.blocked_by && task.blocked_by.length > 0
-  const isTerminal = TERMINAL.has(task.status)
+  const isTerminal = TERMINAL_STATUSES.has(task.status)
 
   return (
     <motion.button
@@ -64,21 +64,31 @@ export function KanbanCard({ task, ownerName, ownerEmoji, onClick }: KanbanCardP
       {/* Blocked indicator */}
       {hasBlockers && (
         <p className="mt-1 flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="shrink-0">
-            <circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-          </svg>
+          <IconBlocked size={10} className="shrink-0" />
           <span className="truncate">
             {task.blocked_by!.map((id) => id.slice(0, 8)).join(', ')}
           </span>
         </p>
       )}
 
-      {/* Bottom: owner */}
+      {/* Bottom: owner + counts */}
       <div className="mt-2 flex items-center gap-1.5">
         {ownerEmoji && <span className="text-sm leading-none">{ownerEmoji}</span>}
-        <span className="truncate text-xs text-text-muted">
+        <span className="truncate text-xs text-text-muted flex-1">
           {ownerName || task.owner_agent_key || 'Unassigned'}
         </span>
+        {(task.comment_count ?? 0) > 0 && (
+          <span className="flex items-center gap-0.5 text-[10px] text-text-muted shrink-0">
+            <IconChat size={10} />
+            {task.comment_count}
+          </span>
+        )}
+        {(task.attachment_count ?? 0) > 0 && (
+          <span className="flex items-center gap-0.5 text-[10px] text-text-muted shrink-0">
+            <IconPaperclip size={10} />
+            {task.attachment_count}
+          </span>
+        )}
       </div>
 
       {/* Progress bar */}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Combobox } from '../common/Combobox'
+import { IconClose } from '../common/Icons'
 import type { TeamMemberData } from '../../types/team'
 
 interface TaskCreateDialogProps {
@@ -56,9 +57,7 @@ export function TaskCreateDialog({ teamId, members, onClose, onCreate }: TaskCre
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="text-sm font-semibold text-text-primary">{t('createTask', 'Create Task')}</h3>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary cursor-pointer">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <IconClose size={16} />
           </button>
         </div>
 

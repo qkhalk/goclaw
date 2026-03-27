@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { useUiStore } from '../../stores/ui-store'
 import { useTeamTasks } from '../../hooks/use-team-tasks'
 import { RefreshButton } from '../common/RefreshButton'
+import { IconChevronLeft, IconGear, IconChevronDown, IconPlus, IconChat } from '../common/Icons'
 import { KanbanColumn } from './KanbanColumn'
 import { TaskDetailModal } from './TaskDetailModal'
-import { KANBAN_STATUSES, groupByStatus } from '../../types/team'
-import type { TeamTaskData, TaskStatus } from '../../types/team'
+import { TeamSettingsModal } from './TeamSettingsModal'
+import { KANBAN_STATUSES, TERMINAL_STATUSES, groupByStatus } from '../../types/team'
+import type { TeamTaskData } from '../../types/team'
 
 type ViewMode = 'kanban' | 'list'
 const FILTER_OPTIONS = [
@@ -19,13 +21,15 @@ export function TeamBoard() {
   const { t } = useTranslation('teams')
   const activeTeamId = useUiStore((s) => s.activeTeamId)
   const closeSettings = useUiStore((s) => s.closeSettings)
-  const { teams, tasks, members, loading, fetchTeams, fetchTasks, assignTask, deleteTask, deleteBulk } = useTeamTasks()
+  const { teams, tasks, members, loading, fetchTeams, fetchTasks, fetchTaskDetail, assignTask, deleteTask, deleteBulk } = useTeamTasks()
 
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<TeamTaskData | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
 
   const team = teams.find((t) => t.id === activeTeamId)
 
@@ -49,8 +53,6 @@ export function TeamBoard() {
     }
   }, [tasks, selectedTask])
 
-  const terminalStatuses = new Set<TaskStatus>(['completed', 'failed', 'cancelled'])
-
   const handleBulkDelete = async () => {
     if (selected.size === 0) return
     await deleteBulk(Array.from(selected))
@@ -72,9 +74,7 @@ export function TeamBoard() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
         <button onClick={closeSettings} className="text-text-muted hover:text-text-primary cursor-pointer" title="Back to chat">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <IconChevronLeft size={16} />
         </button>
 
         <div className="flex-1 min-w-0">
@@ -82,6 +82,14 @@ export function TeamBoard() {
             <h2 className="text-sm font-semibold text-text-primary truncate">
               {team?.name || t('team', 'Team')}
             </h2>
+            {/* Gear — team settings */}
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="text-text-muted hover:text-text-primary cursor-pointer p-1 rounded hover:bg-surface-tertiary"
+              title={t('teamSettings', 'Team Settings')}
+            >
+              <IconGear />
+            </button>
           </div>
         </div>
 
@@ -108,9 +116,7 @@ export function TeamBoard() {
             className="flex items-center gap-1.5 text-[11px] bg-surface-tertiary border border-border rounded-lg px-2.5 py-1.5 text-text-secondary hover:border-accent/30 transition-colors cursor-pointer"
           >
             <span>{t(currentFilterLabel)}</span>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+            <IconChevronDown size={10} />
           </button>
           {filterOpen && (
             <>
@@ -134,6 +140,15 @@ export function TeamBoard() {
         </div>
 
         <RefreshButton onRefresh={async () => { handleRefresh() }} />
+
+        {/* "+" info button */}
+        <button
+          onClick={() => setInfoOpen(true)}
+          className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 cursor-pointer transition-colors"
+          title={t('createTask', 'Create Task')}
+        >
+          <IconPlus />
+        </button>
       </div>
 
       {/* Kanban view */}
@@ -169,10 +184,10 @@ export function TeamBoard() {
                   <th className="pb-2 pr-2 w-8">
                     <input
                       type="checkbox"
-                      checked={selected.size > 0 && selected.size === tasks.filter((t) => terminalStatuses.has(t.status)).length}
+                      checked={selected.size > 0 && selected.size === tasks.filter((t) => TERMINAL_STATUSES.has(t.status)).length}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelected(new Set(tasks.filter((t) => terminalStatuses.has(t.status)).map((t) => t.id)))
+                          setSelected(new Set(tasks.filter((t) => TERMINAL_STATUSES.has(t.status)).map((t) => t.id)))
                         } else {
                           setSelected(new Set())
                         }
@@ -189,7 +204,7 @@ export function TeamBoard() {
               <tbody>
                 {tasks.map((task) => {
                   const member = task.owner_agent_id ? members.find((m) => m.agent_id === task.owner_agent_id) : undefined
-                  const canSelect = terminalStatuses.has(task.status)
+                  const canSelect = TERMINAL_STATUSES.has(task.status)
                   return (
                     <tr
                       key={task.id}
@@ -235,7 +250,40 @@ export function TeamBoard() {
           onClose={() => setSelectedTask(null)}
           onAssign={assignTask}
           onDelete={deleteTask}
+          onFetchDetail={fetchTaskDetail}
         />
+      )}
+
+      {/* Team settings modal */}
+      {settingsOpen && activeTeamId && (
+        <TeamSettingsModal
+          teamId={activeTeamId}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={() => { fetchTeams(); if (activeTeamId) fetchTasks(activeTeamId, statusFilter || undefined) }}
+        />
+      )}
+
+      {/* Task create info modal */}
+      {infoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setInfoOpen(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="bg-surface-primary border border-border rounded-xl shadow-xl max-w-sm mx-4 p-6 text-center space-y-3">
+            <div className="mx-auto w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+              <IconChat size={20} className="text-accent" />
+            </div>
+            <h3 className="text-sm font-semibold text-text-primary">{t('taskCreateInfo.title', 'How tasks are created')}</h3>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              {t('taskCreateInfo.body', 'Tasks are created by chatting with the team leader agent. Start a conversation with {{leader}} to create and manage tasks.', {
+                leader: team?.lead_display_name || team?.lead_agent_key || 'the leader',
+              })}
+            </p>
+            <button
+              onClick={() => setInfoOpen(false)}
+              className="mt-2 px-4 py-1.5 text-xs font-medium bg-surface-tertiary text-text-primary rounded-lg hover:bg-surface-tertiary/80 cursor-pointer"
+            >
+              {t('settings.ok', 'OK')}
+            </button>
+          </div>
+        </div>
       )}
 
     </div>

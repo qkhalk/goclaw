@@ -3,6 +3,7 @@
 export interface TeamData {
   id: string
   name: string
+  description?: string
   lead_agent_id: string
   lead_agent_key?: string
   lead_display_name?: string
@@ -48,6 +49,27 @@ export interface TeamTaskData {
   updated_at?: string
 }
 
+export interface TeamTaskAttachment {
+  id: string
+  task_id: string
+  team_id: string
+  path: string
+  file_size: number
+  mime_type?: string
+  created_at: string
+  download_url?: string
+}
+
+/** Notification config stored in team.settings.notifications */
+export interface TeamNotifyConfig {
+  dispatched?: boolean
+  progress?: boolean
+  failed?: boolean
+  completed?: boolean
+  new_task?: boolean
+  mode?: 'direct' | 'leader'
+}
+
 /** All kanban column statuses in display order */
 export const KANBAN_STATUSES: TaskStatus[] = [
   'pending', 'blocked', 'in_progress', 'completed', 'failed', 'cancelled',
@@ -80,6 +102,9 @@ export const PRIORITY_BADGE: Record<number, { label: string; cls: string }> = {
   2: { label: 'P-2', cls: 'bg-blue-500/15 text-blue-600 dark:text-blue-400' },
   3: { label: 'P-3', cls: 'bg-slate-500/15 text-slate-600 dark:text-slate-400' },
 }
+
+/** Terminal task statuses (no further state transitions) */
+export const TERMINAL_STATUSES: Set<TaskStatus> = new Set(['completed', 'failed', 'cancelled'])
 
 /** Check if agent is actively running on a task */
 export function isTaskLocked(task: TeamTaskData): boolean {

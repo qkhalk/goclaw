@@ -1,22 +1,27 @@
-import { useEffect, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChat } from '../../hooks/use-chat'
 import { useAgents } from '../../hooks/use-agents'
+import { useTeamTasks } from '../../hooks/use-team-tasks'
 import { useSessionStore } from '../../stores/session-store'
 import { ChatTopBar } from './ChatTopBar'
 import { MessageBubble } from './MessageBubble'
 import { ActivityIndicator } from './ActivityIndicator'
 import { InputBar, type AttachedFile } from './InputBar'
 import { TaskPanel } from './TaskPanel'
+import { TaskDetailModal } from '../teams/TaskDetailModal'
+import type { TeamTaskData } from '../../types/team'
 
 export function ChatCanvas() {
   const { t } = useTranslation('common')
   const { messages, isRunning, activity, sendMessage } = useChat()
   const { selectedAgent } = useAgents()
+  const { members, fetchTaskDetail } = useTeamTasks()
   const activeSessionKey = useSessionStore((s) => s.activeSessionKey)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const userScrolledUp = useRef(false)
+  const [selectedTask, setSelectedTask] = useState<TeamTaskData | null>(null)
 
   // Find last assistant message ID for streaming cursor
   const lastAssistantId = useMemo(() => {
@@ -85,7 +90,7 @@ export function ChatCanvas() {
         </div>
 
         {/* Team task panel */}
-        <TaskPanel sessionKey={activeSessionKey} />
+        <TaskPanel sessionKey={activeSessionKey} onTaskClick={setSelectedTask} />
 
         {/* Input bar */}
         <InputBar
@@ -95,6 +100,18 @@ export function ChatCanvas() {
           placeholder={selectedAgent ? t('sendMessage') : t('selectAgent')}
         />
       </div>
+
+      {/* Task detail modal (from TaskPanel click) */}
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          members={members}
+          onClose={() => setSelectedTask(null)}
+          onAssign={async () => {}}
+          onDelete={async () => {}}
+          onFetchDetail={fetchTaskDetail}
+        />
+      )}
     </div>
   )
 }

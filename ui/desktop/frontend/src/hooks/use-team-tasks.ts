@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getWsClient } from '../lib/ws'
 import { toast } from '../stores/toast-store'
-import type { TeamData, TeamTaskData, TeamMemberData } from '../types/team'
+import type { TeamData, TeamTaskData, TeamMemberData, TeamTaskAttachment } from '../types/team'
 
 /** Event payload shape from team.task.* WS events */
 interface TaskEventPayload {
@@ -199,5 +199,20 @@ export function useTeamTasks() {
     return () => { for (const fn of unsubs) fn() }
   }, [debouncedFetchTask])
 
-  return { teams, tasks, members, loading, fetchTeams, fetchTasks, createTask, assignTask, deleteTask, deleteBulk }
+  /** Fetch full task detail including attachments (for modal view) */
+  const fetchTaskDetail = useCallback(async (teamId: string, taskId: string) => {
+    try {
+      const ws = getWsClient()
+      const res = await ws.call('teams.tasks.get', { teamId, taskId }) as {
+        task: TeamTaskData
+        attachments?: TeamTaskAttachment[]
+      }
+      return { task: res.task, attachments: res.attachments ?? [] }
+    } catch (err) {
+      console.error('Failed to fetch task detail:', err)
+      return null
+    }
+  }, [])
+
+  return { teams, tasks, members, loading, fetchTeams, fetchTasks, fetchTaskDetail, createTask, assignTask, deleteTask, deleteBulk }
 }

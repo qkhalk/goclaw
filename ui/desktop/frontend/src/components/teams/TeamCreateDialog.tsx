@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { getWsClient } from '../../lib/ws'
 import { toast } from '../../stores/toast-store'
 import { Combobox } from '../common/Combobox'
+import { IconClose, IconCheck } from '../common/Icons'
 import type { TeamData } from '../../types/team'
 
 interface Agent {
@@ -64,9 +65,7 @@ export function TeamCreateDialog({ agents, onClose, onCreated }: TeamCreateDialo
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="text-sm font-semibold text-text-primary">{t('createTeam', 'Create Team')}</h3>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary cursor-pointer">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <IconClose size={16} />
           </button>
         </div>
 
@@ -119,11 +118,7 @@ export function TeamCreateDialog({ agents, onClose, onCreated }: TeamCreateDialo
                         'w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors',
                         checked ? 'bg-accent' : 'border border-border bg-surface-tertiary',
                       ].join(' ')}>
-                        {checked && (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
+                        {checked && <IconCheck size={10} className="text-white" />}
                       </div>
                       <span className={`text-xs font-medium ${checked ? 'text-accent' : 'text-text-secondary'}`}>
                         {opt.label}
