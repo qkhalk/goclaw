@@ -16,6 +16,23 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
+// ============================================================
+// TeamToolBackend exported wrappers (dispatch layer)
+// ============================================================
+
+func (m *TeamToolManager) DispatchTaskToAgent(ctx context.Context, task *store.TeamTaskData, team *store.TeamData, agentID uuid.UUID) {
+	m.dispatchTaskToAgent(ctx, task, team, agentID)
+}
+func (m *TeamToolManager) BuildBlockerResultsSummary(ctx context.Context, task *store.TeamTaskData) string {
+	return m.buildBlockerResultsSummary(ctx, task)
+}
+func (m *TeamToolManager) BuildRecentCommentsSummary(ctx context.Context, taskID uuid.UUID) string {
+	return m.buildRecentCommentsSummary(ctx, taskID)
+}
+func (m *TeamToolManager) RestoreTraceContext(ctx context.Context, task *store.TeamTaskData) context.Context {
+	return m.restoreTraceContext(ctx, task)
+}
+
 // maxTaskDispatches is the max number of times a single task can be dispatched
 // before it auto-fails. Prevents infinite loops when agents can't complete a task.
 const maxTaskDispatches = 3

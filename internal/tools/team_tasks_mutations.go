@@ -17,7 +17,7 @@ import (
 )
 
 func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) *Result {
-	team, agentID, err := t.manager.resolveTeam(ctx)
+	team, agentID, err := t.manager.ResolveTeam(ctx)
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
@@ -43,7 +43,7 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 		if taskType != "request" {
 			return ErrorResult("Members can only create task_type=\"request\". Use team_tasks(action=\"comment\") to communicate.")
 		}
-	} else if err := t.manager.requireLead(ctx, team, agentID); err != nil {
+	} else if err := t.manager.RequireLead(ctx, team, agentID); err != nil {
 		return ErrorResult(err.Error())
 	}
 
@@ -78,7 +78,7 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 
 	// Validate that all blocked_by tasks belong to the same team and are not terminal.
 	for _, depID := range blockedBy {
-		depTask, err := t.manager.teamStore.GetTask(ctx, depID)
+		depTask, err := t.manager.Store().GetTask(ctx, depID)
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("blocked_by task %s not found: %v", depID, err))
 		}
@@ -100,12 +100,12 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 	if assigneeKey == "" {
 		return ErrorResult("assignee is required — specify which team member should handle this task")
 	}
-	assigneeID, err := t.manager.resolveAgentByKey(ctx, assigneeKey)
+	assigneeID, err := t.manager.ResolveAgentByKey(ctx, assigneeKey)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("assignee %q not found: %v", assigneeKey, err))
 	}
 	// Verify assignee is a member of this team.
-	members, err := t.manager.cachedListMembers(ctx, team.ID, agentID)
+	members, err := t.manager.CachedListMembers(ctx, team.ID, agentID)
 	if err != nil {
 		return ErrorResult("failed to verify team membership: " + err.Error())
 	}
@@ -145,7 +145,7 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 	// Compute team workspace via layered pipeline: tenant → team → user/chat.
 	shared := IsSharedWorkspace(team.Settings)
 	taskMeta := make(map[string]any)
-	teamWsDir := ResolveWorkspace(t.manager.dataDir,
+	teamWsDir := ResolveWorkspace(t.manager.DataDir(),
 		TenantLayer(store.TenantIDFromContext(ctx), store.TenantSlugFromContext(ctx)),
 		TeamLayer(team.ID),
 		UserChatLayer(chatID, shared),
@@ -231,7 +231,7 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 		}
 	}
 
-	if err := t.manager.teamStore.CreateTask(ctx, task); err != nil {
+	if err := t.manager.Store().CreateTask(ctx, task); err != nil {
 		return ErrorResult("failed to create task: " + err.Error())
 	}
 
@@ -258,14 +258,14 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 				MimeType:         mimeFromExt(filepath.Ext(filePath)),
 				CreatedByAgentID: &agentID,
 			}
-			if err := t.manager.teamStore.AttachFileToTask(ctx, att); err != nil {
+			if err := t.manager.Store().AttachFileToTask(ctx, att); err != nil {
 				slog.Warn("executeCreate: auto-attach media failed", "task_id", task.ID, "path", filePath, "error", err)
 			}
 		}
 	}
 
-	agentKey := t.manager.agentKeyFromID(ctx, agentID)
-	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskCreated, protocol.TeamTaskEventPayload{
+	agentKey := t.manager.AgentKeyFromID(ctx, agentID)
+	t.manager.BroadcastTeamEvent(ctx, protocol.EventTeamTaskCreated, protocol.TeamTaskEventPayload{
 		TeamID:    team.ID.String(),
 		TaskID:    task.ID.String(),
 		Subject:   subject,
@@ -284,30 +284,30 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 			ptd.Add(team.ID, task.ID)
 		} else {
 			// Fallback: assign (pending → in_progress + lock) then dispatch.
-			if err := t.manager.teamStore.AssignTask(ctx, task.ID, assigneeID, team.ID); err != nil {
+			if err := t.manager.Store().AssignTask(ctx, task.ID, assigneeID, team.ID); err != nil {
 				slog.Warn("executeCreate: fallback assign failed", "task_id", task.ID, "error", err)
 			} else {
-				t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskDispatched, protocol.TeamTaskEventPayload{
+				t.manager.BroadcastTeamEvent(ctx, protocol.EventTeamTaskDispatched, protocol.TeamTaskEventPayload{
 					TeamID:        team.ID.String(),
 					TaskID:        task.ID.String(),
 					TaskNumber:    task.TaskNumber,
 					Subject:       task.Subject,
 					Status:        store.TeamTaskStatusInProgress,
-					OwnerAgentKey: t.manager.agentKeyFromID(ctx, assigneeID),
+					OwnerAgentKey: t.manager.AgentKeyFromID(ctx, assigneeID),
 					Channel:       task.Channel,
 					ChatID:        task.ChatID,
 					Timestamp:     time.Now().UTC().Format("2006-01-02T15:04:05Z"),
 					ActorType:     "system",
 					ActorID:       "fallback_dispatch",
 				})
-				t.manager.dispatchTaskToAgent(ctx, task, team, assigneeID)
+				t.manager.DispatchTaskToAgent(ctx, task, team, assigneeID)
 			}
 		}
 	}
 
-	assigneeName := t.manager.agentDisplayName(ctx, t.manager.agentKeyFromID(ctx, assigneeID))
+	assigneeName := t.manager.AgentDisplayName(ctx, t.manager.AgentKeyFromID(ctx, assigneeID))
 	if assigneeName == "" {
-		assigneeName = t.manager.agentKeyFromID(ctx, assigneeID)
+		assigneeName = t.manager.AgentKeyFromID(ctx, assigneeID)
 	}
 	msg := fmt.Sprintf("Task created: %s (id=%s, task_number=%d, status=%s, assignee=%s)", subject, task.ID, task.TaskNumber, status, assigneeName)
 
@@ -327,7 +327,7 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 }
 
 func (t *TeamTasksTool) executeComment(ctx context.Context, args map[string]any) *Result {
-	team, agentID, err := t.manager.resolveTeam(ctx)
+	team, agentID, err := t.manager.ResolveTeam(ctx)
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
@@ -346,7 +346,7 @@ func (t *TeamTasksTool) executeComment(ctx context.Context, args map[string]any)
 	}
 
 	// Verify task belongs to team.
-	task, err := t.manager.teamStore.GetTask(ctx, taskID)
+	task, err := t.manager.Store().GetTask(ctx, taskID)
 	if err != nil {
 		return ErrorResult("task not found: " + err.Error())
 	}
@@ -359,7 +359,7 @@ func (t *TeamTasksTool) executeComment(ctx context.Context, args map[string]any)
 		commentType = "note"
 	}
 
-	if err := t.manager.teamStore.AddTaskComment(ctx, &store.TeamTaskCommentData{
+	if err := t.manager.Store().AddTaskComment(ctx, &store.TeamTaskCommentData{
 		TaskID:      taskID,
 		AgentID:     &agentID,
 		Content:     text,
@@ -368,7 +368,7 @@ func (t *TeamTasksTool) executeComment(ctx context.Context, args map[string]any)
 		return ErrorResult("failed to add comment: " + err.Error())
 	}
 
-	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskCommented, protocol.TeamTaskEventPayload{
+	t.manager.BroadcastTeamEvent(ctx, protocol.EventTeamTaskCommented, protocol.TeamTaskEventPayload{
 		TeamID:      team.ID.String(),
 		TaskID:      taskID.String(),
 		TaskNumber:  task.TaskNumber,
@@ -379,7 +379,7 @@ func (t *TeamTasksTool) executeComment(ctx context.Context, args map[string]any)
 		ChatID:      ToolChatIDFromCtx(ctx),
 		Timestamp:   time.Now().UTC().Format("2006-01-02T15:04:05Z"),
 		ActorType:   "agent",
-		ActorID:     t.manager.agentKeyFromID(ctx, agentID),
+		ActorID:     t.manager.AgentKeyFromID(ctx, agentID),
 	})
 
 	// Record action flag after successful store operation.
@@ -412,7 +412,7 @@ func (t *TeamTasksTool) executeComment(ctx context.Context, args map[string]any)
 
 
 func (t *TeamTasksTool) executeProgress(ctx context.Context, args map[string]any) *Result {
-	team, agentID, err := t.manager.resolveTeam(ctx)
+	team, agentID, err := t.manager.ResolveTeam(ctx)
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
@@ -432,7 +432,7 @@ func (t *TeamTasksTool) executeProgress(ctx context.Context, args map[string]any
 	step, _ := args["text"].(string)
 
 	// Verify ownership.
-	task, err := t.manager.teamStore.GetTask(ctx, taskID)
+	task, err := t.manager.Store().GetTask(ctx, taskID)
 	if err != nil {
 		return ErrorResult("task not found: " + err.Error())
 	}
@@ -455,21 +455,21 @@ func (t *TeamTasksTool) executeProgress(ctx context.Context, args map[string]any
 		percent = task.ProgressPercent
 	}
 
-	if err := t.manager.teamStore.UpdateTaskProgress(ctx, taskID, team.ID, percent, step); err != nil {
+	if err := t.manager.Store().UpdateTaskProgress(ctx, taskID, team.ID, percent, step); err != nil {
 		// Status may have changed between GetTask and UpdateTaskProgress.
 		// Fast path: check in-memory turn flags before hitting DB again.
 		if flags := TaskActionFlagsFromCtx(ctx); flags != nil && flags.Completed {
 			return SilentResult("Task already completed — progress update skipped.")
 		}
 		// Slow path: re-query for stale recovery (pending) or concurrent status change.
-		if current, getErr := t.manager.teamStore.GetTask(ctx, taskID); getErr == nil && current != nil {
+		if current, getErr := t.manager.Store().GetTask(ctx, taskID); getErr == nil && current != nil {
 			switch current.Status {
 			case store.TeamTaskStatusCompleted, store.TeamTaskStatusFailed, store.TeamTaskStatusCancelled:
 				return SilentResult(fmt.Sprintf("Task already %s — progress update skipped.", current.Status))
 			case store.TeamTaskStatusPending:
 				// Task was reset by stale recovery — re-assign and retry once.
-				if t.manager.teamStore.AssignTask(ctx, taskID, agentID, team.ID) == nil {
-					if t.manager.teamStore.UpdateTaskProgress(ctx, taskID, team.ID, percent, step) == nil {
+				if t.manager.Store().AssignTask(ctx, taskID, agentID, team.ID) == nil {
+					if t.manager.Store().UpdateTaskProgress(ctx, taskID, team.ID, percent, step) == nil {
 						slog.Info("executeProgress: re-assigned stale-recovered task", "task_id", taskID)
 						recordTaskAction(ctx, func(f *TaskActionFlags) { f.Progressed = true })
 						return SilentResult(fmt.Sprintf("Progress updated: %d%% %s", percent, step))
@@ -484,9 +484,9 @@ func (t *TeamTasksTool) executeProgress(ctx context.Context, args map[string]any
 
 	ownerKey := ""
 	if task.OwnerAgentID != nil {
-		ownerKey = t.manager.agentKeyFromID(ctx, *task.OwnerAgentID)
+		ownerKey = t.manager.AgentKeyFromID(ctx, *task.OwnerAgentID)
 	}
-	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskProgress, protocol.TeamTaskEventPayload{
+	t.manager.BroadcastTeamEvent(ctx, protocol.EventTeamTaskProgress, protocol.TeamTaskEventPayload{
 		TeamID:          team.ID.String(),
 		TaskID:          taskID.String(),
 		TaskNumber:      task.TaskNumber,
@@ -505,7 +505,7 @@ func (t *TeamTasksTool) executeProgress(ctx context.Context, args map[string]any
 }
 
 func (t *TeamTasksTool) executeAttach(ctx context.Context, args map[string]any) *Result {
-	team, agentID, err := t.manager.resolveTeam(ctx)
+	team, agentID, err := t.manager.ResolveTeam(ctx)
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
@@ -529,7 +529,7 @@ func (t *TeamTasksTool) executeAttach(ctx context.Context, args map[string]any) 
 	filePath = filepath.Clean(filePath)
 
 	// Verify task belongs to team.
-	task, err := t.manager.teamStore.GetTask(ctx, taskID)
+	task, err := t.manager.Store().GetTask(ctx, taskID)
 	if err != nil {
 		return ErrorResult("task not found: " + err.Error())
 	}
@@ -538,7 +538,7 @@ func (t *TeamTasksTool) executeAttach(ctx context.Context, args map[string]any) 
 	}
 
 	chatID := ToolChatIDFromCtx(ctx)
-	if err := t.manager.teamStore.AttachFileToTask(ctx, &store.TeamTaskAttachmentData{
+	if err := t.manager.Store().AttachFileToTask(ctx, &store.TeamTaskAttachmentData{
 		TaskID:           taskID,
 		TeamID:           team.ID,
 		ChatID:           chatID,
@@ -548,7 +548,7 @@ func (t *TeamTasksTool) executeAttach(ctx context.Context, args map[string]any) 
 		return ErrorResult("failed to attach file: " + err.Error())
 	}
 
-	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskAttachmentAdded, protocol.TeamTaskEventPayload{
+	t.manager.BroadcastTeamEvent(ctx, protocol.EventTeamTaskAttachmentAdded, protocol.TeamTaskEventPayload{
 		TeamID:     team.ID.String(),
 		TaskID:     taskID.String(),
 		TaskNumber: task.TaskNumber,
@@ -558,18 +558,18 @@ func (t *TeamTasksTool) executeAttach(ctx context.Context, args map[string]any) 
 		ChatID:     chatID,
 		Timestamp:  time.Now().UTC().Format("2006-01-02T15:04:05Z"),
 		ActorType:  "agent",
-		ActorID:    t.manager.agentKeyFromID(ctx, agentID),
+		ActorID:    t.manager.AgentKeyFromID(ctx, agentID),
 	})
 
 	return NewResult(fmt.Sprintf("File attached to task #%d \"%s\" (id: %s).", task.TaskNumber, task.Subject, taskID))
 }
 
 func (t *TeamTasksTool) executeUpdate(ctx context.Context, args map[string]any) *Result {
-	team, agentID, err := t.manager.resolveTeam(ctx)
+	team, agentID, err := t.manager.ResolveTeam(ctx)
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
-	if err := t.manager.requireLead(ctx, team, agentID); err != nil {
+	if err := t.manager.RequireLead(ctx, team, agentID); err != nil {
 		return ErrorResult(err.Error())
 	}
 
@@ -579,7 +579,7 @@ func (t *TeamTasksTool) executeUpdate(ctx context.Context, args map[string]any) 
 	}
 
 	// Verify task belongs to this team (prevent cross-team update).
-	task, err := t.manager.teamStore.GetTask(ctx, taskID)
+	task, err := t.manager.Store().GetTask(ctx, taskID)
 	if err != nil {
 		return ErrorResult("task not found: " + err.Error())
 	}
@@ -607,7 +607,7 @@ func (t *TeamTasksTool) executeUpdate(ctx context.Context, args map[string]any) 
 		}
 		// Batch-validate all blocker tasks in one query.
 		if len(blockedBy) > 0 {
-			depTasks, err := t.manager.teamStore.GetTasksByIDs(ctx, blockedBy)
+			depTasks, err := t.manager.Store().GetTasksByIDs(ctx, blockedBy)
 			if err != nil {
 				return ErrorResult("failed to validate blocked_by: " + err.Error())
 			}
@@ -638,11 +638,11 @@ func (t *TeamTasksTool) executeUpdate(ctx context.Context, args map[string]any) 
 		return ErrorResult("no updates provided (set description, subject, or blocked_by)")
 	}
 
-	if err := t.manager.teamStore.UpdateTask(ctx, taskID, updates); err != nil {
+	if err := t.manager.Store().UpdateTask(ctx, taskID, updates); err != nil {
 		return ErrorResult("failed to update task: " + err.Error())
 	}
 
-	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskUpdated, protocol.TeamTaskEventPayload{
+	t.manager.BroadcastTeamEvent(ctx, protocol.EventTeamTaskUpdated, protocol.TeamTaskEventPayload{
 		TeamID:    team.ID.String(),
 		TaskID:    taskID.String(),
 		Subject:   task.Subject,
@@ -652,7 +652,7 @@ func (t *TeamTasksTool) executeUpdate(ctx context.Context, args map[string]any) 
 		ChatID:    ToolChatIDFromCtx(ctx),
 		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05Z"),
 		ActorType: "agent",
-		ActorID:   t.manager.agentKeyFromID(ctx, agentID),
+		ActorID:   t.manager.AgentKeyFromID(ctx, agentID),
 	})
 
 	return NewResult(fmt.Sprintf("Task #%d \"%s\" updated (id: %s).", task.TaskNumber, task.Subject, taskID))
