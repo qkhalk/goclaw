@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ func (s *SQLitePairingStore) SetOnRequest(cb func(code, senderID, channel, chatI
 
 func (s *SQLitePairingStore) RequestPairing(ctx context.Context, senderID, channel, chatID, accountID string, metadata map[string]string) (string, error) {
 	tid := tenantIDForInsert(ctx)
-	now := time.Now()
+	now := time.Now().Round(0) // Strip monotonic clock for correct SQLite string comparison
 
 	s.db.ExecContext(ctx, "DELETE FROM pairing_requests WHERE expires_at < ?", now)
 
@@ -65,7 +66,7 @@ func (s *SQLitePairingStore) RequestPairing(ctx context.Context, senderID, chann
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO pairing_requests (id, code, sender_id, channel, chat_id, account_id, expires_at, created_at, metadata, tenant_id)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		uuid.Must(uuid.NewV7()), code, senderID, channel, chatID, accountID, now.Add(codeTTL), now, metaJSON, tid,
+		uuid.Must(uuid.NewV7()), code, senderID, channel, chatID, accountID, now.Add(codeTTL).Round(0), now, metaJSON, tid,
 	)
 	if err != nil {
 		return "", fmt.Errorf("create pairing request: %w", err)
@@ -77,7 +78,7 @@ func (s *SQLitePairingStore) RequestPairing(ctx context.Context, senderID, chann
 }
 
 func (s *SQLitePairingStore) ApprovePairing(ctx context.Context, code, approvedBy string) (*store.PairedDeviceData, error) {
-	now := time.Now()
+	now := time.Now().Round(0)
 	s.db.ExecContext(ctx, "DELETE FROM pairing_requests WHERE expires_at < ?", now)
 
 	var reqID uuid.UUID
@@ -149,7 +150,7 @@ func (s *SQLitePairingStore) IsPaired(ctx context.Context, senderID, channel str
 	var count int64
 	err := s.db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM paired_devices WHERE sender_id = ? AND channel = ? AND tenant_id = ? AND (expires_at IS NULL OR expires_at > ?)",
-		senderID, channel, tid, time.Now(),
+		senderID, channel, tid, time.Now().Round(0),
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("pairing check query: %w", err)
@@ -159,7 +160,7 @@ func (s *SQLitePairingStore) IsPaired(ctx context.Context, senderID, channel str
 
 func (s *SQLitePairingStore) ListPending(ctx context.Context) []store.PairingRequestData {
 	tid := tenantIDForInsert(ctx)
-	now := time.Now()
+	now := time.Now().Round(0) // Strip monotonic clock for correct SQLite string comparison
 
 	s.db.ExecContext(ctx, "DELETE FROM pairing_requests WHERE expires_at < ?", now)
 
@@ -174,13 +175,14 @@ func (s *SQLitePairingStore) ListPending(ctx context.Context) []store.PairingReq
 	var result []store.PairingRequestData
 	for rows.Next() {
 		var d store.PairingRequestData
-		var createdAt, expiresAt time.Time
+		var createdAtStr, expiresAtStr string
 		var metaJSON []byte
-		if err := rows.Scan(&d.Code, &d.SenderID, &d.Channel, &d.ChatID, &d.AccountID, &createdAt, &expiresAt, &metaJSON); err != nil {
+		if err := rows.Scan(&d.Code, &d.SenderID, &d.Channel, &d.ChatID, &d.AccountID, &createdAtStr, &expiresAtStr, &metaJSON); err != nil {
+			slog.Warn("pairing: scan error", "error", err)
 			continue
 		}
-		d.CreatedAt = createdAt.UnixMilli()
-		d.ExpiresAt = expiresAt.UnixMilli()
+		d.CreatedAt = parseTimeToMillis(createdAtStr)
+		d.ExpiresAt = parseTimeToMillis(expiresAtStr)
 		if len(metaJSON) > 0 {
 			json.Unmarshal(metaJSON, &d.Metadata)
 		}
@@ -197,7 +199,7 @@ func (s *SQLitePairingStore) ListPending(ctx context.Context) []store.PairingReq
 
 func (s *SQLitePairingStore) ListPaired(ctx context.Context) []store.PairedDeviceData {
 	tid := tenantIDForInsert(ctx)
-	now := time.Now()
+	now := time.Now().Round(0)
 
 	s.db.ExecContext(ctx, "DELETE FROM paired_devices WHERE expires_at IS NOT NULL AND expires_at < ?", now)
 
@@ -212,12 +214,13 @@ func (s *SQLitePairingStore) ListPaired(ctx context.Context) []store.PairedDevic
 	var result []store.PairedDeviceData
 	for rows.Next() {
 		var d store.PairedDeviceData
-		var pairedAt time.Time
+		var pairedAtStr string
 		var metaJSON []byte
-		if err := rows.Scan(&d.SenderID, &d.Channel, &d.ChatID, &d.PairedBy, &pairedAt, &metaJSON); err != nil {
+		if err := rows.Scan(&d.SenderID, &d.Channel, &d.ChatID, &d.PairedBy, &pairedAtStr, &metaJSON); err != nil {
+			slog.Warn("pairing: scan paired error", "error", err)
 			continue
 		}
-		d.PairedAt = pairedAt.UnixMilli()
+		d.PairedAt = parseTimeToMillis(pairedAtStr)
 		if len(metaJSON) > 0 {
 			json.Unmarshal(metaJSON, &d.Metadata)
 		}
@@ -230,6 +233,30 @@ func (s *SQLitePairingStore) ListPaired(ctx context.Context) []store.PairedDevic
 		return []store.PairedDeviceData{}
 	}
 	return result
+}
+
+// parseTimeToMillis parses a Go time.Time string (possibly with monotonic clock suffix)
+// from SQLite and returns Unix milliseconds. Falls back to 0 on parse failure.
+func parseTimeToMillis(s string) int64 {
+	// Strip monotonic clock suffix "m=+xxx" if present
+	if idx := strings.Index(s, " m="); idx > 0 {
+		s = s[:idx]
+	}
+	// Try standard Go formats
+	for _, layout := range []string{
+		"2006-01-02 15:04:05.999999999 -0700 MST",
+		"2006-01-02 15:04:05.999999999 -0700 -07",
+		"2006-01-02 15:04:05.999999 -0700 -07",
+		"2006-01-02T15:04:05.999999999-07:00",
+		time.RFC3339Nano,
+		time.RFC3339,
+	} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.UnixMilli()
+		}
+	}
+	slog.Warn("pairing: failed to parse time", "value", s)
+	return 0
 }
 
 func generatePairingCode() string {

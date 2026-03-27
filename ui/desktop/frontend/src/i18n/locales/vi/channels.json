@@ -41,7 +41,8 @@
     "tabs": {
       "general": "Chung",
       "credentials": "Xác thực",
-      "managers": "Quản lý"
+      "managers": "Quản lý",
+      "advanced": "Nâng cao"
     },
     "general": {
       "identity": "Thông tin",

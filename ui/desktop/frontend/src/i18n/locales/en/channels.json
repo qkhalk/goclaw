@@ -41,7 +41,8 @@
     "tabs": {
       "general": "General",
       "credentials": "Credentials",
-      "managers": "Managers"
+      "managers": "Managers",
+      "advanced": "Advanced"
     },
     "general": {
       "identity": "Identity",

@@ -10,11 +10,14 @@ export function usePairedDevices() {
   const fetchDevices = useCallback(async () => {
     try {
       const ws = getWsClient()
-      const res = (await ws.call('device.pair.list')) as { pending: PendingPairing[]; paired: PairedDevice[] }
+      const raw = await ws.call('device.pair.list')
+      console.log('[paired-devices] raw response:', raw)
+      const res = raw as { pending: PendingPairing[]; paired: PairedDevice[] }
+      console.log('[paired-devices] pending:', res.pending?.length, 'paired:', res.paired?.length)
       setPendingPairings(res.pending ?? [])
       setPairedDevices(res.paired ?? [])
-    } catch {
-      // ignore — gateway may not be connected
+    } catch (err) {
+      console.error('[paired-devices] error:', err)
     } finally {
       setLoading(false)
     }

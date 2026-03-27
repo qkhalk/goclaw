@@ -5,7 +5,7 @@ import { useAgentCrud } from '../../../hooks/use-agent-crud'
 import { ChannelGeneralTab } from './ChannelGeneralTab'
 import { ChannelCredentialsTab } from './ChannelCredentialsTab'
 import { ChannelManagersTab } from './ChannelManagersTab'
-import { ChannelAdvancedDialog } from './ChannelAdvancedDialog'
+import { ChannelAdvancedTab } from './ChannelAdvancedTab'
 import type { ChannelStatus } from '../../../types/channel'
 
 interface ChannelDetailPanelProps {
@@ -15,7 +15,7 @@ interface ChannelDetailPanelProps {
   onDelete: () => void
 }
 
-const TABS = ['general', 'credentials', 'managers'] as const
+const TABS = ['general', 'credentials', 'managers', 'advanced'] as const
 type TabKey = (typeof TABS)[number]
 
 export function ChannelDetailPanel({ instanceId, status, onBack, onDelete }: ChannelDetailPanelProps) {
@@ -23,7 +23,6 @@ export function ChannelDetailPanel({ instanceId, status, onBack, onDelete }: Cha
   const { instance, loading, updateInstance, listManagerGroups, listManagers, addManager, removeManager, listContacts } = useChannelDetail(instanceId)
   const { agents } = useAgentCrud()
   const [activeTab, setActiveTab] = useState<TabKey>('general')
-  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   if (loading || !instance) {
     return (
@@ -65,14 +64,9 @@ export function ChannelDetailPanel({ instanceId, status, onBack, onDelete }: Cha
           <span className="text-[11px] text-text-muted shrink-0">{statusText}</span>
           <span className="text-[11px] text-text-muted shrink-0">· {agentName}</span>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={() => setAdvancedOpen(true)} className="px-2.5 py-1 text-[11px] border border-border rounded-lg text-text-secondary hover:bg-surface-tertiary transition-colors cursor-pointer">
-            {t('detail.advanced')}
-          </button>
-          <button onClick={onDelete} className="px-2.5 py-1 text-[11px] border border-border rounded-lg text-error hover:bg-error/10 transition-colors cursor-pointer">
-            {t('delete.confirmLabel')}
-          </button>
-        </div>
+        <button onClick={onDelete} className="px-2.5 py-1 text-[11px] border border-border rounded-lg text-error hover:bg-error/10 transition-colors cursor-pointer shrink-0">
+          {t('delete.confirmLabel')}
+        </button>
       </div>
 
       {/* Tabs */}
@@ -105,15 +99,8 @@ export function ChannelDetailPanel({ instanceId, status, onBack, onDelete }: Cha
             listContacts={listContacts}
           />
         )}
+        {activeTab === 'advanced' && <ChannelAdvancedTab instance={instance} onUpdate={updateInstance} />}
       </div>
-
-      {/* Advanced dialog */}
-      <ChannelAdvancedDialog
-        open={advancedOpen}
-        onOpenChange={setAdvancedOpen}
-        instance={instance}
-        onUpdate={updateInstance}
-      />
     </div>
   )
 }

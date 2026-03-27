@@ -41,7 +41,8 @@
     "tabs": {
       "general": "常规",
       "credentials": "凭据",
-      "managers": "管理员"
+      "managers": "管理员",
+      "advanced": "高级"
     },
     "general": {
       "identity": "身份信息",
