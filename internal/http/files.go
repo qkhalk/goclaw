@@ -107,7 +107,13 @@ func (h *FilesHandler) handleServe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// URL path is the absolute path with leading "/" stripped (e.g. "app/.goclaw/workspace/file.png")
-	absPath := filepath.Clean("/" + urlPath)
+	// Windows drive letter: "C:/Users/..." → use directly without prepending "/"
+	var absPath string
+	if len(urlPath) >= 2 && urlPath[1] == ':' {
+		absPath = filepath.Clean(urlPath)
+	} else {
+		absPath = filepath.Clean("/" + urlPath)
+	}
 
 	// Block access to sensitive system directories
 	for _, prefix := range deniedFilePrefixes {

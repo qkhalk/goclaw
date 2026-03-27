@@ -28,13 +28,21 @@ function resolveFileUrl(path: string, baseUrl?: string): string {
     if (isApiClientReady()) return getApiClient().getBaseUrl() + path
     return path
   }
+  // Strip MEDIA: prefix (tool results embed paths as MEDIA:/path/to/file.png)
+  const clean = path.replace(/^MEDIA:/, '')
+  // Normalize backslashes (Windows paths: C:\Users\... → C:/Users/...)
+  const normalized = clean.replace(/\\/g, '/')
   // Relative path with baseUrl — resolve against the base directory
-  if (baseUrl && !path.startsWith('/')) {
+  if (baseUrl && !normalized.startsWith('/') && !/^[a-zA-Z]:\//.test(normalized)) {
     const baseDir = baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1)
-    return baseDir + path
+    return baseDir + normalized
   }
-  // Absolute path — preserve full path for direct file serving
-  const filePath = path.startsWith('/') ? `/v1/files${path}` : `/v1/files/${path.split('/').pop() ?? path}`
+  // Absolute path: Unix /... or Windows C:/...
+  const filePath = normalized.startsWith('/')
+    ? `/v1/files${normalized}`
+    : /^[a-zA-Z]:\//.test(normalized)
+      ? `/v1/files/${normalized}`
+      : `/v1/files/${normalized.split('/').pop() ?? normalized}`
   if (isApiClientReady()) return getApiClient().getBaseUrl() + filePath
   return filePath
 }

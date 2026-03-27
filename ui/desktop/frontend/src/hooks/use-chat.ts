@@ -10,11 +10,13 @@ import type { AttachedFile } from '../components/chat/InputBar'
 // can resolve the file directly without findInWorkspace fallback.
 function toFileUrl(path: string): string {
   if (!path) return ''
-  if (path.startsWith('/v1/files/') || path.includes('/v1/files/')) return resolveBase(path)
-  // Absolute path — preserve full path for direct file serving
-  if (path.startsWith('/')) return resolveBase(`/v1/files${path}`)
-  const basename = path.split('/').pop() ?? path
-  return resolveBase(`/v1/files/${basename}`)
+  if (path.includes('/v1/files/')) return resolveBase(path)
+  // Normalize backslashes (Windows paths: C:\Users\... → C:/Users/...)
+  const normalized = path.replace(/\\/g, '/')
+  // Absolute: Unix /... or Windows C:/...
+  if (normalized.startsWith('/')) return resolveBase(`/v1/files${normalized}`)
+  if (/^[a-zA-Z]:\//.test(normalized)) return resolveBase(`/v1/files/${normalized}`)
+  return resolveBase(`/v1/files/${normalized.split('/').pop() ?? normalized}`)
 }
 
 function resolveBase(path: string): string {
