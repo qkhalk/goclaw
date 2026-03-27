@@ -75,6 +75,5 @@ Write-Host ""
 Write-Host "GoClaw Lite v$Semver installed!" -ForegroundColor Green
 Write-Host "  Location: $InstallDir" -ForegroundColor Gray
 Write-Host ""
-Write-Host "To launch:" -ForegroundColor White
-Write-Host "  Start Menu -> GoClaw Lite"
-Write-Host "  Or run: & '$ExePath'"
+Write-Host "-> Launching GoClaw Lite..."
+if (Test-Path $ExePath) { Start-Process $ExePath }
