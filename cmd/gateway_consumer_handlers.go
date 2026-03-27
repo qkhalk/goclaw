@@ -287,6 +287,7 @@ func handleTeammateMessage(
 		Stream:          false,
 		TeamTaskID:      msg.Metadata["team_task_id"],
 		TeamWorkspace:   msg.Metadata["team_workspace"],
+		LeaderAgentID:   msg.Metadata["leader_agent_id"],
 		WorkspaceChatID: origChatID,
 		TeamID:          msg.Metadata["team_id"],
 		LinkedTraceID:   linkedTraceID,

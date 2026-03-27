@@ -185,6 +185,8 @@ func (m *TeamToolManager) dispatchTaskToAgent(ctx context.Context, task *store.T
 	if originSessionKey != "" {
 		meta["origin_session_key"] = originSessionKey
 	}
+	// Pass leader agent ID so member agents can fallback-read leader's memory.
+	meta["leader_agent_id"] = team.LeadAgentID.String()
 	// Pass the team workspace dir so member agents write files to the shared folder.
 	if ws := taskTeamWorkspace(task); ws != "" {
 		meta["team_workspace"] = ws

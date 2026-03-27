@@ -436,6 +436,7 @@ type RunRequest struct {
 	TeamID        string // team ID (if delegation is team-scoped)
 	TeamTaskID    string // team task ID (if delegation has an associated task)
 	ParentAgentID string // parent agent key that initiated the delegation
+	LeaderAgentID string // leader agent UUID for member memory read fallback
 
 	// Workspace scope propagation (set by delegation, read by workspace tools)
 	WorkspaceChannel string
