@@ -15,25 +15,10 @@ export function SidebarHeader() {
   const closeSettings = useUiStore((s) => s.closeSettings)
   const [editionOpen, setEditionOpen] = useState(false)
   const [version, setVersion] = useState('')
-  const [checking, setChecking] = useState(false)
-  const [updateMsg, setUpdateMsg] = useState<string | null>(null)
 
   useEffect(() => {
     wails.getVersion().then(setVersion).catch(() => {})
   }, [])
-
-  const handleCheck = async () => {
-    setChecking(true)
-    setUpdateMsg(null)
-    try {
-      const info = await wails.checkForUpdate()
-      setUpdateMsg(info?.available ? `v${info.version}` : '✓')
-    } catch {
-      setUpdateMsg('✗')
-    } finally {
-      setChecking(false)
-    }
-  }
 
   const atLimit = agents.length >= MAX_AGENTS_LITE
 
@@ -49,18 +34,7 @@ export function SidebarHeader() {
               onClick={() => setEditionOpen(true)}
               className="text-[10px] font-medium bg-accent/15 text-accent px-1.5 py-0.5 rounded hover:bg-accent/25 transition-colors cursor-pointer"
             >
-              Lite
-            </button>
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {version && <span className="text-[10px] text-text-muted font-mono">v{version}</span>}
-            <button
-              onClick={handleCheck}
-              disabled={checking}
-              className="text-[10px] text-accent/70 hover:text-accent cursor-pointer disabled:opacity-50"
-              title="Check for updates"
-            >
-              {checking ? '...' : updateMsg ?? '↻'}
+              Lite{version ? ` - v${version}` : ''}
             </button>
           </div>
         </div>
