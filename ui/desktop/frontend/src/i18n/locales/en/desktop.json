@@ -25,7 +25,6 @@
     "wait": "This may take a moment",
     "fileLabelSOUL": "Core personality",
     "fileLabelIDENTITY": "Identity & knowledge",
-    "fileLabelUSER_PREDEFINED": "User context",
     "agentReady": "{{name}} is ready!",
     "retrying": "Retrying..."
   },

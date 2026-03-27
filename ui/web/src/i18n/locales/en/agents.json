@@ -533,8 +533,7 @@
     "retrying": "Retrying...",
     "done": "done",
     "fileLabelSOUL": "Soul & Personality",
-    "fileLabelIDENTITY": "Identity Card",
-    "fileLabelUSER_PREDEFINED": "Default User Context"
+    "fileLabelIDENTITY": "Identity Card"
   },
   "configGroups": {
     "core": "Core",

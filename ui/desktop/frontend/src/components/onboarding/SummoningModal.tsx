@@ -6,7 +6,6 @@ import { getWsClient } from '../../lib/ws'
 const SUMMONING_FILE_KEYS = [
   { name: 'SOUL.md', required: true, labelKey: 'summoning.fileLabelSOUL' },
   { name: 'IDENTITY.md', required: true, labelKey: 'summoning.fileLabelIDENTITY' },
-  { name: 'USER_PREDEFINED.md', required: false, labelKey: 'summoning.fileLabelUSER_PREDEFINED' },
 ]
 
 interface SummoningModalProps {

@@ -533,8 +533,7 @@
     "retrying": "重试中...",
     "done": "完成",
     "fileLabelSOUL": "灵魂与个性",
-    "fileLabelIDENTITY": "身份卡",
-    "fileLabelUSER_PREDEFINED": "默认用户上下文"
+    "fileLabelIDENTITY": "身份卡"
   },
   "configGroups": {
     "core": "核心",

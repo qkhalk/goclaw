@@ -68,11 +68,11 @@
 
 /* Floating panel design system */
 .canvas-dots {
-  background-image: radial-gradient(circle, oklch(0.26 0.02 45) 0.8px, transparent 0.8px);
-  background-size: 28px 28px;
+  background-image: radial-gradient(circle, oklch(0.22 0.01 45) 0.5px, transparent 0.5px);
+  background-size: 36px 36px;
 }
 :root:not(.dark) .canvas-dots {
-  background-image: radial-gradient(circle, oklch(0.86 0.01 70) 0.8px, transparent 0.8px);
+  background-image: radial-gradient(circle, oklch(0.90 0.005 70) 0.5px, transparent 0.5px);
 }
 .floating-panel {
   background: var(--color-surface-secondary);

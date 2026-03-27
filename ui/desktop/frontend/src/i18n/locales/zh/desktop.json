@@ -25,7 +25,6 @@
     "wait": "这可能需要一点时间",
     "fileLabelSOUL": "核心个性",
     "fileLabelIDENTITY": "身份与知识",
-    "fileLabelUSER_PREDEFINED": "用户上下文",
     "agentReady": "{{name}} 已就绪！",
     "retrying": "重试中..."
   },
