@@ -14,33 +14,14 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
-// buildEnsureUserFiles creates the per-user file seeding callback.
-// Seeds per-user context files on first chat (new user profile).
-func buildEnsureUserFiles(as store.AgentStore, configPermStore store.ConfigPermissionStore) agent.EnsureUserFilesFunc {
-	return func(ctx context.Context, agentID uuid.UUID, userID, agentType, workspace, channel string) (string, error) {
+// buildEnsureUserProfile creates the user profile resolution callback.
+// Creates/resolves user profile and returns effective workspace.
+// Separated from seeding to allow independent lifecycle management.
+func buildEnsureUserProfile(as store.AgentStore, configPermStore store.ConfigPermissionStore) agent.EnsureUserProfileFunc {
+	return func(ctx context.Context, agentID uuid.UUID, userID, workspace, channel string) (string, bool, error) {
 		isNew, effectiveWs, err := as.GetOrCreateUserProfile(ctx, agentID, userID, workspace, channel)
 		if err != nil {
-			return effectiveWs, err
-		}
-
-		// Seed context files:
-		// - isNew: always seed (first-time user)
-		// - !isNew: only seed when user has NO context files at all.
-		//   This handles the EnsureUserProfile (HTTP API) pre-creation case where profile
-		//   exists but context files were never seeded. We check for zero files rather than
-		//   calling SeedUserFiles unconditionally to avoid re-seeding BOOTSTRAP.md after
-		//   auto-cleanup (which DELETEs the row — SeedUserFiles would treat it as missing).
-		needSeed := isNew
-		if !isNew {
-			existing, qErr := as.GetUserContextFiles(ctx, agentID, userID)
-			if qErr == nil && len(existing) == 0 {
-				needSeed = true
-			}
-		}
-		if needSeed {
-			if _, seedErr := bootstrap.SeedUserFiles(ctx, as, agentID, userID, agentType); seedErr != nil {
-				slog.Warn("failed to seed user context files", "error", seedErr, "agent", agentID, "user", userID)
-			}
+			return effectiveWs, false, err
 		}
 
 		// Auto-add first group member as a file writer (bootstrap the allowlist).
@@ -68,7 +49,18 @@ func buildEnsureUserFiles(as store.AgentStore, configPermStore store.ConfigPermi
 			}
 		}
 
-		return effectiveWs, nil
+		return effectiveWs, isNew, nil
+	}
+}
+
+// buildSeedUserFiles creates the context file seeding callback.
+// Seeds BOOTSTRAP.md, USER.md, etc. into user_context_files.
+// isNew=true seeds all files; isNew=false only seeds if user has zero files
+// (avoids re-seeding BOOTSTRAP.md after auto-cleanup on server restart).
+func buildSeedUserFiles(as store.AgentStore) agent.SeedUserFilesFunc {
+	return func(ctx context.Context, agentID uuid.UUID, userID, agentType string, isNew bool) error {
+		_, err := bootstrap.SeedUserFiles(ctx, as, agentID, userID, agentType, !isNew)
+		return err
 	}
 }
 

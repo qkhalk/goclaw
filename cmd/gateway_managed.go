@@ -90,10 +90,12 @@ func wireExtras(
 		}
 	}
 
-	// 2. User seeding callback: seeds per-user context files on first chat
-	var ensureUserFiles agent.EnsureUserFilesFunc
+	// 2. Per-user profile + context file seeding callbacks
+	var ensureUserProfile agent.EnsureUserProfileFunc
+	var seedUserFiles agent.SeedUserFilesFunc
 	if stores.Agents != nil {
-		ensureUserFiles = buildEnsureUserFiles(stores.Agents, stores.ConfigPermissions)
+		ensureUserProfile = buildEnsureUserProfile(stores.Agents, stores.ConfigPermissions)
+		seedUserFiles = buildSeedUserFiles(stores.Agents)
 	}
 
 	// 3. Context file loader callback: loads per-user context files dynamically
@@ -138,7 +140,8 @@ func wireExtras(
 		SkillAccessStore:       skillAccessStore,
 		HasMemory:              hasMemory,
 		TraceCollector:         traceCollector,
-		EnsureUserFiles:        ensureUserFiles,
+		EnsureUserProfile:      ensureUserProfile,
+		SeedUserFiles:          seedUserFiles,
 		ContextFileLoader:      contextFileLoader,
 		BootstrapCleanup:       buildBootstrapCleanup(stores.Agents),
 		InjectionAction:        injectionAction,

@@ -35,8 +35,9 @@ type ResolverDeps struct {
 	OnEvent        func(AgentEvent)
 	TraceCollector *tracing.Collector
 
-	// Per-user file seeding + dynamic context loading
-	EnsureUserFiles   EnsureUserFilesFunc
+	// Per-user profile + file seeding + dynamic context loading
+	EnsureUserProfile EnsureUserProfileFunc
+	SeedUserFiles     SeedUserFilesFunc
 	ContextFileLoader ContextFileLoaderFunc
 	BootstrapCleanup  BootstrapCleanupFunc
 
@@ -365,7 +366,8 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			SkillAllowList:         skillAllowList,
 			HasMemory:              hasMemory,
 			ContextFiles:           contextFiles,
-			EnsureUserFiles:        deps.EnsureUserFiles,
+			EnsureUserProfile:      deps.EnsureUserProfile,
+			SeedUserFiles:          deps.SeedUserFiles,
 			ContextFileLoader:      deps.ContextFileLoader,
 			BootstrapCleanup:       deps.BootstrapCleanup,
 			OnEvent:                deps.OnEvent,

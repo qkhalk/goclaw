@@ -92,20 +92,20 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	_, hasKG := l.tools.Get("knowledge_graph_search")
 
 	// Per-user workspace: show the user's subdirectory in the system prompt.
-	// Uses cached workspace from user_agent_profiles (includes channel isolation).
+	// Uses cached workspace from userSetups (includes channel isolation).
 	// When workspace sharing is enabled, show the base workspace without user subfolder.
 	promptWorkspace := l.workspace
 	if l.agentUUID != uuid.Nil && userID != "" && l.workspace != "" {
 		shared := l.shouldShareWorkspace(userID, peerKind)
-		if cachedWs, ok := l.userWorkspaces.Load(userID); ok {
-			promptWorkspace = tools.ResolveWorkspace(cachedWs.(string),
-				tools.UserChatLayer(tools.SanitizePathSegment(userID), shared),
-			)
-		} else {
-			promptWorkspace = tools.ResolveWorkspace(l.workspace,
-				tools.UserChatLayer(tools.SanitizePathSegment(userID), shared),
-			)
+		baseWs := l.workspace
+		if val, ok := l.userSetups.Load(userID); ok {
+			if ws := val.(*userSetup).workspace; ws != "" {
+				baseWs = ws
+			}
 		}
+		promptWorkspace = tools.ResolveWorkspace(baseWs,
+			tools.UserChatLayer(tools.SanitizePathSegment(userID), shared),
+		)
 	}
 
 	// Resolve context files once — also detect BOOTSTRAP.md presence.
