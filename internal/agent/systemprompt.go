@@ -27,6 +27,7 @@ type SystemPromptConfig struct {
 	Workspace     string
 	Channel       string                 // runtime channel instance name (e.g. "my-telegram-bot")
 	ChannelType   string                 // platform type (e.g. "zalo_personal", "telegram")
+	ChatTitle     string                 // group chat display name (shown in identity line)
 	PeerKind      string                 // "direct" or "group"
 	OwnerIDs      []string               // owner sender IDs
 	Mode          PromptMode             // full or minimal
@@ -106,6 +107,8 @@ var coreToolSummaries = map[string]string{
 	"create_audio":            "Generate music or sound effects from text descriptions using AI",
 	"knowledge_graph_search":  "Find people, projects, and their connections — use for relationship questions (who works with whom, project dependencies) that memory_search may miss",
 	"team_tasks":              "Team task board — track progress, manage dependencies (spawn auto-creates delegation tasks)",
+	"list_group_members":      "List all members of the current group chat (Feishu/Lark only)",
+	"create_forum_topic":      "Create a forum topic in a Telegram supergroup",
 
 	// Legacy tool aliases — kept for backward compatibility with older clients
 	"edit_file":      "Alias for edit — Edit a file by replacing exact text matches",
@@ -138,6 +141,15 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 		chatType := "a direct chat"
 		if cfg.PeerKind == "group" {
 			chatType = "a group chat"
+			if cfg.ChatTitle != "" {
+				// Sanitize: strip quotes/newlines, truncate to prevent prompt injection
+				// (group admins control the title).
+				title := strings.NewReplacer("\"", "", "\n", " ", "\r", "").Replace(cfg.ChatTitle)
+				if len([]rune(title)) > 100 {
+					title = string([]rune(title)[:100])
+				}
+				chatType = fmt.Sprintf("group chat \"%s\"", title)
+			}
 		}
 		lines = append(lines, fmt.Sprintf("You are a personal assistant running in %s (%s).", channelLabel, chatType))
 		lines = append(lines, "")
