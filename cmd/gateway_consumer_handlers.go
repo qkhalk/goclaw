@@ -372,7 +372,7 @@ func handleTeammateMessage(
 							}
 						}
 						// Smart post-turn decision based on action flags.
-						// Priority: error > completed > escalated > reviewed > progress-only > no-action.
+						// Only error, completed/escalated, and reviewed block auto-complete.
 						switch {
 						case outcome.Err != nil:
 							// Agent errored → auto-fail.
