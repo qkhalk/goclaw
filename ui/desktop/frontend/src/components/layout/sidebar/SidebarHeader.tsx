@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAgents } from '../../../hooks/use-agents'
 import { useUiStore } from '../../../stores/ui-store'
 import { AgentAvatar } from '../../agents/AgentAvatar'
 import { EditionCompareModal } from '../../common/EditionCompareModal'
+import { wails } from '../../../lib/wails'
 
 const MAX_AGENTS_LITE = 5
 
@@ -13,21 +14,56 @@ export function SidebarHeader() {
   const openSettings = useUiStore((s) => s.openSettings)
   const closeSettings = useUiStore((s) => s.closeSettings)
   const [editionOpen, setEditionOpen] = useState(false)
+  const [version, setVersion] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [updateMsg, setUpdateMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    wails.getVersion().then(setVersion).catch(() => {})
+  }, [])
+
+  const handleCheck = async () => {
+    setChecking(true)
+    setUpdateMsg(null)
+    try {
+      const info = await wails.checkForUpdate()
+      setUpdateMsg(info?.available ? `v${info.version}` : '✓')
+    } catch {
+      setUpdateMsg('✗')
+    } finally {
+      setChecking(false)
+    }
+  }
 
   const atLimit = agents.length >= MAX_AGENTS_LITE
 
   return (
     <div className="pt-6 px-3 pb-2 space-y-2">
-      {/* Logo */}
+      {/* Logo + version */}
       <div className="flex items-center gap-2.5 px-1">
         <img src="/goclaw-icon.svg" alt="GoClaw" className="h-7 w-7" />
-        <span className="text-base font-semibold text-text-primary">GoClaw</span>
-        <button
-          onClick={() => setEditionOpen(true)}
-          className="text-[10px] font-medium bg-accent/15 text-accent px-1.5 py-0.5 rounded hover:bg-accent/25 transition-colors cursor-pointer"
-        >
-          Lite
-        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base font-semibold text-text-primary">GoClaw</span>
+            <button
+              onClick={() => setEditionOpen(true)}
+              className="text-[10px] font-medium bg-accent/15 text-accent px-1.5 py-0.5 rounded hover:bg-accent/25 transition-colors cursor-pointer"
+            >
+              Lite
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {version && <span className="text-[10px] text-text-muted font-mono">v{version}</span>}
+            <button
+              onClick={handleCheck}
+              disabled={checking}
+              className="text-[10px] text-accent/70 hover:text-accent cursor-pointer disabled:opacity-50"
+              title="Check for updates"
+            >
+              {checking ? '...' : updateMsg ?? '↻'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Section title + add button */}
