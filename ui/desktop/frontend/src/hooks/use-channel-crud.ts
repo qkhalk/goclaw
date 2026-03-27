@@ -22,7 +22,17 @@ export function useChannelCrud() {
 
   const createInstance = useCallback(async (input: ChannelInstanceInput) => {
     try {
-      const res = await getApiClient().post<{ id: string }>('/v1/channels/instances', input)
+      // Map camelCase input to snake_case for backend HTTP API
+      const payload = {
+        name: input.name,
+        display_name: input.displayName,
+        channel_type: input.channelType,
+        agent_id: input.agentId,
+        credentials: input.credentials,
+        config: input.config,
+        enabled: input.enabled,
+      }
+      const res = await getApiClient().post<{ id: string }>('/v1/channels/instances', payload)
       await fetchInstances()
       toast.success('Channel created')
       return res
