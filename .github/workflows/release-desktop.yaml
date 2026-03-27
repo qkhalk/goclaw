@@ -27,8 +27,15 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - name: Setup pnpm
-        run: corepack enable && corepack prepare pnpm@latest --activate
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/desktop/frontend/pnpm-lock.yaml
 
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -90,8 +97,15 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - name: Setup pnpm
-        run: corepack enable && corepack prepare pnpm@latest --activate
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/desktop/frontend/pnpm-lock.yaml
 
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
