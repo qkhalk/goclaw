@@ -14,8 +14,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/safego"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -516,11 +516,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		var resp *providers.ChatResponse
 		var err error
 
+		callCtx := providers.WithChatGPTOAuthRoutingObservation(ctx, providers.NewChatGPTOAuthRoutingObservation())
 		llmSpanStart := time.Now().UTC()
-		llmSpanID := l.emitLLMSpanStart(ctx, llmSpanStart, rs.iteration, messages)
+		llmSpanID := l.emitLLMSpanStart(callCtx, llmSpanStart, rs.iteration, messages)
 
 		if req.Stream {
-			resp, err = l.provider.ChatStream(ctx, chatReq, func(chunk providers.StreamChunk) {
+			resp, err = l.provider.ChatStream(callCtx, chatReq, func(chunk providers.StreamChunk) {
 				if chunk.Thinking != "" {
 					emitRun(AgentEvent{
 						Type:    protocol.ChatEventThinking,
@@ -539,15 +540,15 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				}
 			})
 		} else {
-			resp, err = l.provider.Chat(ctx, chatReq)
+			resp, err = l.provider.Chat(callCtx, chatReq)
 		}
 
 		if err != nil {
-			l.emitLLMSpanEnd(ctx, llmSpanID, llmSpanStart, nil, err)
+			l.emitLLMSpanEnd(callCtx, llmSpanID, llmSpanStart, nil, err)
 			return nil, fmt.Errorf("LLM call failed (iteration %d): %w", rs.iteration, err)
 		}
 
-		l.emitLLMSpanEnd(ctx, llmSpanID, llmSpanStart, resp, nil)
+		l.emitLLMSpanEnd(callCtx, llmSpanID, llmSpanStart, resp, nil)
 
 		// For non-streaming responses, emit thinking and content as single events
 		if !req.Stream {

@@ -112,6 +112,7 @@ func (l *Loop) emitLLMSpanEnd(ctx context.Context, spanID uuid.UUID, start time.
 		"duration_ms": int(now.Sub(start).Milliseconds()),
 		"status":      store.SpanStatusCompleted,
 	}
+	var spanMetadata json.RawMessage
 
 	if callErr != nil {
 		updates["status"] = store.SpanStatusError
@@ -133,7 +134,7 @@ func (l *Loop) emitLLMSpanEnd(ctx context.Context, spanID uuid.UUID, start time.
 					meta["thinking_tokens"] = resp.Usage.ThinkingTokens
 				}
 				if b, err := json.Marshal(meta); err == nil {
-					updates["metadata"] = b
+					spanMetadata = b
 				}
 			}
 		}
@@ -151,6 +152,18 @@ func (l *Loop) emitLLMSpanEnd(ctx context.Context, spanID uuid.UUID, start time.
 			preview = "<thinking>\n" + resp.Thinking + "\n</thinking>\n" + resp.Content
 		}
 		updates["output_preview"] = tracing.TruncateMid(preview, limit)
+	}
+	if observation := providers.ChatGPTOAuthRoutingObservationFromContext(ctx); observation != nil {
+		evidence := observation.Snapshot()
+		if evidence.HasData() {
+			spanMetadata = providers.MergeChatGPTOAuthRoutingMetadata(spanMetadata, evidence)
+			if evidence.ServingProvider != "" {
+				updates["provider"] = evidence.ServingProvider
+			}
+		}
+	}
+	if len(spanMetadata) > 0 {
+		updates["metadata"] = spanMetadata
 	}
 
 	collector.EmitSpanUpdate(spanID, traceID, updates)
