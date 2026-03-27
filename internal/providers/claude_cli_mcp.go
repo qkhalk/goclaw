@@ -264,20 +264,26 @@ func SignBridgeContext(key, agentID, userID, channel, chatID, peerKind, workspac
 }
 
 // VerifyBridgeContext checks the HMAC signature against the expected bridge context.
+// Returns (ok, tenantVerified): ok indicates signature is valid, tenantVerified indicates
+// the tenantID field was covered by the HMAC (only true at level 1).
 // Falls back to old formats for backward compatibility with sessions whose MCP config
 // was written before the workspace or tenantID fields were added.
-func VerifyBridgeContext(key, agentID, userID, channel, chatID, peerKind, workspace, tenantID, sig string) bool {
+// Callers must NOT trust the tenantID header when tenantVerified is false.
+func VerifyBridgeContext(key, agentID, userID, channel, chatID, peerKind, workspace, tenantID, sig string) (bool, bool) {
 	// Current format: all fields including tenantID
 	expected := SignBridgeContext(key, agentID, userID, channel, chatID, peerKind, workspace, tenantID)
 	if hmac.Equal([]byte(expected), []byte(sig)) {
-		return true
+		return true, true
 	}
 	// Fallback: without tenantID (pre-tenantID sessions)
 	noTenant := SignBridgeContext(key, agentID, userID, channel, chatID, peerKind, workspace, "")
 	if hmac.Equal([]byte(noTenant), []byte(sig)) {
-		return true
+		return true, false
 	}
 	// Fallback: without workspace or tenantID (oldest sessions)
 	old := SignBridgeContext(key, agentID, userID, channel, chatID, peerKind, "", "")
-	return hmac.Equal([]byte(old), []byte(sig))
+	if hmac.Equal([]byte(old), []byte(sig)) {
+		return true, false
+	}
+	return false, false
 }

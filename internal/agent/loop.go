@@ -519,8 +519,10 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				providers.OptChatID:      req.ChatID,
 				providers.OptPeerKind:    req.PeerKind,
 				providers.OptWorkspace:   tools.ToolWorkspaceFromCtx(ctx),
-				providers.OptTenantID:    store.TenantIDFromContext(ctx).String(),
 			},
+		}
+		if tid := store.TenantIDFromContext(ctx); tid != uuid.Nil {
+			chatReq.Options[providers.OptTenantID] = tid.String()
 		}
 		if l.thinkingLevel != "" && l.thinkingLevel != "off" {
 			if tc, ok := l.provider.(providers.ThinkingCapable); ok && tc.SupportsThinking() {

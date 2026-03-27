@@ -227,7 +227,8 @@ func bridgeContextMiddleware(gatewayToken string, next http.Handler) http.Handle
 			// Verify HMAC signature over all context fields.
 			tenantIDStr := r.Header.Get("X-Tenant-ID")
 			sig := r.Header.Get("X-Bridge-Sig")
-			if !providers.VerifyBridgeContext(gatewayToken, agentIDStr, userID, channel, chatID, peerKind, workspace, tenantIDStr, sig) {
+			ok, tenantVerified := providers.VerifyBridgeContext(gatewayToken, agentIDStr, userID, channel, chatID, peerKind, workspace, tenantIDStr, sig)
+			if !ok {
 				slog.Warn("security.mcp_bridge: invalid bridge context signature",
 					"agent_id", agentIDStr, "user_id", userID)
 				http.Error(w, `{"error":"invalid bridge context signature"}`, http.StatusForbidden)
@@ -242,7 +243,9 @@ func bridgeContextMiddleware(gatewayToken string, next http.Handler) http.Handle
 			if userID != "" {
 				ctx = store.WithUserID(ctx, userID)
 			}
-			if tenantIDStr != "" {
+			// Only inject tenant_id when HMAC actually covers it (level 1).
+			// Fallback levels (pre-tenantID sessions) must not trust unsigned tenant headers.
+			if tenantVerified && tenantIDStr != "" {
 				if tid, err := uuid.Parse(tenantIDStr); err == nil {
 					ctx = store.WithTenantID(ctx, tid)
 				}
