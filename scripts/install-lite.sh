@@ -49,7 +49,7 @@ if [[ -z "$VERSION" ]]; then
   VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases" \
     | grep '"tag_name": "lite-v' \
     | head -1 \
-    | sed 's/.*"tag_name": "\(lite-v[^"]*\)".*/\1/')
+    | sed 's/.*"tag_name": "\(lite-v[^"]*\)".*/\1/' || true)
 
   if [[ -z "$VERSION" ]]; then
     echo "❌ No desktop release found. Check https://github.com/$REPO/releases"
