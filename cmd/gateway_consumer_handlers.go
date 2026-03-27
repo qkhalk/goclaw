@@ -404,15 +404,9 @@ func handleTeammateMessage(
 							_ = teamStore.RenewTaskLock(ctx, teamTaskID, teamID)
 							slog.Info("post-turn: task submitted for review", "task_id", teamTaskID)
 
-						case taskActionFlags.Progressed || taskActionFlags.Commented || taskActionFlags.Claimed:
-							// Member interacted but didn't take terminal action — renew lock.
-							_ = teamStore.RenewTaskLock(ctx, teamTaskID, teamID)
-							slog.Warn("post-turn: member did not take terminal action",
-								"task_id", teamTaskID, "progressed", taskActionFlags.Progressed,
-								"commented", taskActionFlags.Commented, "claimed", taskActionFlags.Claimed)
-
 						default:
-							// No task action flags recorded — backward compat: auto-complete.
+							// Agent turn ended without terminal action — auto-complete.
+							// Covers: Progressed, Commented, Claimed, or no flags at all.
 							if outcome.Result != nil {
 								result := outcome.Result.Content
 								if len(outcome.Result.Deliverables) > 0 {
