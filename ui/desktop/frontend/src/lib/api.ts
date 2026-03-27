@@ -21,10 +21,13 @@ class ApiClient {
   }
 
   private headers(extra?: Record<string, string>): Record<string, string> {
+    // Send locale for i18n error messages from backend
+    const lang = typeof localStorage !== 'undefined' ? localStorage.getItem('goclaw:language') : null
     return {
       Authorization: `Bearer ${this.token}`,
       'Content-Type': 'application/json',
       'X-GoClaw-User-Id': 'system',
+      ...(lang ? { 'Accept-Language': lang } : {}),
       ...extra,
     }
   }
@@ -41,9 +44,14 @@ class ApiClient {
       let code: string | undefined
       let message = res.statusText
       try {
-        const json = (await res.json()) as { error?: { code?: string; message?: string } }
-        code = json.error?.code
-        message = json.error?.message ?? message
+        const json = await res.json()
+        // Backend sends either { error: "string" } or { error: { code, message } }
+        if (typeof json.error === 'string') {
+          message = json.error
+        } else if (json.error && typeof json.error === 'object') {
+          code = json.error.code
+          message = json.error.message ?? message
+        }
       } catch {
         // non-JSON error body
       }

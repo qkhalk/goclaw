@@ -190,7 +190,8 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505") {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": i18n.T(locale, i18n.MsgAlreadyExists, "agent", req.AgentKey)})
 		} else {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			slog.Error("agents.create", "agent_key", req.AgentKey, "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgFailedToCreate, "agent", "internal error")})
 		}
 		return
 	}

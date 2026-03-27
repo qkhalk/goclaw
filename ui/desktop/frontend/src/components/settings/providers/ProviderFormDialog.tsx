@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Combobox } from '../../common/Combobox'
 import { Switch } from '../../common/Switch'
-import { PROVIDER_TYPES, slugify } from '../../../constants/providers'
+import { PROVIDER_TYPES } from '../../../constants/providers'
+import { slugify } from '../../../lib/slug'
 import type { ProviderData, ProviderInput } from '../../../types/provider'
 
 interface ProviderFormDialogProps {

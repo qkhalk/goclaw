@@ -27,7 +27,3 @@ export const PROVIDER_TYPES: ProviderTypeInfo[] = [
   { value: 'claude_cli', label: 'Claude CLI (Local)', apiBase: '', needsKey: false },
   { value: 'acp', label: 'ACP Agent (Subprocess)', apiBase: '', needsKey: false },
 ]
-
-export function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}

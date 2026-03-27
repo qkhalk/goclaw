@@ -10,6 +10,7 @@ import { ToolList } from './tools/ToolList'
 import { CronList } from './cron/CronList'
 import { TraceList } from './traces/TraceList'
 import { StorageTab } from './storage/StorageTab'
+import { ChannelList } from './channels/ChannelList'
 
 export function SettingsView() {
   const settingsTab = useUiStore((s) => s.settingsTab)
@@ -60,6 +61,7 @@ function TabContent({ tab }: { tab: string }) {
     case 'appearance': return <AppearanceTab />
     case 'providers': return <ProviderList />
     case 'agents': return <AgentList />
+    case 'channels': return <ChannelList />
     case 'mcp': return <McpServerList />
     case 'skills': return <SkillList />
     case 'tools': return <ToolList />

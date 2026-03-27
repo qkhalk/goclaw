@@ -26,6 +26,7 @@ const FEATURES: FeatureGroup[] = [
       { key: 'teams', lite: 'Max 1', standard: true },
       { key: 'teamMembers', lite: 'Max 5', standard: true },
       { key: 'sessions', lite: 'Max 50', standard: true },
+      { key: 'channels', lite: '1 Telegram + 1 Discord', standard: true },
     ],
   },
   {
@@ -44,7 +45,6 @@ const FEATURES: FeatureGroup[] = [
     group: 'standardOnly',
     rows: [
       { key: 'taskActions', lite: 'Core lifecycle', standard: 'Full + review/approve' },
-      { key: 'channels', lite: false, standard: true },
       { key: 'heartbeat', lite: false, standard: true },
       { key: 'storage', lite: false, standard: true },
       { key: 'skillManage', lite: false, standard: true },

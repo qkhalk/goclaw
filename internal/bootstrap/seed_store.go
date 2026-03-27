@@ -4,11 +4,31 @@ import (
 	"context"
 	"log/slog"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
+
+// retryOnBusy retries fn up to 3 times on SQLITE_BUSY errors with 500ms delay.
+func retryOnBusy(fn func() error) error {
+	for attempt := 0; attempt < 3; attempt++ {
+		err := fn()
+		if err == nil {
+			return nil
+		}
+		if !strings.Contains(err.Error(), "SQLITE_BUSY") && !strings.Contains(err.Error(), "database is locked") {
+			return err
+		}
+		if attempt < 2 {
+			slog.Warn("bootstrap: retrying after SQLITE_BUSY", "attempt", attempt+1)
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	return nil // unreachable, but satisfies compiler
+}
 
 // SeedToStore seeds embedded templates into agent_context_files (agent-level).
 // Used for predefined agents only — open agents get per-user files via SeedUserFiles.
@@ -55,7 +75,7 @@ func SeedToStore(ctx context.Context, agentStore store.AgentStore, agentID uuid.
 			continue
 		}
 
-		if err := agentStore.SetAgentContextFile(ctx, agentID, name, string(content)); err != nil {
+		if err := retryOnBusy(func() error { return agentStore.SetAgentContextFile(ctx, agentID, name, string(content)) }); err != nil {
 			return seeded, err
 		}
 		seeded = append(seeded, name)
@@ -66,7 +86,7 @@ func SeedToStore(ctx context.Context, agentStore store.AgentStore, agentID uuid.
 	if !hasContent[UserPredefinedFile] {
 		content, err := templateFS.ReadFile(filepath.Join("templates", UserPredefinedFile))
 		if err == nil {
-			if err := agentStore.SetAgentContextFile(ctx, agentID, UserPredefinedFile, string(content)); err != nil {
+			if err := retryOnBusy(func() error { return agentStore.SetAgentContextFile(ctx, agentID, UserPredefinedFile, string(content)) }); err != nil {
 				return seeded, err
 			}
 			seeded = append(seeded, UserPredefinedFile)
@@ -167,7 +187,7 @@ func SeedUserFiles(ctx context.Context, agentStore store.AgentStore, agentID uui
 		// This propagates wizard/dashboard-configured owner profile to the first user.
 		if agentType == store.AgentTypePredefined && name == UserFile {
 			if agentContent, ok := agentLevelFiles[name]; ok {
-				if err := agentStore.SetUserContextFile(ctx, agentID, userID, name, agentContent); err != nil {
+				if err := retryOnBusy(func() error { return agentStore.SetUserContextFile(ctx, agentID, userID, name, agentContent) }); err != nil {
 					return seeded, err
 				}
 				seeded = append(seeded, name)
@@ -188,7 +208,7 @@ func SeedUserFiles(ctx context.Context, agentStore store.AgentStore, agentID uui
 			continue
 		}
 
-		if err := agentStore.SetUserContextFile(ctx, agentID, userID, name, string(content)); err != nil {
+		if err := retryOnBusy(func() error { return agentStore.SetUserContextFile(ctx, agentID, userID, name, string(content)) }); err != nil {
 			return seeded, err
 		}
 		seeded = append(seeded, name)

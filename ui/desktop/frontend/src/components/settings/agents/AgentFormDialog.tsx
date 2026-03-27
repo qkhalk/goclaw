@@ -4,7 +4,7 @@ import { Combobox } from '../../common/Combobox'
 import { useProviders } from '../../../hooks/use-providers'
 import { getApiClient } from '../../../lib/api'
 import { Switch } from '../../common/Switch'
-import { slugify } from '../../../constants/providers'
+import { slugify } from '../../../lib/slug'
 import type { AgentData, AgentInput } from '../../../types/agent'
 
 // Preset keys match agents.json presets (foxSpirit, artisan, astrologer)
@@ -56,6 +56,7 @@ export function AgentFormDialog({ open, onOpenChange, agent, onSubmit }: AgentFo
     setIsDefault(agent?.is_default ?? false)
     setError('')
     setSelectedPresetKey('')
+    setAgentKeyOverride('')
     setVerifyResult(isEditing ? { valid: true } : null) // editing = already verified
     setModels([])
   }, [open, agent, isEditing])
@@ -90,11 +91,13 @@ export function AgentFormDialog({ open, onOpenChange, agent, onSubmit }: AgentFo
     if (!isEditing) setVerifyResult(null)
   }, [providerName, model, isEditing])
 
+  const [agentKeyOverride, setAgentKeyOverride] = useState('')
   const agentKey = useMemo(() => {
     if (isEditing) return agent!.agent_key
+    if (agentKeyOverride) return agentKeyOverride
     // Use preset agentKey if selected, otherwise slugify display name
     return selectedPresetKey || slugify(displayName) || 'agent'
-  }, [isEditing, agent, selectedPresetKey, displayName])
+  }, [isEditing, agent, agentKeyOverride, selectedPresetKey, displayName])
 
   const providerOptions = useMemo(
     () => providers.filter((p) => p.enabled).map((p) => ({
@@ -201,9 +204,11 @@ export function AgentFormDialog({ open, onOpenChange, agent, onSubmit }: AgentFo
               {!isEditing && (
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-text-secondary">Agent Key</label>
-                  <div className="px-3 py-2 rounded-lg border border-border bg-surface-tertiary/50 text-xs text-text-muted font-mono">
-                    {agentKey}
-                  </div>
+                  <input
+                    value={agentKey}
+                    onChange={(e) => setAgentKeyOverride(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                    className="w-full bg-surface-tertiary border border-border rounded-lg px-3 py-2 text-base md:text-sm text-text-primary font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
                 </div>
               )}
 
@@ -253,7 +258,7 @@ export function AgentFormDialog({ open, onOpenChange, agent, onSubmit }: AgentFo
                       <button
                         key={p.key}
                         type="button"
-                        onClick={() => { setDescription(prompt); setEmoji(p.emoji); setDisplayName(displayName); setSelectedPresetKey(p.agentKey) }}
+                        onClick={() => { setDescription(prompt); setEmoji(p.emoji); setDisplayName(displayName); setSelectedPresetKey(p.agentKey); setAgentKeyOverride('') }}
                         className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
                           description === prompt
                             ? 'border-accent bg-accent/10 text-accent font-medium'

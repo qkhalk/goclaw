@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useSessions } from '../../../hooks/use-sessions'
 import { useUiStore } from '../../../stores/ui-store'
 import { getWsClient } from '../../../lib/ws'
+import { usePendingPairingsCount } from '../../../hooks/use-pending-pairings-count'
 
 export function SidebarFooter() {
   const { t } = useTranslation('desktop')
@@ -11,6 +12,8 @@ export function SidebarFooter() {
   const closeSettings = useUiStore((s) => s.closeSettings)
   const toggleTheme = useUiStore((s) => s.toggleTheme)
   const theme = useUiStore((s) => s.theme)
+
+  const { pendingCount } = usePendingPairingsCount()
 
   const [connected, setConnected] = useState(() => {
     try { return getWsClient().isConnected } catch { return false }
@@ -53,6 +56,23 @@ export function SidebarFooter() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
             )}
           </button>
+
+          {/* Pairing notification */}
+          {pendingCount > 0 && (
+            <button
+              onClick={() => openSettings('channels')}
+              className="relative w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-primary hover:bg-surface-tertiary transition-colors"
+              title={`${pendingCount} pending pairing request(s)`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-[8px] text-white font-bold flex items-center justify-center">
+                {pendingCount}
+              </span>
+            </button>
+          )}
 
           {/* Settings */}
           <button

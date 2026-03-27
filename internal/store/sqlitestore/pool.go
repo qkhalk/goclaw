@@ -26,8 +26,9 @@ func OpenDB(path string) (*sql.DB, error) {
 	}
 
 	// SQLite is single-writer; WAL allows concurrent readers.
-	// Keep pool small to reduce lock contention.
-	db.SetMaxOpenConns(2)
+	// 4 connections: up to 3 readers + 1 writer can proceed in parallel,
+	// reducing connection pool starvation during concurrent operations.
+	db.SetMaxOpenConns(4)
 
 	// Set PRAGMAs explicitly — DSN params may not be applied by modernc.org/sqlite.
 	pragmas := []string{

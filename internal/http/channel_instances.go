@@ -168,7 +168,7 @@ func (h *ChannelInstancesHandler) handleCreate(w http.ResponseWriter, r *http.Re
 
 	if err := h.store.Create(r.Context(), inst); err != nil {
 		slog.Error("channel_instances.create", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgFailedToCreate, "channel instance", "internal error")})
 		return
 	}
 
@@ -213,7 +213,7 @@ func (h *ChannelInstancesHandler) handleUpdate(w http.ResponseWriter, r *http.Re
 
 	if err := h.store.Update(r.Context(), id, updates); err != nil {
 		slog.Error("channel_instances.update", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgFailedToUpdate, "channel instance", "internal error")})
 		return
 	}
 
@@ -243,7 +243,7 @@ func (h *ChannelInstancesHandler) handleDelete(w http.ResponseWriter, r *http.Re
 
 	if err := h.store.Delete(r.Context(), id); err != nil {
 		slog.Error("channel_instances.delete", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgFailedToDelete, "channel instance", "internal error")})
 		return
 	}
 

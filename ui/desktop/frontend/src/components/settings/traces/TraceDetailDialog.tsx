@@ -1,7 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { toast } from '../../../stores/toast-store'
 import { fetchTraceDetail } from '../../../hooks/use-traces'
 import { getApiClient, isApiClientReady } from '../../../lib/api'
@@ -13,37 +11,27 @@ interface Props {
   onClose: () => void
 }
 
-function detectContent(text?: string): { lang: string; code: string } {
-  if (!text) return { lang: 'text', code: '' }
+import { MarkdownRenderer } from '../../chat/MarkdownRenderer'
+
+function TraceContentPreview({ text }: { text?: string }) {
+  if (!text) return null
   const trimmed = text.trim()
+  // Auto-format JSON into a markdown code block
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
-      return { lang: 'json', code: JSON.stringify(JSON.parse(trimmed), null, 2) }
-    } catch { /* not valid JSON */ }
+      const formatted = JSON.stringify(JSON.parse(trimmed), null, 2)
+      return (
+        <div className="max-h-[40vh] overflow-y-auto overflow-x-hidden">
+          <MarkdownRenderer content={'```json\n' + formatted + '\n```'} />
+        </div>
+      )
+    } catch { /* not valid JSON, fall through */ }
   }
-  return { lang: 'text', code: text }
-}
-
-function CodePreview({ text }: { text?: string }) {
-  const { lang, code } = detectContent(text)
-  if (!code) return null
-  // Only use syntax highlighting for JSON; plain text gets a simple pre block
-  if (lang === 'json') {
-    return (
-      <SyntaxHighlighter
-        language="json"
-        style={oneDark}
-        customStyle={{ margin: 0, borderRadius: '0.5rem', fontSize: '0.7rem', maxHeight: '40vh', overflow: 'auto' }}
-        wrapLongLines
-      >
-        {code}
-      </SyntaxHighlighter>
-    )
-  }
+  // Render as markdown (handles code blocks, headings, lists, etc.)
   return (
-    <pre className="p-3 rounded-lg bg-surface-tertiary/50 border border-border text-xs text-text-primary overflow-auto max-h-[40vh] whitespace-pre-wrap break-words">
-      {code}
-    </pre>
+    <div className="max-h-[40vh] overflow-y-auto overflow-x-hidden">
+      <MarkdownRenderer content={text} />
+    </div>
   )
 }
 
@@ -182,13 +170,13 @@ function SpanRow({ node, expanded, onToggle }: { node: SpanNode; expanded: boole
           {span.input_preview && (
             <div>
               <p className="text-[11px] font-medium text-text-secondary mb-1">{t('detail.input')}</p>
-              <CodePreview text={span.input_preview} />
+              <TraceContentPreview text={span.input_preview} />
             </div>
           )}
           {span.output_preview && (
             <div>
               <p className="text-[11px] font-medium text-text-secondary mb-1">{t('detail.output')}</p>
-              <CodePreview text={span.output_preview} />
+              <TraceContentPreview text={span.output_preview} />
             </div>
           )}
         </div>
@@ -363,7 +351,7 @@ export function TraceDetailDialog({ traceId, onClose }: Props) {
                         </svg>
                         {t('detail.input')}
                       </button>
-                      {inputOpen && <div className="mt-1.5"><CodePreview text={trace.input_preview} /></div>}
+                      {inputOpen && <div className="mt-1.5"><TraceContentPreview text={trace.input_preview} /></div>}
                     </div>
                   )}
                   {trace.output_preview && (
@@ -377,7 +365,7 @@ export function TraceDetailDialog({ traceId, onClose }: Props) {
                         </svg>
                         {t('detail.output')}
                       </button>
-                      {outputOpen && <div className="mt-1.5"><CodePreview text={trace.output_preview} /></div>}
+                      {outputOpen && <div className="mt-1.5"><TraceContentPreview text={trace.output_preview} /></div>}
                     </div>
                   )}
                 </div>

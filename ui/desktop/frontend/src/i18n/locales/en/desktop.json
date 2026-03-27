@@ -34,6 +34,7 @@
       "appearance": "Appearance",
       "providers": "Providers",
       "agents": "Agents",
+      "channels": "Channels",
       "mcp": "MCP",
       "skills": "Skills",
       "tools": "Tools",

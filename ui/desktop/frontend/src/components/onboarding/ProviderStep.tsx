@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getApiClient } from '../../lib/api'
-import { PROVIDER_TYPES, slugify } from '../../constants/providers'
+import { PROVIDER_TYPES } from '../../constants/providers'
+import { slugify } from '../../lib/slug'
 import { Combobox } from '../common/Combobox'
 import type { ProviderData } from '../../types/provider'
 
