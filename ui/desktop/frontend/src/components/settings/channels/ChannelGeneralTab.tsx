@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Switch } from '../../common/Switch'
 import { Combobox } from '../../common/Combobox'
@@ -30,6 +30,16 @@ export function ChannelGeneralTab({ instance, agents, onUpdate }: ChannelGeneral
     essentialKeys.filter((k) => existingConfig[k] !== undefined).map((k) => [k, existingConfig[k]]),
   )
   const [policyValues, setPolicyValues] = useState<Record<string, unknown>>(initialPolicyValues)
+
+  // Sync policy values when instance updates (e.g. after save)
+  useEffect(() => {
+    const config = (instance.config ?? {}) as Record<string, unknown>
+    const keys = ESSENTIAL_CONFIG_KEYS[instance.channel_type] ?? ESSENTIAL_CONFIG_KEYS._default ?? []
+    setPolicyValues(Object.fromEntries(keys.filter((k) => config[k] !== undefined).map((k) => [k, config[k]])))
+    setDisplayName(instance.display_name ?? '')
+    setAgentId(instance.agent_id)
+    setEnabled(instance.enabled)
+  }, [instance])
 
   const handlePolicyChange = useCallback((key: string, value: unknown) => {
     setPolicyValues((prev) => ({ ...prev, [key]: value }))

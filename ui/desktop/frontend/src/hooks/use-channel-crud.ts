@@ -56,13 +56,13 @@ export function useChannelCrud() {
   const deleteInstance = useCallback(async (id: string) => {
     try {
       await getApiClient().delete(`/v1/channels/instances/${id}`)
-      setInstances((prev) => prev.filter((i) => i.id !== id))
+      await fetchInstances()
       toast.success('Channel deleted')
     } catch (err) {
       toast.error('Failed to delete channel', (err as Error).message)
       throw err
     }
-  }, [])
+  }, [fetchInstances])
 
   const telegramExists = instances.some((i) => i.channel_type === 'telegram')
   const discordExists = instances.some((i) => i.channel_type === 'discord')

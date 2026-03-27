@@ -14,20 +14,21 @@ import (
 
 // retryOnBusy retries fn up to 3 times on SQLITE_BUSY errors with 500ms delay.
 func retryOnBusy(fn func() error) error {
+	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
-		err := fn()
-		if err == nil {
+		lastErr = fn()
+		if lastErr == nil {
 			return nil
 		}
-		if !strings.Contains(err.Error(), "SQLITE_BUSY") && !strings.Contains(err.Error(), "database is locked") {
-			return err
+		if !strings.Contains(lastErr.Error(), "SQLITE_BUSY") && !strings.Contains(lastErr.Error(), "database is locked") {
+			return lastErr
 		}
 		if attempt < 2 {
 			slog.Warn("bootstrap: retrying after SQLITE_BUSY", "attempt", attempt+1)
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
-	return nil // unreachable, but satisfies compiler
+	return lastErr
 }
 
 // SeedToStore seeds embedded templates into agent_context_files (agent-level).

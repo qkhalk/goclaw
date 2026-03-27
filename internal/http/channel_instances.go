@@ -437,7 +437,7 @@ func (h *ChannelInstancesHandler) handleRemoveWriter(w http.ResponseWriter, r *h
 		}
 	}
 	if allowCount <= 1 {
-		writeError(w, http.StatusConflict, protocol.ErrFailedPrecondition, "cannot remove the last file writer")
+		writeError(w, http.StatusConflict, protocol.ErrFailedPrecondition, i18n.T(locale, i18n.MsgCannotRemoveLastWriter))
 		return
 	}
 	if err := h.configPermStore.Revoke(r.Context(), agentID, groupID, "file_writer", userID); err != nil {
