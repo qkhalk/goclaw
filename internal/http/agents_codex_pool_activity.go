@@ -1,32 +1,19 @@
 package http
 
 import (
-	"encoding/json"
 	"math"
 	"slices"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
-
-type codexPoolSpanActivity struct {
-	SpanID     uuid.UUID
-	TraceID    uuid.UUID
-	StartedAt  time.Time
-	DurationMS int
-	Status     string
-	Provider   string
-	Model      string
-	Metadata   json.RawMessage
-}
 
 const codexPoolRuntimeHealthSampleSize = 120
 
-func buildCodexPoolActivity(poolProviders []string, spans []codexPoolSpanActivity) ([]codexPoolProviderCount, []codexPoolRecentRequest) {
-	sortedSpans := append([]codexPoolSpanActivity(nil), spans...)
-	slices.SortFunc(sortedSpans, func(a, b codexPoolSpanActivity) int {
+func buildCodexPoolActivity(poolProviders []string, spans []store.CodexPoolSpan) ([]codexPoolProviderCount, []codexPoolRecentRequest) {
+	sortedSpans := append([]store.CodexPoolSpan(nil), spans...)
+	slices.SortFunc(sortedSpans, func(a, b store.CodexPoolSpan) int {
 		return b.StartedAt.Compare(a.StartedAt)
 	})
 

@@ -103,9 +103,13 @@ func validateChatGPTOAuthProviderCandidate(
 		return err
 	}
 
+	// Only consider chatgpt_oauth providers for pool graph validation.
 	finalProviders := make([]store.LLMProviderData, 0, len(existingProviders)+1)
 	replaced := false
 	for _, provider := range existingProviders {
+		if provider.ProviderType != store.ProviderChatGPTOAuth {
+			continue
+		}
 		if currentID != uuid.Nil && provider.ID == currentID {
 			finalProviders = append(finalProviders, *candidate)
 			replaced = true

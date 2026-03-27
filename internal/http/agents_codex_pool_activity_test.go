@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 func TestBuildCodexPoolActivitySeparatesDirectSelectionAndFailover(t *testing.T) {
@@ -35,7 +36,7 @@ func TestBuildCodexPoolActivitySeparatesDirectSelectionAndFailover(t *testing.T)
 		AttemptCount:       2,
 	})
 
-	providerCounts, recent := buildCodexPoolActivity([]string{"pool-a", "pool-b", "pool-c"}, []codexPoolSpanActivity{
+	providerCounts, recent := buildCodexPoolActivity([]string{"pool-a", "pool-b", "pool-c"}, []store.CodexPoolSpan{
 		{
 			SpanID:     uuid.New(),
 			TraceID:    uuid.New(),
@@ -114,7 +115,7 @@ func TestBuildCodexPoolActivityTracksTerminalFailuresAcrossAttempts(t *testing.T
 		AttemptCount:       2,
 	})
 
-	providerCounts, recent := buildCodexPoolActivity([]string{"pool-a", "pool-b"}, []codexPoolSpanActivity{
+	providerCounts, recent := buildCodexPoolActivity([]string{"pool-a", "pool-b"}, []store.CodexPoolSpan{
 		{
 			SpanID:     uuid.New(),
 			TraceID:    uuid.New(),

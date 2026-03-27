@@ -20,6 +20,11 @@ import (
 )
 
 // OAuthHandler handles OAuth-related HTTP endpoints for web UI.
+//
+// Limitation: only one OAuth flow can run at a time because the local callback
+// server binds to a fixed port (1455). A second flow attempt within the 6-minute
+// window returns HTTP 409. This affects all providers, not just the one being
+// authenticated.
 type OAuthHandler struct {
 	provStore   store.ProviderStore
 	secretStore store.ConfigSecretsStore
@@ -28,7 +33,7 @@ type OAuthHandler struct {
 
 	mu            sync.Mutex
 	pending       map[string]*pendingOAuthFlow
-	activeFlowKey string
+	activeFlowKey string // only one active flow at a time (fixed callback port)
 }
 
 type pendingOAuthFlow struct {
@@ -68,6 +73,10 @@ func (h *OAuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/auth/openai/logout", h.auth(h.handleLogout))
 }
 
+// auth requires RoleAdmin for all OAuth endpoints.
+// Breaking change from pre-#450: previously used requireAuth("", next) which
+// allowed any authenticated user including operators. Now only admins can
+// manage OAuth providers.
 func (h *OAuthHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return requireAuth(permissions.RoleAdmin, next)
 }

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,6 +73,7 @@ type DBTokenSource struct {
 
 	cachedRouteEligibility   providers.RouteEligibility
 	cachedRouteEligibilityAt time.Time
+	refreshingEligibility    atomic.Bool
 }
 
 // NewDBTokenSource creates a DB-backed token source.
@@ -124,10 +126,33 @@ func (ts *DBTokenSource) RouteEligibility(ctx context.Context) providers.RouteEl
 	cachedAt := ts.cachedRouteEligibilityAt
 	ts.mu.Unlock()
 
-	if cached.Class != "" && time.Since(cachedAt) < routeEligibilityTTL {
+	if cached.Class != "" {
+		if time.Since(cachedAt) < routeEligibilityTTL {
+			return cached
+		}
+		// Stale-while-revalidate: return stale cache immediately,
+		// refresh asynchronously so the hot path is never blocked by
+		// an outbound HTTP quota check. Dedup concurrent refreshes.
+		if ts.refreshingEligibility.CompareAndSwap(false, true) {
+			go func() {
+				defer ts.refreshingEligibility.Store(false)
+				ts.refreshRouteEligibility()
+			}()
+		}
 		return cached
 	}
 
+	// First call ever — synchronous fetch so we have a baseline.
+	return ts.fetchAndCacheEligibility(ctx)
+}
+
+// refreshRouteEligibility fetches quota eligibility in the background and updates the cache.
+func (ts *DBTokenSource) refreshRouteEligibility() {
+	ctx := store.WithTenantID(context.Background(), ts.tenantID)
+	ts.fetchAndCacheEligibility(ctx)
+}
+
+func (ts *DBTokenSource) fetchAndCacheEligibility(ctx context.Context) providers.RouteEligibility {
 	if ctx == nil {
 		ctx = context.Background()
 	}

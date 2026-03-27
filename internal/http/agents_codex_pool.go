@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -183,8 +181,8 @@ func agentRoutingExtraNames(routing *store.ChatGPTOAuthRoutingConfig) []string {
 
 func (h *AgentsHandler) handleCodexPoolActivity(w http.ResponseWriter, r *http.Request) {
 	locale := store.LocaleFromContext(r.Context())
-	if h.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidRequest, "database unavailable")})
+	if h.tracingStore == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidRequest, "tracing store unavailable")})
 		return
 	}
 
@@ -222,57 +220,15 @@ func (h *AgentsHandler) handleCodexPoolActivity(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	const query = `
-SELECT
-	sp.id,
-	sp.trace_id,
-	sp.start_time,
-	COALESCE(sp.duration_ms, 0),
-	sp.status,
-	COALESCE(sp.provider, ''),
-	COALESCE(sp.model, ''),
-	COALESCE(sp.metadata, '{}'::jsonb)
-FROM spans sp
-JOIN traces t ON t.id = sp.trace_id
-WHERE t.agent_id = $1
-  AND t.tenant_id = $2
-  AND t.parent_trace_id IS NULL
-  AND sp.tenant_id = $2
-  AND sp.span_type = 'llm_call'
-  AND (
-	sp.provider = ANY($3)
-	OR COALESCE(sp.metadata->'chatgpt_oauth_routing'->>'selected_provider', '') = ANY($3)
-	OR COALESCE(sp.metadata->'chatgpt_oauth_routing'->>'serving_provider', '') = ANY($3)
-  )
-ORDER BY sp.start_time DESC
-LIMIT $4`
-
-	rows, err := h.db.QueryContext(r.Context(), query, agent.ID, agent.TenantID, pq.Array(poolProviders), statsLimit)
+	rawSpans, err := h.tracingStore.ListCodexPoolSpans(r.Context(), agent.ID, agent.TenantID, poolProviders, statsLimit)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	defer rows.Close()
 
-	spans := make([]codexPoolSpanActivity, 0, statsLimit)
-	for rows.Next() {
-		var item codexPoolSpanActivity
-		var metadata json.RawMessage
-		if err := rows.Scan(
-			&item.SpanID,
-			&item.TraceID,
-			&item.StartedAt,
-			&item.DurationMS,
-			&item.Status,
-			&item.Provider,
-			&item.Model,
-			&metadata,
-		); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		item.Metadata = metadata
-		if evidence := providers.ExtractChatGPTOAuthRoutingEvidence(metadata); evidence.HasData() {
+	spans := make([]store.CodexPoolSpan, 0, len(rawSpans))
+	for _, item := range rawSpans {
+		if evidence := providers.ExtractChatGPTOAuthRoutingEvidence(item.Metadata); evidence.HasData() {
 			if !providerInPool(poolProviders, evidence.SelectedProvider) && !providerInPool(poolProviders, evidence.ServingProvider) {
 				continue
 			}
@@ -280,10 +236,6 @@ LIMIT $4`
 			continue
 		}
 		spans = append(spans, item)
-	}
-	if err := rows.Err(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
 	}
 
 	providerCounts, recent := buildCodexPoolActivity(poolProviders, spans)

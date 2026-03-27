@@ -16,7 +16,8 @@ func (h *OAuthHandler) handleQuota(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	provider, err := h.provStore.GetProviderByName(r.Context(), providerName)
+	tenantID := store.TenantIDFromContext(r.Context())
+	provider, err := lookupProviderByNameWithMasterFallback(r.Context(), h.provStore, tenantID, providerName)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{
 			"error": err.Error(),

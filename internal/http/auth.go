@@ -278,12 +278,21 @@ func resolveTenantHint(ctx context.Context, hint, userID string) (uuid.UUID, boo
 		return uuid.Nil, false
 	}
 	role, err := pkgTenantCache.store.GetUserRole(ctx, tid, userID)
-	if err != nil || role == "" {
+	if err != nil {
 		slog.Warn("security.http_tenant_access_revoked",
 			"hint", hint,
 			"user", userID,
 			"tenant_id", tid,
 			"error", err,
+			"code", protocol.ErrTenantAccessRevoked,
+		)
+		return uuid.Nil, false
+	}
+	if role == "" {
+		slog.Warn("security.http_tenant_no_membership",
+			"hint", hint,
+			"user", userID,
+			"tenant_id", tid,
 			"code", protocol.ErrTenantAccessRevoked,
 		)
 		return uuid.Nil, false

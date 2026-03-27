@@ -11,12 +11,13 @@ import {
 } from "@/pages/providers/hooks/use-chatgpt-oauth-provider-statuses";
 import { useChatGPTOAuthProviderQuotas } from "@/pages/providers/hooks/use-chatgpt-oauth-provider-quotas";
 import { useAuthStore } from "@/stores/use-auth-store";
-import type { AgentData, EffectiveChatGPTOAuthRoutingStrategy } from "@/types/agent";
+import type { AgentData } from "@/types/agent";
 import { getChatGPTOAuthProviderRouting } from "@/types/provider";
 import { ChatGPTOAuthQuotaBadges } from "../chatgpt-oauth-quota-badges";
 import {
   normalizeChatGPTOAuthRouting,
   resolveEffectiveChatGPTOAuthRouting,
+  strategyLabelKey,
 } from "../agent-display-utils";
 import { summarizeQuotaHealth } from "../chatgpt-oauth-quota-utils";
 
@@ -35,13 +36,6 @@ function statusBadgeClass(availability: ChatGPTOAuthAvailability): string {
   return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
 }
 
-function strategyLabelKey(
-  strategy: EffectiveChatGPTOAuthRoutingStrategy,
-): string {
-  if (strategy === "round_robin") return "chatgptOAuthRouting.strategy.roundRobin";
-  if (strategy === "priority_order") return "chatgptOAuthRouting.strategy.priorityOrder";
-  return "chatgptOAuthRouting.strategy.primaryFirst";
-}
 
 export function ChatGPTOAuthRoutingSummarySection({
   agent,

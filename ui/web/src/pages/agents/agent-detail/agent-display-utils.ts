@@ -8,6 +8,10 @@ import {
   getChatGPTOAuthProviderRouting,
   normalizeChatGPTOAuthStrategy,
 } from "@/types/provider";
+import type {
+  ChatGPTOAuthQuotaFailureKind,
+  ChatGPTOAuthRouteReadiness,
+} from "./chatgpt-oauth-quota-utils";
 
 /** Matches a standard UUID v4 string. */
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -160,6 +164,47 @@ export function resolveEffectiveChatGPTOAuthRouting(
     ),
   };
 }
+
+/** Maps strategy value to its i18n label key. */
+export function strategyLabelKey(
+  strategy: EffectiveChatGPTOAuthRoutingStrategy,
+): string {
+  if (strategy === "round_robin") return "chatgptOAuthRouting.strategy.roundRobin";
+  if (strategy === "priority_order") return "chatgptOAuthRouting.strategy.priorityOrder";
+  return "chatgptOAuthRouting.strategy.primaryFirst";
+}
+
+/** Maps route readiness state to badge variant. */
+export function routeBadgeVariant(
+  readiness: ChatGPTOAuthRouteReadiness,
+): "success" | "warning" | "outline" | "destructive" {
+  if (readiness === "healthy") return "success";
+  if (readiness === "fallback") return "warning";
+  if (readiness === "checking") return "outline";
+  return "destructive";
+}
+
+/** Maps route readiness state to its i18n label key. */
+export function routeLabelKey(readiness: ChatGPTOAuthRouteReadiness): string {
+  if (readiness === "healthy") return "chatgptOAuthRouting.routerActiveTitle";
+  if (readiness === "fallback") return "chatgptOAuthRouting.fallbackTitle";
+  if (readiness === "checking") return "chatgptOAuthRouting.checkingTitle";
+  return "chatgptOAuthRouting.blockedNowTitle";
+}
+
+/** Maps quota failure kind to badge variant. */
+export const failureVariantByKind: Record<
+  ChatGPTOAuthQuotaFailureKind,
+  "destructive" | "warning" | "outline"
+> = {
+  billing: "destructive",
+  exhausted: "destructive",
+  reauth: "warning",
+  forbidden: "destructive",
+  needs_setup: "warning",
+  retry_later: "outline",
+  unavailable: "outline",
+};
 
 export function buildAgentOtherConfigWithChatGPTOAuthRouting(
   agent: AgentData,

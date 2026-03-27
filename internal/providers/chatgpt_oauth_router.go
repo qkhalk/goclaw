@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/google/uuid"
 )
@@ -22,9 +21,6 @@ type ChatGPTOAuthRouter struct {
 	defaultProviderName string
 	extraProviderNames  []string
 	strategy            string
-
-	mu   sync.Mutex
-	next int
 }
 
 type chatGPTOAuthRouteCandidate struct {
@@ -166,15 +162,8 @@ func (p *ChatGPTOAuthRouter) orderedProviders(ctx context.Context, advance bool)
 		return ordered, nil
 	}
 
-	start := 0
-	p.mu.Lock()
-	if len(active) > 0 {
-		start = p.next % len(active)
-		if advance {
-			p.next = (p.next + 1) % len(active)
-		}
-	}
-	p.mu.Unlock()
+	rrKey := compoundKey(p.tenantID, p.defaultProviderName)
+	start := p.registry.RoundRobinNext(rrKey, len(active), advance)
 
 	ordered := make([]Provider, 0, len(active)+len(fallback))
 	ordered = append(ordered, active[start:]...)

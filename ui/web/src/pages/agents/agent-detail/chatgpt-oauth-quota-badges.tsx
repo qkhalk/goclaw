@@ -9,6 +9,7 @@ import {
 import { formatDate, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ChatGPTOAuthProviderQuota } from "@/pages/providers/hooks/use-chatgpt-oauth-provider-quotas";
+import { failureVariantByKind } from "./agent-display-utils";
 import {
   getQuotaBadgeVariant,
   getQuotaFailureKind,
@@ -24,15 +25,6 @@ interface ChatGPTOAuthQuotaBadgesProps {
   className?: string;
 }
 
-const failureVariantByKind = {
-  billing: "destructive",
-  exhausted: "destructive",
-  reauth: "warning",
-  forbidden: "destructive",
-  needs_setup: "warning",
-  retry_later: "outline",
-  unavailable: "outline",
-} as const;
 
 export function ChatGPTOAuthQuotaBadges({
   quota,

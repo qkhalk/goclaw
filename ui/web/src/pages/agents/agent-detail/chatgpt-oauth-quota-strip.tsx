@@ -9,6 +9,7 @@ import {
 import { formatDate, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ChatGPTOAuthProviderQuota } from "@/pages/providers/hooks/use-chatgpt-oauth-provider-quotas";
+import { failureVariantByKind } from "./agent-display-utils";
 import {
   getQuotaBadgeVariant,
   getQuotaFailureKind,
@@ -27,16 +28,6 @@ interface ChatGPTOAuthQuotaStripProps {
   embedded?: boolean;
   showSignalBadges?: boolean;
 }
-
-const failureVariantByKind = {
-  billing: "destructive",
-  exhausted: "destructive",
-  reauth: "warning",
-  forbidden: "destructive",
-  needs_setup: "warning",
-  retry_later: "outline",
-  unavailable: "outline",
-} as const;
 
 function quotaBarClass(remaining: number): string {
   if (remaining <= 20) return "bg-destructive";
