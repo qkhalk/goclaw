@@ -75,9 +75,10 @@ go test -v ./tests/integration/     # Integration tests
 cd ui/web && pnpm install && pnpm dev   # Web dashboard (dev)
 
 # Desktop (Wails + SQLite)
-make desktop-dev                        # Dev mode with hot reload
-make desktop-build VERSION=0.1.0        # Build .app (macOS) or .exe (Windows)
-make desktop-dmg VERSION=0.1.0          # Create .dmg installer (macOS only)
+cd ui/desktop && wails dev -tags sqliteonly  # Dev mode with hot reload (direct)
+make desktop-dev                             # Same as above via Makefile
+make desktop-build VERSION=0.1.0             # Build .app (macOS) or .exe (Windows)
+make desktop-dmg VERSION=0.1.0               # Create .dmg installer (macOS only)
 ```
 
 ## Desktop Edition (Lite)
