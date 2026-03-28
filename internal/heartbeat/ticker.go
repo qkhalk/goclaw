@@ -178,7 +178,7 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 	}
 
 	// [2] Queue-aware: skip if agent is busy (active runs in scheduler).
-	if t.sched != nil && t.sched.HasActiveSessionsForAgent(agentIDStr) {
+	if t.sched != nil && t.sched.HasActiveSessionsForAgent(agentKey) {
 		t.logSkipped(ctx, hb, "queue_busy", agentKey)
 		// Don't advance next_run_at — retry on next poll.
 		return
@@ -216,7 +216,8 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 		agentKey, checklistContent,
 	)
 
-	sessionKey := sessions.BuildHeartbeatSessionKey(agentIDStr, hb.IsolatedSession)
+	// Use agentKey (not UUID) — session keys must use agentKey for cache invalidation consistency.
+	sessionKey := sessions.BuildHeartbeatSessionKey(agentKey, hb.IsolatedSession)
 
 	channel := "heartbeat"
 	if hb.Channel != nil && *hb.Channel != "" {

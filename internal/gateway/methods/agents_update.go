@@ -157,6 +157,9 @@ func (m *AgentsMethods) handleUpdate(ctx context.Context, client *gateway.Client
 		}
 
 		m.agents.InvalidateAgent(params.AgentID)
+		// Also invalidate by UUID — heartbeat/cron sessions cached under UUID key
+		// before the agentKey fix may still be in the router cache.
+		m.agents.InvalidateAgent(ag.ID.String())
 	} else {
 		// --- Fallback: config.json ---
 		spec, ok := m.cfg.Agents.List[params.AgentID]
