@@ -15,6 +15,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -28,23 +29,27 @@ const (
 
 // TickerConfig holds dependencies for the heartbeat ticker.
 type TickerConfig struct {
-	Store    store.HeartbeatStore
-	Agents   store.AgentStore
-	Sessions store.SessionStore // optional: for cleaning up isolated heartbeat sessions
-	MsgBus   *bus.MessageBus
-	Sched    *scheduler.Scheduler
-	RunAgent func(ctx context.Context, req agent.RunRequest) <-chan scheduler.RunOutcome
+	Store         store.HeartbeatStore
+	Agents        store.AgentStore
+	Sessions      store.SessionStore // optional: for cleaning up isolated heartbeat sessions
+	ProviderStore store.ProviderStore
+	ProviderReg   *providers.Registry
+	MsgBus        *bus.MessageBus
+	Sched         *scheduler.Scheduler
+	RunAgent      func(ctx context.Context, req agent.RunRequest) <-chan scheduler.RunOutcome
 }
 
 // Ticker polls for due heartbeats and runs them through the agent loop.
 type Ticker struct {
-	store    store.HeartbeatStore
-	agents   store.AgentStore
-	sessions store.SessionStore
-	msgBus   *bus.MessageBus
-	sched    *scheduler.Scheduler
-	runAgent func(ctx context.Context, req agent.RunRequest) <-chan scheduler.RunOutcome
-	onEvent  func(store.HeartbeatEvent)
+	store         store.HeartbeatStore
+	agents        store.AgentStore
+	sessions      store.SessionStore
+	providerStore store.ProviderStore
+	providerReg   *providers.Registry
+	msgBus        *bus.MessageBus
+	sched         *scheduler.Scheduler
+	runAgent      func(ctx context.Context, req agent.RunRequest) <-chan scheduler.RunOutcome
+	onEvent       func(store.HeartbeatEvent)
 
 	wakeCh chan uuid.UUID
 	stopCh chan struct{}
@@ -54,12 +59,14 @@ type Ticker struct {
 // NewTicker creates a new heartbeat ticker.
 func NewTicker(cfg TickerConfig) *Ticker {
 	return &Ticker{
-		store:    cfg.Store,
-		agents:   cfg.Agents,
-		sessions: cfg.Sessions,
-		msgBus:   cfg.MsgBus,
-		sched:    cfg.Sched,
-		runAgent: cfg.RunAgent,
+		store:         cfg.Store,
+		agents:        cfg.Agents,
+		sessions:      cfg.Sessions,
+		providerStore: cfg.ProviderStore,
+		providerReg:   cfg.ProviderReg,
+		msgBus:        cfg.MsgBus,
+		sched:         cfg.Sched,
+		runAgent:      cfg.RunAgent,
 		wakeCh:   make(chan uuid.UUID, 16),
 		stopCh:   make(chan struct{}),
 	}
@@ -239,6 +246,22 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 		modelOverride = *hb.Model
 	}
 
+	// Provider override: use heartbeat-specific provider if configured.
+	var providerOverride providers.Provider
+	if hb.ProviderID != nil && t.providerStore != nil && t.providerReg != nil {
+		if provData, err := t.providerStore.GetProvider(ctx, *hb.ProviderID); err == nil {
+			if prov, err := t.providerReg.GetForTenant(ag.TenantID, provData.Name); err == nil {
+				providerOverride = prov
+			} else {
+				slog.Warn("heartbeat.provider_not_in_registry",
+					"agent", agentKey, "provider_id", hb.ProviderID, "error", err)
+			}
+		} else {
+			slog.Warn("heartbeat.provider_not_found",
+				"agent", agentKey, "provider_id", hb.ProviderID, "error", err)
+		}
+	}
+
 	for attempt := range maxAttempts {
 		outCh := t.runAgent(ctx, agent.RunRequest{
 			SessionKey:        sessionKey,
@@ -249,6 +272,7 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 			Stream:            false,
 			ExtraSystemPrompt: extraSystem,
 			ModelOverride:     modelOverride,
+			ProviderOverride:  providerOverride,
 			LightContext:      hb.LightContext,
 			TraceName:         fmt.Sprintf("Heartbeat [%s]", agentKey),
 			TraceTags:         []string{"heartbeat"},
