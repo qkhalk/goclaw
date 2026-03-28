@@ -28,8 +28,9 @@ const bootstrapAutoCleanupTurns = 3
 // Consolidates workspace resolution and context file seeding into one struct
 // to prevent desync between the two concerns.
 type userSetup struct {
-	workspace string // effective workspace from user_agent_profiles (expanded, absolute)
-	seeded    bool   // whether SeedUserFiles has been called this instance
+	workspace          string                 // effective workspace from user_agent_profiles (expanded, absolute)
+	seeded             bool                   // whether SeedUserFiles has been called this instance
+	fallbackBootstrap  []bootstrap.ContextFile // in-memory fallback when DB seed fails (e.g. SQLITE_BUSY)
 }
 
 // EnsureUserProfileFunc creates/resolves a user's profile and workspace.
@@ -54,6 +55,11 @@ type ContextFileLoaderFunc func(ctx context.Context, agentID uuid.UUID, userID, 
 // BootstrapCleanupFunc removes BOOTSTRAP.md after a successful first run.
 // Called automatically so the system doesn't rely on the LLM to delete it.
 type BootstrapCleanupFunc func(ctx context.Context, agentID uuid.UUID, userID string) error
+
+// CacheInvalidateFunc invalidates the context file cache for a user after seeding.
+// SeedUserFiles writes via raw agentStore (bypassing ContextFileInterceptor cache),
+// so this callback ensures LoadContextFiles sees the newly seeded files.
+type CacheInvalidateFunc func(agentID uuid.UUID, userID string)
 
 // Loop is the agent execution loop for one agent instance.
 // Think → Act → Observe cycle with tool execution.
@@ -101,6 +107,7 @@ type Loop struct {
 	ensureUserFiles   EnsureUserFilesFunc   // legacy combined callback (fallback)
 	contextFileLoader ContextFileLoaderFunc
 	bootstrapCleanup  BootstrapCleanupFunc
+	cacheInvalidate   CacheInvalidateFunc   // invalidate context file cache after seeding
 	userSetups sync.Map // userID → *userSetup (workspace + seeding state, per Loop instance)
 
 	// Compaction config (memory flush settings)
@@ -250,6 +257,7 @@ type LoopConfig struct {
 	EnsureUserFiles   EnsureUserFilesFunc   // legacy: combined (used when above are nil)
 	ContextFileLoader ContextFileLoaderFunc
 	BootstrapCleanup  BootstrapCleanupFunc
+	CacheInvalidate   CacheInvalidateFunc   // invalidate context file cache after seeding
 
 	// Tracing collector (nil = no tracing)
 	TraceCollector *tracing.Collector
@@ -365,6 +373,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		ensureUserFiles:        cfg.EnsureUserFiles,
 		contextFileLoader:      cfg.ContextFileLoader,
 		bootstrapCleanup:       cfg.BootstrapCleanup,
+		cacheInvalidate:        cfg.CacheInvalidate,
 		compactionCfg:          cfg.CompactionCfg,
 		contextPruningCfg:      cfg.ContextPruningCfg,
 		sandboxEnabled:         cfg.SandboxEnabled,

@@ -40,6 +40,7 @@ type ResolverDeps struct {
 	SeedUserFiles     SeedUserFilesFunc
 	ContextFileLoader ContextFileLoaderFunc
 	BootstrapCleanup  BootstrapCleanupFunc
+	CacheInvalidate   CacheInvalidateFunc
 
 	// Security
 	InjectionAction string // "log", "warn", "block", "off"
@@ -370,6 +371,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			SeedUserFiles:          deps.SeedUserFiles,
 			ContextFileLoader:      deps.ContextFileLoader,
 			BootstrapCleanup:       deps.BootstrapCleanup,
+			CacheInvalidate:        deps.CacheInvalidate,
 			OnEvent:                deps.OnEvent,
 			TraceCollector:         deps.TraceCollector,
 			InjectionAction:        deps.InjectionAction,

@@ -137,6 +137,17 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	var contextFiles []bootstrap.ContextFile
 	if !lightContext {
 		contextFiles = l.resolveContextFiles(ctx, userID)
+
+		// Fallback: if DB seeding failed (e.g. SQLITE_BUSY) but we have
+		// in-memory embedded templates, merge them so the first turn still
+		// gets bootstrap onboarding. Only applies when DB returned no user files.
+		if val, ok := l.userSetups.Load(userID); ok {
+			if fb := val.(*userSetup).fallbackBootstrap; len(fb) > 0 {
+				contextFiles = l.mergeContextFallback(contextFiles, fb)
+				// Clear after first use — next turn should read from DB.
+				val.(*userSetup).fallbackBootstrap = nil
+			}
+		}
 	}
 	hadBootstrap := false
 	for _, cf := range contextFiles {
@@ -316,6 +327,21 @@ func (l *Loop) resolveContextFiles(ctx context.Context, userID string) []bootstr
 		}
 	}
 	return merged
+}
+
+// mergeContextFallback adds fallback (in-memory) files into contextFiles,
+// skipping any that already exist. Used when DB seeding failed.
+func (l *Loop) mergeContextFallback(contextFiles, fallback []bootstrap.ContextFile) []bootstrap.ContextFile {
+	existing := make(map[string]struct{}, len(contextFiles))
+	for _, f := range contextFiles {
+		existing[f.Path] = struct{}{}
+	}
+	for _, fb := range fallback {
+		if _, ok := existing[fb.Path]; !ok {
+			contextFiles = append(contextFiles, fb)
+		}
+	}
+	return contextFiles
 }
 
 // bootstrapToolAllowlist is the set of tools available during bootstrap onboarding.
