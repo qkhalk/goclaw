@@ -252,6 +252,8 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 		if provData, err := t.providerStore.GetProvider(ctx, *hb.ProviderID); err == nil {
 			if prov, err := t.providerReg.GetForTenant(ag.TenantID, provData.Name); err == nil {
 				providerOverride = prov
+				slog.Info("heartbeat.provider_override",
+					"agent", agentKey, "provider", provData.Name)
 			} else {
 				slog.Warn("heartbeat.provider_not_in_registry",
 					"agent", agentKey, "provider_id", hb.ProviderID, "error", err)
@@ -275,7 +277,7 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 			ProviderOverride:  providerOverride,
 			LightContext:      hb.LightContext,
 			TraceName:         fmt.Sprintf("Heartbeat [%s]", agentKey),
-			TraceTags:         []string{"heartbeat"},
+			TraceTags:         heartbeatTraceTags(providerOverride),
 		})
 
 		outcome := <-outCh
@@ -506,4 +508,12 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// heartbeatTraceTags returns trace tags, including provider name when overridden.
+func heartbeatTraceTags(providerOverride providers.Provider) []string {
+	if providerOverride != nil {
+		return []string{"heartbeat", "provider:" + providerOverride.Name()}
+	}
+	return []string{"heartbeat"}
 }
