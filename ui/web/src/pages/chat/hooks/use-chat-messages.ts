@@ -47,6 +47,7 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   const prevKeyRef = useRef(sessionKey);
   useEffect(() => {
     if (sessionKey === prevKeyRef.current) return;
+    const wasEmpty = !prevKeyRef.current;
     prevKeyRef.current = sessionKey;
     setStreamText(null);
     setThinkingText(null);
@@ -56,7 +57,11 @@ export function useChatMessages(sessionKey: string, agentId: string) {
     setBlockReplies([]);
     setTeamTasks([]);
     runIdRef.current = null;
-    expectingRunRef.current = false;
+    // Only reset when switching between existing sessions, not on "" → new key
+    // (the "" → key transition is part of the send flow for new sessions).
+    if (!wasEmpty) {
+      expectingRunRef.current = false;
+    }
     streamRef.current = "";
     thinkingRef.current = "";
     toolStreamRef.current = [];
