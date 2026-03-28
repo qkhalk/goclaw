@@ -86,7 +86,7 @@ type Loop struct {
 
 	eventPub        bus.EventPublisher // currently unused by Loop; kept for future use
 	sessions        store.SessionStore
-	tools           *tools.Registry
+	tools           tools.ToolExecutor
 	toolPolicy      *tools.PolicyEngine    // optional: filters tools sent to LLM
 	agentToolPolicy *config.ToolPolicySpec // per-agent tool policy from DB (nil = no restrictions)
 	activeRuns      atomic.Int32           // number of currently executing runs
