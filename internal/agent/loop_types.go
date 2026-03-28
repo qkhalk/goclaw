@@ -465,6 +465,7 @@ type RunResult struct {
 	Deliverables   []string         `json:"deliverables,omitempty"`   // actual content from tool outputs (for team task results)
 	BlockReplies   int              `json:"blockReplies,omitempty"`   // number of block.reply events emitted
 	LastBlockReply string           `json:"lastBlockReply,omitempty"` // last block reply content (for dedup)
+	LoopKilled     bool             `json:"loopKilled,omitempty"`     // true when run was terminated by loop detector
 }
 
 // MediaResult represents a media file produced by a tool during the agent run.
@@ -514,4 +515,8 @@ type runState struct {
 	skillNudge70Sent    bool
 	skillNudge90Sent    bool
 	skillPostscriptSent bool
+
+	// Loop detector kill flag — set when any detector triggers critical level.
+	// Propagated to RunResult.LoopKilled so the consumer can auto-fail team tasks.
+	loopKilled bool
 }

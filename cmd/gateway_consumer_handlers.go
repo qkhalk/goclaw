@@ -405,6 +405,34 @@ func handleTeammateMessage(
 							_ = teamStore.RenewTaskLock(ctx, teamTaskID, teamID)
 							slog.Info("post-turn: task submitted for review", "task_id", teamTaskID)
 
+						case outcome.Result != nil && outcome.Result.LoopKilled:
+							// Loop detector killed the run → auto-fail instead of auto-complete.
+							// The agent was terminated (not stuck in_progress) — mark as failed
+							// so the leader sees clear failure signal and can retry directly.
+							failMsg := outcome.Result.Content
+							if failMsg == "" {
+								failMsg = "Agent run terminated by loop detector"
+							}
+							if err := teamStore.FailTask(ctx, teamTaskID, teamID, failMsg); err != nil {
+								slog.Warn("auto-fail: FailTask error (loop kill)", "task_id", teamTaskID, "error", err)
+							} else {
+								bus.BroadcastForTenant(msgBus, protocol.EventTeamTaskFailed, store.TenantIDFromContext(ctx), protocol.TeamTaskEventPayload{
+									TeamID:     teamID.String(),
+									TaskID:     teamTaskID.String(),
+									TaskNumber: taskNumber,
+									Subject:    taskSubject,
+									Status:     store.TeamTaskStatusFailed,
+									Reason:     "loop_detector_kill",
+									Channel:    taskChannel,
+									ChatID:     taskChatID,
+									Timestamp:  now,
+									ActorType:  "system",
+									ActorID:    "loop_detector",
+								})
+							}
+							slog.Warn("post-turn: loop detector killed member run",
+								"task_id", teamTaskID, "agent", toAgent)
+
 						default:
 							// Agent turn ended without terminal action — auto-complete.
 							// Covers: Progressed, Commented, Claimed, or no flags at all.
