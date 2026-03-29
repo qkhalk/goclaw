@@ -9,6 +9,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
+	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
@@ -51,40 +52,44 @@ func (h *MCPHandler) emitCacheInvalidate() {
 
 // RegisterRoutes registers all MCP management routes on the given mux.
 func (h *MCPHandler) RegisterRoutes(mux *http.ServeMux) {
-	// Server CRUD
+	// Server CRUD (reads: viewer+, writes: admin+)
 	mux.HandleFunc("GET /v1/mcp/servers", h.auth(h.handleListServers))
-	mux.HandleFunc("POST /v1/mcp/servers", h.auth(h.handleCreateServer))
+	mux.HandleFunc("POST /v1/mcp/servers", h.adminAuth(h.handleCreateServer))
 	mux.HandleFunc("GET /v1/mcp/servers/{id}", h.auth(h.handleGetServer))
-	mux.HandleFunc("PUT /v1/mcp/servers/{id}", h.auth(h.handleUpdateServer))
-	mux.HandleFunc("DELETE /v1/mcp/servers/{id}", h.auth(h.handleDeleteServer))
+	mux.HandleFunc("PUT /v1/mcp/servers/{id}", h.adminAuth(h.handleUpdateServer))
+	mux.HandleFunc("DELETE /v1/mcp/servers/{id}", h.adminAuth(h.handleDeleteServer))
 
-	// Test connection (no save)
-	mux.HandleFunc("POST /v1/mcp/servers/test", h.auth(h.handleTestConnection))
+	// Test connection (admin+ — infra operation)
+	mux.HandleFunc("POST /v1/mcp/servers/test", h.adminAuth(h.handleTestConnection))
 
-	// Reconnect (evict pooled connection so next use re-discovers tools)
-	mux.HandleFunc("POST /v1/mcp/servers/{id}/reconnect", h.auth(h.handleReconnectServer))
+	// Reconnect (admin+ — evict pooled connection)
+	mux.HandleFunc("POST /v1/mcp/servers/{id}/reconnect", h.adminAuth(h.handleReconnectServer))
 
-	// Server tools (runtime-discovered)
+	// Server tools (read-only: viewer+)
 	mux.HandleFunc("GET /v1/mcp/servers/{id}/tools", h.auth(h.handleListServerTools))
 
-	// Agent grants
+	// Agent grants (reads: viewer+, writes: admin+)
 	mux.HandleFunc("GET /v1/mcp/servers/{id}/grants", h.auth(h.handleListServerGrants))
-	mux.HandleFunc("POST /v1/mcp/servers/{id}/grants/agent", h.auth(h.handleGrantAgent))
-	mux.HandleFunc("DELETE /v1/mcp/servers/{id}/grants/agent/{agentID}", h.auth(h.handleRevokeAgent))
+	mux.HandleFunc("POST /v1/mcp/servers/{id}/grants/agent", h.adminAuth(h.handleGrantAgent))
+	mux.HandleFunc("DELETE /v1/mcp/servers/{id}/grants/agent/{agentID}", h.adminAuth(h.handleRevokeAgent))
 	mux.HandleFunc("GET /v1/mcp/grants/agent/{agentID}", h.auth(h.handleListAgentGrants))
 
-	// User grants
-	mux.HandleFunc("POST /v1/mcp/servers/{id}/grants/user", h.auth(h.handleGrantUser))
-	mux.HandleFunc("DELETE /v1/mcp/servers/{id}/grants/user/{userID}", h.auth(h.handleRevokeUser))
+	// User grants (admin+)
+	mux.HandleFunc("POST /v1/mcp/servers/{id}/grants/user", h.adminAuth(h.handleGrantUser))
+	mux.HandleFunc("DELETE /v1/mcp/servers/{id}/grants/user/{userID}", h.adminAuth(h.handleRevokeUser))
 
-	// Access requests
+	// Access requests (create: viewer+, list: viewer+, review: admin+)
 	mux.HandleFunc("POST /v1/mcp/requests", h.auth(h.handleCreateRequest))
 	mux.HandleFunc("GET /v1/mcp/requests", h.auth(h.handleListPendingRequests))
-	mux.HandleFunc("POST /v1/mcp/requests/{id}/review", h.auth(h.handleReviewRequest))
+	mux.HandleFunc("POST /v1/mcp/requests/{id}/review", h.adminAuth(h.handleReviewRequest))
 }
 
 func (h *MCPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return requireAuth("", next)
+}
+
+func (h *MCPHandler) adminAuth(next http.HandlerFunc) http.HandlerFunc {
+	return requireAuth(permissions.RoleAdmin, next)
 }
 
 // --- Server CRUD ---
