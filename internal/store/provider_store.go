@@ -32,6 +32,10 @@ const (
 	ProviderOllamaCloud     = "ollama_cloud" // Ollama Cloud (Bearer token required)
 	ProviderACP             = "acp"          // ACP (Agent Client Protocol) agent subprocess
 	ProviderNovita          = "novita"       // Novita AI (OpenAI-compatible endpoint)
+
+	// Novita AI defaults.
+	NovitaDefaultAPIBase = "https://api.novita.ai/openai"
+	NovitaDefaultModel   = "moonshotai/kimi-k2.5"
 )
 
 // ValidProviderTypes lists all accepted provider_type values.

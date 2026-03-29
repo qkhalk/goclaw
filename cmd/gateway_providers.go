@@ -140,9 +140,9 @@ func registerProviders(registry *providers.Registry, cfg *config.Config) {
 	if cfg.Providers.Novita.APIKey != "" {
 		base := cfg.Providers.Novita.APIBase
 		if base == "" {
-			base = "https://api.novita.ai/openai"
+			base = store.NovitaDefaultAPIBase
 		}
-		registry.Register(providers.NewOpenAIProvider("novita", cfg.Providers.Novita.APIKey, base, "moonshotai/kimi-k2.5"))
+		registry.Register(providers.NewOpenAIProvider("novita", cfg.Providers.Novita.APIKey, base, store.NovitaDefaultModel))
 		slog.Info("registered provider", "name", "novita")
 	}
 
@@ -354,9 +354,9 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 		case store.ProviderNovita:
 			base := p.APIBase
 			if base == "" {
-				base = "https://api.novita.ai/openai"
+				base = store.NovitaDefaultAPIBase
 			}
-			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, "moonshotai/kimi-k2.5"))
+			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NovitaDefaultModel))
 		default:
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
 			prov.WithProviderType(p.ProviderType)

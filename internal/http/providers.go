@@ -179,9 +179,9 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 	case store.ProviderNovita:
 		base := apiBase
 		if base == "" {
-			base = "https://api.novita.ai/openai"
+			base = store.NovitaDefaultAPIBase
 		}
-		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, "moonshotai/kimi-k2.5"))
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NovitaDefaultModel))
 	default:
 		prov := providers.NewOpenAIProvider(p.Name, p.APIKey, apiBase, "")
 		if p.ProviderType == store.ProviderMiniMax {
