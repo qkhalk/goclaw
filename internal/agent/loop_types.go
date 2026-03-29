@@ -502,8 +502,11 @@ type runState struct {
 	// Crash safety
 	checkpointFlushedMsgs int
 
-	// Mid-loop compaction
-	midLoopCompacted bool
+	// Mid-loop compaction and overhead calibration
+	midLoopCompacted   bool
+	midLoopPruned      bool
+	overheadTokens     int  // non-history token overhead (system prompt + tools + context files)
+	overheadCalibrated bool
 
 	// Bootstrap detection
 	bootstrapWriteDetected bool

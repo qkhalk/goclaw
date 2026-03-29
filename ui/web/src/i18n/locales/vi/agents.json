@@ -612,7 +612,9 @@
       "tailChars": "Ký tự cuối",
       "hardClear": "Xóa cứng",
       "enabled": "Đã bật",
-      "placeholderText": "Văn bản thay thế"
+      "placeholderText": "Văn bản thay thế",
+      "descriptionSimple": "Tự động cắt bớt kết quả công cụ cũ để tránh tràn ngữ cảnh. Bật mặc định.",
+      "advanced": "Nâng cao"
     },
     "sandbox": {
       "title": "Hộp cát",

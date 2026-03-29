@@ -601,6 +601,7 @@
     "contextPruning": {
       "title": "Context Pruning",
       "description": "Trim old tool results to save context window",
+      "descriptionSimple": "Automatically trims old tool results to prevent context overflow. Enabled by default.",
       "mode": "Mode",
       "keepLastAssistants": "Keep Last Assistants",
       "softTrimRatio": "Soft Trim Ratio (0-1)",
@@ -612,7 +613,8 @@
       "tailChars": "Tail Chars",
       "hardClear": "Hard Clear",
       "enabled": "Enabled",
-      "placeholderText": "Placeholder Text"
+      "placeholderText": "Placeholder Text",
+      "advanced": "Advanced"
     },
     "sandbox": {
       "title": "Sandbox",
