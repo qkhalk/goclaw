@@ -53,6 +53,9 @@ type ContactStore interface {
 	// GetContactByID returns a single contact by primary key. Tenant-scoped via context.
 	GetContactByID(ctx context.Context, id uuid.UUID) (*ChannelContact, error)
 
+	// GetSenderIDsByContactIDs returns sender_id strings for the given contact UUIDs in one query.
+	GetSenderIDsByContactIDs(ctx context.Context, contactIDs []uuid.UUID) ([]string, error)
+
 	// MergeContacts sets merged_id = tenantUserID on all given contact IDs,
 	// linking them to a tenant_users identity. Tenant-scoped via context.
 	MergeContacts(ctx context.Context, contactIDs []uuid.UUID, tenantUserID uuid.UUID) error

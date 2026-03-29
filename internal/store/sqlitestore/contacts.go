@@ -191,6 +191,36 @@ func (s *SQLiteContactStore) GetContactByID(ctx context.Context, id uuid.UUID) (
 	return &c, nil
 }
 
+func (s *SQLiteContactStore) GetSenderIDsByContactIDs(ctx context.Context, contactIDs []uuid.UUID) ([]string, error) {
+	if len(contactIDs) == 0 {
+		return nil, nil
+	}
+	tid := store.TenantIDFromContext(ctx)
+	placeholders := make([]string, len(contactIDs))
+	args := make([]any, len(contactIDs)+1)
+	for i, id := range contactIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	args[len(contactIDs)] = tid
+	q := fmt.Sprintf("SELECT sender_id FROM channel_contacts WHERE id IN (%s) AND tenant_id = ?",
+		strings.Join(placeholders, ","))
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []string
+	for rows.Next() {
+		var sid string
+		if err := rows.Scan(&sid); err != nil {
+			return nil, err
+		}
+		result = append(result, sid)
+	}
+	return result, rows.Err()
+}
+
 func (s *SQLiteContactStore) MergeContacts(ctx context.Context, contactIDs []uuid.UUID, tenantUserID uuid.UUID) error {
 	if len(contactIDs) == 0 {
 		return nil

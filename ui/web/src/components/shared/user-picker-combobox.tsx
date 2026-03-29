@@ -4,6 +4,8 @@ import { useUserPicker } from "@/hooks/use-user-picker";
 interface UserPickerComboboxProps {
   value: string;
   onChange: (value: string) => void;
+  /** Fires only on dropdown item click or custom value commit (not keystrokes). */
+  onSelect?: (value: string) => void;
   placeholder?: string;
   className?: string;
   /** Filter contacts by peer_kind: "direct" | "group" | undefined (all). */
@@ -31,6 +33,7 @@ interface UserPickerComboboxProps {
 export function UserPickerCombobox({
   value,
   onChange,
+  onSelect,
   placeholder,
   className,
   peerKind,
@@ -44,6 +47,7 @@ export function UserPickerCombobox({
     <Combobox
       value={value}
       onChange={onChange}
+      onSelect={onSelect}
       options={options}
       placeholder={placeholder}
       className={className}
