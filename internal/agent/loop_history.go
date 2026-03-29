@@ -553,18 +553,15 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 	}
 	tokenEstimate := EstimateTokensWithCalibration(history, adjustedLastPT, lastMC)
 
-	// Resolve compaction thresholds from config with sensible defaults.
+	// Resolve compaction threshold from config: token-only (no message count guard).
+	// Industry standard — Claude Code, Anthropic API, LangChain all use token-based thresholds.
 	historyShare := config.DefaultHistoryShare
 	if l.compactionCfg != nil && l.compactionCfg.MaxHistoryShare > 0 {
 		historyShare = l.compactionCfg.MaxHistoryShare
 	}
-	minMessages := 200
-	if l.compactionCfg != nil && l.compactionCfg.MinMessages > 0 {
-		minMessages = l.compactionCfg.MinMessages
-	}
 
 	threshold := int(float64(l.contextWindow) * historyShare)
-	if len(history) <= minMessages && tokenEstimate <= threshold {
+	if tokenEstimate <= threshold {
 		return
 	}
 
@@ -681,7 +678,7 @@ func (l *Loop) estimateOverhead(history []providers.Message, lastPromptTokens, l
 	if count > len(history) {
 		count = len(history)
 	}
-	historyEstAtCalibration := EstimateTokens(history[:count])
+	historyEstAtCalibration := EstimateHistoryTokens(history[:count])
 	overhead := lastPromptTokens - historyEstAtCalibration
 	if overhead < 0 {
 		overhead = 0
