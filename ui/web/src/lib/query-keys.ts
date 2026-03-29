@@ -87,5 +87,6 @@ export const queryKeys = {
     list: (params: Record<string, unknown>) => ["kg", params] as const,
     stats: (agentId: string, userId?: string) => ["kg", "stats", agentId, userId] as const,
     graph: (agentId: string, userId?: string) => ["kg", "graph", agentId, userId] as const,
+    dedup: (agentId: string, userId?: string) => ["kg", "dedup", agentId, userId] as const,
   },
 };
