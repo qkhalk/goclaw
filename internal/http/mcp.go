@@ -61,6 +61,9 @@ func (h *MCPHandler) RegisterRoutes(mux *http.ServeMux) {
 	// Test connection (no save)
 	mux.HandleFunc("POST /v1/mcp/servers/test", h.auth(h.handleTestConnection))
 
+	// Reconnect (evict pooled connection so next use re-discovers tools)
+	mux.HandleFunc("POST /v1/mcp/servers/{id}/reconnect", h.auth(h.handleReconnectServer))
+
 	// Server tools (runtime-discovered)
 	mux.HandleFunc("GET /v1/mcp/servers/{id}/tools", h.auth(h.handleListServerTools))
 
@@ -230,4 +233,29 @@ func (h *MCPHandler) handleDeleteServer(w http.ResponseWriter, r *http.Request) 
 	h.emitCacheInvalidate()
 	emitAudit(h.msgBus, r, "mcp_server.deleted", "mcp_server", id.String())
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (h *MCPHandler) handleReconnectServer(w http.ResponseWriter, r *http.Request) {
+	locale := store.LocaleFromContext(r.Context())
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "server")})
+		return
+	}
+
+	srv, err := h.store.GetServer(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "server", id.String())})
+		return
+	}
+
+	if h.poolEvictor != nil {
+		tid := store.TenantIDFromContext(r.Context())
+		h.poolEvictor.Evict(tid, srv.Name)
+	}
+
+	h.emitCacheInvalidate()
+	emitAudit(h.msgBus, r, "mcp_server.reconnected", "mcp_server", id.String())
+	slog.Info("mcp.server.reconnect_requested", "server", srv.Name, "id", id)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reconnected"})
 }
