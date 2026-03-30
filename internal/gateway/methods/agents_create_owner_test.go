@@ -77,6 +77,9 @@ func (s *createCaptureStore) GetUserContextFiles(_ context.Context, _ uuid.UUID,
 func (s *createCaptureStore) SetUserContextFile(_ context.Context, _ uuid.UUID, _, _, _ string) error {
 	return nil
 }
+func (s *createCaptureStore) ListUserContextFilesByName(_ context.Context, _ uuid.UUID, _ string) ([]store.UserContextFileData, error) {
+	return nil, nil
+}
 func (s *createCaptureStore) DeleteUserContextFile(_ context.Context, _ uuid.UUID, _, _ string) error {
 	return nil
 }
