@@ -69,7 +69,7 @@ func (m *CronMethods) handleCreate(ctx context.Context, client *gateway.Client, 
 		DeliverChannel string             `json:"deliverChannel"`
 		DeliverTo      string             `json:"deliverTo"`
 		WakeHeartbeat  bool               `json:"wakeHeartbeat"`
-		Stateless      bool               `json:"stateless"`
+		Stateless      *bool              `json:"stateless"` // default true for new crons
 		AgentID        string             `json:"agentId"`
 	}
 	if req.Params != nil {
@@ -96,13 +96,15 @@ func (m *CronMethods) handleCreate(ctx context.Context, client *gateway.Client, 
 	}
 
 	// Apply extra fields not in AddJob signature via an immediate patch.
-	if params.WakeHeartbeat || params.Stateless {
-		patch := store.CronJobPatch{}
+	// Default stateless=true for new crons (saves tokens); override with explicit false.
+	statelessVal := true
+	if params.Stateless != nil {
+		statelessVal = *params.Stateless
+	}
+	{
+		patch := store.CronJobPatch{Stateless: &statelessVal}
 		if params.WakeHeartbeat {
 			patch.WakeHeartbeat = &params.WakeHeartbeat
-		}
-		if params.Stateless {
-			patch.Stateless = &params.Stateless
 		}
 		if updated, pErr := m.service.UpdateJob(ctx, job.ID, patch); pErr == nil {
 			job = updated
