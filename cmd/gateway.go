@@ -677,6 +677,7 @@ func runGateway() {
 					ChatID:   meta.ChatID,
 					AgentID:  meta.LeadAgent,
 					UserID:   meta.UserID,
+					PeerKind: meta.PeerKind,
 					Content:  leaderContent,
 					Metadata: map[string]string{"run_kind": tools.RunKindNotification},
 				})
@@ -825,6 +826,7 @@ func runGateway() {
 				ChatID:    payload.ChatID,
 				UserID:    payload.UserID,
 				LeadAgent: leadAgentKey,
+				PeerKind:  payload.PeerKind,
 			})
 		})
 		slog.Info("team progress notification subscriber registered")
