@@ -7,83 +7,75 @@ import {
   useReactFlow,
   Background,
   Controls,
-  MiniMap,
   type Node,
   type Edge,
+  type ColorMode,
   Handle,
   Position,
 } from "@xyflow/react";
 import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import "@xyflow/react/dist/style.css";
 import { useTranslation } from "react-i18next";
+import { useUiStore } from "@/stores/use-ui-store";
 import type { KGEntity, KGRelation } from "@/types/knowledge-graph";
 
-/** Edge data carrying the relation label for selection reveal */
-interface KGEdgeData { relationLabel: string }
+const GRAPH_LIMIT = 50;
 
-// Color mapping for entity types — dark-first palette for depth contrast
-// bg uses semi-transparent dark tones so nodes float on dark canvas
-const TYPE_COLORS: Record<string, { bg: string; border: string; text: string; glow: string }> = {
-  person:       { bg: "rgba(232,93,36,0.12)",  border: "#E85D24", text: "#f4a574", glow: "rgba(232,93,36,0.35)" },
-  project:      { bg: "rgba(34,197,94,0.12)",  border: "#22c55e", text: "#86efac", glow: "rgba(34,197,94,0.35)" },
-  task:         { bg: "rgba(245,158,11,0.12)", border: "#f59e0b", text: "#fcd34d", glow: "rgba(245,158,11,0.35)" },
-  event:        { bg: "rgba(236,72,153,0.12)", border: "#ec4899", text: "#f9a8d4", glow: "rgba(236,72,153,0.35)" },
-  concept:      { bg: "rgba(248,208,128,0.10)", border: "#F8D080", text: "#fde68a", glow: "rgba(248,208,128,0.30)" },
-  location:     { bg: "rgba(20,184,166,0.12)",  border: "#14b8a6", text: "#5eead4", glow: "rgba(20,184,166,0.35)" },
-  organization: { bg: "rgba(239,68,68,0.12)",  border: "#ef4444", text: "#fca5a5", glow: "rgba(239,68,68,0.35)" },
+// Dual-theme palette — separate dark/light values for readability on both backgrounds
+interface TypeColor {
+  border: string;
+  dark: { bg: string; text: string };
+  light: { bg: string; text: string };
+}
+const TYPE_COLORS: Record<string, TypeColor> = {
+  person:       { border: "#E85D24", dark: { bg: "rgba(232,93,36,0.15)", text: "#f4a574" },  light: { bg: "#fde8d8", text: "#7a2610" } },
+  project:      { border: "#22c55e", dark: { bg: "rgba(34,197,94,0.15)", text: "#86efac" },  light: { bg: "#dcfce7", text: "#166534" } },
+  task:         { border: "#f59e0b", dark: { bg: "rgba(245,158,11,0.15)", text: "#fcd34d" }, light: { bg: "#fef3c7", text: "#92400e" } },
+  event:        { border: "#ec4899", dark: { bg: "rgba(236,72,153,0.15)", text: "#f9a8d4" }, light: { bg: "#fce7f3", text: "#9d174d" } },
+  concept:      { border: "#a78bfa", dark: { bg: "rgba(167,139,250,0.12)", text: "#c4b5fd" }, light: { bg: "#ede9fe", text: "#5b21b6" } },
+  location:     { border: "#14b8a6", dark: { bg: "rgba(20,184,166,0.15)", text: "#5eead4" },  light: { bg: "#ccfbf1", text: "#115e59" } },
+  organization: { border: "#ef4444", dark: { bg: "rgba(239,68,68,0.15)", text: "#fca5a5" },  light: { bg: "#fee2e2", text: "#991b1b" } },
 };
+const DEFAULT_TC: TypeColor = { border: "#9ca3af", dark: { bg: "rgba(156,163,175,0.12)", text: "#d1d5db" }, light: { bg: "#f3f4f6", text: "#374151" } };
 
-const DEFAULT_COLOR = { bg: "rgba(156,163,175,0.10)", border: "#9ca3af", text: "#d1d5db", glow: "rgba(156,163,175,0.25)" };
-
-// Mass multipliers by entity type — heavier nodes anchor center, lighter ones orbit outward
 const TYPE_MASS: Record<string, number> = {
-  organization: 8,
-  project: 6,
-  person: 4,
-  concept: 3,
-  location: 3,
-  event: 2,
-  task: 1.5,
+  organization: 8, project: 6, person: 4, concept: 3, location: 3, event: 2, task: 1.5,
 };
 const DEFAULT_MASS = 2;
 
-/** Compute degree (connection count) for each entity to size nodes by centrality */
 function computeDegreeMap(entities: KGEntity[], relations: KGRelation[]): Map<string, number> {
-  const degrees = new Map<string, number>();
-  const entityIds = new Set(entities.map((e) => e.id));
+  const deg = new Map<string, number>();
+  const ids = new Set(entities.map((e) => e.id));
   for (const r of relations) {
-    if (entityIds.has(r.source_entity_id)) degrees.set(r.source_entity_id, (degrees.get(r.source_entity_id) ?? 0) + 1);
-    if (entityIds.has(r.target_entity_id)) degrees.set(r.target_entity_id, (degrees.get(r.target_entity_id) ?? 0) + 1);
+    if (ids.has(r.source_entity_id)) deg.set(r.source_entity_id, (deg.get(r.source_entity_id) ?? 0) + 1);
+    if (ids.has(r.target_entity_id)) deg.set(r.target_entity_id, (deg.get(r.target_entity_id) ?? 0) + 1);
   }
-  return degrees;
+  return deg;
 }
 
 const HANDLE_STYLE = { opacity: 0, width: 0, height: 0, pointerEvents: "none" as const };
 
-const EntityNode = memo(function EntityNode({ data }: { data: { label: string; type: string; description?: string; degree: number } }) {
-  const colors = TYPE_COLORS[data.type] || DEFAULT_COLOR;
-  const sizeScale = Math.min(1 + data.degree * 0.08, 1.5);
-  const isHighDegree = data.degree >= 4;
-
-  const containerStyle = useMemo(() => ({
-    background: colors.bg,
-    border: `1.5px solid ${colors.border}`,
-    borderRadius: 20,
-    transform: `scale(${sizeScale})`,
-    backdropFilter: "blur(8px)",
-    boxShadow: isHighDegree
-      ? `0 0 16px ${colors.glow}, 0 0 4px ${colors.glow}`
-      : `0 0 6px rgba(0,0,0,0.3)`,
-  }), [colors, sizeScale, isHighDegree]);
-
+// memo prevents re-render during pan/zoom — only re-renders when data changes
+const EntityNode = memo(function EntityNode({ data }: { data: { label: string; type: string; degree: number; isDark: boolean } }) {
+  const tc = TYPE_COLORS[data.type] || DEFAULT_TC;
+  const t = data.isDark ? tc.dark : tc.light;
+  const isHub = data.degree >= 4;
   return (
-    <div className="px-4 py-1.5 cursor-grab" style={containerStyle}>
+    <div
+      className="px-4 py-1.5 cursor-grab"
+      style={{
+        background: t.bg,
+        border: `2px solid ${tc.border}`,
+        borderRadius: 20,
+        boxShadow: isHub ? `0 0 8px ${tc.border}40` : undefined,
+      }}
+    >
       <Handle type="target" position={Position.Top} style={HANDLE_STYLE} />
       <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} />
-      <div className="text-[11px] font-medium whitespace-nowrap" style={{ color: colors.text }}>
+      <div className="text-[11px] font-semibold whitespace-nowrap" style={{ color: t.text }}>
         {data.label}
       </div>
-      <div className="text-[9px] text-center" style={{ color: colors.text, opacity: 0.5 }}>
+      <div className="text-[9px] text-center" style={{ color: t.text, opacity: 0.6 }}>
         {data.type}
       </div>
     </div>
@@ -92,90 +84,48 @@ const EntityNode = memo(function EntityNode({ data }: { data: { label: string; t
 
 const nodeTypes = { entity: EntityNode };
 
-interface SimNode extends SimulationNodeDatum {
-  id: string;
-  mass: number;
-}
+interface SimNode extends SimulationNodeDatum { id: string; mass: number }
 
-// Pre-computed edge styles — shared references avoid per-edge allocation during selection
-const EDGE_STYLE_DEFAULT = { stroke: "#334155", strokeWidth: 1, opacity: 0.4 } as const;
-const EDGE_STYLE_FADED = { stroke: "#1e293b", strokeWidth: 0.5, opacity: 0.15 } as const;
-
-/** Build ReactFlow nodes + edges with degree-based sizing metadata */
-function buildGraph(entities: KGEntity[], relations: KGRelation[]) {
+function buildGraph(entities: KGEntity[], relations: KGRelation[], isDark: boolean) {
   const entityIds = new Set(entities.map((e) => e.id));
   const degreeMap = computeDegreeMap(entities, relations);
-
   const nodes: Node[] = entities.map((e) => ({
-    id: e.id,
-    type: "entity",
-    position: { x: 0, y: 0 },
-    data: {
-      label: e.name,
-      type: e.entity_type,
-      description: e.description,
-      degree: degreeMap.get(e.id) ?? 0,
-    },
+    id: e.id, type: "entity", position: { x: 0, y: 0 },
+    data: { label: e.name, type: e.entity_type, degree: degreeMap.get(e.id) ?? 0, isDark },
   }));
-
+  // Edge color handled by ReactFlow colorMode — use neutral gray
+  const edgeColor = "#64748b";
   const edges: Edge[] = relations
     .filter((r) => entityIds.has(r.source_entity_id) && entityIds.has(r.target_entity_id))
     .map((r) => ({
-      id: r.id,
-      source: r.source_entity_id,
-      target: r.target_entity_id,
-      // Store label in data for selection reveal — hidden by default to reduce clutter
-      label: undefined,
-      data: { relationLabel: r.relation_type.replace(/_/g, " ") },
-      animated: false,
-      type: "default",
-      style: EDGE_STYLE_DEFAULT,
+      id: r.id, source: r.source_entity_id, target: r.target_entity_id,
+      label: undefined, data: { relationLabel: r.relation_type.replace(/_/g, " ") },
+      animated: false, type: "default",
+      style: { stroke: edgeColor, strokeWidth: 2, opacity: 0.6 },
     }));
-
   return { nodes, edges };
 }
 
-/** Run d3-force simulation with mass-based hierarchy for depth layering. */
 function computeForceLayout(nodes: Node[], edges: Edge[], entities: KGEntity[]): Node[] {
   if (nodes.length === 0) return nodes;
-
-  // Build entity type lookup for mass assignment
   const entityTypeMap = new Map(entities.map((e) => [e.id, e.entity_type]));
-
-  const simNodes: SimNode[] = nodes.map((n) => {
-    const entityType = entityTypeMap.get(n.id) ?? "";
-    return {
-      id: n.id,
-      x: n.position.x,
-      y: n.position.y,
-      mass: TYPE_MASS[entityType] ?? DEFAULT_MASS,
-    };
-  });
+  const simNodes: SimNode[] = nodes.map((n) => ({
+    id: n.id, x: n.position.x, y: n.position.y,
+    mass: TYPE_MASS[entityTypeMap.get(n.id) ?? ""] ?? DEFAULT_MASS,
+  }));
   const simLinks = edges.map((e) => ({ source: e.source, target: e.target }));
-
-  const w = 600;
-  const h = 400;
-
+  const w = 600, h = 400;
   const simulation = forceSimulation(simNodes)
     .force("link", forceLink(simLinks).id((d: any) => d.id).distance(220).strength(0.4))
-    // Mass-aware repulsion: heavier nodes push harder → anchor center, lighter orbit out
     .force("charge", forceManyBody().strength((d: any) => -300 * (d.mass ?? 1)))
     .force("center", forceCenter(w / 2, h / 2))
     .force("x", forceX(w / 2).strength(0.03))
     .force("y", forceY(h / 2).strength(0.03))
-    // Larger collision radius prevents node overlap
     .force("collide", forceCollide().radius((d: any) => 55 + (d.mass ?? 1) * 5).strength(0.8))
     .stop();
-
-  // Run simulation synchronously — cap ticks for large graphs to avoid main thread blocking
-  const fullTicks = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay()));
-  const ticks = nodes.length > 100 ? Math.min(fullTicks, 200) : fullTicks;
+  const ticks = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay()));
   for (let i = 0; i < ticks; i++) simulation.tick();
-
-  return nodes.map((n, i) => ({
-    ...n,
-    position: { x: simNodes[i]!.x ?? 0, y: simNodes[i]!.y ?? 0 },
-  }));
+  return nodes.map((n, i) => ({ ...n, position: { x: simNodes[i]!.x ?? 0, y: simNodes[i]!.y ?? 0 } }));
 }
 
 interface KGGraphViewProps {
@@ -192,169 +142,142 @@ export function KGGraphView(props: KGGraphViewProps) {
   );
 }
 
-function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewProps) {
+function KGGraphViewInner({ entities: allEntities, relations: allRelations, onEntityClick }: KGGraphViewProps) {
   const { t } = useTranslation("memory");
   const { fitView } = useReactFlow();
+  const theme = useUiStore((s) => s.theme);
+  const colorMode: ColorMode = theme === "system" ? "system" : theme;
+  const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [layoutReady, setLayoutReady] = useState(false);
-  const entityMap = useMemo(() => new Map(entities.map((e) => [e.id, e])), [entities]);
 
-  // Build graph data immediately (cheap), defer force layout to next frame (expensive)
+  // Limit entities to GRAPH_LIMIT, filter relations accordingly
+  const totalCount = allEntities.length;
+  const isLimited = totalCount > GRAPH_LIMIT;
+  const entities = useMemo(() => isLimited ? allEntities.slice(0, GRAPH_LIMIT) : allEntities, [allEntities, isLimited]);
+  const entityIds = useMemo(() => new Set(entities.map((e) => e.id)), [entities]);
+  const relations = useMemo(
+    () => allRelations.filter((r) => entityIds.has(r.source_entity_id) && entityIds.has(r.target_entity_id)),
+    [allRelations, entityIds],
+  );
+
+  // Build graph — isDark only affects node data colors, not layout
   const { rawNodes, rawEdges } = useMemo(() => {
-    const { nodes, edges } = buildGraph(entities, relations);
+    const { nodes, edges } = buildGraph(entities, relations, isDark);
     return { rawNodes: nodes, rawEdges: edges };
-  }, [entities, relations]);
+  }, [entities, relations, isDark]);
 
   const [layoutNodes, setLayoutNodes] = useState<Node[]>([]);
-  const layoutEdges = rawEdges;
+  const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(rawEdges);
 
-  // Defer heavy force simulation — setTimeout(0) yields to browser paint first
+  // Track which entity set was laid out — only re-layout when data changes, not theme
+  const [layoutKey, setLayoutKey] = useState("");
+  const dataKey = useMemo(() => entities.map((e) => e.id).join(","), [entities]);
+
   useEffect(() => {
+    if (dataKey === layoutKey) {
+      // Theme change only — update node colors without re-layout
+      setNodes((prev) => prev.map((n) => {
+        const fresh = rawNodes.find((r) => r.id === n.id);
+        return fresh ? { ...n, data: fresh.data } : n;
+      }));
+      return;
+    }
+    // Data changed — full re-layout
     setLayoutReady(false);
     const timer = setTimeout(() => {
       const positioned = computeForceLayout(rawNodes, rawEdges, entities);
       setLayoutNodes(positioned);
+      setNodes(positioned);
+      setLayoutKey(dataKey);
       setLayoutReady(true);
+      requestAnimationFrame(() => fitView({ padding: 0.15, duration: 300 }));
     }, 0);
     return () => clearTimeout(timer);
-  }, [rawNodes, rawEdges, entities]);
+  }, [rawNodes, rawEdges, entities, dataKey, layoutKey, setNodes, fitView]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
+  useEffect(() => { setEdges(rawEdges); }, [rawEdges, setEdges]);
 
-  // Sync nodes when layout completes
-  useEffect(() => {
-    setNodes(layoutNodes);
-    requestAnimationFrame(() => fitView({ padding: 0.15, duration: 300 }));
-  }, [layoutNodes, setNodes, fitView]);
+  // Selection: highlight connected edges, dim others
+  const entityMap = useMemo(() => new Map(entities.map((e) => [e.id, e])), [entities]);
 
-  // Sync base edges when data changes
-  useEffect(() => {
-    setEdges(layoutEdges);
-  }, [layoutEdges, setEdges]);
-
-  // Apply selection styling — shared style refs reduce GC pressure for large graphs
   useEffect(() => {
     if (!selectedNodeId) {
-      // Reset: skip edges already in default state (no label, not animated)
-      setEdges((eds) => eds.map((e) =>
-        e.style === EDGE_STYLE_DEFAULT && !e.label && !e.animated ? e : {
-          ...e, label: undefined, animated: false, style: EDGE_STYLE_DEFAULT,
-          labelStyle: undefined, labelBgStyle: undefined, labelBgPadding: undefined, labelShowBg: undefined,
-        }
-      ));
+      setEdges((eds) => eds.map((e) => ({
+        ...e, label: undefined, animated: false,
+        style: { stroke: "#334155", strokeWidth: 1, opacity: 0.4 },
+        labelStyle: undefined, labelBgStyle: undefined, labelBgPadding: undefined, labelShowBg: undefined,
+      })));
       return;
     }
-    const entity = entityMap.get(selectedNodeId);
-    const colors = TYPE_COLORS[entity?.entity_type ?? ""] || DEFAULT_COLOR;
+    const ent = entityMap.get(selectedNodeId);
+    const tc = TYPE_COLORS[ent?.entity_type ?? ""] || DEFAULT_TC;
+    const labelColor = isDark ? tc.dark.text : tc.light.text;
+    const fadedEdge = isDark ? "#1e293b" : "#e2e8f0";
+    const labelBg = isDark ? "rgba(15,23,42,0.85)" : "rgba(255,255,255,0.9)";
     setEdges((eds) => eds.map((e) => {
-      const isConnected = e.source === selectedNodeId || e.target === selectedNodeId;
-      if (!isConnected) {
-        // Skip if already faded
-        if (e.style === EDGE_STYLE_FADED) return e;
-        return { ...e, label: undefined, animated: false, style: EDGE_STYLE_FADED };
-      }
+      const connected = e.source === selectedNodeId || e.target === selectedNodeId;
+      if (!connected) return { ...e, label: undefined, animated: false, style: { stroke: fadedEdge, strokeWidth: 0.5, opacity: 0.25 } };
       return {
         ...e,
-        label: (e.data as KGEdgeData | undefined)?.relationLabel,
+        label: (e.data as { relationLabel?: string })?.relationLabel,
         animated: true,
-        style: { stroke: colors.border, strokeWidth: 2, opacity: 0.9 },
-        labelStyle: { fontSize: 9, fill: colors.text, fontWeight: 500 },
-        labelBgStyle: { fill: "rgba(15,23,42,0.85)", stroke: colors.border, rx: 4 },
+        style: { stroke: tc.border, strokeWidth: 3, opacity: 0.9 },
+        labelStyle: { fontSize: 9, fill: labelColor, fontWeight: 500 },
+        labelBgStyle: { fill: labelBg, stroke: tc.border, rx: 4 },
         labelBgPadding: [4, 2] as [number, number],
         labelShowBg: true,
       };
     }));
-  }, [selectedNodeId, entityMap, setEdges]);
+  }, [selectedNodeId, entityMap, isDark, setEdges]);
 
-  // useTransition lets React yield to browser paint before processing edge updates
   const [, startTransition] = useTransition();
 
-  const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      startTransition(() => {
-        setSelectedNodeId((prev) => (prev === node.id ? null : node.id));
-      });
-      if (!onEntityClick) return;
-      const entity = entityMap.get(node.id);
-      if (entity) onEntityClick(entity);
-    },
-    [entityMap, onEntityClick, startTransition],
-  );
+  const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    startTransition(() => setSelectedNodeId((prev) => (prev === node.id ? null : node.id)));
+    const entity = entityMap.get(node.id);
+    if (entity && onEntityClick) onEntityClick(entity);
+  }, [entityMap, onEntityClick, startTransition]);
 
   const handlePaneClick = useCallback(() => {
     startTransition(() => setSelectedNodeId(null));
   }, [startTransition]);
 
-  if (entities.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {t("kg.graphView.empty")}
-      </div>
-    );
+  if (allEntities.length === 0) {
+    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{t("kg.graphView.empty")}</div>;
   }
 
   if (!layoutReady) {
-    return (
-      <div className="flex h-full items-center justify-center" style={{ background: "#0a0a12" }}>
-        <div className="text-sm" style={{ color: "#64748b" }}>{t("kg.graphView.loading")}</div>
-      </div>
-    );
+    return <div className="flex h-full items-center justify-center bg-background"><div className="text-sm text-muted-foreground">{t("kg.graphView.loading")}</div></div>;
   }
 
   return (
-    <div className="flex h-full flex-col rounded-md border overflow-hidden" style={{ position: "relative" }}>
-      {/* Dark canvas with atmospheric depth gradient — center glow like GitNexus */}
-      <div
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          background: "radial-gradient(ellipse at 50% 45%, rgba(124,58,237,0.06) 0%, rgba(30,41,59,0.02) 50%, transparent 80%), linear-gradient(to bottom, #0a0a12, #0f1120, #0a0a12)",
-        }}
-      />
-
-      <div className="min-h-0 flex-1 relative z-10">
+    <div className="flex h-full flex-col rounded-md border overflow-hidden bg-background">
+      <div className="min-h-0 flex-1">
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={handleNodeClick}
-          onPaneClick={handlePaneClick}
-          nodeTypes={nodeTypes}
-          colorMode="dark"
-          fitView
-          minZoom={0.1}
-          maxZoom={3}
-          nodesConnectable={false}
-          nodesDraggable={true}
-          elementsSelectable={true}
+          nodes={nodes} edges={edges}
+          onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+          onNodeClick={handleNodeClick} onPaneClick={handlePaneClick}
+          nodeTypes={nodeTypes} colorMode={colorMode}
+          fitView minZoom={0.1} maxZoom={3}
+          nodesConnectable={false} nodesDraggable={true} elementsSelectable={true}
           proOptions={{ hideAttribution: true }}
         >
-          <Background gap={30} size={0.5} color="#1a1a2e" />
+          <Background gap={20} size={1} />
           <Controls showInteractive={false} />
-          <MiniMap
-            nodeColor={(n) => {
-              const type = (n.data as Record<string, unknown>)?.type as string;
-              return (TYPE_COLORS[type] || DEFAULT_COLOR).border;
-            }}
-            maskColor="rgba(0,0,0,0.4)"
-            style={{ width: 100, height: 75, background: "#0f1120" }}
-          />
         </ReactFlow>
       </div>
 
-      {/* Legend + selected node info — dark bar */}
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-t border-slate-800 text-[10px] relative z-10" style={{ background: "#0d0d18" }}>
-        {Object.entries(TYPE_COLORS).map(([type, colors]) => (
-          <div key={type} className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full" style={{ background: colors.border, boxShadow: `0 0 4px ${colors.glow}` }} />
-            <span style={{ color: "#64748b" }}>{type}</span>
-          </div>
-        ))}
-        {selectedNodeId && (
-          <div className="ml-auto animate-in fade-in" style={{ color: "#94a3b8" }}>
-            {t("kg.graphView.selected", { name: entityMap.get(selectedNodeId)?.name ?? "" })}
-          </div>
+      {/* Stats bar */}
+      <div className="flex items-center gap-3 px-3 py-1.5 border-t text-[10px] text-muted-foreground">
+        <span>{t("kg.graphView.nodes", { count: totalCount })}</span>
+        <span>{t("kg.graphView.edges", { count: allRelations.length })}</span>
+        {isLimited && (
+          <span title={t("kg.graphView.limitHint", { limit: GRAPH_LIMIT, total: totalCount })}>
+            · {t("kg.graphView.limitNote", { limit: GRAPH_LIMIT, total: totalCount })}
+          </span>
         )}
       </div>
     </div>
