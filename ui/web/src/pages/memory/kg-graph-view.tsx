@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useCallback, useState, useTransition } from "react";
+import { useMemo, useEffect, useCallback, useState, useTransition, memo } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -17,6 +17,9 @@ import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide, f
 import "@xyflow/react/dist/style.css";
 import { useTranslation } from "react-i18next";
 import type { KGEntity, KGRelation } from "@/types/knowledge-graph";
+
+/** Edge data carrying the relation label for selection reveal */
+interface KGEdgeData { relationLabel: string }
 
 // Color mapping for entity types — dark-first palette for depth contrast
 // bg uses semi-transparent dark tones so nodes float on dark canvas
@@ -55,29 +58,28 @@ function computeDegreeMap(entities: KGEntity[], relations: KGRelation[]): Map<st
   return degrees;
 }
 
-function EntityNode({ data }: { data: { label: string; type: string; description?: string; degree: number; selected?: boolean } }) {
+const HANDLE_STYLE = { opacity: 0, width: 0, height: 0, pointerEvents: "none" as const };
+
+const EntityNode = memo(function EntityNode({ data }: { data: { label: string; type: string; description?: string; degree: number } }) {
   const colors = TYPE_COLORS[data.type] || DEFAULT_COLOR;
-  // Gentler scale: 1.0 → 1.5 max (avoids overlap seen in previous version)
   const sizeScale = Math.min(1 + data.degree * 0.08, 1.5);
   const isHighDegree = data.degree >= 4;
 
+  const containerStyle = useMemo(() => ({
+    background: colors.bg,
+    border: `1.5px solid ${colors.border}`,
+    borderRadius: 20,
+    transform: `scale(${sizeScale})`,
+    backdropFilter: "blur(8px)",
+    boxShadow: isHighDegree
+      ? `0 0 16px ${colors.glow}, 0 0 4px ${colors.glow}`
+      : `0 0 6px rgba(0,0,0,0.3)`,
+  }), [colors, sizeScale, isHighDegree]);
+
   return (
-    <div
-      className="px-4 py-1.5 cursor-grab"
-      style={{
-        background: colors.bg,
-        border: `1.5px solid ${colors.border}`,
-        borderRadius: 20,
-        transform: `scale(${sizeScale})`,
-        backdropFilter: "blur(8px)",
-        boxShadow: isHighDegree
-          ? `0 0 16px ${colors.glow}, 0 0 4px ${colors.glow}`
-          : `0 0 6px rgba(0,0,0,0.3)`,
-      }}
-    >
-      {/* Hidden handles — required by ReactFlow for edge routing, zero visual/interaction cost */}
-      <Handle type="target" position={Position.Top} style={{ opacity: 0, width: 0, height: 0, pointerEvents: "none" }} />
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0, width: 0, height: 0, pointerEvents: "none" }} />
+    <div className="px-4 py-1.5 cursor-grab" style={containerStyle}>
+      <Handle type="target" position={Position.Top} style={HANDLE_STYLE} />
+      <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} />
       <div className="text-[11px] font-medium whitespace-nowrap" style={{ color: colors.text }}>
         {data.label}
       </div>
@@ -86,7 +88,7 @@ function EntityNode({ data }: { data: { label: string; type: string; description
       </div>
     </div>
   );
-}
+});
 
 const nodeTypes = { entity: EntityNode };
 
@@ -94,6 +96,10 @@ interface SimNode extends SimulationNodeDatum {
   id: string;
   mass: number;
 }
+
+// Pre-computed edge styles — shared references avoid per-edge allocation during selection
+const EDGE_STYLE_DEFAULT = { stroke: "#334155", strokeWidth: 1, opacity: 0.4 } as const;
+const EDGE_STYLE_FADED = { stroke: "#1e293b", strokeWidth: 0.5, opacity: 0.15 } as const;
 
 /** Build ReactFlow nodes + edges with degree-based sizing metadata */
 function buildGraph(entities: KGEntity[], relations: KGRelation[]) {
@@ -123,7 +129,7 @@ function buildGraph(entities: KGEntity[], relations: KGRelation[]) {
       data: { relationLabel: r.relation_type.replace(/_/g, " ") },
       animated: false,
       type: "default",
-      style: { stroke: "#334155", strokeWidth: 1, opacity: 0.4 },
+      style: EDGE_STYLE_DEFAULT,
     }));
 
   return { nodes, edges };
@@ -161,8 +167,9 @@ function computeForceLayout(nodes: Node[], edges: Edge[], entities: KGEntity[]):
     .force("collide", forceCollide().radius((d: any) => 55 + (d.mass ?? 1) * 5).strength(0.8))
     .stop();
 
-  // Run simulation to completion synchronously (~300 ticks → 1 render instead of 300)
-  const ticks = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay()));
+  // Run simulation synchronously — cap ticks for large graphs to avoid main thread blocking
+  const fullTicks = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay()));
+  const ticks = nodes.length > 100 ? Math.min(fullTicks, 200) : fullTicks;
   for (let i = 0; i < ticks; i++) simulation.tick();
 
   return nodes.map((n, i) => ({
@@ -190,6 +197,7 @@ function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewPro
   const { fitView } = useReactFlow();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [layoutReady, setLayoutReady] = useState(false);
+  const entityMap = useMemo(() => new Map(entities.map((e) => [e.id, e])), [entities]);
 
   // Build graph data immediately (cheap), defer force layout to next frame (expensive)
   const { rawNodes, rawEdges } = useMemo(() => {
@@ -225,30 +233,30 @@ function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewPro
     setEdges(layoutEdges);
   }, [layoutEdges, setEdges]);
 
-  // Apply selection styling via setEdges callback — avoids full edge array rebuild in render
+  // Apply selection styling — shared style refs reduce GC pressure for large graphs
   useEffect(() => {
     if (!selectedNodeId) {
-      // Reset all edges to default
-      setEdges((eds) => eds.map((e) => ({
-        ...e,
-        label: undefined,
-        animated: false,
-        style: { stroke: "#334155", strokeWidth: 1, opacity: 0.4 },
-        labelStyle: undefined,
-        labelBgStyle: undefined,
-        labelBgPadding: undefined,
-        labelShowBg: undefined,
-      })));
+      // Reset: skip edges already in default state (no label, not animated)
+      setEdges((eds) => eds.map((e) =>
+        e.style === EDGE_STYLE_DEFAULT && !e.label && !e.animated ? e : {
+          ...e, label: undefined, animated: false, style: EDGE_STYLE_DEFAULT,
+          labelStyle: undefined, labelBgStyle: undefined, labelBgPadding: undefined, labelShowBg: undefined,
+        }
+      ));
       return;
     }
-    const entity = entities.find((ent) => ent.id === selectedNodeId);
+    const entity = entityMap.get(selectedNodeId);
     const colors = TYPE_COLORS[entity?.entity_type ?? ""] || DEFAULT_COLOR;
     setEdges((eds) => eds.map((e) => {
       const isConnected = e.source === selectedNodeId || e.target === selectedNodeId;
-      if (!isConnected) return { ...e, label: undefined, animated: false, style: { stroke: "#1e293b", strokeWidth: 0.5, opacity: 0.15 } };
+      if (!isConnected) {
+        // Skip if already faded
+        if (e.style === EDGE_STYLE_FADED) return e;
+        return { ...e, label: undefined, animated: false, style: EDGE_STYLE_FADED };
+      }
       return {
         ...e,
-        label: (e.data as any)?.relationLabel,
+        label: (e.data as KGEdgeData | undefined)?.relationLabel,
         animated: true,
         style: { stroke: colors.border, strokeWidth: 2, opacity: 0.9 },
         labelStyle: { fontSize: 9, fill: colors.text, fontWeight: 500 },
@@ -257,7 +265,7 @@ function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewPro
         labelShowBg: true,
       };
     }));
-  }, [selectedNodeId, entities, setEdges]);
+  }, [selectedNodeId, entityMap, setEdges]);
 
   // useTransition lets React yield to browser paint before processing edge updates
   const [, startTransition] = useTransition();
@@ -268,10 +276,10 @@ function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewPro
         setSelectedNodeId((prev) => (prev === node.id ? null : node.id));
       });
       if (!onEntityClick) return;
-      const entity = entities.find((e) => e.id === node.id);
+      const entity = entityMap.get(node.id);
       if (entity) onEntityClick(entity);
     },
-    [entities, onEntityClick, startTransition],
+    [entityMap, onEntityClick, startTransition],
   );
 
   const handlePaneClick = useCallback(() => {
@@ -326,7 +334,7 @@ function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewPro
           <Controls showInteractive={false} />
           <MiniMap
             nodeColor={(n) => {
-              const type = (n.data as any)?.type as string;
+              const type = (n.data as Record<string, unknown>)?.type as string;
               return (TYPE_COLORS[type] || DEFAULT_COLOR).border;
             }}
             maskColor="rgba(0,0,0,0.4)"
@@ -345,7 +353,7 @@ function KGGraphViewInner({ entities, relations, onEntityClick }: KGGraphViewPro
         ))}
         {selectedNodeId && (
           <div className="ml-auto animate-in fade-in" style={{ color: "#94a3b8" }}>
-            {t("kg.graphView.selected", { name: entities.find((e) => e.id === selectedNodeId)?.name ?? "" })}
+            {t("kg.graphView.selected", { name: entityMap.get(selectedNodeId)?.name ?? "" })}
           </div>
         )}
       </div>
