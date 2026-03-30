@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -31,7 +32,18 @@ type indexedResult struct {
 	spanStart    time.Time
 }
 
-func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) {
+func (l *Loop) runLoop(ctx context.Context, req RunRequest) (result *RunResult, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			buf := make([]byte, 8192)
+			n := runtime.Stack(buf, false)
+			slog.Error("agent loop panicked", "agent", l.id, "session", req.SessionKey,
+				"panic", fmt.Sprint(r), "stack", string(buf[:n]))
+			result = nil
+			err = fmt.Errorf("agent loop panic: %v", r)
+		}
+	}()
+
 	// Per-run emit wrapper: enriches every AgentEvent with delegation + routing context.
 	emitRun := func(event AgentEvent) {
 		event.RunKind = req.RunKind
