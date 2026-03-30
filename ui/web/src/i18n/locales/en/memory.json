@@ -175,7 +175,8 @@
       "loading": "Loading graph...",
       "empty": "No entities to visualize",
       "nodes": "{{count}} nodes",
-      "edges": "{{count}} edges"
+      "edges": "{{count}} edges",
+      "selected": "Selected: {{name}}"
     }
   },
   "toast": {

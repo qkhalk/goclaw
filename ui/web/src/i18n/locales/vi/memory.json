@@ -175,7 +175,8 @@
       "loading": "Đang tải đồ thị...",
       "empty": "Không có thực thể nào để hiển thị",
       "nodes": "{{count}} nút",
-      "edges": "{{count}} cạnh"
+      "edges": "{{count}} cạnh",
+      "selected": "Đã chọn: {{name}}"
     }
   },
   "toast": {
