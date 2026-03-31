@@ -252,6 +252,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		SandboxWorkspaceAccess: l.sandboxWorkspaceAccess,
 		ShellDenyGroups:        l.shellDenyGroups,
 		SelfEvolve:             l.selfEvolve,
+		ProviderType:           l.provider.Name(),
 		CredentialCLIContext:   l.buildCredentialCLIContext(ctx),
 		IsBootstrap:            hadBootstrap && l.agentType != store.AgentTypePredefined,
 	})
