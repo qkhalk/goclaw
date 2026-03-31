@@ -235,10 +235,11 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 
 	// 4.5. ## MCP Tools (full only) — skip during bootstrap
 	if !isMinimal && !cfg.IsBootstrap {
+		if len(cfg.MCPToolDescs) > 0 {
+			lines = append(lines, buildMCPToolsInlineSection(cfg.MCPToolDescs)...)
+		}
 		if cfg.HasMCPToolSearch {
 			lines = append(lines, buildMCPToolsSearchSection()...)
-		} else if len(cfg.MCPToolDescs) > 0 {
-			lines = append(lines, buildMCPToolsInlineSection(cfg.MCPToolDescs)...)
 		}
 	}
 
