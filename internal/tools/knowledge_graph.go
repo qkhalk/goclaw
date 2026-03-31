@@ -42,7 +42,7 @@ func (t *KnowledgeGraphSearchTool) Parameters() map[string]any {
 			},
 			"entity_type": map[string]any{
 				"type":        "string",
-				"description": "Filter by entity type (person, project, task, event, concept, location, organization)",
+				"description": "Filter by entity type (person, organization, project, product, technology, task, event, document, concept, location)",
 			},
 			"entity_id": map[string]any{
 				"type":        "string",
