@@ -110,7 +110,11 @@ func (t *KnowledgeGraphSearchTool) executeTraversal(ctx context.Context, agentID
 		for _, r := range results {
 			sb.WriteString(fmt.Sprintf("- [depth %d] %s (%s)", r.Depth, r.Entity.Name, r.Entity.EntityType))
 			if r.Via != "" {
-				sb.WriteString(fmt.Sprintf(" via %q", r.Via))
+				if strings.HasPrefix(r.Via, "~") {
+					sb.WriteString(fmt.Sprintf(" ←[%s]—", r.Via[1:]))
+				} else {
+					sb.WriteString(fmt.Sprintf(" —[%s]→", r.Via))
+				}
 			}
 			if r.Entity.Description != "" {
 				sb.WriteString(fmt.Sprintf("\n  %s", r.Entity.Description))
