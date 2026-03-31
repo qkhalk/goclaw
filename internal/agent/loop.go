@@ -375,8 +375,8 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (result *RunResult, 
 			}
 
 			// Phase 1: Prune old tool results before resorting to full compaction (at 70% of budget).
-			if historyTokens >= int(float64(historyBudget)*0.7) && !rs.midLoopPruned {
-				rs.midLoopPruned = true
+			// Re-triggers each iteration — new tool results may have grown context since last prune.
+			if historyTokens >= int(float64(historyBudget)*0.7) {
 				pruned := pruneContextMessages(messages, l.contextWindow, l.contextPruningCfg)
 				if len(pruned) > 0 {
 					messages = pruned
