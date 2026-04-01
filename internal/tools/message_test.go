@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -494,6 +496,37 @@ func TestMessageToolNumericTargetUsesSendPath(t *testing.T) {
 	}
 	if gotChat != "-1001847298537" {
 		t.Errorf("sender saw chatID %q, want -1001847298537", gotChat)
+	}
+}
+
+func TestArgString(t *testing.T) {
+	tests := []struct {
+		name string
+		args map[string]any
+		key  string
+		want string
+	}{
+		{"string value", map[string]any{"k": "hello"}, "k", "hello"},
+		{"string with spaces", map[string]any{"k": "  hi  "}, "k", "hi"},
+		{"empty string", map[string]any{"k": ""}, "k", ""},
+		{"missing key", map[string]any{}, "k", ""},
+		{"nil value", map[string]any{"k": nil}, "k", ""},
+		{"float64 integer", map[string]any{"k": float64(-1001847298537)}, "k", "-1001847298537"},
+		{"float64 positive", map[string]any{"k": float64(42)}, "k", "42"},
+		{"float64 zero", map[string]any{"k": float64(0)}, "k", "0"},
+		{"float64 NaN", map[string]any{"k": math.NaN()}, "k", ""},
+		{"int", map[string]any{"k": 123}, "k", "123"},
+		{"int64", map[string]any{"k": int64(-999)}, "k", "-999"},
+		{"json.Number", map[string]any{"k": json.Number("7654321")}, "k", "7654321"},
+		{"bool fallback", map[string]any{"k": true}, "k", "true"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := argString(tt.args, tt.key)
+			if got != tt.want {
+				t.Errorf("argString(%v, %q) = %q, want %q", tt.args, tt.key, got, tt.want)
+			}
+		})
 	}
 }
 

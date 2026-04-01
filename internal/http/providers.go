@@ -376,15 +376,11 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	// Validate provider_type if being updated.
-	// IMPORTANT: Do NOT replace this with delete(updates, "provider_type").
-	// We must return 400 so the caller knows the value is invalid,
-	// silently deleting it would hide the error from the end user.
-	if pt, ok := updates["provider_type"]; ok {
-		if s, _ := pt.(string); !store.ValidProviderTypes[s] {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidRequest, "unsupported provider_type")})
-			return
-		}
+	// provider_type is immutable after creation — changing it would bypass
+	// security checks (e.g. ACP skips URL validation). Reject if client tries.
+	if _, ok := updates["provider_type"]; ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidRequest, "provider_type cannot be changed after creation")})
+		return
 	}
 
 	// Strip masked API key — don't overwrite real value with "***"
@@ -406,9 +402,6 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 	candidate := *currentProvider
 	if name, ok := updates["name"].(string); ok && name != "" {
 		candidate.Name = name
-	}
-	if providerType, ok := updates["provider_type"].(string); ok && providerType != "" {
-		candidate.ProviderType = providerType
 	}
 	if apiKey, ok := updates["api_key"].(string); ok {
 		candidate.APIKey = apiKey
