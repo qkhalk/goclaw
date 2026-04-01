@@ -212,8 +212,8 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 
 // validateProviderURL rejects provider base URLs pointing to internal/private networks.
 // Defense-in-depth: prevents SSRF when providers are later used for API calls.
-func validateProviderURL(rawURL string) error {
-	if rawURL == "" {
+func validateProviderURL(rawURL string, providerType string) error {
+	if rawURL == "" || providerType == store.ProviderACP {
 		return nil
 	}
 	u, err := url.Parse(rawURL)
@@ -316,7 +316,7 @@ func (h *ProvidersHandler) handleCreateProvider(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if err := validateProviderURL(p.APIBase); err != nil {
+	if err := validateProviderURL(p.APIBase, p.ProviderType); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -433,7 +433,7 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 
 	if apiBase, ok := updates["api_base"]; ok {
 		if s, _ := apiBase.(string); s != "" {
-			if err := validateProviderURL(s); err != nil {
+			if err := validateProviderURL(s, candidate.ProviderType); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}
@@ -441,7 +441,7 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 	}
 	if baseURL, ok := updates["base_url"]; ok {
 		if s, _ := baseURL.(string); s != "" {
-			if err := validateProviderURL(s); err != nil {
+			if err := validateProviderURL(s, candidate.ProviderType); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}

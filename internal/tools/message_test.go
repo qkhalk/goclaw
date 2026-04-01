@@ -471,6 +471,32 @@ func TestSelfSendGuard(t *testing.T) {
 	})
 }
 
+func TestMessageToolNumericTargetUsesSendPath(t *testing.T) {
+	// JSON tool args use float64 for integers; target must not be ignored (was only .(string)).
+	var gotChat string
+	tool := NewMessageTool("", true)
+	tool.SetChannelSender(func(_ context.Context, ch, chatID, content string) error {
+		if ch != "telegram" {
+			t.Errorf("channel = %q", ch)
+		}
+		gotChat = chatID
+		return nil
+	})
+	ctx := context.Background()
+	r := tool.Execute(ctx, map[string]any{
+		"action":  "send",
+		"channel": "telegram",
+		"target":  float64(-1001847298537),
+		"message": "hello",
+	})
+	if r.IsError {
+		t.Fatalf("unexpected error: %s", r.ForLLM)
+	}
+	if gotChat != "-1001847298537" {
+		t.Errorf("sender saw chatID %q, want -1001847298537", gotChat)
+	}
+}
+
 func TestDeliveredMedia(t *testing.T) {
 	dm := NewDeliveredMedia()
 
