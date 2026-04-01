@@ -84,7 +84,13 @@ func (c *Channel) sendGroupPairingReply(ctx context.Context, chatID int64, chatI
 	if messageThreadID > 0 {
 		msg.MessageThreadID = messageThreadID
 	}
-	if _, err := c.bot.SendMessage(ctx, msg); err != nil {
+	_, err = c.bot.SendMessage(ctx, msg)
+	// Retry without thread ID if topic is hidden/deleted (forum group with General topic removed).
+	if err != nil && messageThreadID > 0 && strings.Contains(err.Error(), "thread not found") {
+		msg.MessageThreadID = 0
+		_, err = c.bot.SendMessage(ctx, msg)
+	}
+	if err != nil {
 		slog.Warn("failed to send group pairing reply", "chat_id", chatIDStr, "error", err)
 	} else {
 		c.pairingReplySent.Store(chatIDStr, time.Now())
