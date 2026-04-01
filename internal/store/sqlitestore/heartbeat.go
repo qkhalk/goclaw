@@ -319,8 +319,8 @@ func (s *SQLiteHeartbeatStore) ListDeliveryTargets(ctx context.Context, agentID 
 			return nil, err
 		}
 
-		// Parse chatId: 5th colon-separated segment of session_key.
-		chatID := extractSessionKeyPart(sessionKey, 5)
+		// Parse chatId: everything after 4th colon (includes :topic:N suffix for forum groups).
+		chatID := extractSessionKeyTail(sessionKey, 5)
 		if chatID == "" {
 			continue
 		}
@@ -364,6 +364,17 @@ func (s *SQLiteHeartbeatStore) ListDeliveryTargets(ctx context.Context, agentID 
 // extractSessionKeyPart returns the n-th colon-delimited segment (1-indexed).
 func extractSessionKeyPart(key string, n int) string {
 	parts := strings.SplitN(key, ":", n+1)
+	if len(parts) < n {
+		return ""
+	}
+	return parts[n-1]
+}
+
+// extractSessionKeyTail returns everything from the n-th colon-delimited segment onwards.
+// For session key "agent:default:telegram:group:-100123:topic:42" with n=5,
+// returns "-100123:topic:42" (includes topic/thread suffix).
+func extractSessionKeyTail(key string, n int) string {
+	parts := strings.SplitN(key, ":", n)
 	if len(parts) < n {
 		return ""
 	}

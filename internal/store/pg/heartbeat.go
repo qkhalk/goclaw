@@ -276,12 +276,14 @@ func (s *PGHeartbeatStore) ListLogs(ctx context.Context, agentID uuid.UUID, limi
 
 // ListDeliveryTargets returns distinct (channel, chatID, title, kind) pairs from sessions for an agent.
 // Uses idx_sessions_agent (btree on agent_id) for fast lookup.
-// Session key format: agent:{key}:{channel}:{kind}:{chatId}
+// Session key format: agent:{key}:{channel}:{kind}:{chatId}[:topic:N]
+// Extracts full chatId including topic/thread suffix via array_to_string([5:]).
+// JOIN on base chatId (split_part segment 5) for contact display name resolution.
 func (s *PGHeartbeatStore) ListDeliveryTargets(ctx context.Context, agentID uuid.UUID) ([]store.DeliveryTarget, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT DISTINCT ON (s.channel, chat_id)
 		    s.channel,
-		    split_part(s.session_key, ':', 5) AS chat_id,
+		    array_to_string((string_to_array(s.session_key::text, ':'))[5:], ':') AS chat_id,
 		    COALESCE(
 		        s.metadata->>'chat_title',
 		        cc.display_name,
