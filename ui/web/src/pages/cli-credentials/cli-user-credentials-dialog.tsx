@@ -10,12 +10,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Combobox } from "@/components/ui/combobox";
 import { KeyValueEditor } from "@/components/shared/key-value-editor";
 import { toast } from "@/stores/use-toast-store";
 import { useHttp } from "@/hooks/use-ws";
+import { useUserPicker } from "@/hooks/use-user-picker";
 import i18next from "i18next";
 import type { SecureCLIBinary } from "./hooks/use-cli-credentials";
 
@@ -52,9 +53,13 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
   // Form state
   const [editEntry, setEditEntry] = useState<UserCredEntry | null>(null);
   const [userId, setUserId] = useState("");
+  const [userSearch, setUserSearch] = useState("");
   const [env, setEnv] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeletingId] = useState<string | null>(null);
+
+  // User picker for the form
+  const { options: userOptions } = useUserPicker(userSearch, undefined, "tenant_user");
 
   const loadList = useCallback(async () => {
     setLoadingList(true);
@@ -75,6 +80,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
     setView("list");
     setEditEntry(null);
     setUserId("");
+    setUserSearch("");
     setEnv({});
     loadList();
   }, [open, loadList]);
@@ -82,6 +88,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
   const openAdd = () => {
     setEditEntry(null);
     setUserId("");
+    setUserSearch("");
     setEnv({});
     setView("form");
   };
@@ -89,6 +96,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
   const openEdit = async (entry: UserCredEntry) => {
     setEditEntry(entry);
     setUserId(entry.user_id);
+    setUserSearch("");
     setEnv({});
     setView("form");
     // Load existing env for edit
@@ -230,13 +238,14 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
           <>
             <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-1">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="uc-user-id">{t("userCredentials.userId")}</Label>
-                <Input
-                  id="uc-user-id"
+                <Label>{t("userCredentials.userId")}</Label>
+                <Combobox
                   value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
+                  onChange={(v) => { setUserId(v); setUserSearch(v); }}
+                  onSelect={(v) => setUserId(v)}
+                  options={userOptions}
                   placeholder={t("userCredentials.userIdPlaceholder")}
-                  disabled={!!editEntry}
+                  allowCustom
                   className="text-base md:text-sm font-mono"
                 />
               </div>
