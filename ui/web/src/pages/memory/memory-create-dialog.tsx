@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatUserLabel } from "@/lib/format-user-label";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -163,7 +164,7 @@ export function MemoryCreateDialog({ open, onOpenChange, agentId: parentAgentId,
                 <option value="">{t("createDialog.selectGroupUser")}</option>
                 {knownUserIds.map((uid) => (
                   <option key={uid} value={uid}>
-                    {formatScopeLabel(uid)}
+                    {formatUserLabel(uid)}
                   </option>
                 ))}
               </select>
@@ -227,13 +228,3 @@ export function MemoryCreateDialog({ open, onOpenChange, agentId: parentAgentId,
   );
 }
 
-function formatScopeLabel(userId: string): string {
-  if (userId.startsWith("group:")) {
-    const parts = userId.split(":");
-    if (parts.length >= 3) {
-      const channel = parts[1]!.charAt(0).toUpperCase() + parts[1]!.slice(1);
-      return `${channel} ${parts.slice(2).join(":")}`;
-    }
-  }
-  return userId;
-}

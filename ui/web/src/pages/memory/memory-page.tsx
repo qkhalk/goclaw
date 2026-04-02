@@ -11,6 +11,7 @@ import { Pagination } from "@/components/shared/pagination";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useAgents } from "@/pages/agents/hooks/use-agents";
 import { useContactResolver } from "@/hooks/use-contact-resolver";
+import { formatUserLabel } from "@/lib/format-user-label";
 import { useMemoryDocuments } from "./hooks/use-memory";
 import { MemoryDocumentDialog } from "./memory-document-dialog";
 import { MemoryCreateDialog } from "./memory-create-dialog";
@@ -167,7 +168,7 @@ export function MemoryPage() {
             <option value="">{t("filters.allScope")}</option>
             {userIds.map((uid) => (
               <option key={uid} value={uid}>
-                {formatScopeLabel(uid, resolveContact)}
+                {formatUserLabel(uid, resolveContact)}
               </option>
             ))}
           </select>
@@ -236,7 +237,7 @@ export function MemoryPage() {
                         {doc.user_id ? t("scopeLabel.personal") : t("scopeLabel.global")}
                       </Badge>
                       {doc.user_id && (
-                        <span className="ml-1 text-xs text-muted-foreground">{formatScopeLabel(doc.user_id, resolveContact)}</span>
+                        <span className="ml-1 text-xs text-muted-foreground">{formatUserLabel(doc.user_id, resolveContact)}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
@@ -311,21 +312,3 @@ export function MemoryPage() {
   );
 }
 
-/** Format user_id into a readable scope label, preferring contact title if available. */
-function formatScopeLabel(userId: string, resolveContact?: (id: string) => { display_name?: string; username?: string } | null): string {
-  // Try contact resolver first
-  if (resolveContact) {
-    const contact = resolveContact(userId);
-    if (contact?.display_name) return contact.display_name;
-    if (contact?.username) return `@${contact.username}`;
-  }
-  // Fallback: format group IDs nicely
-  if (userId.startsWith("group:")) {
-    const parts = userId.split(":");
-    if (parts.length >= 3) {
-      const channel = parts[1]!.charAt(0).toUpperCase() + parts[1]!.slice(1);
-      return `${channel} ${parts.slice(2).join(":")}`;
-    }
-  }
-  return userId;
-}
