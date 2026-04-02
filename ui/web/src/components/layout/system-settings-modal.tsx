@@ -275,7 +275,7 @@ export function SystemSettingsModal({ open, onOpenChange }: SystemSettingsModalP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] w-[95vw] flex-col sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] w-[95vw] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5" />

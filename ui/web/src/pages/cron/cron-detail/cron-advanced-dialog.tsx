@@ -117,7 +117,7 @@ export function CronAdvancedDialog({ open, onOpenChange, job, onUpdate }: CronAd
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[95vw] flex flex-col sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] w-[95vw] flex flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
