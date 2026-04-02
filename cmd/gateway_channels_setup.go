@@ -108,7 +108,7 @@ func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, ms
 			recordMissingConfig(channels.TypeSlack, "Set channels.slack.bot_token in config.")
 		case cfg.Channels.Slack.AppToken == "":
 			recordMissingConfig(channels.TypeSlack, "Set channels.slack.app_token in config.")
-		case true:
+		default:
 			sl, err := slackchannel.New(cfg.Channels.Slack, msgBus, nil, nil)
 			if err != nil {
 				channelMgr.RecordFailure(channels.TypeSlack, "", err)
