@@ -26,7 +26,13 @@ export function KGEntityDetailDialog({ open, onOpenChange, agentId, entity, getE
   const { t } = useTranslation("memory");
   const [relations, setRelations] = useState<KGRelation[]>([]);
   const [loadingRels, setLoadingRels] = useState(false);
-  const { results: traversalResults, traversing, traverse } = useKGTraversal(agentId);
+  const { results: traversalResults, traversing, traverse, reset: resetTraversal } = useKGTraversal(agentId);
+
+  // Reset state when entity changes to prevent stale data from previous entity
+  useEffect(() => {
+    setRelations([]);
+    resetTraversal();
+  }, [entity?.id, resetTraversal]);
 
   const loadRelations = useCallback(async () => {
     if (!entity) return;
@@ -52,9 +58,9 @@ export function KGEntityDetailDialog({ open, onOpenChange, agentId, entity, getE
     traverse(entity.id, entity.user_id, 3);
   }, [entity, traverse]);
 
-  // Auto-traverse on open
+  // Auto-traverse on open — always traverse since state is reset on entity change
   useEffect(() => {
-    if (open && entity && traversalResults.length === 0 && !traversing) {
+    if (open && entity && !traversing) {
       traverse(entity.id, entity.user_id, 3);
     }
   }, [open, entity]); // eslint-disable-line react-hooks/exhaustive-deps

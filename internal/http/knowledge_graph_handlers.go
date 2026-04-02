@@ -67,6 +67,7 @@ func (h *KnowledgeGraphHandler) handleGetEntity(w http.ResponseWriter, r *http.R
 
 	relations, err := h.store.ListRelations(r.Context(), agentID, userID, entityID)
 	if err != nil {
+		slog.Warn("kg.list_relations failed", "agent_id", agentID, "entity_id", entityID, "user_id", userID, "error", err)
 		relations = []store.Relation{}
 	}
 	if relations == nil {

@@ -268,5 +268,7 @@ export function useKGTraversal(agentId: string) {
     [http, agentId],
   );
 
-  return { results, traversing, traverse };
+  const reset = useCallback(() => setResults([]), []);
+
+  return { results, traversing, traverse, reset };
 }
