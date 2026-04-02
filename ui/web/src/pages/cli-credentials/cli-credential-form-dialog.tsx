@@ -11,8 +11,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Search, Check, AlertCircle } from "lucide-react";
 import { useHttp } from "@/hooks/use-ws";
+import { useAgents } from "@/pages/agents/hooks/use-agents";
 import type { SecureCLIBinary, CLICredentialInput, CLIPreset } from "./hooks/use-cli-credentials";
 
 interface ManualEnvEntry {
@@ -29,11 +30,13 @@ interface Props {
 }
 
 const NONE_PRESET = "__none__";
+const GLOBAL_AGENT = "__global__";
 
 export function CliCredentialFormDialog({ open, onOpenChange, credential, presets, onSubmit }: Props) {
   const { t } = useTranslation("cli-credentials");
   const { t: tc } = useTranslation("common");
   const http = useHttp();
+  const { agents } = useAgents();
 
   const [selectedPreset, setSelectedPreset] = useState(NONE_PRESET);
   const [binaryName, setBinaryName] = useState("");
@@ -51,6 +54,10 @@ export function CliCredentialFormDialog({ open, onOpenChange, credential, preset
   const [initialEnvKeys, setInitialEnvKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Check binary state
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<{ found: boolean; path?: string; error?: string } | null>(null);
 
   const isEdit = !!credential;
   const presetEntries: Array<[string, CLIPreset]> = Object.entries(presets).filter(
@@ -76,6 +83,7 @@ export function CliCredentialFormDialog({ open, onOpenChange, credential, preset
     setEnabled(credential?.enabled ?? true);
     setEnvValues({});
     setError("");
+    setCheckResult(null);
 
     if (!credential) {
       setInitialEnvKeys([]);
@@ -121,6 +129,27 @@ export function CliCredentialFormDialog({ open, onOpenChange, credential, preset
     setTips(p.tips);
     setEnvValues({});
     setManualEnvEntries([]);
+  };
+
+  const handleCheckBinary = async () => {
+    const name = binaryName.trim();
+    if (!name) return;
+    setChecking(true);
+    setCheckResult(null);
+    try {
+      const res = await http.post<{ found: boolean; path?: string; error?: string }>(
+        "/v1/cli-credentials/check-binary",
+        { binary_name: name },
+      );
+      setCheckResult(res);
+      if (res.found && res.path) {
+        setBinaryPath(res.path);
+      }
+    } catch {
+      setCheckResult({ found: false, error: t("form.binaryNotFound") });
+    } finally {
+      setChecking(false);
+    }
   };
 
   const addManualEnvEntry = useCallback(() => {
@@ -304,16 +333,37 @@ export function CliCredentialFormDialog({ open, onOpenChange, credential, preset
             </div>
           )}
 
+          {/* Binary name + check button */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="cc-name">{t("form.binaryName")}</Label>
-              <Input
-                id="cc-name"
-                value={binaryName}
-                onChange={(e) => setBinaryName(e.target.value)}
-                placeholder={t("placeholders.binaryName")}
-                className="text-base md:text-sm"
-              />
+              <div className="flex gap-1.5">
+                <Input
+                  id="cc-name"
+                  value={binaryName}
+                  onChange={(e) => { setBinaryName(e.target.value); setCheckResult(null); }}
+                  placeholder={t("placeholders.binaryName")}
+                  className="text-base md:text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  disabled={!binaryName.trim() || checking}
+                  onClick={handleCheckBinary}
+                  title={t("form.checkBinary")}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+              {checkResult && (
+                <p className={`text-xs flex items-center gap-1 ${checkResult.found ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
+                  {checkResult.found ? <Check className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                  {checkResult.found ? t("form.binaryFound", { path: checkResult.path }) : (checkResult.error || t("form.binaryNotFound"))}
+                </p>
+              )}
+              {checking && <p className="text-xs text-muted-foreground">{t("form.checking")}</p>}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="cc-path">{t("form.binaryPath")} <span className="text-xs text-muted-foreground">({tc("optional")})</span></Label>
@@ -324,6 +374,7 @@ export function CliCredentialFormDialog({ open, onOpenChange, credential, preset
                 placeholder={t("placeholders.binaryPath")}
                 className="text-base md:text-sm"
               />
+              <p className="text-xs text-muted-foreground">{t("form.binaryPathHint")}</p>
             </div>
           </div>
 
@@ -386,15 +437,22 @@ export function CliCredentialFormDialog({ open, onOpenChange, credential, preset
             />
           </div>
 
+          {/* Agent selector */}
           <div className="grid gap-1.5">
-            <Label htmlFor="cc-agent">{t("form.agentId")} <span className="text-xs text-muted-foreground">({t("form.agentIdHint")})</span></Label>
-            <Input
-              id="cc-agent"
-              value={agentId}
-              onChange={(e) => setAgentId(e.target.value)}
-              placeholder={t("placeholders.agentId")}
-              className="text-base md:text-sm"
-            />
+            <Label>{t("form.agentId")} <span className="text-xs text-muted-foreground">({t("form.agentIdHint")})</span></Label>
+            <Select value={agentId || GLOBAL_AGENT} onValueChange={(v) => setAgentId(v === GLOBAL_AGENT ? "" : v)}>
+              <SelectTrigger className="text-base md:text-sm">
+                <SelectValue placeholder={t("placeholders.agentId")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={GLOBAL_AGENT}>{t("placeholders.agentId")}</SelectItem>
+                {agents.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.display_name || a.agent_key || a.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center gap-2">
