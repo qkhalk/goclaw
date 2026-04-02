@@ -199,6 +199,7 @@ export function KGEntitiesTab({ agentId, userId }: KGEntitiesTabProps) {
 
       {/* Entity detail dialog */}
       <KGEntityDetailDialog
+        key={viewEntity?.id}
         open={!!viewEntity}
         onOpenChange={(open) => !open && setViewEntity(null)}
         agentId={agentId}
