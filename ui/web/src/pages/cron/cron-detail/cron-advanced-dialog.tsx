@@ -157,7 +157,7 @@ export function CronAdvancedDialog({ open, onOpenChange, job, onUpdate }: CronAd
             </div>
 
             {deliver && (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr]">
                 <div className="space-y-2 min-w-0">
                   <Label>{t("detail.channelLabel")}</Label>
                   {channelNames.length > 0 ? (
