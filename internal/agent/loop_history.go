@@ -228,9 +228,30 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		mcpToolDescs = nil
 	}
 
+	// Determine whether to inject team context into the system prompt.
+	// Team context (TEAM.md, workspace section, members roster) is injected when:
+	//   - This is a team-dispatched session (team: prefix), OR
+	//   - Agent is the lead of a team AND this is an inbound (non-dispatch) session.
+	// Member-only agents in inbound chat get spawn section instead of team context.
+	isTeamDispatch := bootstrap.IsTeamSession(sessionKey)
+	injectTeamContext := isTeamDispatch || (hasTeamTools && l.isTeamLead)
+
+	// Filter TEAM.md from context files when team context should not be injected
+	// (i.e. member-only agent in inbound chat — spawn section applies instead).
+	if !injectTeamContext {
+		filtered := make([]bootstrap.ContextFile, 0, len(contextFiles))
+		for _, cf := range contextFiles {
+			if cf.Path != bootstrap.TeamFile {
+				filtered = append(filtered, cf)
+			}
+		}
+		contextFiles = filtered
+	}
+
 	// Resolve team members so agent knows who to assign tasks to.
+	// Only resolve when team context is active — avoids unnecessary DB query for member-only inbound chats.
 	var teamMembers []store.TeamMemberData
-	if hasTeamTools && l.teamStore != nil && l.agentUUID != uuid.Nil {
+	if injectTeamContext && hasTeamTools && l.teamStore != nil && l.agentUUID != uuid.Nil {
 		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil {
 			teamMembers, _ = l.teamStore.ListMembers(ctx, team.ID)
 		}
@@ -250,7 +271,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		SkillsSummary:          l.resolveSkillsSummary(ctx, skillFilter),
 		HasMemory:              l.hasMemory,
 		HasSpawn:               l.tools != nil && hasSpawn,
-		HasTeam:                hasTeamTools,
+		IsTeamContext:          injectTeamContext,
 		TeamWorkspace:          tools.ToolTeamWorkspaceFromCtx(ctx),
 		TeamMembers:            teamMembers,
 		TeamGuidance:           teamGuidance(edition.Current().TeamFullMode),
@@ -382,7 +403,7 @@ func filterBootstrapTools(toolNames []string) []string {
 // Above these limits, only include skill_search instructions.
 const (
 	skillInlineMaxCount  = 60   // max skills to inline
-	skillInlineMaxTokens = 5000 // max estimated tokens for skill descriptions
+	skillInlineMaxTokens = 3000 // max estimated tokens for skill descriptions
 )
 
 // resolveSkillsSummary dynamically builds the skills summary for the system prompt.
@@ -406,10 +427,15 @@ func (l *Loop) resolveSkillsSummary(ctx context.Context, skillFilter []string) s
 		return ""
 	}
 
-	// Estimate tokens: ~1 token per 4 chars for name+description
+	// Estimate tokens: ~1 token per 4 chars for name+description.
+	// Cap description length to match BuildSummary() truncation (skillDescMaxLen=200 runes).
 	totalChars := 0
 	for _, s := range filtered {
-		totalChars += len(s.Name) + len(s.Description) + 10 // +10 for XML tags overhead
+		descLen := len(s.Description)
+		if descLen > 200 {
+			descLen = 200
+		}
+		totalChars += len(s.Name) + descLen + 10 // +10 for XML tags overhead
 	}
 	estimatedTokens := totalChars / 4
 
