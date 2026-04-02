@@ -199,6 +199,11 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *Result {
 		}
 	}
 
+	// Memory path hint: shell commands can't access DB-backed memory files.
+	if hint := MaybeMemoryExecHint(normalizedCommand); hint != "" {
+		return SilentResult(hint)
+	}
+
 	// Credentialed exec: if command matches a configured binary, use Direct Exec Mode.
 	// This bypasses approval (admin trust) and shell (security).
 	if cred, binary, cmdArgs := t.lookupCredentialedBinary(ctx, command); cred != nil {
