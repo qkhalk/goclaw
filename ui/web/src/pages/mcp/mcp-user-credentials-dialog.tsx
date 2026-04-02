@@ -147,7 +147,8 @@ export function MCPUserCredentialsDialog({
                   onChange={setSelectedUserId}
                   placeholder={t("userCredentials.selectUser")}
                   source="tenant_user"
-                  />
+                />
+                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-md px-2.5 py-1.5 border border-amber-200 dark:border-amber-800">{t("userCredentials.mergeHint")}</p>
               </div>
             )}
 
