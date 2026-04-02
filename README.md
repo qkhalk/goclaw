@@ -170,11 +170,13 @@ git tag lite-v0.1.0 && git push origin lite-v0.1.0
 ### From Source
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone -b main https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Interactive setup wizard
 source .env.local && ./goclaw
 ```
+
+> **Note:** The default branch is `dev` (active development). Use `-b main` to clone the stable release branch.
 
 ### With Docker
 
