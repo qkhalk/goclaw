@@ -52,6 +52,8 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
   // Form state
   const [editEntry, setEditEntry] = useState<UserCredEntry | null>(null);
   const [userId, setUserId] = useState("");
+  // Separate search text from selected value (onChange fires on every keystroke)
+  const [userSearchText, setUserSearchText] = useState("");
   const [env, setEnv] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeletingId] = useState<string | null>(null);
@@ -77,6 +79,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
     setView("list");
     setEditEntry(null);
     setUserId("");
+    setUserSearchText("");
     setEnv({});
     loadList();
   }, [open, loadList]);
@@ -84,6 +87,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
   const openAdd = () => {
     setEditEntry(null);
     setUserId("");
+    setUserSearchText("");
     setEnv({});
     setView("form");
   };
@@ -91,6 +95,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
   const openEdit = async (entry: UserCredEntry) => {
     setEditEntry(entry);
     setUserId(entry.user_id);
+    setUserSearchText(entry.user_id);
     setEnv({});
     setView("form");
     // Load existing env for edit
@@ -234,8 +239,9 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
               <div className="flex flex-col gap-1.5">
                 <Label>{t("userCredentials.userId")}</Label>
                 <UserPickerCombobox
-                  value={userId}
-                  onChange={setUserId}
+                  value={userSearchText}
+                  onChange={setUserSearchText}
+                  onSelect={(val) => { setUserId(val); setUserSearchText(val); }}
                   placeholder={t("userCredentials.userIdPlaceholder")}
                   source="tenant_user"
                   allowCustom

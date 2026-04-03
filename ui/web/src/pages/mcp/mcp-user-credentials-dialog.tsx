@@ -57,6 +57,9 @@ export function MCPUserCredentialsDialog({
     currentTenant?.role === "admin";
 
   const [selectedUserId, setSelectedUserId] = useState(currentUserId);
+  // Separate search text from selected value — onChange fires on every keystroke,
+  // but we only want to load credentials when user actually selects from dropdown
+  const [userSearchText, setUserSearchText] = useState("");
 
   const [status, setStatus] = useState<MCPUserCredentialStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
@@ -68,24 +71,34 @@ export function MCPUserCredentialsDialog({
   const [env, setEnv] = useState<Record<string, string>>({});
 
 
-  // Reset selected user when dialog opens
+  // Reset state when dialog opens
   useEffect(() => {
-    if (open) setSelectedUserId(currentUserId);
+    if (open) {
+      setSelectedUserId(currentUserId);
+      setUserSearchText("");
+      setInitialLoad(true);
+    }
   }, [open, currentUserId]);
+
+  // Track whether this is the initial load (show full spinner) vs user switch (keep form visible)
+  const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
     if (!open) return;
     setApiKey("");
     setHeaders({});
     setEnv({});
-    setStatus(null);
-    setLoadingStatus(true);
+    // Only show full-page spinner on initial dialog open, not on user switch
+    if (initialLoad) {
+      setStatus(null);
+      setLoadingStatus(true);
+    }
     const targetUser = canManageUsers ? selectedUserId : undefined;
     onGetCredentials(server.id, targetUser)
       .then(setStatus)
       .catch(() => {})
-      .finally(() => setLoadingStatus(false));
-  }, [open, server.id, onGetCredentials, canManageUsers, selectedUserId]);
+      .finally(() => { setLoadingStatus(false); setInitialLoad(false); });
+  }, [open, server.id, onGetCredentials, canManageUsers, selectedUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     setSaving(true);
@@ -132,7 +145,7 @@ export function MCPUserCredentialsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {loadingStatus ? (
+        {loadingStatus && initialLoad ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
@@ -143,11 +156,15 @@ export function MCPUserCredentialsDialog({
               <div className="flex flex-col gap-1.5">
                 <Label>{t("userCredentials.selectUser")}</Label>
                 <UserPickerCombobox
-                  value={selectedUserId}
-                  onChange={setSelectedUserId}
+                  value={userSearchText}
+                  onChange={setUserSearchText}
+                  onSelect={(val) => { setSelectedUserId(val); setUserSearchText(val); }}
                   placeholder={t("userCredentials.selectUser")}
                   source="tenant_user"
                 />
+                {selectedUserId && selectedUserId !== userSearchText && (
+                  <p className="text-xs text-muted-foreground font-mono">{selectedUserId}</p>
+                )}
                 <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-md px-2.5 py-1.5 border border-amber-200 dark:border-amber-800">{t("userCredentials.mergeHint")}</p>
               </div>
             )}

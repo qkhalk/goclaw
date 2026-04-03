@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
 import type { KGEntity, KGRelation } from "@/types/knowledge-graph";
 
-const GRAPH_LIMIT = 50;
+const GRAPH_LIMIT = 200;
 
 // Dual-theme palette — separate dark/light values for readability on both backgrounds
 interface TypeColor {
@@ -120,10 +120,10 @@ function computeForceLayout(nodes: Node[], edges: Edge[], entities: KGEntity[]):
   const w = 600, h = 400;
   // Scale forces by node count — tighter for small graphs, spread for large
   const n = nodes.length;
-  const linkDist = n > 60 ? 200 : n > 30 ? 160 : 120;
-  const chargeMul = n > 60 ? -250 : n > 30 ? -180 : -120;
-  const centerPull = n > 60 ? 0.03 : n > 30 ? 0.05 : 0.08;
-  const collideBase = n > 60 ? 50 : n > 30 ? 40 : 35;
+  const linkDist = n > 150 ? 280 : n > 100 ? 240 : n > 60 ? 200 : n > 30 ? 160 : 120;
+  const chargeMul = n > 150 ? -350 : n > 100 ? -300 : n > 60 ? -250 : n > 30 ? -180 : -120;
+  const centerPull = n > 150 ? 0.015 : n > 100 ? 0.02 : n > 60 ? 0.03 : n > 30 ? 0.05 : 0.08;
+  const collideBase = n > 150 ? 60 : n > 100 ? 55 : n > 60 ? 50 : n > 30 ? 40 : 35;
   const simulation = forceSimulation(simNodes)
     .force("link", forceLink(simLinks).id((d: any) => d.id).distance(linkDist).strength(0.5))
     .force("charge", forceManyBody().strength((d: any) => chargeMul * (d.mass ?? 1)))
@@ -133,7 +133,9 @@ function computeForceLayout(nodes: Node[], edges: Edge[], entities: KGEntity[]):
     .force("collide", forceCollide().radius((d: any) => collideBase + (d.mass ?? 1) * 3).strength(0.7))
     .stop();
   const ticks = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay()));
-  for (let i = 0; i < ticks; i++) simulation.tick();
+  // Cap ticks for large graphs — diminishing returns past 200 iterations
+  const maxTicks = n > 100 ? 200 : ticks;
+  for (let i = 0; i < Math.min(ticks, maxTicks); i++) simulation.tick();
   return nodes.map((n, i) => ({ ...n, position: { x: simNodes[i]!.x ?? 0, y: simNodes[i]!.y ?? 0 } }));
 }
 
