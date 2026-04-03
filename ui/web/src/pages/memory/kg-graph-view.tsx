@@ -1,50 +1,22 @@
-import { useMemo, useEffect, useCallback, useState, useTransition, memo } from "react";
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  useNodesState,
-  useEdgesState,
-  useReactFlow,
-  Background,
-  Controls,
-  type Node,
-  type Edge,
-  type ColorMode,
-  Handle,
-  Position,
-} from "@xyflow/react";
-import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide, forceX, forceY, type SimulationNodeDatum } from "d3-force";
-import "@xyflow/react/dist/style.css";
+import { useRef, useMemo, useCallback, useState, useEffect } from "react";
+import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
+import { Maximize2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
 import type { KGEntity, KGRelation } from "@/types/knowledge-graph";
 
-const GRAPH_LIMIT = 80;
+const GRAPH_LIMIT = 150;
+const NODE_R = 5;
+const DOUBLE_CLICK_MS = 280;
 
-// Dual-theme palette — separate dark/light values for readability on both backgrounds
-interface TypeColor {
-  border: string;
-  dark: { bg: string; text: string };
-  light: { bg: string; text: string };
-}
-const TYPE_COLORS: Record<string, TypeColor> = {
-  person:       { border: "#E85D24", dark: { bg: "rgba(232,93,36,0.15)", text: "#f4a574" },  light: { bg: "#fde8d8", text: "#7a2610" } },
-  organization: { border: "#ef4444", dark: { bg: "rgba(239,68,68,0.15)", text: "#fca5a5" },  light: { bg: "#fee2e2", text: "#991b1b" } },
-  project:      { border: "#22c55e", dark: { bg: "rgba(34,197,94,0.15)", text: "#86efac" },  light: { bg: "#dcfce7", text: "#166534" } },
-  product:      { border: "#f97316", dark: { bg: "rgba(249,115,22,0.15)", text: "#fdba74" }, light: { bg: "#ffedd5", text: "#9a3412" } },
-  technology:   { border: "#3b82f6", dark: { bg: "rgba(59,130,246,0.15)", text: "#93c5fd" }, light: { bg: "#dbeafe", text: "#1e40af" } },
-  task:         { border: "#f59e0b", dark: { bg: "rgba(245,158,11,0.15)", text: "#fcd34d" }, light: { bg: "#fef3c7", text: "#92400e" } },
-  event:        { border: "#ec4899", dark: { bg: "rgba(236,72,153,0.15)", text: "#f9a8d4" }, light: { bg: "#fce7f3", text: "#9d174d" } },
-  document:     { border: "#8b5cf6", dark: { bg: "rgba(139,92,246,0.15)", text: "#c4b5fd" }, light: { bg: "#ede9fe", text: "#6d28d9" } },
-  concept:      { border: "#a78bfa", dark: { bg: "rgba(167,139,250,0.12)", text: "#c4b5fd" }, light: { bg: "#ede9fe", text: "#5b21b6" } },
-  location:     { border: "#14b8a6", dark: { bg: "rgba(20,184,166,0.15)", text: "#5eead4" },  light: { bg: "#ccfbf1", text: "#115e59" } },
+// Solid colors per entity type — used for both circle fill and glow
+const TYPE_COLORS: Record<string, string> = {
+  person: "#E85D24", organization: "#ef4444", project: "#22c55e",
+  product: "#f97316", technology: "#3b82f6", task: "#f59e0b",
+  event: "#ec4899", document: "#8b5cf6", concept: "#a78bfa", location: "#14b8a6",
 };
-const DEFAULT_TC: TypeColor = { border: "#9ca3af", dark: { bg: "rgba(156,163,175,0.12)", text: "#d1d5db" }, light: { bg: "#f3f4f6", text: "#374151" } };
-
-const TYPE_MASS: Record<string, number> = {
-  organization: 8, project: 6, product: 5, person: 4, technology: 3.5, concept: 3, location: 3, document: 2.5, event: 2, task: 1.5,
-};
-const DEFAULT_MASS = 2;
+const DEFAULT_COLOR = "#9ca3af";
 
 function computeDegreeMap(entities: KGEntity[], relations: KGRelation[]): Map<string, number> {
   const deg = new Map<string, number>();
@@ -56,89 +28,24 @@ function computeDegreeMap(entities: KGEntity[], relations: KGRelation[]): Map<st
   return deg;
 }
 
-const HANDLE_STYLE = { opacity: 0, width: 0, height: 0, pointerEvents: "none" as const };
-
-// memo prevents re-render during pan/zoom — only re-renders when data changes
-const EntityNode = memo(function EntityNode({ data }: { data: { label: string; type: string; degree: number; isDark: boolean } }) {
-  const tc = TYPE_COLORS[data.type] || DEFAULT_TC;
-  const t = data.isDark ? tc.dark : tc.light;
-  const isHub = data.degree >= 4;
-  return (
-    <div
-      className="px-4 py-1.5 cursor-grab"
-      style={{
-        background: t.bg,
-        border: `2px solid ${tc.border}`,
-        borderRadius: 20,
-        boxShadow: isHub ? `0 0 8px ${tc.border}40` : undefined,
-      }}
-    >
-      <Handle type="target" position={Position.Top} style={HANDLE_STYLE} />
-      <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} />
-      <div className="text-[11px] font-semibold whitespace-nowrap" style={{ color: t.text }}>
-        {data.label}
-      </div>
-      <div className="text-[9px] text-center" style={{ color: t.text, opacity: 0.6 }}>
-        {data.type}
-      </div>
-    </div>
-  );
-});
-
-const nodeTypes = { entity: EntityNode };
-
-interface SimNode extends SimulationNodeDatum { id: string; mass: number }
-
-function buildGraph(entities: KGEntity[], relations: KGRelation[], isDark: boolean) {
-  const entityIds = new Set(entities.map((e) => e.id));
-  const degreeMap = computeDegreeMap(entities, relations);
-  const nodes: Node[] = entities.map((e) => ({
-    id: e.id, type: "entity", position: { x: 0, y: 0 },
-    data: { label: e.name, type: e.entity_type, degree: degreeMap.get(e.id) ?? 0, isDark },
-  }));
-  // Edge color handled by ReactFlow colorMode — use neutral gray
-  const edgeColor = "#64748b";
-  const edges: Edge[] = relations
-    .filter((r) => entityIds.has(r.source_entity_id) && entityIds.has(r.target_entity_id))
-    .map((r) => ({
-      id: r.id, source: r.source_entity_id, target: r.target_entity_id,
-      label: undefined, data: { relationLabel: r.relation_type.replace(/_/g, " ") },
-      animated: false, type: "default",
-      style: { stroke: edgeColor, strokeWidth: 2, opacity: 0.6 },
-    }));
-  return { nodes, edges };
+// --- Graph data types for react-force-graph ---
+interface GraphNode {
+  id: string;
+  name: string;
+  entityType: string;
+  color: string;
+  neighbors: Set<string>;
+  linkIds: Set<string>;
+  degree: number;
+  // Force-graph adds these at runtime
+  x?: number;
+  y?: number;
 }
-
-function computeForceLayout(nodes: Node[], edges: Edge[], entities: KGEntity[]): Node[] {
-  if (nodes.length === 0) return nodes;
-  const entityTypeMap = new Map(entities.map((e) => [e.id, e.entity_type]));
-  const simNodes: SimNode[] = nodes.map((n) => ({
-    id: n.id, x: n.position.x, y: n.position.y,
-    mass: TYPE_MASS[entityTypeMap.get(n.id) ?? ""] ?? DEFAULT_MASS,
-  }));
-  const simLinks = edges.map((e) => ({ source: e.source, target: e.target }));
-  const w = 600, h = 400;
-  // Scale forces by node count — tighter for small graphs, spread for large
-  const n = nodes.length;
-  const linkDist = n > 150 ? 280 : n > 100 ? 240 : n > 60 ? 200 : n > 30 ? 160 : 120;
-  const chargeMul = n > 150 ? -350 : n > 100 ? -300 : n > 60 ? -250 : n > 30 ? -180 : -120;
-  const centerPull = n > 150 ? 0.015 : n > 100 ? 0.02 : n > 60 ? 0.03 : n > 30 ? 0.05 : 0.08;
-  const collideBase = n > 150 ? 60 : n > 100 ? 55 : n > 60 ? 50 : n > 30 ? 40 : 35;
-  // Barnes-Hut theta: higher = faster approximation, slightly less accurate
-  const theta = n > 60 ? 1.2 : 0.9;
-  const charge = forceManyBody().strength((d: any) => chargeMul * (d.mass ?? 1)).theta(theta);
-  const simulation = forceSimulation(simNodes)
-    .force("link", forceLink(simLinks).id((d: any) => d.id).distance(linkDist).strength(0.5))
-    .force("charge", charge)
-    .force("center", forceCenter(w / 2, h / 2))
-    .force("x", forceX(w / 2).strength(centerPull))
-    .force("y", forceY(h / 2).strength(centerPull))
-    .force("collide", forceCollide().radius((d: any) => collideBase + (d.mass ?? 1) * 3).strength(0.7))
-    .alphaDecay(n > 60 ? 0.05 : 0.0228) // faster convergence for large graphs
-    .stop();
-  const ticks = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay()));
-  for (let i = 0; i < ticks; i++) simulation.tick();
-  return nodes.map((n, i) => ({ ...n, position: { x: simNodes[i]!.x ?? 0, y: simNodes[i]!.y ?? 0 } }));
+interface GraphLink {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
 }
 
 interface KGGraphViewProps {
@@ -147,151 +54,236 @@ interface KGGraphViewProps {
   onEntityClick?: (entity: KGEntity) => void;
 }
 
-export function KGGraphView(props: KGGraphViewProps) {
-  return (
-    <ReactFlowProvider>
-      <KGGraphViewInner {...props} />
-    </ReactFlowProvider>
-  );
-}
-
-function KGGraphViewInner({ entities: allEntities, relations: allRelations, onEntityClick }: KGGraphViewProps) {
+export function KGGraphView({ entities: allEntities, relations: allRelations, onEntityClick }: KGGraphViewProps) {
   const { t } = useTranslation("memory");
-  const { fitView } = useReactFlow();
   const theme = useUiStore((s) => s.theme);
-  const colorMode: ColorMode = theme === "system" ? "system" : theme;
   const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
+  const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink>>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [layoutReady, setLayoutReady] = useState(false);
 
-  // Limit entities to GRAPH_LIMIT, filter relations accordingly
+  // Double-click detection refs
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastClickRef = useRef<string | null>(null);
+
+  // --- Container sizing via ResizeObserver ---
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      setDimensions({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // --- Limit entities by degree centrality ---
   const totalCount = allEntities.length;
   const isLimited = totalCount > GRAPH_LIMIT;
-  // Rank by degree centrality — hub nodes (most connections) always included in graph
   const entities = useMemo(() => {
     if (!isLimited) return allEntities;
     const deg = computeDegreeMap(allEntities, allRelations);
     return [...allEntities].sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0)).slice(0, GRAPH_LIMIT);
   }, [allEntities, allRelations, isLimited]);
-  const entityIds = useMemo(() => new Set(entities.map((e) => e.id)), [entities]);
-  const relations = useMemo(
-    () => allRelations.filter((r) => entityIds.has(r.source_entity_id) && entityIds.has(r.target_entity_id)),
-    [allRelations, entityIds],
-  );
 
-  // Build graph — isDark only affects node data colors, not layout
-  const { rawNodes, rawEdges } = useMemo(() => {
-    const { nodes, edges } = buildGraph(entities, relations, isDark);
-    return { rawNodes: nodes, rawEdges: edges };
-  }, [entities, relations, isDark]);
-
-  const [layoutNodes, setLayoutNodes] = useState<Node[]>([]);
-  const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(rawEdges);
-
-  // Track which entity set was laid out — only re-layout when data changes, not theme
-  const [layoutKey, setLayoutKey] = useState("");
-  const dataKey = useMemo(() => entities.map((e) => e.id).join(","), [entities]);
-
-  useEffect(() => {
-    if (dataKey === layoutKey) {
-      // Theme change only — update node colors without re-layout
-      const freshMap = new Map(rawNodes.map((r) => [r.id, r.data]));
-      setNodes((prev) => prev.map((n) => {
-        const data = freshMap.get(n.id);
-        return data ? { ...n, data } : n;
-      }));
-      return;
-    }
-    // Data changed — full re-layout
-    setLayoutReady(false);
-    const timer = setTimeout(() => {
-      const positioned = computeForceLayout(rawNodes, rawEdges, entities);
-      setLayoutNodes(positioned);
-      setNodes(positioned);
-      setLayoutKey(dataKey);
-      setLayoutReady(true);
-      requestAnimationFrame(() => fitView({ padding: 0.15, duration: 300 }));
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [rawNodes, rawEdges, entities, dataKey, layoutKey, setNodes, fitView]);
-
-  useEffect(() => { setEdges(rawEdges); }, [rawEdges, setEdges]);
-
-  // Selection: highlight connected edges, dim others
   const entityMap = useMemo(() => new Map(entities.map((e) => [e.id, e])), [entities]);
 
-  useEffect(() => {
-    if (!selectedNodeId) {
-      setEdges((eds) => eds.map((e) => ({
-        ...e, label: undefined, animated: false,
-        style: { stroke: "#64748b", strokeWidth: 2, opacity: 0.6 },
-        labelStyle: undefined, labelBgStyle: undefined, labelBgPadding: undefined, labelShowBg: undefined,
-      })));
-      return;
-    }
-    const ent = entityMap.get(selectedNodeId);
-    const tc = TYPE_COLORS[ent?.entity_type ?? ""] || DEFAULT_TC;
-    const labelColor = isDark ? tc.dark.text : tc.light.text;
-    const fadedEdge = isDark ? "#1e293b" : "#e2e8f0";
-    const labelBg = isDark ? "rgba(15,23,42,0.85)" : "rgba(255,255,255,0.9)";
-    setEdges((eds) => eds.map((e) => {
-      const connected = e.source === selectedNodeId || e.target === selectedNodeId;
-      if (!connected) return { ...e, label: undefined, animated: false, style: { stroke: fadedEdge, strokeWidth: 0.5, opacity: 0.25 } };
-      return {
-        ...e,
-        label: (e.data as { relationLabel?: string })?.relationLabel,
-        animated: true,
-        style: { stroke: tc.border, strokeWidth: 3, opacity: 0.9 },
-        labelStyle: { fontSize: 9, fill: labelColor, fontWeight: 500 },
-        labelBgStyle: { fill: labelBg, stroke: tc.border, rx: 4 },
-        labelBgPadding: [4, 2] as [number, number],
-        labelShowBg: true,
-      };
+  // --- Build graph data for react-force-graph ---
+  const graphData = useMemo(() => {
+    const entityIds = new Set(entities.map((e) => e.id));
+    const degreeMap = computeDegreeMap(entities, allRelations);
+
+    const nodes: GraphNode[] = entities.map((e) => ({
+      id: e.id,
+      name: e.name,
+      entityType: e.entity_type,
+      color: TYPE_COLORS[e.entity_type] ?? DEFAULT_COLOR,
+      neighbors: new Set<string>(),
+      linkIds: new Set<string>(),
+      degree: degreeMap.get(e.id) ?? 0,
     }));
-  }, [selectedNodeId, entityMap, isDark, setEdges]);
 
-  const [, startTransition] = useTransition();
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-  // Single click: highlight connected edges only
-  const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    startTransition(() => setSelectedNodeId((prev) => (prev === node.id ? null : node.id)));
-  }, [startTransition]);
+    const links: GraphLink[] = allRelations
+      .filter((r) => entityIds.has(r.source_entity_id) && entityIds.has(r.target_entity_id))
+      .map((r) => {
+        nodeMap.get(r.source_entity_id)?.neighbors.add(r.target_entity_id);
+        nodeMap.get(r.target_entity_id)?.neighbors.add(r.source_entity_id);
+        nodeMap.get(r.source_entity_id)?.linkIds.add(r.id);
+        nodeMap.get(r.target_entity_id)?.linkIds.add(r.id);
+        return {
+          id: r.id,
+          source: r.source_entity_id,
+          target: r.target_entity_id,
+          label: r.relation_type.replace(/_/g, " "),
+        };
+      });
 
-  // Double click: open entity detail modal
-  const handleNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
-    const entity = entityMap.get(node.id);
-    if (entity && onEntityClick) onEntityClick(entity);
-  }, [entityMap, onEntityClick]);
+    return { nodes, links };
+  }, [entities, allRelations]);
 
-  const handlePaneClick = useCallback(() => {
-    startTransition(() => setSelectedNodeId(null));
-  }, [startTransition]);
+  // --- Highlight sets derived from selected node ---
+  const { highlightNodes, highlightLinks } = useMemo(() => {
+    if (!selectedNodeId) return { highlightNodes: new Set<string>(), highlightLinks: new Set<string>() };
+    const node = graphData.nodes.find((n) => n.id === selectedNodeId);
+    if (!node) return { highlightNodes: new Set<string>(), highlightLinks: new Set<string>() };
+    return {
+      highlightNodes: new Set([selectedNodeId, ...node.neighbors]),
+      highlightLinks: new Set(node.linkIds),
+    };
+  }, [selectedNodeId, graphData.nodes]);
 
+  // --- Node Canvas rendering: colored circle + name label ---
+  const nodeCanvasObject = useCallback(
+    (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const x = node.x ?? 0;
+      const y = node.y ?? 0;
+      const isSelected = node.id === selectedNodeId;
+      const isNeighbor = highlightNodes.has(node.id);
+      const isDimmed = !!selectedNodeId && !isSelected && !isNeighbor;
+      const r = NODE_R + (node.degree >= 4 ? 2 : 0);
+
+      // Circle fill
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = isDimmed ? `${node.color}30` : node.color;
+      ctx.fill();
+
+      // Selection glow ring
+      if (isSelected) {
+        ctx.strokeStyle = node.color;
+        ctx.lineWidth = 2.5 / globalScale;
+        ctx.shadowColor = node.color;
+        ctx.shadowBlur = 8 / globalScale;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      } else if (isNeighbor) {
+        ctx.strokeStyle = node.color;
+        ctx.lineWidth = 1.5 / globalScale;
+        ctx.stroke();
+      }
+
+      // Name label — show when zoomed enough or highlighted
+      if (globalScale > 0.5 || isSelected || isNeighbor) {
+        const fontSize = Math.max(11 / globalScale, 2);
+        ctx.font = `${isSelected ? "bold " : ""}${fontSize}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = isDimmed
+          ? (isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)")
+          : (isDark ? "#e2e8f0" : "#1e293b");
+        ctx.fillText(node.name, x, y + r + 2 / globalScale);
+      }
+    },
+    [selectedNodeId, highlightNodes, isDark],
+  );
+
+  // --- Link canvas overlay: draw label text only for highlighted links ---
+  const linkCanvasObject = useCallback(
+    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      if (!highlightLinks.has(link.id)) return;
+      const src = link.source;
+      const tgt = link.target;
+      if (!src?.x || !tgt?.x) return;
+      const midX = (src.x + tgt.x) / 2;
+      const midY = (src.y + tgt.y) / 2;
+      const fontSize = Math.max(9 / globalScale, 2);
+      ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      // Background pill for readability
+      const text = link.label || "";
+      const metrics = ctx.measureText(text);
+      const pad = 2 / globalScale;
+      ctx.fillStyle = isDark ? "rgba(15,23,42,0.85)" : "rgba(255,255,255,0.9)";
+      ctx.fillRect(midX - metrics.width / 2 - pad, midY - fontSize / 2 - pad, metrics.width + pad * 2, fontSize + pad * 2);
+      // Text
+      ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+      ctx.fillText(text, midX, midY);
+    },
+    [highlightLinks, isDark],
+  );
+
+  // --- Click handlers: single (highlight) vs double (open detail) ---
+  const handleNodeClick = useCallback(
+    (node: GraphNode) => {
+      if (clickTimerRef.current && lastClickRef.current === node.id) {
+        // Double click → open detail modal
+        clearTimeout(clickTimerRef.current);
+        clickTimerRef.current = null;
+        lastClickRef.current = null;
+        const entity = entityMap.get(node.id);
+        if (entity && onEntityClick) onEntityClick(entity);
+        return;
+      }
+      // Single click → highlight (after delay to distinguish from double)
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+      lastClickRef.current = node.id;
+      clickTimerRef.current = setTimeout(() => {
+        setSelectedNodeId((prev) => (prev === node.id ? null : node.id));
+        clickTimerRef.current = null;
+      }, DOUBLE_CLICK_MS);
+    },
+    [entityMap, onEntityClick],
+  );
+
+  const handleBackgroundClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, []);
+
+  // --- Zoom to fit after engine stops ---
+  const handleEngineStop = useCallback(() => {
+    graphRef.current?.zoomToFit(300, 30);
+  }, []);
+
+  // --- Empty state ---
   if (allEntities.length === 0) {
     return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{t("kg.graphView.empty")}</div>;
   }
 
-  if (!layoutReady) {
-    return <div className="flex h-full items-center justify-center bg-background"><div className="text-sm text-muted-foreground">{t("kg.graphView.loading")}</div></div>;
-  }
-
   return (
     <div className="flex h-full flex-col rounded-md border overflow-hidden bg-background">
-      <div className="min-h-0 flex-1">
-        <ReactFlow
-          nodes={nodes} edges={edges}
-          onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          onNodeClick={handleNodeClick} onNodeDoubleClick={handleNodeDoubleClick} onPaneClick={handlePaneClick}
-          nodeTypes={nodeTypes} colorMode={colorMode}
-          minZoom={0.1} maxZoom={3}
-          nodesConnectable={false} nodesDraggable={true} elementsSelectable={true}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background gap={20} size={1} />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+      <div ref={containerRef} className="min-h-0 flex-1 relative">
+        <ForceGraph2D
+          ref={graphRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          graphData={graphData}
+          nodeId="id"
+          nodeCanvasObject={nodeCanvasObject}
+          nodeCanvasObjectMode={() => "replace"}
+          nodePointerAreaPaint={(node: GraphNode, color, ctx) => {
+            const r = NODE_R + (node.degree >= 4 ? 2 : 0) + 3;
+            ctx.beginPath();
+            ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+          }}
+          linkColor={(link: any) =>
+            highlightLinks.has(link.id) ? "#64748b" : (isDark ? "#334155" : "#cbd5e1")
+          }
+          linkWidth={(link: any) => (highlightLinks.has(link.id) ? 2 : 0.5)}
+          linkCanvasObject={linkCanvasObject}
+          linkCanvasObjectMode={(link: any) => (highlightLinks.has(link.id) ? "after" : undefined)}
+          linkDirectionalParticles={(link: any) => (highlightLinks.has(link.id) ? 2 : 0)}
+          linkDirectionalParticleWidth={3}
+          linkDirectionalParticleSpeed={0.004}
+          onNodeClick={handleNodeClick}
+          onBackgroundClick={handleBackgroundClick}
+          onEngineStop={handleEngineStop}
+          backgroundColor="transparent"
+          d3AlphaDecay={0.04}
+          d3VelocityDecay={0.3}
+          warmupTicks={40}
+          cooldownTime={4000}
+          enableNodeDrag={true}
+          minZoom={0.1}
+          maxZoom={8}
+        />
       </div>
 
       {/* Stats bar */}
@@ -303,6 +295,10 @@ function KGGraphViewInner({ entities: allEntities, relations: allRelations, onEn
             · {t("kg.graphView.limitNote", { limit: GRAPH_LIMIT, total: totalCount })}
           </span>
         )}
+        <div className="flex-1" />
+        <Button variant="ghost" size="sm" className="h-6 px-1.5" onClick={() => graphRef.current?.zoomToFit(300, 20)}>
+          <Maximize2 className="h-3 w-3" />
+        </Button>
       </div>
     </div>
   );
