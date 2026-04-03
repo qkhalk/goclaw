@@ -96,7 +96,7 @@ export function KnowledgeGraphPage() {
             }
           />
         ) : (
-          <KGEntitiesTab agentId={agentId} userId={userIdFilter || undefined} />
+          <KGEntitiesTab key={`${agentId}-${userIdFilter}`} agentId={agentId} userId={userIdFilter || undefined} />
         )}
       </div>
     </div>

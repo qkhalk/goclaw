@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
 import type { KGEntity, KGRelation } from "@/types/knowledge-graph";
 
-const GRAPH_LIMIT = 200;
+const GRAPH_LIMIT = 80;
 
 // Dual-theme palette — separate dark/light values for readability on both backgrounds
 interface TypeColor {
@@ -124,18 +124,20 @@ function computeForceLayout(nodes: Node[], edges: Edge[], entities: KGEntity[]):
   const chargeMul = n > 150 ? -350 : n > 100 ? -300 : n > 60 ? -250 : n > 30 ? -180 : -120;
   const centerPull = n > 150 ? 0.015 : n > 100 ? 0.02 : n > 60 ? 0.03 : n > 30 ? 0.05 : 0.08;
   const collideBase = n > 150 ? 60 : n > 100 ? 55 : n > 60 ? 50 : n > 30 ? 40 : 35;
+  // Barnes-Hut theta: higher = faster approximation, slightly less accurate
+  const theta = n > 60 ? 1.2 : 0.9;
+  const charge = forceManyBody().strength((d: any) => chargeMul * (d.mass ?? 1)).theta(theta);
   const simulation = forceSimulation(simNodes)
     .force("link", forceLink(simLinks).id((d: any) => d.id).distance(linkDist).strength(0.5))
-    .force("charge", forceManyBody().strength((d: any) => chargeMul * (d.mass ?? 1)))
+    .force("charge", charge)
     .force("center", forceCenter(w / 2, h / 2))
     .force("x", forceX(w / 2).strength(centerPull))
     .force("y", forceY(h / 2).strength(centerPull))
     .force("collide", forceCollide().radius((d: any) => collideBase + (d.mass ?? 1) * 3).strength(0.7))
+    .alphaDecay(n > 60 ? 0.05 : 0.0228) // faster convergence for large graphs
     .stop();
   const ticks = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay()));
-  // Cap ticks for large graphs — diminishing returns past 200 iterations
-  const maxTicks = n > 100 ? 200 : ticks;
-  for (let i = 0; i < Math.min(ticks, maxTicks); i++) simulation.tick();
+  for (let i = 0; i < ticks; i++) simulation.tick();
   return nodes.map((n, i) => ({ ...n, position: { x: simNodes[i]!.x ?? 0, y: simNodes[i]!.y ?? 0 } }));
 }
 
@@ -252,12 +254,16 @@ function KGGraphViewInner({ entities: allEntities, relations: allRelations, onEn
 
   const [, startTransition] = useTransition();
 
+  // Single click: highlight connected edges only
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     startTransition(() => setSelectedNodeId((prev) => (prev === node.id ? null : node.id)));
-    // Defer dialog open to next frame — decouples edge restyle from dialog mount cost
+  }, [startTransition]);
+
+  // Double click: open entity detail modal
+  const handleNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
     const entity = entityMap.get(node.id);
-    if (entity && onEntityClick) setTimeout(() => onEntityClick(entity), 0);
-  }, [entityMap, onEntityClick, startTransition]);
+    if (entity && onEntityClick) onEntityClick(entity);
+  }, [entityMap, onEntityClick]);
 
   const handlePaneClick = useCallback(() => {
     startTransition(() => setSelectedNodeId(null));
@@ -277,7 +283,7 @@ function KGGraphViewInner({ entities: allEntities, relations: allRelations, onEn
         <ReactFlow
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          onNodeClick={handleNodeClick} onPaneClick={handlePaneClick}
+          onNodeClick={handleNodeClick} onNodeDoubleClick={handleNodeDoubleClick} onPaneClick={handlePaneClick}
           nodeTypes={nodeTypes} colorMode={colorMode}
           minZoom={0.1} maxZoom={3}
           nodesConnectable={false} nodesDraggable={true} elementsSelectable={true}
