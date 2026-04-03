@@ -1,13 +1,10 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Brain, Plus, RefreshCw, Search, Database, Trash2, RotateCw } from "lucide-react";
+import { Plus, RefreshCw, Search, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/shared/page-header";
-import { EmptyState } from "@/components/shared/empty-state";
-import { TableSkeleton } from "@/components/shared/loading-skeleton";
-import { Pagination } from "@/components/shared/pagination";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useAgents } from "@/pages/agents/hooks/use-agents";
 import { useContactResolver } from "@/hooks/use-contact-resolver";
@@ -16,6 +13,7 @@ import { useMemoryDocuments } from "./hooks/use-memory";
 import { MemoryDocumentDialog } from "./memory-document-dialog";
 import { MemoryCreateDialog } from "./memory-create-dialog";
 import { MemorySearchDialog } from "./memory-search-dialog";
+import { MemoryDocumentsTable } from "./memory-documents-table";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { useEmbeddingStatus } from "@/hooks/use-embedding-status";
@@ -189,92 +187,24 @@ export function MemoryPage() {
 
       {/* Document table */}
       <div className="mt-4">
-        {showSkeleton ? (
-          <TableSkeleton rows={5} />
-        ) : documents.length === 0 ? (
-          <EmptyState
-            icon={Brain}
-            title={t("emptyTitle")}
-            description={agentId ? t("emptyAgentDescription") : t("emptyGlobalDescription")}
-          />
-        ) : (
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[600px] text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="px-4 py-3 text-left font-medium">{t("columns.path")}</th>
-                  {!agentId && <th className="px-4 py-3 text-left font-medium">{t("columns.agent")}</th>}
-                  <th className="px-4 py-3 text-left font-medium">{t("columns.scope")}</th>
-                  <th className="px-4 py-3 text-left font-medium">{t("columns.hash")}</th>
-                  <th className="px-4 py-3 text-left font-medium">{t("columns.updated")}</th>
-                  <th className="px-4 py-3 text-right font-medium">{t("columns.actions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedDocs.map((doc) => (
-                  <tr key={`${doc.agent_id}-${doc.path}-${doc.user_id || "global"}`} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <button
-                        className="flex items-start gap-2 text-left hover:underline cursor-pointer"
-                        onClick={() => setViewDoc(doc)}
-                      >
-                        <Brain className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
-                        <div>
-                          <span className="font-mono text-xs font-medium">{doc.path}</span>
-                          {selectedAgent?.workspace && (
-                            <p className="font-mono text-[10px] text-muted-foreground">{selectedAgent.workspace}</p>
-                          )}
-                        </div>
-                      </button>
-                    </td>
-                    {!agentId && (
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {doc.agent_id ? (agentMap.get(doc.agent_id) || doc.agent_id.slice(0, 8)) : "-"}
-                      </td>
-                    )}
-                    <td className="px-4 py-3">
-                      <Badge variant={doc.user_id ? "secondary" : "outline"}>
-                        {doc.user_id ? t("scopeLabel.personal") : t("scopeLabel.global")}
-                      </Badge>
-                      {doc.user_id && (
-                        <span className="ml-1 text-xs text-muted-foreground">{formatUserLabel(doc.user_id, resolveContact)}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                      {doc.hash.slice(0, 8)}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {new Date(doc.updated_at).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => handleReindex(doc)} className="gap-1">
-                          <RotateCw className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteTarget(doc)}
-                          className="gap-1 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <Pagination
-              page={page}
-              pageSize={pageSize}
-              total={total}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-            />
-          </div>
-        )}
+        <MemoryDocumentsTable
+          documents={documents}
+          paginatedDocs={paginatedDocs}
+          loading={showSkeleton}
+          agentId={agentId}
+          agentWorkspace={selectedAgent?.workspace}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          totalPages={totalPages}
+          resolveContact={resolveContact}
+          agentMap={agentMap}
+          onViewDoc={setViewDoc}
+          onDeleteTarget={setDeleteTarget}
+          onReindex={handleReindex}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+        />
       </div>
 
       {/* Dialogs */}
