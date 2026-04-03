@@ -5,7 +5,7 @@ import { Methods, Events } from "@/api/protocol";
 import type { Message } from "@/types/session";
 import type { ChatMessage, AgentEventPayload, ToolStreamEntry, RunActivity, ActiveTeamTask, MediaItem } from "@/types/chat";
 import { toFileUrl, mediaKindFromMime } from "@/lib/file-helpers";
-import { transformHistoryMessages } from "./chat-message-transformer";
+import { transformHistoryMessages } from "@/adapters/chat-message.adapter";
 import { useChatTeamTasks } from "./use-chat-team-tasks";
 
 /**

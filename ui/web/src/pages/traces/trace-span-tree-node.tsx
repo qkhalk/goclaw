@@ -6,27 +6,11 @@ import { formatDate, formatDuration, formatTokens, computeDurationMs } from "@/l
 import { useUiStore } from "@/stores/use-ui-store";
 import { TracePreviewBlock } from "./trace-preview-block";
 import type { SpanData } from "./hooks/use-traces";
+import { buildSpanTree } from "@/adapters/trace.adapter";
+import type { SpanNode } from "@/adapters/trace.adapter";
 
-export interface SpanNode {
-  span: SpanData;
-  children: SpanNode[];
-}
-
-/** Build a parent→children tree from flat span list */
-export function buildSpanTree(spans: SpanData[]): SpanNode[] {
-  const map = new Map<string, SpanNode>();
-  const roots: SpanNode[] = [];
-  for (const span of spans) map.set(span.id, { span, children: [] });
-  for (const span of spans) {
-    const node = map.get(span.id)!;
-    if (span.parent_span_id && map.has(span.parent_span_id)) {
-      map.get(span.parent_span_id)!.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-  return roots;
-}
+export { buildSpanTree };
+export type { SpanNode };
 
 export function StatusBadge({ status }: { status: string }) {
   const isOk = status === "ok" || status === "success" || status === "completed";

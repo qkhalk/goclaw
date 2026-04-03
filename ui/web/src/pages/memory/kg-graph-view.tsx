@@ -5,49 +5,13 @@ import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
 import type { KGEntity, KGRelation } from "@/types/knowledge-graph";
+import { buildGraphData, limitEntitiesByDegree } from "@/adapters/kg-graph.adapter";
+import type { GraphNode, GraphLink } from "@/adapters/kg-graph.adapter";
 
 const NODE_LIMIT_OPTIONS = [100, 200, 300, 500] as const;
 const DEFAULT_NODE_LIMIT = 200;
 const NODE_R = 5;
 const DOUBLE_CLICK_MS = 280;
-
-// Solid colors per entity type — used for both circle fill and glow
-const TYPE_COLORS: Record<string, string> = {
-  person: "#E85D24", organization: "#ef4444", project: "#22c55e",
-  product: "#f97316", technology: "#3b82f6", task: "#f59e0b",
-  event: "#ec4899", document: "#8b5cf6", concept: "#a78bfa", location: "#14b8a6",
-};
-const DEFAULT_COLOR = "#9ca3af";
-
-function computeDegreeMap(entities: KGEntity[], relations: KGRelation[]): Map<string, number> {
-  const deg = new Map<string, number>();
-  const ids = new Set(entities.map((e) => e.id));
-  for (const r of relations) {
-    if (ids.has(r.source_entity_id)) deg.set(r.source_entity_id, (deg.get(r.source_entity_id) ?? 0) + 1);
-    if (ids.has(r.target_entity_id)) deg.set(r.target_entity_id, (deg.get(r.target_entity_id) ?? 0) + 1);
-  }
-  return deg;
-}
-
-// --- Graph data types for react-force-graph ---
-interface GraphNode {
-  id: string;
-  name: string;
-  entityType: string;
-  color: string;
-  neighbors: Set<string>;
-  linkIds: Set<string>;
-  degree: number;
-  // Force-graph adds these at runtime
-  x?: number;
-  y?: number;
-}
-interface GraphLink {
-  id: string;
-  source: string;
-  target: string;
-  label: string;
-}
 
 interface KGGraphViewProps {
   entities: KGEntity[];
@@ -85,48 +49,18 @@ export function KGGraphView({ entities: allEntities, relations: allRelations, on
   // --- Limit entities by degree centrality ---
   const totalCount = allEntities.length;
   const isLimited = totalCount > nodeLimit;
-  const entities = useMemo(() => {
-    if (totalCount <= nodeLimit) return allEntities;
-    const deg = computeDegreeMap(allEntities, allRelations);
-    return [...allEntities].sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0)).slice(0, nodeLimit);
-  }, [allEntities, allRelations, totalCount, nodeLimit]);
+  const entities = useMemo(
+    () => limitEntitiesByDegree(allEntities, allRelations, nodeLimit),
+    [allEntities, allRelations, nodeLimit],
+  );
 
   const entityMap = useMemo(() => new Map(entities.map((e) => [e.id, e])), [entities]);
 
   // --- Build graph data for react-force-graph ---
-  const graphData = useMemo(() => {
-    const entityIds = new Set(entities.map((e) => e.id));
-    const degreeMap = computeDegreeMap(entities, allRelations);
-
-    const nodes: GraphNode[] = entities.map((e) => ({
-      id: e.id,
-      name: e.name,
-      entityType: e.entity_type,
-      color: TYPE_COLORS[e.entity_type] ?? DEFAULT_COLOR,
-      neighbors: new Set<string>(),
-      linkIds: new Set<string>(),
-      degree: degreeMap.get(e.id) ?? 0,
-    }));
-
-    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-
-    const links: GraphLink[] = allRelations
-      .filter((r) => entityIds.has(r.source_entity_id) && entityIds.has(r.target_entity_id))
-      .map((r) => {
-        nodeMap.get(r.source_entity_id)?.neighbors.add(r.target_entity_id);
-        nodeMap.get(r.target_entity_id)?.neighbors.add(r.source_entity_id);
-        nodeMap.get(r.source_entity_id)?.linkIds.add(r.id);
-        nodeMap.get(r.target_entity_id)?.linkIds.add(r.id);
-        return {
-          id: r.id,
-          source: r.source_entity_id,
-          target: r.target_entity_id,
-          label: r.relation_type.replace(/_/g, " "),
-        };
-      });
-
-    return { nodes, links };
-  }, [entities, allRelations]);
+  const graphData = useMemo(
+    () => buildGraphData(entities, allRelations),
+    [entities, allRelations],
+  );
 
   // --- Highlight sets derived from selected node ---
   const { highlightNodes, highlightLinks } = useMemo(() => {
