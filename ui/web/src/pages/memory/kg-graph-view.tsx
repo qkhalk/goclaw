@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
 import type { KGEntity, KGRelation } from "@/types/knowledge-graph";
 
-const GRAPH_LIMIT = 150;
+const GRAPH_LIMIT = 200;
 const NODE_R = 5;
 const DOUBLE_CLICK_MS = 280;
 
