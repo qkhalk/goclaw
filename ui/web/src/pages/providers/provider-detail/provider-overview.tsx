@@ -29,8 +29,8 @@ import type { ChatGPTOAuthRoutingConfig } from "@/types/agent";
 import { useChatGPTOAuthProviderStatuses } from "../hooks/use-chatgpt-oauth-provider-statuses";
 import { useChatGPTOAuthProviderQuotas } from "../hooks/use-chatgpt-oauth-provider-quotas";
 import { ChatGPTOAuthRoutingSection } from "@/pages/agents/agent-detail/config-sections";
-import type { CodexPoolEntry } from "@/pages/agents/agent-detail/codex-pool-activity-panel";
 import { useProviderCodexPoolActivity } from "../hooks/use-provider-codex-pool-activity";
+import { toPoolEntries } from "@/adapters/provider-pool.adapter";
 import {
   NO_API_KEY_TYPES,
   NO_EMBEDDING_TYPES,
@@ -169,12 +169,9 @@ export function ProviderOverview({ provider, onUpdate }: ProviderOverviewProps) 
     return Array.from(new Set(selectedPoolProviderNames.filter((n) => { if (!n) return false; const item = providerByName.get(n); return providerStatus(n, statusByName, item?.enabled) === "ready"; })));
   }, [isOAuth, providerByName, selectedPoolProviderNames, statusByName]);
   const { quotaByName, isLoading: quotasLoading, isFetching: quotasFetching } = useChatGPTOAuthProviderQuotas(quotaProviderNames, isOAuth);
-  const poolEntries = useMemo<CodexPoolEntry[]>(() => {
+  const poolEntries = useMemo(() => {
     if (!canEditPoolRouting) return [];
-    return selectedPoolProviderNames.map((n) => {
-      const item = providerByName.get(n);
-      return { name: n, label: item?.display_name || n, availability: providerStatus(n, statusByName, item?.enabled), role: n === provider.name ? "preferred" : "extra", requestCount: 0, directSelectionCount: 0, failoverServeCount: 0, successCount: 0, failureCount: 0, consecutiveFailures: 0, successRate: 0, healthScore: 0, healthState: "idle" as const, providerHref: item?.id ? `/providers/${item.id}` : undefined, quota: quotaByName.get(n) };
-    });
+    return toPoolEntries(selectedPoolProviderNames, provider.name, providerByName, statusByName, quotaByName);
   }, [canEditPoolRouting, provider.name, providerByName, quotaByName, selectedPoolProviderNames, statusByName]);
   const isPoolOwner = canEditPoolRouting && selectedPoolProviderNames.length > 1;
   const { data: poolActivity, isFetching: poolActivityFetching, refetch: refreshPoolActivity } = useProviderCodexPoolActivity(provider.id, 8, isPoolOwner);
