@@ -4,16 +4,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { storageService } from '../services/storage-service'
 
-export type { StorageFile } from '../services/storage-service'
-
-interface StorageFileContent {
-  content: string
-  path: string
-  size: number
-}
+export type { StorageFile, StorageFileContent } from '../services/storage-service'
+import type { StorageFile, StorageFileContent } from '../services/storage-service'
 
 export function useStorage() {
-  const [files, setFiles] = useState<import('../services/storage-service').StorageFile[]>([])
+  const [files, setFiles] = useState<StorageFile[]>([])
   const [baseDir, setBaseDir] = useState('')
   const [loading, setLoading] = useState(false)
 

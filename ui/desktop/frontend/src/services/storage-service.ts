@@ -46,6 +46,7 @@ export const storageService = {
   moveFile(fromPath: string, toFolder: string): Promise<void> {
     const fileName = fromPath.split('/').pop() ?? fromPath
     const newPath = toFolder ? `${toFolder}/${fileName}` : fileName
+    if (fromPath === newPath) return Promise.resolve()
     return getApiClient().putRaw(
       `/v1/storage/move?from=${encodeURIComponent(fromPath)}&to=${encodeURIComponent(newPath)}`,
     )

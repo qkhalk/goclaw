@@ -3,16 +3,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { Switch } from '../common/Switch'
-import { McpTestResult } from './mcp-test-result'
+import { McpTestResult as McpTestResultDisplay } from './mcp-test-result'
 import { McpTransportFields } from './mcp-transport-fields'
 import { mcpFormSchema, type MCPFormData } from '../../schemas/mcp.schema'
+import { slugify } from '../../lib/slug'
 import type { MCPServerData, MCPServerInput, MCPTestResult } from '../../types/mcp'
 
 const TRANSPORTS = ['stdio', 'sse', 'streamable-http'] as const
-
-function slugify(v: string): string {
-  return v.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-/, '')
-}
 
 interface McpFormDialogProps {
   open: boolean
@@ -195,7 +192,7 @@ export function McpFormDialog({ open, onOpenChange, server, onSubmit, onTest }: 
 
         {/* Footer */}
         <div className="border-t border-border px-5 py-4 space-y-2">
-          <McpTestResult state={testState} result={testResult} />
+          <McpTestResultDisplay state={testState} result={testResult} />
           <div className="flex items-center justify-between">
             <button type="button" onClick={handleTest} disabled={isSubmitting || testState === 'testing'} className="border border-border rounded-lg px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-tertiary transition-colors disabled:opacity-50 shrink-0">
               {testState === 'testing' ? (
