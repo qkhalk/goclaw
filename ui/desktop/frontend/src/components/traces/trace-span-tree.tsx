@@ -1,7 +1,7 @@
 // Span tree rendering — builds and displays hierarchical trace spans.
 
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MarkdownRenderer } from '../chat/MarkdownRenderer'
 import type { SpanData } from '../../types/trace'
 import { formatDuration, formatTokens, statusClass, spanTypeIcon } from './trace-detail-formatters'
 
@@ -35,22 +35,31 @@ export function buildSpanTree(spans: SpanData[]): SpanNode[] {
 }
 
 function TraceContentPreview({ text }: { text?: string }) {
+  const [copied, setCopied] = useState(false)
   if (!text) return null
   const trimmed = text.trim()
-  // Auto-format JSON into a markdown code block
+  // Pretty-print JSON if valid
+  let display = trimmed
+  let lang = ''
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      const formatted = JSON.stringify(JSON.parse(trimmed), null, 2)
-      return (
-        <div className="max-h-[40vh] overflow-y-auto overflow-x-hidden">
-          <MarkdownRenderer content={'```json\n' + formatted + '\n```'} />
-        </div>
-      )
-    } catch { /* not valid JSON, fall through */ }
+    try { display = JSON.stringify(JSON.parse(trimmed), null, 2); lang = 'json' } catch { /* not valid JSON */ }
+  }
+  const handleCopy = () => {
+    navigator.clipboard.writeText(display)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <div className="max-h-[40vh] overflow-y-auto overflow-x-hidden">
-      <MarkdownRenderer content={text} />
+    <div className="rounded-lg border border-border overflow-hidden">
+      {lang && (
+        <div className="flex items-center justify-between px-3 py-1 bg-surface-tertiary text-[11px]">
+          <span className="text-text-muted font-mono">{lang}</span>
+          <button onClick={handleCopy} className="text-text-muted hover:text-text-primary transition-colors cursor-pointer">
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+      )}
+      <pre className="text-xs text-text-primary whitespace-pre-wrap p-3 max-h-[40vh] overflow-y-auto overscroll-contain">{display}</pre>
     </div>
   )
 }
