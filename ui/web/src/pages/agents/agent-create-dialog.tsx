@@ -28,7 +28,7 @@ interface AgentCreateDialogProps {
 export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateDialogProps) {
   const { t } = useTranslation("agents");
   const agentPresets = useAgentPresets();
-  const { providers } = useProviders();
+  const { providers, refresh: refreshProviders } = useProviders();
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -67,12 +67,14 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
   useEffect(() => { resetVerify(); }, [provider, model, resetVerify]);
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      refreshProviders();
+    } else {
       reset();
       setSubmitError("");
       resetVerify();
     }
-  }, [open, reset, resetVerify]);
+  }, [open, reset, resetVerify, refreshProviders]);
 
   const handleVerify = async () => {
     if (!selectedProviderId || !model.trim()) return;
@@ -101,12 +103,6 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleVerifyAndCreate = async () => {
-    if (!selectedProviderId || !model.trim()) return;
-    const res = await verify(selectedProviderId, model.trim());
-    if (res?.valid) await handleSubmitForm(form.getValues());
   };
 
   const handleProviderChange = (value: string) => {
@@ -146,15 +142,8 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
           </Button>
           {loading ? (
             <Button disabled>{t("create.creating")}</Button>
-          ) : !verifyResult?.valid && selectedProviderId && model.trim() ? (
-            <Button onClick={handleVerifyAndCreate} disabled={verifying || !canCreate}>
-              {verifying ? t("create.checking") : t("create.checkAndCreate")}
-            </Button>
           ) : (
-            <Button
-              onClick={handleSubmit(handleSubmitForm)}
-              disabled={!canCreate || !verifyResult?.valid || loading}
-            >
+            <Button onClick={handleSubmit(handleSubmitForm)} disabled={!canCreate || loading}>
               {t("create.create")}
             </Button>
           )}
