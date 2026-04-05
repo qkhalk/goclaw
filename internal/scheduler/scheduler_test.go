@@ -292,8 +292,15 @@ func TestScheduler_DropOldPolicy(t *testing.T) {
 		// OK, still pending
 	}
 
-	// Unblock everything
+	// Unblock everything and drain queued runs before Stop().
+	// Without draining, Stop() races with scheduleNext() causing wg.Wait() to hang.
 	close(blockCh)
+
+	select {
+	case <-ch3:
+	case <-time.After(5 * time.Second):
+		t.Fatal("queued run didn't complete after unblock")
+	}
 }
 
 func TestScheduler_InterruptMode(t *testing.T) {
