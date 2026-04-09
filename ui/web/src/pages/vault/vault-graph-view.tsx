@@ -107,7 +107,14 @@ export function VaultGraphView({ agentId, teamId, selectedDocId, onNodeSelect, o
         ctx.fillStyle = isDimmed
           ? (isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)")
           : (isDark ? "#e2e8f0" : "#1e293b");
-        ctx.fillText(node.title.slice(0, 24), x, y + r + 2 / globalScale);
+        // Adaptive truncation: short labels when zoomed out, full when zoomed in
+        const maxChars = isSelected ? node.title.length
+          : globalScale < 0.8 ? 10
+          : globalScale < 1.5 ? 18
+          : globalScale < 3 ? 30
+          : node.title.length;
+        const label = node.title.length > maxChars ? node.title.slice(0, maxChars) + "…" : node.title;
+        ctx.fillText(label, x, y + r + 2 / globalScale);
       }
     },
     [selectedDocId, highlightNodes, isDark],
@@ -118,6 +125,8 @@ export function VaultGraphView({ agentId, teamId, selectedDocId, onNodeSelect, o
       if (!highlightLinks.has(link.id)) return;
       const src = link.source, tgt = link.target;
       if (!src?.x || !tgt?.x) return;
+      // Only show link labels when zoomed in enough to read them
+      if (globalScale < 1.5) return;
       const midX = (src.x + tgt.x) / 2, midY = (src.y + tgt.y) / 2;
       const fontSize = Math.max(9 / globalScale, 2);
       const text = link.label || "";
