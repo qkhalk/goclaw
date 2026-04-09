@@ -84,6 +84,9 @@ func RunPreflight(ctx context.Context, dsn, dataDir, workspace string) *Prefligh
 }
 
 func checkPgDump(ctx context.Context) PreflightCheck {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	path, err := exec.LookPath("pg_dump")
 	if err != nil {
 		return PreflightCheck{
