@@ -111,6 +111,17 @@ func (s *SQLiteVaultStore) DeleteDocLinks(ctx context.Context, tenantID, docID s
 	return err
 }
 
+// DeleteDocLinksByType removes outbound links of a specific type from a document, scoped by tenant.
+func (s *SQLiteVaultStore) DeleteDocLinksByType(ctx context.Context, tenantID, docID, linkType string) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM vault_links
+		WHERE from_doc_id = ?
+		  AND link_type = ?
+		  AND from_doc_id IN (SELECT id FROM vault_documents WHERE tenant_id = ?)`,
+		docID, linkType, tenantID)
+	return err
+}
+
 func scanVaultLinkRows(rows *sql.Rows) ([]store.VaultLink, error) {
 	var links []store.VaultLink
 	for rows.Next() {

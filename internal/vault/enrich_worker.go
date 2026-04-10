@@ -19,7 +19,7 @@ const (
 	enrichMaxDedupEntries = 10000
 	enrichContentMaxRunes = 8192
 	enrichLLMTimeout      = 5 * time.Minute
-	enrichSimilarityLimit = 5
+	enrichSimilarityLimit = 10
 	enrichSimilarityMin   = 0.7
 )
 
@@ -157,6 +157,9 @@ func (w *enrichWorker) processBatch(ctx context.Context, key string) {
 
 			// Auto-link via vector similarity.
 			w.autoLink(ctx, r.payload.TenantID, r.payload.AgentID, r.payload.DocID)
+
+			// Sync [[wikilinks]] from document content (text files only).
+			w.syncWikilinks(ctx, r.payload)
 		}
 
 		if w.queue.TryFinish(key) {
@@ -186,6 +189,25 @@ func (w *enrichWorker) summarize(ctx context.Context, path, content string) (str
 		return "", err
 	}
 	return strings.TrimSpace(resp.Content), nil
+}
+
+// syncWikilinks extracts [[wikilinks]] from document content and syncs them as vault links.
+// Only processes text files; binary/media files are silently skipped.
+func (w *enrichWorker) syncWikilinks(ctx context.Context, p eventbus.VaultDocUpsertedPayload) {
+	fullPath := filepath.Join(p.Workspace, p.Path)
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return // file may be deleted or moved
+	}
+
+	doc, err := w.vault.GetDocumentByID(ctx, p.TenantID, p.DocID)
+	if err != nil || doc == nil {
+		return
+	}
+
+	if err := SyncDocLinks(ctx, w.vault, doc, string(content), p.TenantID, p.AgentID); err != nil {
+		slog.Warn("vault.enrich: sync_wikilinks", "path", p.Path, "err", err)
+	}
 }
 
 // autoLink finds similar documents and creates semantic links.

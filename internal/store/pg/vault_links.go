@@ -132,6 +132,19 @@ func (s *PGVaultStore) DeleteDocLinks(ctx context.Context, tenantID, docID strin
 	return err
 }
 
+// DeleteDocLinksByType removes outbound links of a specific type from a document.
+func (s *PGVaultStore) DeleteDocLinksByType(ctx context.Context, tenantID, docID, linkType string) error {
+	uid := mustParseUUID(docID)
+	tid := mustParseUUID(tenantID)
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM vault_links vl
+		USING vault_documents vd
+		WHERE vl.from_doc_id = $1
+			AND vd.id = vl.from_doc_id AND vd.tenant_id = $2
+			AND vl.link_type = $3`, uid, tid, linkType)
+	return err
+}
+
 func scanVaultLinks(rows *sql.Rows) ([]store.VaultLink, error) {
 	var links []store.VaultLink
 	for rows.Next() {
