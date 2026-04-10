@@ -309,17 +309,21 @@ func (m *Manager) healthLoop(ctx context.Context, ss *serverState) {
 }
 
 // tryReconnect attempts to reconnect with exponential backoff.
-// For SSE/HTTP transports, a server-side restart invalidates the session,
-// so pinging the old client will never succeed. In that case, we create a
-// fresh client and atomically swap it via serverState.clientPtr — all
-// BridgeTools see the new client on their next Execute call.
 func (m *Manager) tryReconnect(ctx context.Context, ss *serverState) {
+	reconnectWithBackoff(ctx, ss, "mcp.server")
+}
+
+// reconnectWithBackoff implements the two-phase reconnect strategy shared by
+// Manager.healthLoop and poolHealthLoop. Handles cooldown after exhausting
+// max attempts, exponential backoff, fast-path ping (transient blips), and
+// slow-path full reconnect (dead server-side session).
+// logPrefix distinguishes log entries (e.g. "mcp.server" vs "mcp.pool").
+func reconnectWithBackoff(ctx context.Context, ss *serverState, logPrefix string) {
 	ss.mu.Lock()
 	if ss.reconnAttempts >= maxReconnectAttempts {
 		ss.lastErr = fmt.Sprintf("max reconnect attempts (%d) reached, entering cooldown", maxReconnectAttempts)
 		ss.mu.Unlock()
-		slog.Warn("mcp.server.reconnect_cooldown", "server", ss.name, "cooldown", reconnectCooldown)
-		// Cooldown: wait before resetting attempts so the server has time to recover.
+		slog.Warn(logPrefix+".reconnect_cooldown", "server", ss.name, "cooldown", reconnectCooldown)
 		select {
 		case <-ctx.Done():
 			return
@@ -335,12 +339,7 @@ func (m *Manager) tryReconnect(ctx context.Context, ss *serverState) {
 	ss.mu.Unlock()
 
 	backoff := min(initialBackoff*time.Duration(1<<(attempt-1)), maxBackoff)
-
-	slog.Info("mcp.server.reconnecting",
-		"server", ss.name,
-		"attempt", attempt,
-		"backoff", backoff,
-	)
+	slog.Info(logPrefix+".reconnecting", "server", ss.name, "attempt", attempt, "backoff", backoff)
 
 	select {
 	case <-ctx.Done():
@@ -357,23 +356,26 @@ func (m *Manager) tryReconnect(ctx context.Context, ss *serverState) {
 		ss.healthFailures = 0
 		ss.lastErr = ""
 		ss.mu.Unlock()
-		slog.Info("mcp.server.reconnected", "server", ss.name)
+		slog.Info(logPrefix+".reconnected", "server", ss.name)
 		return
 	}
 
 	// Slow path: server-side session is dead (container restart, OOM, etc.).
 	if fullReconnect(ctx, ss) {
-		slog.Info("mcp.server.reconnected", "server", ss.name, "method", "full_reconnect")
+		slog.Info(logPrefix+".reconnected", "server", ss.name, "method", "full_reconnect")
 	}
 }
 
 // fullReconnect creates a fresh MCP client, atomically swaps it into serverState,
-// and closes the old one. Returns true on success. Shared by Manager.tryReconnect
-// and poolTryReconnect to avoid duplication.
+// and closes the old one. Returns true on success. Used by reconnectWithBackoff
+// as the slow path when pinging the old client fails.
 //
 // The new client is created and validated FIRST, then swapped via clientPtr.Store()
 // so BridgeTools see the new client immediately. The old client is closed AFTER
 // the swap to avoid a window where ss.client points to a closed client.
+//
+// NOTE: Does not re-discover tools (ListTools). If the MCP server restarts with
+// a different tool set, changes won't be reflected until the Manager reconnects.
 func fullReconnect(ctx context.Context, ss *serverState) bool {
 	slog.Info("mcp.full_reconnect", "server", ss.name, "transport", ss.transport)
 

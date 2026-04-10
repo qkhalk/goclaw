@@ -516,8 +516,9 @@ func (m *Manager) Stop() {
 			if ss.cancel != nil {
 				ss.cancel()
 			}
-			if ss.client != nil {
-				if err := ss.client.Close(); err != nil {
+			// Use atomic pointer — health loop may swap client via fullReconnect concurrently.
+			if client := ss.clientPtr.Load(); client != nil {
+				if err := client.Close(); err != nil {
 					slog.Debug("mcp.server.close_error", "server", name, "error", err)
 				}
 			}

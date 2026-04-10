@@ -131,8 +131,8 @@ func (p *Pool) Acquire(ctx context.Context, tenantID uuid.UUID, name, transportT
 		if old.state.cancel != nil {
 			old.state.cancel()
 		}
-		if old.state.client != nil {
-			_ = old.state.client.Close()
+		if client := old.state.clientPtr.Load(); client != nil {
+			_ = client.Close()
 		}
 		delete(p.servers, key)
 		// Return slot to semaphore
@@ -216,8 +216,8 @@ func (p *Pool) AcquireUser(ctx context.Context, tenantID uuid.UUID, name, userID
 		if old.state.cancel != nil {
 			old.state.cancel()
 		}
-		if old.state.client != nil {
-			_ = old.state.client.Close()
+		if client := old.state.clientPtr.Load(); client != nil {
+			_ = client.Close()
 		}
 		delete(p.userServers, key)
 		// Return slot to per-server semaphore
@@ -390,8 +390,8 @@ func (p *Pool) Stop() {
 		if entry.state.cancel != nil {
 			entry.state.cancel()
 		}
-		if entry.state.client != nil {
-			_ = entry.state.client.Close()
+		if client := entry.state.clientPtr.Load(); client != nil {
+			_ = client.Close()
 		}
 		slog.Debug("mcp.pool.stopped", "key", key)
 	}
@@ -401,8 +401,8 @@ func (p *Pool) Stop() {
 		if entry.state.cancel != nil {
 			entry.state.cancel()
 		}
-		if entry.state.client != nil {
-			_ = entry.state.client.Close()
+		if client := entry.state.clientPtr.Load(); client != nil {
+			_ = client.Close()
 		}
 		slog.Debug("mcp.pool.user.stopped", "key", key)
 	}
@@ -423,8 +423,8 @@ func (p *Pool) Evict(tenantID uuid.UUID, serverName string) {
 	if entry.state.cancel != nil {
 		entry.state.cancel()
 	}
-	if entry.state.client != nil {
-		_ = entry.state.client.Close()
+	if client := entry.state.clientPtr.Load(); client != nil {
+		_ = client.Close()
 	}
 	delete(p.servers, key)
 	select {
@@ -481,8 +481,8 @@ func (p *Pool) evictIdle() {
 			if entry.state.cancel != nil {
 				entry.state.cancel()
 			}
-			if entry.state.client != nil {
-				_ = entry.state.client.Close()
+			if client := entry.state.clientPtr.Load(); client != nil {
+				_ = client.Close()
 			}
 			delete(p.servers, key)
 			select {
@@ -499,8 +499,8 @@ func (p *Pool) evictIdle() {
 			if entry.state.cancel != nil {
 				entry.state.cancel()
 			}
-			if entry.state.client != nil {
-				_ = entry.state.client.Close()
+			if client := entry.state.clientPtr.Load(); client != nil {
+				_ = client.Close()
 			}
 			delete(p.userServers, key)
 			// Return slot to per-server semaphore
@@ -588,9 +588,6 @@ func (p *Pool) evictOldestIdleLocked() bool {
 	return true
 }
 
-// Client returns the MCP client for this pool entry.
-func (e *poolEntry) Client() *mcpclient.Client { return e.state.client }
-
 // ClientPtr returns the atomic client pointer for this pool entry.
 // Used by BridgeTools to atomically load the current client during reconnect.
 func (e *poolEntry) ClientPtr() *atomic.Pointer[mcpclient.Client] { return &e.state.clientPtr }
@@ -645,52 +642,8 @@ func poolHealthLoop(ctx context.Context, ss *serverState) {
 	}
 }
 
-// poolTryReconnect attempts a full reconnect for a pool-managed connection.
-// Creates a fresh client, atomically swaps ss.clientPtr so all BridgeTools
-// see the new client, then closes the old one.
+// poolTryReconnect attempts reconnect for a pool-managed connection.
+// Delegates to the shared reconnectWithBackoff with pool-specific log prefix.
 func poolTryReconnect(ctx context.Context, ss *serverState) {
-	ss.mu.Lock()
-	if ss.reconnAttempts >= maxReconnectAttempts {
-		ss.lastErr = fmt.Sprintf("max reconnect attempts (%d) reached, entering cooldown", maxReconnectAttempts)
-		ss.mu.Unlock()
-		slog.Warn("mcp.pool.reconnect_cooldown", "server", ss.name, "cooldown", reconnectCooldown)
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(reconnectCooldown):
-		}
-		ss.mu.Lock()
-		ss.reconnAttempts = 0
-		ss.mu.Unlock()
-		return
-	}
-	ss.reconnAttempts++
-	attempt := ss.reconnAttempts
-	ss.mu.Unlock()
-
-	backoff := min(initialBackoff*time.Duration(1<<(attempt-1)), maxBackoff)
-	slog.Info("mcp.pool.reconnecting", "server", ss.name, "attempt", attempt, "backoff", backoff)
-
-	select {
-	case <-ctx.Done():
-		return
-	case <-time.After(backoff):
-	}
-
-	// Fast path: transport may have auto-reconnected.
-	if err := ss.client.Ping(ctx); err == nil {
-		ss.connected.Store(true)
-		ss.mu.Lock()
-		ss.reconnAttempts = 0
-		ss.healthFailures = 0
-		ss.lastErr = ""
-		ss.mu.Unlock()
-		slog.Info("mcp.pool.reconnected", "server", ss.name)
-		return
-	}
-
-	// Slow path: create fresh client, swap atomically, close old.
-	if fullReconnect(ctx, ss) {
-		slog.Info("mcp.pool.reconnected", "server", ss.name, "method", "full_reconnect")
-	}
+	reconnectWithBackoff(ctx, ss, "mcp.pool")
 }
