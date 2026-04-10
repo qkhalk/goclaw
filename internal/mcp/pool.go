@@ -591,6 +591,10 @@ func (p *Pool) evictOldestIdleLocked() bool {
 // Client returns the MCP client for this pool entry.
 func (e *poolEntry) Client() *mcpclient.Client { return e.state.client }
 
+// ClientPtr returns the atomic client pointer for this pool entry.
+// Used by BridgeTools to atomically load the current client during reconnect.
+func (e *poolEntry) ClientPtr() *atomic.Pointer[mcpclient.Client] { return &e.state.clientPtr }
+
 // Connected returns a pointer to the connected flag for this pool entry.
 func (e *poolEntry) Connected() *atomic.Bool { return &e.state.connected }
 
@@ -598,6 +602,8 @@ func (e *poolEntry) Connected() *atomic.Bool { return &e.state.connected }
 func (e *poolEntry) MCPTools() []mcpgo.Tool { return e.tools }
 
 // poolHealthLoop is a standalone health loop for pool-managed connections.
+// After consecutive ping failures, it attempts a full reconnect by creating
+// a fresh client, mirroring the Manager.tryReconnect slow path.
 func poolHealthLoop(ctx context.Context, ss *serverState) {
 	ticker := newHealthTicker()
 	defer ticker.Stop()
@@ -625,6 +631,7 @@ func poolHealthLoop(ctx context.Context, ss *serverState) {
 
 				if failures >= healthFailThreshold {
 					ss.connected.Store(false)
+					poolTryReconnect(ctx, ss)
 				}
 			} else {
 				ss.connected.Store(true)
@@ -635,5 +642,55 @@ func poolHealthLoop(ctx context.Context, ss *serverState) {
 				ss.mu.Unlock()
 			}
 		}
+	}
+}
+
+// poolTryReconnect attempts a full reconnect for a pool-managed connection.
+// Creates a fresh client, atomically swaps ss.clientPtr so all BridgeTools
+// see the new client, then closes the old one.
+func poolTryReconnect(ctx context.Context, ss *serverState) {
+	ss.mu.Lock()
+	if ss.reconnAttempts >= maxReconnectAttempts {
+		ss.lastErr = fmt.Sprintf("max reconnect attempts (%d) reached, entering cooldown", maxReconnectAttempts)
+		ss.mu.Unlock()
+		slog.Warn("mcp.pool.reconnect_cooldown", "server", ss.name, "cooldown", reconnectCooldown)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(reconnectCooldown):
+		}
+		ss.mu.Lock()
+		ss.reconnAttempts = 0
+		ss.mu.Unlock()
+		return
+	}
+	ss.reconnAttempts++
+	attempt := ss.reconnAttempts
+	ss.mu.Unlock()
+
+	backoff := min(initialBackoff*time.Duration(1<<(attempt-1)), maxBackoff)
+	slog.Info("mcp.pool.reconnecting", "server", ss.name, "attempt", attempt, "backoff", backoff)
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(backoff):
+	}
+
+	// Fast path: transport may have auto-reconnected.
+	if err := ss.client.Ping(ctx); err == nil {
+		ss.connected.Store(true)
+		ss.mu.Lock()
+		ss.reconnAttempts = 0
+		ss.healthFailures = 0
+		ss.lastErr = ""
+		ss.mu.Unlock()
+		slog.Info("mcp.pool.reconnected", "server", ss.name)
+		return
+	}
+
+	// Slow path: create fresh client, swap atomically, close old.
+	if fullReconnect(ctx, ss) {
+		slog.Info("mcp.pool.reconnected", "server", ss.name, "method", "full_reconnect")
 	}
 }
