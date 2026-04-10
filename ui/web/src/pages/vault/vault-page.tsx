@@ -204,7 +204,7 @@ export function VaultPage() {
           onSelectResult={(doc) => { setDetailDoc(doc); setSelectedDocId(doc.id); }}
         />
       )}
-      <VaultCreateDialog agentId={selectedAgent} teamId={selectedTeam} open={createOpen} onOpenChange={setCreateOpen} />
+      <VaultCreateDialog open={createOpen} onOpenChange={setCreateOpen} defaultAgentId={selectedAgent} defaultTeamId={selectedTeam} />
 
       {/* Detail dialog for all document views */}
       <Suspense fallback={null}>
