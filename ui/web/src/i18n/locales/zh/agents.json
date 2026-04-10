@@ -783,6 +783,18 @@
       "textWeight": "文本权重",
       "textWeightTip": "混合搜索中关键词相似度的权重。"
     },
+    "dreaming": {
+      "title": "Dreaming（记忆整合）",
+      "description": "后台工作器将会话摘要提升为长期记忆。根据Agent整合频率调整参数。",
+      "enabled": "已启用",
+      "enabledTip": "关闭后Agent将仅使用原始会话摘要，不进行长期整合。",
+      "threshold": "阈值",
+      "thresholdTip": "触发整合运行所需的最少未提升摘要数。默认5。",
+      "debounceMs": "防抖间隔 (ms)",
+      "debounceMsTip": "每个Agent/用户两次运行之间的最小间隔。默认600000（10分钟）。",
+      "verboseLog": "详细日志",
+      "verboseLogTip": "在info级别输出防抖和低于阈值跳过，便于运维调试。"
+    },
     "thinking": {
       "title": "扩展思考",
       "description": "允许模型在响应前进行推理。更高级别使用更多令牌，但在复杂任务上产生更好的结果。",

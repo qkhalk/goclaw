@@ -826,6 +826,18 @@
       "textWeight": "Text Weight",
       "textWeightTip": "Weight for keyword similarity in hybrid search."
     },
+    "dreaming": {
+      "title": "Dreaming (Memory Consolidation)",
+      "description": "Background worker that promotes session summaries into long-term memory. Tune when the agent is too chatty or not consolidating often enough.",
+      "enabled": "Enabled",
+      "enabledTip": "Disable if you want the agent to rely only on raw session summaries without long-term consolidation.",
+      "threshold": "Threshold",
+      "thresholdTip": "Minimum unpromoted summaries before a consolidation run fires. Default 5.",
+      "debounceMs": "Debounce (ms)",
+      "debounceMsTip": "Minimum interval between runs per agent/user. Default 600000 (10 minutes).",
+      "verboseLog": "Verbose Logging",
+      "verboseLogTip": "Emit debounce and below-threshold skips at info level for operator debugging."
+    },
     "thinking": {
       "title": "Extended Thinking",
       "description": "Allow the model to reason before responding. Higher levels use more tokens but produce better results on complex tasks.",

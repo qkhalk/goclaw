@@ -783,6 +783,18 @@
       "textWeight": "Trọng số văn bản",
       "textWeightTip": "Trọng số từ khóa trong tìm kiếm hỗn hợp."
     },
+    "dreaming": {
+      "title": "Dreaming (hợp nhất bộ nhớ)",
+      "description": "Worker nền ghi các tóm tắt phiên vào bộ nhớ dài hạn. Tinh chỉnh nếu agent hợp nhất quá thường xuyên hoặc quá ít.",
+      "enabled": "Đã bật",
+      "enabledTip": "Tắt nếu bạn chỉ muốn dùng tóm tắt phiên thô, không cần hợp nhất dài hạn.",
+      "threshold": "Ngưỡng",
+      "thresholdTip": "Số tóm tắt chưa promote tối thiểu trước khi chạy hợp nhất. Mặc định 5.",
+      "debounceMs": "Debounce (ms)",
+      "debounceMsTip": "Khoảng thời gian tối thiểu giữa hai lần chạy cho mỗi agent/user. Mặc định 600000 (10 phút).",
+      "verboseLog": "Log chi tiết",
+      "verboseLogTip": "Ghi các lần skip (debounce, below-threshold) ở mức info để debug."
+    },
     "thinking": {
       "title": "Suy nghĩ mở rộng",
       "description": "Cho phép model suy luận trước khi phản hồi. Cấp độ cao hơn dùng nhiều token hơn nhưng cho kết quả tốt hơn với tác vụ phức tạp.",
