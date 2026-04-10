@@ -369,9 +369,29 @@ func (h *VaultHandler) handleGetLinks(w http.ResponseWriter, r *http.Request) {
 		backlinks = filtered
 	}
 
+	// Resolve target doc titles for outlinks so the UI can display names instead of IDs.
+	docNames := make(map[string]string, len(outLinks))
+	for _, l := range outLinks {
+		if _, seen := docNames[l.ToDocID]; seen {
+			continue
+		}
+		if d, err := h.store.GetDocumentByID(r.Context(), tenantID.String(), l.ToDocID); err == nil && d != nil {
+			name := d.Title
+			if name == "" {
+				if idx := strings.LastIndex(d.Path, "/"); idx >= 0 {
+					name = d.Path[idx+1:]
+				} else {
+					name = d.Path
+				}
+			}
+			docNames[l.ToDocID] = name
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"outlinks":  outLinks,
 		"backlinks": backlinks,
+		"doc_names": docNames,
 	})
 }
 

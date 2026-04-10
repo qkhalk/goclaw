@@ -19,7 +19,7 @@ interface Props {
 
 export function VaultDetailPanel({ doc, open, onClose, onDeleted }: Props) {
   const { t } = useTranslation("vault");
-  const { outlinks, backlinks } = useVaultLinks(doc?.id ?? null);
+  const { outlinks, backlinks, docNames } = useVaultLinks(doc?.id ?? null);
   const { content, loading: contentLoading, error: contentError } = useVaultFileContent(open && doc ? doc.path : null);
   const { update } = useUpdateDocument(doc?.id ?? "");
   const { remove } = useDeleteDocument(doc?.id ?? "");
@@ -151,7 +151,7 @@ export function VaultDetailPanel({ doc, open, onClose, onDeleted }: Props) {
               </div>
               {outlinks.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {outlinks.map((l) => <LinkBadge key={l.id} link={l} t={t} />)}
+                  {outlinks.map((l) => <LinkBadge key={l.id} link={l} docNames={docNames} t={t} />)}
                 </div>
               )}
             </div>
@@ -162,7 +162,9 @@ export function VaultDetailPanel({ doc, open, onClose, onDeleted }: Props) {
                 <span className="text-muted-foreground">{t("detail.backlinks")} ({backlinks.length})</span>
                 <div className="flex flex-wrap gap-1">
                   {backlinks.map((l) => (
-                    <Badge key={l.id} variant="secondary" className="text-2xs">{l.from_doc_id.slice(0, 8)}</Badge>
+                    <Badge key={l.from_doc_id} variant="secondary" className="text-2xs" title={l.path}>
+                      {l.title || l.from_doc_id.slice(0, 8)}
+                    </Badge>
                   ))}
                 </div>
               </div>

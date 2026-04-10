@@ -4,7 +4,6 @@ import { EdgeCurvedArrowProgram } from "@sigma/edge-curve";
 import { EdgeArrowProgram } from "sigma/rendering";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import noverlap from "graphology-layout-noverlap";
-import louvain from "graphology-communities-louvain";
 import type Graph from "graphology";
 import { useUiStore } from "@/stores/use-ui-store";
 import { SIGMA_SETTINGS } from "./graph-utils";
@@ -35,12 +34,12 @@ function useThemeColors() {
   return {
     isDark,
     labelColor: isDark ? "#e2e8f0" : "#1e293b",
-    // Soft base edge color — lighter than borders
-    edgeColor: isDark ? "#47556966" : "#d1d5db99",
-    // Even lighter dim color
-    dimEdgeColor: isDark ? "#47556933" : "#e5e7eb66",
-    // Softer highlight (not too dark)
-    highlightEdgeColor: isDark ? "#a1a1aa" : "#9ca3af",
+    // Base edge color — visible but not dominant
+    edgeColor: isDark ? "#47556966" : "#94a3b8cc",
+    // Dim color for non-active edges
+    dimEdgeColor: isDark ? "#47556933" : "#cbd5e166",
+    // Highlight for active neighborhood edges
+    highlightEdgeColor: isDark ? "#a1a1aa" : "#64748b",
   };
 }
 
@@ -76,85 +75,52 @@ export function SigmaGraphContainer({
   useEffect(() => {
     if (!containerRef.current || graph.order === 0) return;
 
-    // Layout: community-seeded FA2 for dense graphs, random+FA2 for sparse.
+    // Unified adaptive FA2 layout — no density branching.
+    // Params scale with orphan ratio (disconnected nodes / total nodes).
     if (graph.order > 1) {
-      const edgeDensity = graph.size / graph.order; // edges per node
-
-      if (edgeDensity >= 0.8) {
-        // Dense graph: Louvain community detection → grid seed → FA2 refinement.
-        const communities = louvain(graph, { resolution: 1 });
-        const communityGroups = new Map<number, string[]>();
-        for (const node of graph.nodes()) {
-          const c = communities[node] ?? 0;
-          if (!communityGroups.has(c)) communityGroups.set(c, []);
-          communityGroups.get(c)!.push(node);
-        }
-        const communityIds = Array.from(communityGroups.keys())
-          .sort((a, b) => communityGroups.get(b)!.length - communityGroups.get(a)!.length);
-        const numCommunities = communityIds.length;
-        const maxCommunitySize = Math.max(
-          ...Array.from(communityGroups.values(), (nodes) => nodes.length),
-        );
-        const cellSize = Math.max(Math.sqrt(maxCommunitySize) * 28, 140);
-        const cols = Math.ceil(Math.sqrt(numCommunities * 1.4));
-        const gridWidth = cols * cellSize;
-        const gridHeight = Math.ceil(numCommunities / cols) * cellSize;
-        const jitter = (seed: number) => {
-          const x = Math.sin(seed * 9999) * 10000;
-          return (x - Math.floor(x)) - 0.5;
-        };
-        communityIds.forEach((cId, idx) => {
-          const nodes = communityGroups.get(cId)!;
-          const col = idx % cols;
-          const row = Math.floor(idx / cols);
-          const cx = col * cellSize - gridWidth / 2 + cellSize / 2 + jitter(idx) * cellSize * 0.2;
-          const cy = row * cellSize - gridHeight / 2 + cellSize / 2 + jitter(idx + 1000) * cellSize * 0.2;
-          const localRadius = Math.max(Math.sqrt(nodes.length) * 12, 25);
-          nodes.forEach((nodeId, i) => {
-            const angle = (i / nodes.length) * Math.PI * 2;
-            const r = localRadius * (0.6 + Math.abs(jitter(i + idx * 100)) * 0.7);
-            graph.setNodeAttribute(nodeId, "x", cx + Math.cos(angle) * r);
-            graph.setNodeAttribute(nodeId, "y", cy + Math.sin(angle) * r);
-          });
-        });
-      } else {
-        // Sparse graph: random disc init with uniform area distribution.
-        const spread = Math.sqrt(graph.order) * 20;
-        const nodes = graph.nodes();
-        for (let i = 0; i < nodes.length; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          const r = Math.sqrt(Math.random()) * spread;
-          graph.setNodeAttribute(nodes[i], "x", Math.cos(angle) * r);
-          graph.setNodeAttribute(nodes[i], "y", Math.sin(angle) * r);
-        }
+      // Random disc init — uniform area distribution for all graph types.
+      const spread = Math.sqrt(graph.order) * 20;
+      const nodes = graph.nodes();
+      for (let i = 0; i < nodes.length; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * spread;
+        graph.setNodeAttribute(nodes[i], "x", Math.cos(angle) * r);
+        graph.setNodeAttribute(nodes[i], "y", Math.sin(angle) * r);
       }
 
-      // FA2 layout — Gephi-like defaults tuned per density.
-      // Sparse: gravity ≈ repulsion so orphans form loose cloud (not ring/grid).
-      // Dense: lower gravity, community seeds provide structure.
-      const isSparse = edgeDensity < 0.8;
-      const iterations = graph.order < 100 ? 300 : graph.order < 500 ? 200 : 120;
+      // Orphan ratio drives adaptive parameters:
+      // High orphan → stronger gravity (pull orphans to center), tighter layout
+      // Low orphan  → link forces dominate, more spread for cluster readability
+      let orphanCount = 0;
+      for (const node of nodes) {
+        if (graph.degree(node) === 0) orphanCount++;
+      }
+      const orphanRatio = orphanCount / graph.order;
+      const gravity = 0.5 + orphanRatio * 2.0;
+      const scalingRatio = 4.0 - orphanRatio * 2.0;
+      const iterations = graph.order < 100 ? 500 : graph.order < 500 ? 300 : 200;
+
       forceAtlas2.assign(graph, {
         iterations,
         settings: {
-          linLogMode: false,
-          outboundAttractionDistribution: false,
-          gravity: isSparse ? 3.0 : 0.15,
-          scalingRatio: isSparse ? 5.0 : 8,
-          adjustSizes: false,
-          strongGravityMode: false,
-          slowDown: 6,
-          barnesHutOptimize: graph.order > 300,
+          linLogMode: true,
+          outboundAttractionDistribution: true,
+          gravity,
+          scalingRatio,
+          adjustSizes: true,
+          strongGravityMode: true,
+          slowDown: 8,
+          barnesHutOptimize: graph.order > 100,
           edgeWeightInfluence: 0,
         },
       });
 
-      // Noverlap only for dense graphs — sparse graphs rely on FA2 repulsion
-      // to space nodes naturally. Noverlap on sparse data creates grid artifacts.
-      if (!isSparse) {
+      // Noverlap only for connected-heavy graphs (prevents overlap in dense clusters).
+      // Skip for high-orphan graphs to avoid grid artifacts.
+      if (orphanRatio < 0.3) {
         noverlap.assign(graph, {
-          maxIterations: 50,
-          settings: { margin: 3, ratio: 1.02, speed: 3, gridSize: 20 },
+          maxIterations: 30,
+          settings: { margin: 2, ratio: 1.02, speed: 3, gridSize: 20 },
         });
       }
     }

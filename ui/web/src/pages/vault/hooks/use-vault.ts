@@ -145,15 +145,26 @@ export function useVaultGraphData(agentId: string, opts?: { teamId?: string }) {
   return { documents, links: linksData ?? [], loading: docsLoading || linksLoading };
 }
 
+/** Enriched backlink with source doc metadata (from backend JOIN). */
+export interface VaultBacklink {
+  from_doc_id: string;
+  context: string;
+  title: string;
+  path: string;
+  team_id?: string;
+}
+
 /** Get links (outlinks + backlinks) for a vault document. */
 export function useVaultLinks(docId: string | null) {
   const http = useHttp();
 
   const { data, isLoading } = useQuery({
     queryKey: [VAULT_KEY, "links", docId],
-    queryFn: () => http.get<{ outlinks: VaultLink[]; backlinks: VaultLink[] }>(
-      `/v1/vault/documents/${docId}/links`,
-    ),
+    queryFn: () => http.get<{
+      outlinks: VaultLink[];
+      backlinks: VaultBacklink[];
+      doc_names: Record<string, string>;
+    }>(`/v1/vault/documents/${docId}/links`),
     enabled: !!docId,
     placeholderData: (prev) => prev,
   });
@@ -161,6 +172,7 @@ export function useVaultLinks(docId: string | null) {
   return {
     outlinks: data?.outlinks ?? [],
     backlinks: data?.backlinks ?? [],
+    docNames: data?.doc_names ?? {},
     loading: isLoading,
   };
 }
