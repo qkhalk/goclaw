@@ -15,7 +15,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 12
+const SchemaVersion = 13
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -366,6 +366,14 @@ WHERE a.deleted_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM agent_context_files WHERE agent_id = a.id AND file_name = 'AGENTS_TASK.md');
 
 DELETE FROM agent_context_files WHERE file_name = 'AGENTS_MINIMAL.md';`,
+
+	// Version 12 → 13: Phase 10 dreaming weighted scoring signals on
+	// episodic_summaries. Mirrors PG migration 000045.
+	12: `ALTER TABLE episodic_summaries ADD COLUMN recall_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE episodic_summaries ADD COLUMN recall_score REAL NOT NULL DEFAULT 0;
+ALTER TABLE episodic_summaries ADD COLUMN last_recalled_at TEXT;
+CREATE INDEX IF NOT EXISTS idx_episodic_recall_unpromoted ON episodic_summaries(agent_id, user_id, recall_score DESC)
+    WHERE promoted_at IS NULL;`,
 }
 
 // EnsureSchema creates tables if they don't exist and applies incremental migrations.

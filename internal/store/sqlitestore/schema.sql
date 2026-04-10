@@ -1414,7 +1414,12 @@ CREATE TABLE IF NOT EXISTS episodic_summaries (
     token_count INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     expires_at  TEXT,
-    promoted_at TEXT
+    promoted_at TEXT,
+    -- Phase 10: dreaming weighted scoring signals (running avg of memory_search
+    -- hit scores). See internal/consolidation/scoring.go::ComputeRecallScore.
+    recall_count     INTEGER NOT NULL DEFAULT 0,
+    recall_score     REAL    NOT NULL DEFAULT 0,
+    last_recalled_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_episodic_agent_user ON episodic_summaries(agent_id, user_id);
@@ -1422,6 +1427,8 @@ CREATE INDEX IF NOT EXISTS idx_episodic_tenant ON episodic_summaries(tenant_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_episodic_source_dedup ON episodic_summaries(agent_id, user_id, source_id)
     WHERE source_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodic_unpromoted ON episodic_summaries(agent_id, user_id, created_at)
+    WHERE promoted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_episodic_recall_unpromoted ON episodic_summaries(agent_id, user_id, recall_score DESC)
     WHERE promoted_at IS NULL;
 
 -- ============================================================
