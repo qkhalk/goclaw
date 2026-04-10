@@ -74,7 +74,13 @@ func (w *enrichWorker) Handle(ctx context.Context, event eventbus.DomainEvent) e
 	}
 	w.dedupMu.Unlock()
 
-	key := payload.TenantID + ":" + payload.AgentID
+	// Batch key: tenant + agent for agent-scoped docs. For team/shared docs
+	// (empty AgentID), use tenant + docID to avoid collapsing all into one queue.
+	batchScope := payload.AgentID
+	if batchScope == "" {
+		batchScope = payload.DocID
+	}
+	key := payload.TenantID + ":" + batchScope
 	if !w.queue.Enqueue(key, payload) {
 		return nil // another goroutine already processing this agent's queue
 	}
@@ -145,7 +151,6 @@ func (w *enrichWorker) processBatch(ctx context.Context, key string) {
 		}
 
 		// Phase 3 — Classify links (replaces autoLink).
-		// All items share same tenantID:agentID (batch queue key guarantees this).
 		if len(embedded) > 0 {
 			first := embedded[0].payload
 			w.classifyLinks(ctx, first.TenantID, first.AgentID, embedded)

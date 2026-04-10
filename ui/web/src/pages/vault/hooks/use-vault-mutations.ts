@@ -107,17 +107,16 @@ export function useCreateLink(agentId: string) {
   return { create };
 }
 
-/** Rescan workspace to sync vault documents from filesystem. */
-export function useRescanWorkspace(agentId: string) {
+/** Rescan workspace to sync vault documents from filesystem (tenant-wide). */
+export function useRescanWorkspace() {
   const http = useHttp();
   const queryClient = useQueryClient();
   const [isPending, setIsPending] = useState(false);
 
   const rescan = useCallback(async () => {
-    if (!agentId) return;
     setIsPending(true);
     try {
-      const result = await http.post<RescanResult>(`/v1/agents/${agentId}/vault/rescan`, {});
+      const result = await http.post<RescanResult>(`/v1/vault/rescan`, {});
       await queryClient.invalidateQueries({ queryKey: [VAULT_KEY] });
 
       const parts: string[] = [];
@@ -140,7 +139,7 @@ export function useRescanWorkspace(agentId: string) {
     } finally {
       setIsPending(false);
     }
-  }, [http, agentId, queryClient]);
+  }, [http, queryClient]);
 
   return { rescan, isPending };
 }

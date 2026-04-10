@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, FileArchive, Plus, PanelLeftOpen, FolderSync } from "lucide-react";
+import { Search, FileArchive, Plus, PanelLeftOpen, FolderSync, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgents } from "@/pages/agents/hooks/use-agents";
@@ -31,6 +31,7 @@ export function VaultPage() {
 
   const [selectedAgent, setSelectedAgent] = useState("");
   const [selectedTeam, setSelectedTeam] = useState("");
+  const [docType, setDocType] = useState("");
   const [detailDoc, setDetailDoc] = useState<VaultDocument | null>(null);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -38,10 +39,11 @@ export function VaultPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState(0);
 
-  const { rescan, isPending: rescanPending } = useRescanWorkspace(selectedAgent);
+  const { rescan, isPending: rescanPending } = useRescanWorkspace();
 
   const { documents, total, loading } = useVaultDocuments(selectedAgent, {
     teamId: selectedTeam || undefined,
+    docType: docType || undefined,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
@@ -60,6 +62,7 @@ export function VaultPage() {
 
   const handleAgentChange = (v: string) => { setSelectedAgent(v); setPage(0); };
   const handleTeamChange = (v: string) => { setSelectedTeam(v); setPage(0); };
+  const handleDocTypeChange = (v: string) => { setDocType(v); setPage(0); };
 
   // Sidebar click → open detail modal + highlight graph node
   const handleSidebarSelect = (doc: VaultDocument) => {
@@ -69,15 +72,15 @@ export function VaultPage() {
   };
 
   // Graph single-click → highlight only
-  const handleNodeSelect = (docId: string | null) => {
+  const handleNodeSelect = useCallback((docId: string | null) => {
     setSelectedDocId(docId);
-  };
+  }, []);
 
   // Graph double-click → open detail modal + highlight
-  const handleNodeDoubleClick = (doc: VaultDocument) => {
+  const handleNodeDoubleClick = useCallback((doc: VaultDocument) => {
     setDetailDoc(doc);
     setSelectedDocId(doc.id);
-  };
+  }, []);
 
   const handleCloseDetail = () => { setDetailDoc(null); };
 
@@ -104,6 +107,10 @@ export function VaultPage() {
           totalPages={totalPages}
           total={total}
           onPageChange={setPage}
+          docType={docType}
+          onDocTypeChange={handleDocTypeChange}
+          agentId={selectedAgent}
+          teamId={selectedTeam}
         />
       </div>
 
@@ -136,13 +143,11 @@ export function VaultPage() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span>
-                  <Button size="sm" variant="outline" onClick={() => rescan()} disabled={!selectedAgent || rescanPending}>
-                    <FolderSync className={`h-3.5 w-3.5${rescanPending ? " animate-spin" : ""}`} />
-                  </Button>
-                </span>
+                <Button size="sm" variant="outline" onClick={() => rescan()} disabled={rescanPending}>
+                  {rescanPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderSync className="h-3.5 w-3.5" />}
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>{!selectedAgent ? t("selectAgentFirst", "Select an agent first") : t("rescanTooltip", "Rescan workspace")}</TooltipContent>
+              <TooltipContent>{t("rescanTooltip", "Rescan workspace")}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <TooltipProvider>

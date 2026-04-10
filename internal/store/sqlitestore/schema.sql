@@ -1516,7 +1516,7 @@ CREATE INDEX IF NOT EXISTS idx_scuc_binary ON secure_cli_user_credentials(binary
 CREATE TABLE IF NOT EXISTS vault_documents (
     id           TEXT NOT NULL PRIMARY KEY,
     tenant_id    TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    agent_id     TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    agent_id     TEXT REFERENCES agents(id) ON DELETE SET NULL,
     team_id      TEXT REFERENCES agent_teams(id) ON DELETE SET NULL,
     scope        TEXT NOT NULL DEFAULT 'personal',
     custom_scope TEXT,
@@ -1531,7 +1531,7 @@ CREATE TABLE IF NOT EXISTS vault_documents (
 );
 -- SQLite prohibits expressions in inline UNIQUE constraints; use a unique index instead.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_vault_docs_unique_path
-    ON vault_documents(agent_id, COALESCE(team_id, ''), scope, path);
+    ON vault_documents(tenant_id, COALESCE(agent_id, ''), COALESCE(team_id, ''), scope, path);
 CREATE INDEX IF NOT EXISTS idx_vault_docs_tenant ON vault_documents(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_vault_docs_agent_scope ON vault_documents(agent_id, scope);
 CREATE INDEX IF NOT EXISTS idx_vault_docs_type ON vault_documents(agent_id, doc_type);
