@@ -68,6 +68,8 @@
     "media": "Media"
   },
   "rescanTooltip": "重新扫描工作区",
+  "enriching": "处理中",
+  "enrichComplete": "处理完成",
   "rescanNew": "{{count}} 个新文件",
   "rescanUpdated": "{{count}} 个已更新",
   "rescanUnchanged": "{{count}} 个未变",

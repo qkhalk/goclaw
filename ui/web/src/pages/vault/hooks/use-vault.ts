@@ -109,7 +109,7 @@ export function useVaultAllLinks(agentId: string, documents: { id: string }[]) {
         const results = await Promise.all(
           batch.map((id) =>
             http.get<{ outlinks: VaultLink[]; backlinks: VaultLink[] }>(
-              `/v1/agents/${agentId}/vault/documents/${id}/links`,
+              `/v1/vault/documents/${id}/links`,
             ).catch(() => ({ outlinks: [], backlinks: [] })),
           ),
         );
@@ -124,7 +124,7 @@ export function useVaultAllLinks(agentId: string, documents: { id: string }[]) {
         return true;
       });
     },
-    enabled: !!agentId && docIds.length > 0,
+    enabled: docIds.length > 0,
     staleTime: 60_000,
   });
 
@@ -157,34 +157,23 @@ export function useVaultGraphData(agentId: string, opts?: { teamId?: string }) {
     [documents],
   );
 
-  // Fetch links grouped by agent_id — works for both single-agent and all-agents mode.
+  // Fetch links for all docs via cross-agent endpoint (works for null agent_id too).
   const { data: linksData, isLoading: linksLoading } = useQuery({
     queryKey: [VAULT_KEY, "graph-links", docIdKey],
     queryFn: async () => {
       if (documents.length === 0) return [];
-      // Group doc IDs by agent_id
-      const byAgent = new Map<string, string[]>();
-      for (const doc of documents) {
-        const aid = doc.agent_id;
-        if (!aid) continue;
-        if (!byAgent.has(aid)) byAgent.set(aid, []);
-        byAgent.get(aid)!.push(doc.id);
-      }
-
       const allLinks: VaultLink[] = [];
-      for (const [aid, ids] of byAgent) {
-        const batchSize = 10;
-        for (let i = 0; i < ids.length; i += batchSize) {
-          const batch = ids.slice(i, i + batchSize);
-          const results = await Promise.all(
-            batch.map((id) =>
-              http.get<{ outlinks: VaultLink[]; backlinks: VaultLink[] }>(
-                `/v1/agents/${aid}/vault/documents/${id}/links`,
-              ).catch(() => ({ outlinks: [], backlinks: [] })),
-            ),
-          );
-          for (const r of results) allLinks.push(...r.outlinks);
-        }
+      const batchSize = 10;
+      for (let i = 0; i < documents.length; i += batchSize) {
+        const batch = documents.slice(i, i + batchSize);
+        const results = await Promise.all(
+          batch.map((doc) =>
+            http.get<{ outlinks: VaultLink[]; backlinks: VaultLink[] }>(
+              `/v1/vault/documents/${doc.id}/links`,
+            ).catch(() => ({ outlinks: [], backlinks: [] })),
+          ),
+        );
+        for (const r of results) allLinks.push(...r.outlinks);
       }
       // Dedup
       const seen = new Set<string>();
@@ -202,15 +191,15 @@ export function useVaultGraphData(agentId: string, opts?: { teamId?: string }) {
 }
 
 /** Get links (outlinks + backlinks) for a vault document. */
-export function useVaultLinks(agentId: string, docId: string | null) {
+export function useVaultLinks(docId: string | null) {
   const http = useHttp();
 
   const { data, isLoading } = useQuery({
-    queryKey: [VAULT_KEY, "links", agentId, docId],
+    queryKey: [VAULT_KEY, "links", docId],
     queryFn: () => http.get<{ outlinks: VaultLink[]; backlinks: VaultLink[] }>(
-      `/v1/agents/${agentId}/vault/documents/${docId}/links`,
+      `/v1/vault/documents/${docId}/links`,
     ),
-    enabled: !!docId && !!agentId,
+    enabled: !!docId,
     placeholderData: (prev) => prev,
   });
 

@@ -24,7 +24,7 @@ interface Props {
 
 export function VaultDetailDialog({ doc, open, onOpenChange, onDeleted }: Props) {
   const { t } = useTranslation("vault");
-  const { outlinks, backlinks, loading } = useVaultLinks(doc?.agent_id ?? "", doc?.id ?? null);
+  const { outlinks, backlinks, loading } = useVaultLinks(doc?.id ?? null);
 
   const [editMode, setEditMode] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -50,8 +50,8 @@ export function VaultDetailDialog({ doc, open, onOpenChange, onDeleted }: Props)
   );
   // Fetch image as authenticated blob URL for <img> rendering.
   const { url: imageUrl, error: imageError } = useVaultImageUrl(open && isMedia && isImage && doc ? doc.path : null);
-  const { update } = useUpdateDocument(doc?.agent_id ?? "", doc?.id ?? "");
-  const { remove: removeDoc } = useDeleteDocument(doc?.agent_id ?? "", doc?.id ?? "");
+  const { update } = useUpdateDocument(doc?.id ?? "");
+  const { remove: removeDoc } = useDeleteDocument(doc?.id ?? "");
 
   if (!doc) return null;
 
@@ -229,7 +229,7 @@ export function VaultDetailDialog({ doc, open, onOpenChange, onDeleted }: Props)
                 {outlinks.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-1 flex-1">
                     {outlinks.map((l) => (
-                      <LinkBadge key={l.id} link={l} agentId={doc.agent_id} t={t} />
+                      <LinkBadge key={l.id} link={l} t={t} />
                     ))}
                   </div>
                 ) : (

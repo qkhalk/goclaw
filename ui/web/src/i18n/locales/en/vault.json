@@ -68,6 +68,8 @@
     "media": "Media"
   },
   "rescanTooltip": "Rescan workspace",
+  "enriching": "Enriching",
+  "enrichComplete": "Enrichment complete",
   "rescanNew": "{{count}} new",
   "rescanUpdated": "{{count}} updated",
   "rescanUnchanged": "{{count}} unchanged",

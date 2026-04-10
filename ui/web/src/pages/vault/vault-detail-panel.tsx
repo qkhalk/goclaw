@@ -19,10 +19,10 @@ interface Props {
 
 export function VaultDetailPanel({ doc, open, onClose, onDeleted }: Props) {
   const { t } = useTranslation("vault");
-  const { outlinks, backlinks } = useVaultLinks(doc?.agent_id ?? "", doc?.id ?? null);
+  const { outlinks, backlinks } = useVaultLinks(doc?.id ?? null);
   const { content, loading: contentLoading, error: contentError } = useVaultFileContent(open && doc ? doc.path : null);
-  const { update } = useUpdateDocument(doc?.agent_id ?? "", doc?.id ?? "");
-  const { remove } = useDeleteDocument(doc?.agent_id ?? "", doc?.id ?? "");
+  const { update } = useUpdateDocument(doc?.id ?? "");
+  const { remove } = useDeleteDocument(doc?.id ?? "");
 
   const [editMode, setEditMode] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -151,7 +151,7 @@ export function VaultDetailPanel({ doc, open, onClose, onDeleted }: Props) {
               </div>
               {outlinks.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {outlinks.map((l) => <LinkBadge key={l.id} link={l} agentId={doc.agent_id} t={t} />)}
+                  {outlinks.map((l) => <LinkBadge key={l.id} link={l} t={t} />)}
                 </div>
               )}
             </div>

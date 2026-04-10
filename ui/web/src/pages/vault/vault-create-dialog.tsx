@@ -16,12 +16,13 @@ const SCOPES = ["personal", "team", "shared"] as const;
 
 interface Props {
   agentId: string;
+  teamId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void;
 }
 
-export function VaultCreateDialog({ agentId, open, onOpenChange, onCreated }: Props) {
+export function VaultCreateDialog({ agentId, teamId, open, onOpenChange, onCreated }: Props) {
   const { t } = useTranslation("vault");
   const { create } = useCreateDocument(agentId);
   const [saving, setSaving] = useState(false);
@@ -49,7 +50,7 @@ export function VaultCreateDialog({ agentId, open, onOpenChange, onCreated }: Pr
   const onValid = async (data: VaultCreateFormData) => {
     setSaving(true);
     try {
-      await create({ title: data.title.trim(), path: data.path.trim(), doc_type: data.docType, scope: data.scope });
+      await create({ title: data.title.trim(), path: data.path.trim(), doc_type: data.docType, scope: data.scope, ...(teamId ? { team_id: teamId } : {}) });
       reset();
       onCreated?.();
       onOpenChange(false);

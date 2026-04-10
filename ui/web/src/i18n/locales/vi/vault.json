@@ -68,6 +68,8 @@
     "media": "Media"
   },
   "rescanTooltip": "Quét lại workspace",
+  "enriching": "Đang xử lý",
+  "enrichComplete": "Xử lý hoàn tất",
   "rescanNew": "{{count}} mới",
   "rescanUpdated": "{{count}} cập nhật",
   "rescanUnchanged": "{{count}} không đổi",

@@ -99,9 +99,9 @@ export function ScopeSelect({ value, onChange, t }: ScopeSelectProps) {
 }
 
 /** Outlink badge with inline delete confirmation. */
-export function LinkBadge({ link, agentId, t }: { link: VaultLink; agentId: string; t: (k: string) => string }) {
+export function LinkBadge({ link, t }: { link: VaultLink; t: (k: string) => string }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const { remove } = useDeleteLink(agentId, link.id);
+  const { remove } = useDeleteLink(link.id);
 
   const handleDelete = async () => {
     try {

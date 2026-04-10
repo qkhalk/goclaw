@@ -34,14 +34,18 @@ type TeamLister interface {
 
 // VaultHandler serves Knowledge Vault document and link endpoints.
 type VaultHandler struct {
-	store      store.VaultStore
-	teamAccess store.TeamAccessStore // nil = skip team membership validation (e.g. lite edition)
-	agents     AgentLister           // nil = rescan skips agent resolution
-	teams      TeamLister            // nil = rescan skips team resolution
-	workspace  string
-	eventBus   eventbus.DomainEventBus
-	rescanMu   sync.Map // key: tenantID → struct{}, per-tenant concurrency guard
+	store          store.VaultStore
+	teamAccess     store.TeamAccessStore // nil = skip team membership validation (e.g. lite edition)
+	agents         AgentLister           // nil = rescan skips agent resolution
+	teams          TeamLister            // nil = rescan skips team resolution
+	workspace      string
+	eventBus       eventbus.DomainEventBus
+	enrichProgress *vault.EnrichProgress // nil = enrichment progress SSE disabled
+	rescanMu       sync.Map              // key: tenantID → struct{}, per-tenant concurrency guard
 }
+
+// SetEnrichProgress injects the enrichment progress tracker for SSE streaming.
+func (h *VaultHandler) SetEnrichProgress(p *vault.EnrichProgress) { h.enrichProgress = p }
 
 func NewVaultHandler(s store.VaultStore, ta store.TeamAccessStore, workspace string, bus eventbus.DomainEventBus, agents AgentLister, teams TeamLister) *VaultHandler {
 	return &VaultHandler{store: s, teamAccess: ta, agents: agents, teams: teams, workspace: workspace, eventBus: bus}
@@ -103,19 +107,26 @@ func (h *VaultHandler) applyNonOwnerTeamScope(ctx context.Context, opts *store.V
 }
 
 func (h *VaultHandler) RegisterRoutes(mux *http.ServeMux) {
-	// Cross-agent endpoints (agent_id optional).
+	// Cross-agent endpoints (agentID = "" from PathValue when no {agentID} in path).
 	mux.HandleFunc("GET /v1/vault/documents", h.auth(h.handleListAllDocuments))
 	mux.HandleFunc("POST /v1/vault/documents", h.auth(h.handleCreateDocument))
-	// Per-agent endpoints.
+	mux.HandleFunc("GET /v1/vault/documents/{docID}", h.auth(h.handleGetDocument))
+	mux.HandleFunc("PUT /v1/vault/documents/{docID}", h.auth(h.handleUpdateDocument))
+	mux.HandleFunc("DELETE /v1/vault/documents/{docID}", h.auth(h.handleDeleteDocument))
+	mux.HandleFunc("GET /v1/vault/documents/{docID}/links", h.auth(h.handleGetLinks))
+	mux.HandleFunc("POST /v1/vault/links", h.auth(h.handleCreateLink))
+	mux.HandleFunc("DELETE /v1/vault/links/{linkID}", h.auth(h.handleDeleteLink))
+	mux.HandleFunc("POST /v1/vault/rescan", h.auth(h.handleRescan))
+	mux.HandleFunc("POST /v1/vault/search", h.auth(h.handleSearchAll))
+	mux.HandleFunc("GET /v1/vault/enrichment/status", h.auth(h.handleEnrichmentStatus))
+	// Per-agent endpoints (backward compat — same handlers, agentID from path).
 	mux.HandleFunc("GET /v1/agents/{agentID}/vault/documents", h.auth(h.handleListDocuments))
 	mux.HandleFunc("GET /v1/agents/{agentID}/vault/documents/{docID}", h.auth(h.handleGetDocument))
 	mux.HandleFunc("POST /v1/agents/{agentID}/vault/documents", h.auth(h.handleCreateDocument))
 	mux.HandleFunc("PUT /v1/agents/{agentID}/vault/documents/{docID}", h.auth(h.handleUpdateDocument))
 	mux.HandleFunc("DELETE /v1/agents/{agentID}/vault/documents/{docID}", h.auth(h.handleDeleteDocument))
-	mux.HandleFunc("POST /v1/vault/rescan", h.auth(h.handleRescan))
-	mux.HandleFunc("POST /v1/vault/search", h.auth(h.handleSearchAll))
-	mux.HandleFunc("POST /v1/agents/{agentID}/vault/search", h.auth(h.handleSearch))
 	mux.HandleFunc("GET /v1/agents/{agentID}/vault/documents/{docID}/links", h.auth(h.handleGetLinks))
+	mux.HandleFunc("POST /v1/agents/{agentID}/vault/search", h.auth(h.handleSearch))
 	mux.HandleFunc("POST /v1/agents/{agentID}/vault/links", h.auth(h.handleCreateLink))
 	mux.HandleFunc("DELETE /v1/agents/{agentID}/vault/links/{linkID}", h.auth(h.handleDeleteLink))
 }
@@ -222,7 +233,7 @@ func (h *VaultHandler) handleGetDocument(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if doc == nil || (doc.AgentID != nil && *doc.AgentID != agentID) {
+	if doc == nil || (agentID != "" && doc.AgentID != nil && *doc.AgentID != agentID) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document not found"})
 		return
 	}
@@ -447,7 +458,7 @@ func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Reque
 	docID := r.PathValue("docID")
 
 	existing, err := h.store.GetDocumentByID(r.Context(), tenantID.String(), docID)
-	if err != nil || existing == nil || (existing.AgentID != nil && *existing.AgentID != agentID) {
+	if err != nil || existing == nil || (agentID != "" && existing.AgentID != nil && *existing.AgentID != agentID) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document not found"})
 		return
 	}
@@ -510,7 +521,7 @@ func (h *VaultHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Reque
 	docID := r.PathValue("docID")
 
 	existing, err := h.store.GetDocumentByID(r.Context(), tenantID.String(), docID)
-	if err != nil || existing == nil || (existing.AgentID != nil && *existing.AgentID != agentID) {
+	if err != nil || existing == nil || (agentID != "" && existing.AgentID != nil && *existing.AgentID != agentID) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document not found"})
 		return
 	}
@@ -567,7 +578,7 @@ func (h *VaultHandler) handleCreateLink(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "one or both documents not found"})
 		return
 	}
-	if from.AgentID != nil && *from.AgentID != agentID {
+	if agentID != "" && from.AgentID != nil && *from.AgentID != agentID {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "source document does not belong to this agent"})
 		return
 	}
@@ -640,6 +651,11 @@ func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Signal enrichment progress so WS subscribers see running=true immediately.
+	if h.enrichProgress != nil && (result.New+result.Updated) > 0 {
+		h.enrichProgress.Start(result.New+result.Updated, store.TenantIDFromContext(r.Context()))
+	}
+
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -675,6 +691,15 @@ func (h *VaultHandler) buildRescanMaps(ctx context.Context) (map[string]string, 
 		}
 	}
 	return agentMap, teamSet
+}
+
+// handleEnrichmentStatus returns the current enrichment pipeline progress as JSON.
+func (h *VaultHandler) handleEnrichmentStatus(w http.ResponseWriter, r *http.Request) {
+	if h.enrichProgress == nil {
+		writeJSON(w, http.StatusOK, vault.EnrichEvent{})
+		return
+	}
+	writeJSON(w, http.StatusOK, h.enrichProgress.Status())
 }
 
 var allowedDocTypes = map[string]bool{"context": true, "memory": true, "note": true, "skill": true, "episodic": true, "media": true}

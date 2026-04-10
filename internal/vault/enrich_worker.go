@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+
+	"github.com/google/uuid"
+	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,19 +42,23 @@ type EnrichWorkerDeps struct {
 	Provider   providers.Provider
 	Model      string
 	EventBus   eventbus.DomainEventBus
+	MsgBus     bus.EventPublisher // for WS event broadcast
 }
 
 // RegisterEnrichWorker subscribes the enrichment worker to vault doc events.
-// Returns an unsubscribe function for cleanup.
-func RegisterEnrichWorker(deps EnrichWorkerDeps) func() {
+// Returns (unsubscribe func, progress tracker for WS broadcast).
+func RegisterEnrichWorker(deps EnrichWorkerDeps) (func(), *EnrichProgress) {
+	progress := NewEnrichProgress(deps.MsgBus)
 	w := &enrichWorker{
 		vault:    deps.VaultStore,
 		provider: deps.Provider,
 		model:    deps.Model,
 		dedup:    make(map[string]string),
 		sem:      semaphore.NewWeighted(enrichMaxConcurrent),
+		progress: progress,
 	}
-	return deps.EventBus.Subscribe(eventbus.EventVaultDocUpserted, w.Handle)
+	unsub := deps.EventBus.Subscribe(eventbus.EventVaultDocUpserted, w.Handle)
+	return unsub, progress
 }
 
 // enrichWorker processes vault document upsert events to generate summaries,
@@ -61,6 +68,7 @@ type enrichWorker struct {
 	provider providers.Provider
 	model    string
 	queue    enrichBatchQueue
+	progress *EnrichProgress
 
 	// Bounded dedup: docID → content_hash. Prevents re-processing unchanged files.
 	dedupMu sync.Mutex
@@ -109,14 +117,26 @@ type enriched struct {
 // Items are chunked into enrichBatchSize groups so bulk rescan doesn't
 // overwhelm the LLM provider with hundreds of concurrent requests.
 func (w *enrichWorker) processBatch(ctx context.Context, key string) {
+	var totalQueued int
+
 	for {
 		items := w.queue.Drain(key)
 		if len(items) == 0 {
 			if w.queue.TryFinish(key) {
+				if totalQueued > 0 {
+					w.progress.Finish()
+				}
 				return
 			}
 			continue
 		}
+
+		totalQueued += len(items)
+		tenantID := uuid.Nil
+		if len(items) > 0 {
+			tenantID, _ = uuid.Parse(items[0].TenantID)
+		}
+		w.progress.Start(totalQueued, tenantID)
 
 		// Process in chunks of enrichBatchSize, up to enrichMaxConcurrent in parallel.
 		var wg sync.WaitGroup
@@ -130,11 +150,13 @@ func (w *enrichWorker) processBatch(ctx context.Context, key string) {
 				defer wg.Done()
 				defer w.sem.Release(1)
 				w.processChunk(ctx, chunk)
+				w.progress.AddDone(len(chunk))
 			}(items[start:end])
 		}
 		wg.Wait()
 
 		if w.queue.TryFinish(key) {
+			w.progress.Finish()
 			return
 		}
 	}
