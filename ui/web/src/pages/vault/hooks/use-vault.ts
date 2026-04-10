@@ -226,4 +226,5 @@ export {
   useDeleteDocument,
   useCreateLink,
   useDeleteLink,
+  useRescanWorkspace,
 } from "./use-vault-mutations";

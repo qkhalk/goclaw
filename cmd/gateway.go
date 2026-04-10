@@ -202,6 +202,8 @@ func runGateway() {
 				Provider:      consolidationProvider,
 				Model:         consolidationProvider.DefaultModel(),
 				Extractor:     kgExtractor,
+				// Per-agent dreaming overrides (MemoryConfig.Dreaming JSONB).
+				AgentStore: pgStores.Agents,
 			})
 			defer cleanupConsolidation()
 			slog.Info("consolidation pipeline registered")
@@ -301,6 +303,7 @@ func runGateway() {
 		skillsLoader:     skillsLoader,
 		workspace:        workspace,
 		dataDir:          dataDir,
+		domainBus:        domainBus,
 	}
 
 	gatewayAddr := loopbackAddr(cfg.Gateway.Host, cfg.Gateway.Port)

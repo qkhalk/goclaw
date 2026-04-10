@@ -64,6 +64,14 @@
     "skill": "Kỹ năng",
     "episodic": "Giai thoại"
   },
+  "rescanTooltip": "Quét lại workspace",
+  "rescanNew": "{{count}} mới",
+  "rescanUpdated": "{{count}} cập nhật",
+  "rescanUnchanged": "{{count}} không đổi",
+  "rescanTruncated": "quét bị cắt (đạt giới hạn)",
+  "rescanNoFiles": "Không tìm thấy file mới",
+  "rescanBusy": "Đang quét, vui lòng đợi",
+  "rescanError": "Quét thất bại",
   "toast": {
     "docCreated": "Đã tạo tài liệu",
     "docCreateFailed": "Tạo tài liệu thất bại",

@@ -56,8 +56,8 @@ func (v *VaultInterceptor) AfterWrite(ctx context.Context, resolvedPath, content
 	}
 
 	hash := vault.ContentHash([]byte(content))
-	title := inferVaultTitle(relPath)
-	docType := inferVaultDocType(relPath)
+	title := vault.InferTitle(relPath)
+	docType := vault.InferDocType(relPath)
 	scope, teamID := inferScopeFromContext(ctx)
 
 	doc := &store.VaultDocument{
@@ -123,7 +123,7 @@ func (v *VaultInterceptor) AfterWriteMedia(ctx context.Context, resolvedPath, su
 		return
 	}
 
-	title := inferVaultTitle(relPath)
+	title := vault.InferTitle(relPath)
 	scope, teamID := inferScopeFromContext(ctx)
 
 	doc := &store.VaultDocument{
@@ -199,38 +199,3 @@ func (v *VaultInterceptor) BeforeRead(ctx context.Context, resolvedPath string) 
 	}
 }
 
-// inferVaultTitle extracts a human-readable title from a file path.
-func inferVaultTitle(relPath string) string {
-	base := filepath.Base(relPath)
-	ext := filepath.Ext(base)
-	return strings.TrimSuffix(base, ext)
-}
-
-// inferVaultDocType guesses doc_type from path conventions.
-// Media extension check runs first — doc_type describes content format, not location.
-func inferVaultDocType(relPath string) string {
-	lower := strings.ToLower(relPath)
-	ext := strings.ToLower(filepath.Ext(relPath))
-
-	// Media types (images, video, audio)
-	switch ext {
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp",
-		".mp4", ".webm", ".mov", ".avi", ".mkv",
-		".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a":
-		return "media"
-	}
-
-	// Path-based inference
-	switch {
-	case strings.HasPrefix(lower, "memory/"):
-		return "memory"
-	case strings.Contains(lower, "soul.md") || strings.Contains(lower, "identity.md") || strings.Contains(lower, "agents.md"):
-		return "context"
-	case strings.HasPrefix(lower, "skills/") || strings.HasSuffix(lower, "skill.md"):
-		return "skill"
-	case strings.HasPrefix(lower, "episodic/"):
-		return "episodic"
-	default:
-		return "note"
-	}
-}

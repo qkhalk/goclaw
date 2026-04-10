@@ -64,6 +64,14 @@
     "skill": "Skill",
     "episodic": "Episodic"
   },
+  "rescanTooltip": "Rescan workspace",
+  "rescanNew": "{{count}} new",
+  "rescanUpdated": "{{count}} updated",
+  "rescanUnchanged": "{{count}} unchanged",
+  "rescanTruncated": "scan truncated (limit reached)",
+  "rescanNoFiles": "No new files found",
+  "rescanBusy": "Rescan already in progress",
+  "rescanError": "Rescan failed",
   "toast": {
     "docCreated": "Document created",
     "docCreateFailed": "Failed to create document",

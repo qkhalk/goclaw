@@ -4,11 +4,17 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/vault"
 )
 
 // vaultDocListResponse wraps the document list with total count for pagination.
@@ -21,10 +27,13 @@ type vaultDocListResponse struct {
 type VaultHandler struct {
 	store      store.VaultStore
 	teamAccess store.TeamAccessStore // nil = skip team membership validation (e.g. lite edition)
+	workspace  string
+	eventBus   eventbus.DomainEventBus
+	rescanMu   sync.Map // key: agentID → struct{}, per-agent concurrency guard
 }
 
-func NewVaultHandler(s store.VaultStore, ta store.TeamAccessStore) *VaultHandler {
-	return &VaultHandler{store: s, teamAccess: ta}
+func NewVaultHandler(s store.VaultStore, ta store.TeamAccessStore, workspace string, bus eventbus.DomainEventBus) *VaultHandler {
+	return &VaultHandler{store: s, teamAccess: ta, workspace: workspace, eventBus: bus}
 }
 
 // validateTeamMembership checks that the requesting user belongs to the given team.
@@ -91,6 +100,7 @@ func (h *VaultHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/agents/{agentID}/vault/documents", h.auth(h.handleCreateDocument))
 	mux.HandleFunc("PUT /v1/agents/{agentID}/vault/documents/{docID}", h.auth(h.handleUpdateDocument))
 	mux.HandleFunc("DELETE /v1/agents/{agentID}/vault/documents/{docID}", h.auth(h.handleDeleteDocument))
+	mux.HandleFunc("POST /v1/agents/{agentID}/vault/rescan", h.auth(h.handleRescan))
 	mux.HandleFunc("POST /v1/agents/{agentID}/vault/search", h.auth(h.handleSearch))
 	mux.HandleFunc("GET /v1/agents/{agentID}/vault/documents/{docID}/links", h.auth(h.handleGetLinks))
 	mux.HandleFunc("POST /v1/agents/{agentID}/vault/links", h.auth(h.handleCreateLink))
@@ -552,6 +562,57 @@ func (h *VaultHandler) handleDeleteLink(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleRescan walks agent workspace and registers missing/changed files in vault.
+func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("agentID")
+	if _, err := uuid.Parse(agentID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid agent_id"})
+		return
+	}
+
+	// Per-agent concurrency guard: only one rescan at a time.
+	if _, loaded := h.rescanMu.LoadOrStore(agentID, struct{}{}); loaded {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "rescan already in progress"})
+		return
+	}
+	defer h.rescanMu.Delete(agentID)
+
+	// Resolve workspace path for this agent.
+	wsPath := h.resolveAgentWorkspace(r.Context(), agentID)
+	if wsPath == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "workspace not available"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+
+	result, err := vault.RescanWorkspace(ctx, vault.RescanParams{
+		TenantID:  store.TenantIDFromContext(r.Context()).String(),
+		AgentID:   agentID,
+		Workspace: wsPath,
+	}, h.store, h.eventBus)
+	if err != nil {
+		slog.Warn("vault.rescan failed", "agent", agentID, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+// resolveAgentWorkspace returns the filesystem path to an agent's workspace.
+// Scopes by tenant to prevent cross-tenant file access.
+func (h *VaultHandler) resolveAgentWorkspace(ctx context.Context, agentID string) string {
+	if h.workspace == "" {
+		return ""
+	}
+	tenantID := store.TenantIDFromContext(ctx)
+	slug := store.TenantSlugFromContext(ctx)
+	ws := config.TenantWorkspace(h.workspace, tenantID, slug)
+	return filepath.Join(ws, agentID)
 }
 
 var allowedDocTypes = map[string]bool{"context": true, "memory": true, "note": true, "skill": true, "episodic": true, "media": true}

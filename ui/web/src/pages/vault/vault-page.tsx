@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, FileArchive, Plus, PanelLeftOpen } from "lucide-react";
+import { Search, FileArchive, Plus, PanelLeftOpen, FolderSync } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgents } from "@/pages/agents/hooks/use-agents";
 import { useTeams } from "@/pages/teams/hooks/use-teams";
 import { useIsMobile } from "@/hooks/use-media-query";
-import { useVaultDocuments, useVaultGraphData } from "./hooks/use-vault";
+import { useVaultDocuments, useVaultGraphData, useRescanWorkspace } from "./hooks/use-vault";
 import { VaultDocumentSidebar } from "./vault-document-sidebar";
 import { VaultSearchDialog } from "./vault-search-dialog";
 import { VaultCreateDialog } from "./vault-create-dialog";
@@ -37,6 +37,8 @@ export function VaultPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState(0);
+
+  const { rescan, isPending: rescanPending } = useRescanWorkspace(selectedAgent);
 
   const { documents, total, loading } = useVaultDocuments(selectedAgent, {
     teamId: selectedTeam || undefined,
@@ -131,6 +133,18 @@ export function VaultPage() {
           <Button size="sm" variant="outline" onClick={() => setSearchOpen(true)} disabled={!selectedAgent}>
             <Search className="h-3.5 w-3.5" />
           </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button size="sm" variant="outline" onClick={() => rescan()} disabled={!selectedAgent || rescanPending}>
+                    <FolderSync className={`h-3.5 w-3.5${rescanPending ? " animate-spin" : ""}`} />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{!selectedAgent ? t("selectAgentFirst", "Select an agent first") : t("rescanTooltip", "Rescan workspace")}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
