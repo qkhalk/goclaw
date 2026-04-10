@@ -103,8 +103,9 @@ func (h *VaultHandler) applyNonOwnerTeamScope(ctx context.Context, opts *store.V
 }
 
 func (h *VaultHandler) RegisterRoutes(mux *http.ServeMux) {
-	// Cross-agent endpoint (agent_id optional query param).
+	// Cross-agent endpoints (agent_id optional).
 	mux.HandleFunc("GET /v1/vault/documents", h.auth(h.handleListAllDocuments))
+	mux.HandleFunc("POST /v1/vault/documents", h.auth(h.handleCreateDocument))
 	// Per-agent endpoints.
 	mux.HandleFunc("GET /v1/agents/{agentID}/vault/documents", h.auth(h.handleListDocuments))
 	mux.HandleFunc("GET /v1/agents/{agentID}/vault/documents/{docID}", h.auth(h.handleGetDocument))
@@ -383,6 +384,10 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path and title are required"})
 		return
 	}
+	if strings.Contains(body.Path, "..") || strings.HasPrefix(body.Path, "/") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
 	if body.DocType == "" {
 		body.DocType = "note"
 	}
@@ -400,12 +405,16 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 
 	doc := &store.VaultDocument{
 		TenantID: tenantID.String(),
-		AgentID:  &agentID,
 		Path:     body.Path,
 		Title:    body.Title,
 		DocType:  body.DocType,
 		Scope:    body.Scope,
 		Metadata: body.Metadata,
+	}
+	if agentID != "" {
+		doc.AgentID = &agentID
+	} else if doc.Scope == "personal" {
+		doc.Scope = "shared" // no agent → shared scope
 	}
 	if body.TeamID != "" {
 		if !h.validateTeamMembership(r.Context(), w, body.TeamID) {

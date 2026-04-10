@@ -18,7 +18,7 @@ interface RescanResult {
 
 const VAULT_KEY = "vault";
 
-/** Create a new vault document. */
+/** Create a new vault document. Agent-scoped or cross-agent (empty agentId). */
 export function useCreateDocument(agentId: string) {
   const http = useHttp();
   const queryClient = useQueryClient();
@@ -26,7 +26,8 @@ export function useCreateDocument(agentId: string) {
   const create = useCallback(
     async (body: { path: string; title: string; doc_type: string; scope: string; metadata?: Record<string, unknown> }) => {
       try {
-        const doc = await http.post<VaultDocument>(`/v1/agents/${agentId}/vault/documents`, body);
+        const url = agentId ? `/v1/agents/${agentId}/vault/documents` : `/v1/vault/documents`;
+        const doc = await http.post<VaultDocument>(url, body);
         await queryClient.invalidateQueries({ queryKey: [VAULT_KEY] });
         toast.success(i18n.t("vault:toast.docCreated"));
         return doc;

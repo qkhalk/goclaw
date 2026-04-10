@@ -154,12 +154,11 @@ export function VaultPage() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <Button size="sm" onClick={() => setCreateOpen(true)} disabled={!selectedAgent}>
+                  <Button size="sm" onClick={() => setCreateOpen(true)}>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </span>
               </TooltipTrigger>
-              {!selectedAgent && <TooltipContent>{t("selectAgentFirst", "Select an agent first")}</TooltipContent>}
             </Tooltip>
           </TooltipProvider>
         </div>
@@ -185,7 +184,7 @@ export function VaultPage() {
           onSelectResult={(doc) => { setDetailDoc(doc); setSelectedDocId(doc.id); }}
         />
       )}
-      {selectedAgent && <VaultCreateDialog agentId={selectedAgent} open={createOpen} onOpenChange={setCreateOpen} />}
+      <VaultCreateDialog agentId={selectedAgent} open={createOpen} onOpenChange={setCreateOpen} />
 
       {/* Detail dialog for all document views */}
       <Suspense fallback={null}>
