@@ -68,7 +68,10 @@ func (s *PGKnowledgeGraphStore) ListEntitiesTemporal(ctx context.Context, agentI
 
 // SupersedeEntity atomically expires the old entity and inserts a replacement.
 func (s *PGKnowledgeGraphStore) SupersedeEntity(ctx context.Context, old *store.Entity, replacement *store.Entity) error {
-	aid := mustParseUUID(old.AgentID)
+	aid, err := parseUUID(old.AgentID)
+	if err != nil {
+		return fmt.Errorf("kg supersede entity: %w", err)
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("supersede begin tx: %w", err)

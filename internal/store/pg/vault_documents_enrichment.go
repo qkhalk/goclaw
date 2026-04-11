@@ -10,12 +10,18 @@ import (
 
 // UpdateSummaryAndReembed updates the document summary and re-embeds the combined text.
 func (s *PGVaultStore) UpdateSummaryAndReembed(ctx context.Context, tenantID, docID, summary string) error {
-	tid := mustParseUUID(tenantID)
-	did := mustParseUUID(docID)
+	tid, err := parseUUID(tenantID)
+	if err != nil {
+		return fmt.Errorf("vault update summary: tenant: %w", err)
+	}
+	did, err := parseUUID(docID)
+	if err != nil {
+		return fmt.Errorf("vault update summary: doc: %w", err)
+	}
 
 	// Fetch title+path to build embed text.
 	var title, path string
-	err := s.db.QueryRowContext(ctx,
+	err = s.db.QueryRowContext(ctx,
 		`SELECT title, path FROM vault_documents WHERE id = $1 AND tenant_id = $2`,
 		did, tid,
 	).Scan(&title, &path)
