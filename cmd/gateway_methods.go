@@ -43,10 +43,15 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 
 	// Phase 2: Heartbeat
 	heartbeatMethods := methods.NewHeartbeatMethods(heartbeatStore, msgBus)
+	// Wire cache-aware resolver (Phase 3): accepts agent_key or UUID input
+	// without a DB roundtrip on the hot path when the agent is router-cached.
+	heartbeatMethods.SetAgentRouter(agents)
 	heartbeatMethods.Register(router)
 
 	// Phase 2: Config permissions
-	methods.NewConfigPermissionsMethods(configPermStore, agentStore).Register(router)
+	cfgPerms := methods.NewConfigPermissionsMethods(configPermStore, agentStore)
+	cfgPerms.SetAgentRouter(agents)
+	cfgPerms.Register(router)
 
 	// Phase 2: Pairing (store created externally, shared with channel manager).
 	// OnApprove callback is set later by the caller after channel manager is created.
