@@ -92,9 +92,11 @@ func RunPreflight(ctx context.Context, dsn, dataDir, workspace string) *Prefligh
 	}
 
 	// Collect warnings from non-ok checks (use make to avoid JSON null).
+	// Both "warning" and "missing" surface Detail (the problem) so the user
+	// sees the actual cause, not just the Hint (the fix).
 	warnings := make([]string, 0)
 	for _, c := range checks {
-		if c.Status == "warning" {
+		if (c.Status == "warning" || c.Status == "missing") && c.Detail != "" {
 			warnings = append(warnings, c.Detail)
 		}
 		if c.Hint != "" {
