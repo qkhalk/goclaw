@@ -20,8 +20,9 @@ type messageContext struct {
 	Content     string
 	ContentType string // "text", "post", "image", etc.
 	MentionedBot bool
-	RootID      string // thread root message ID
-	ParentID    string // parent message ID
+	RootID      string // reply-chain root (populated on ANY reply, incl. plain quote reply)
+	ParentID    string // direct parent in reply chain
+	ThreadID    string // set ONLY when message is inside an actual topic thread
 	Mentions    []mentionInfo
 }
 
@@ -172,6 +173,22 @@ func (c *Channel) handleMessageEvent(ctx context.Context, event *MessageEvent) {
 		"display_name":  channels.SanitizeDisplayName(senderName),
 		"mentioned_bot": fmt.Sprintf("%t", mc.MentionedBot),
 		"platform":      channels.TypeFeishu,
+	}
+
+	// Thread routing: stamp the triggering message ID ONLY when the inbound
+	// message is inside an actual topic thread (thread_id present per Lark
+	// docs). We deliberately do NOT fire on mc.RootID — Lark populates root_id
+	// on every reply including plain quote replies outside any thread, and
+	// routing those through the reply endpoint would silently promote them to
+	// new threads. thread_id is the definitive signal.
+	//
+	// Outbound Send() reads this key and, when non-empty, routes to the Lark
+	// reply endpoint with reply_in_thread=true so the bot response lands
+	// inside the same thread. Absent on non-thread messages — preserves
+	// existing new-message endpoint behavior for DMs, plain groups, and quote
+	// replies.
+	if mc.ThreadID != "" {
+		metadata["feishu_reply_target_id"] = messageID
 	}
 
 	if sender != nil {

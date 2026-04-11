@@ -367,6 +367,15 @@ When enabled, each thread gets an isolated session:
 - Different threads within the same group maintain separate conversation histories
 - Disabled by default
 
+### Thread Reply Routing
+
+When a message is sent inside a Lark thread (detected via the `thread_id` field in the inbound event), the inbound handler stamps `metadata["feishu_reply_target_id"]` with the triggering message ID. During outbound delivery, the channel routes responses back to the same thread using `LarkClient.ReplyMessage()` which POSTs to `/open-apis/im/v1/messages/{message_id}/reply` with `reply_in_thread: true`.
+
+- **Automatic thread detection**: No configuration needed; replies are routed based on inbound `thread_id`
+- **Metadata propagation**: The `feishu_reply_target_id` key is included in the `routingMetaKeys` allowlist so replies, block replies, and placeholder updates all land in the correct thread
+- **Graceful fallback**: If the reply endpoint fails (e.g., thread root deleted), the channel falls back to `SendMessage()` for the regular chat
+- **Applies to**: Text, card, image, and file messages
+
 ---
 
 ## 7. Discord

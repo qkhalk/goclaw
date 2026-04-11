@@ -32,6 +32,13 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ## [Unreleased]
 
+### Fixed
+
+#### Feishu/Lark Thread Reply Routing — Issue #818 (2026-04-11)
+- **Thread detection**: Inbound messages with `thread_id` now properly route responses back to the same Feishu thread via `/open-apis/im/v1/messages/{id}/reply` endpoint
+- **Metadata propagation**: New `feishu_reply_target_id` metadata key added to `routingMetaKeys` allowlist so all outbound messages (text, cards, files, reactions) land in the correct thread
+- **Graceful fallback**: If thread root is deleted, channel falls back to regular `SendMessage()` for robustness
+
 ### Testing
 
 #### Test Coverage Improvement — Wave 1-3 (2026-04-11)
