@@ -41,13 +41,24 @@ type Channel struct {
 	senderCache    sync.Map // open_id → *senderCacheEntry
 	dedup          sync.Map // message_id → struct{}
 	reactions      sync.Map // chatID → *reactionState
-	groupAllowList []string // Feishu-specific: per-group sender allowlist (separate from BaseChannel allowList)
+	docCache       *docCache // LRU+TTL cache for Lark docx raw_content lookups
+	groupAllowList []string  // Feishu-specific: per-group sender allowlist (separate from BaseChannel allowList)
 	stopCh         chan struct{}
 	httpServer     *http.Server
 	wsClient       *WSClient
 	// pairingService, pairingDebounce, approvedGroups, groupHistory, historyLimit
 	// are inherited from channels.BaseChannel.
 }
+
+// Lark docs auto-fetch tunables. Kept as consts rather than config fields
+// because YAGNI — operators can ask for knobs later if real usage needs them.
+const (
+	larkDocCacheSize     = 128
+	larkDocCacheTTL      = 5 * time.Minute
+	larkDocMaxContentLen = 8000 // cap per doc to avoid blowing the LLM context window
+	larkDocFetchMaxConc  = 3    // bounded concurrent fetches per message
+	larkDocMaxPerMessage = 10   // cap doc references per inbound message (spam guard)
+)
 
 // reactionState tracks an active typing reaction on a user's message.
 type reactionState struct {
@@ -83,6 +94,7 @@ func New(cfg config.FeishuConfig, msgBus *bus.MessageBus, pairingSvc store.Pairi
 		BaseChannel:    base,
 		cfg:            cfg,
 		client:         client,
+		docCache:       newDocCache(larkDocCacheSize, larkDocCacheTTL),
 		groupAllowList: cfg.GroupAllowFrom,
 		stopCh:         make(chan struct{}),
 	}

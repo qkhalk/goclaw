@@ -130,7 +130,18 @@ func (c *Channel) handleMessageEvent(ctx context.Context, event *MessageEvent) {
 		content = "[empty message]"
 	}
 
-	// 7b. Fetch reply context + media if this is a reply to another message
+	// 7a. Lark doc auto-fetch: expand any docx URLs in the message body into
+	// inline context blocks so the agent can read linked docs without a tool
+	// call. Cached per channel for the TTL window. Missing permission / dead
+	// links fail soft with a marker string.
+	content = c.resolveLarkDocs(ctx, content)
+
+	// 7b. Fetch reply context + media if this is a reply to another message.
+	// We intentionally do NOT recurse into resolveLarkDocs for the parent
+	// message body — expanding doc URLs in older messages would bloat the
+	// prompt unpredictably (one quote reply could drag in multiple docs the
+	// user never intended to reference). Users must include the doc URL in
+	// their own new message to get auto-fetch behavior.
 	var replyMediaList []media.MediaInfo
 	if mc.ParentID != "" {
 		replyCtx, replyMedia := c.fetchReplyContext(ctx, mc.ParentID)

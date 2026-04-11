@@ -376,6 +376,27 @@ When a message is sent inside a Lark thread (detected via the `thread_id` field 
 - **Graceful fallback**: If the reply endpoint fails (e.g., thread root deleted), the channel falls back to `SendMessage()` for the regular chat
 - **Applies to**: Text, card, image, and file messages
 
+### Document URL Auto-Fetch
+
+When a user pastes a Lark docx (document) URL in a message, the channel automatically fetches the document raw text and injects it into the agent prompt for context.
+
+**URL detection**: Regex pattern matches `https://*.larksuite.com/docx/<id>` and `*.feishu.cn/docx/<id>` URLs.
+
+**Auto-fetch behavior**:
+- Document content fetched via Lark API `GET /open-apis/docx/v1/documents/{id}/raw_content`
+- Content injected as `[Lark Doc: <url>] ... [End of Lark Doc]` markers around the raw text
+- Rune-safe truncation at 8000 runes per document to respect token budgets
+- Results cached per channel instance with LRU eviction (128 entries, 5-minute TTL)
+
+**Access control**: Requires bot app to have `docx:document:readonly` permission **and** document owner must explicitly grant the bot access to each document. If access is denied or document not found, a visible inline marker appears: `[Lark Doc X: access denied — grant the bot app read permission on this document]`
+
+**Safeguards**:
+- Limited to docx documents only (sheets, base, wiki deferred)
+- Maximum 10 document fetches per inbound message (spam protection)
+- Soft-fail on API errors (no outbound message blocks)
+
+**Configuration**: No new config flags. Supported document type and cache tunables (8000 rune limit, 10-URL cap, 5-min TTL, 128-entry cache) are hardcoded.
+
 ---
 
 ## 7. Discord

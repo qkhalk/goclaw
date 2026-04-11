@@ -34,10 +34,20 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ### Fixed
 
-#### Feishu/Lark Thread Reply Routing — Issue #818 (2026-04-11)
+#### Feishu/Lark Thread Reply Routing — Issue #818 Phase 1 (2026-04-11)
 - **Thread detection**: Inbound messages with `thread_id` now properly route responses back to the same Feishu thread via `/open-apis/im/v1/messages/{id}/reply` endpoint
 - **Metadata propagation**: New `feishu_reply_target_id` metadata key added to `routingMetaKeys` allowlist so all outbound messages (text, cards, files, reactions) land in the correct thread
 - **Graceful fallback**: If thread root is deleted, channel falls back to regular `SendMessage()` for robustness
+
+### Added
+
+#### Feishu/Lark Document URL Auto-Fetch — Issue #818 Phase 2 (2026-04-11)
+- **Automatic docx fetching**: Users paste Lark docx URLs in chat; channel auto-detects and fetches raw text via `/open-apis/docx/v1/documents/{id}/raw_content`
+- **Transparent context injection**: Document content embedded as `[Lark Doc: URL] ... [End of Lark Doc]` markers, visible to agent for reasoning
+- **Smart caching**: LRU cache per channel instance (128 entries, 5-minute TTL) reduces redundant API calls
+- **Rune-safe truncation**: 8000-rune limit per document prevents token budget overrun
+- **Access control**: Requires bot app `docx:document:readonly` permission + per-document grant from owner. Access denied displays inline marker with grant instructions
+- **Safeguards**: Docx-only (sheets/base/wiki deferred), max 10 URLs per message, soft-fail on errors (no message blocks)
 
 ### Testing
 
