@@ -173,6 +173,58 @@ func TestRouterGet_DualTenantSameAgentKey(t *testing.T) {
 	}
 }
 
+// TestRouterGet_StaleRawUUIDEntryEvictedOnGet pins that a pre-hardening
+// fragmented entry written under a raw UUID key still goes through the
+// TTL-based eviction branch when a UUID-form caller arrives after TTL expiry.
+// Scenario: an earlier build that did not canonicalize wrote the entry at
+// `tenantID:<uuidStr>`, the new build loads that state (synthesized here via
+// direct map write), TTL expires, and a UUID caller with the same UUID must
+// evict + re-resolve + write the canonical `tenantID:agentKey` entry, leaving
+// no fragmented entries behind.
+func TestRouterGet_StaleRawUUIDEntryEvictedOnGet(t *testing.T) {
+	r := NewRouter()
+
+	var resolveCount atomic.Int32
+	r.SetResolver(func(_ context.Context, _ string) (Agent, error) {
+		resolveCount.Add(1)
+		return &stubAgent{id: "fresh-agent"}, nil
+	})
+
+	tenantID := uuid.New()
+	ctx := store.WithTenantID(context.Background(), tenantID)
+	uuidStr := uuid.New().String()
+	rawKey := tenantID.String() + ":" + uuidStr
+	canonicalKey := tenantID.String() + ":fresh-agent"
+
+	// Synthesize the pre-hardening fragmented entry directly. Stale cachedAt
+	// forces the initial-miss eviction path.
+	r.mu.Lock()
+	r.agents[rawKey] = &agentEntry{
+		agent:    &stubAgent{id: "fresh-agent"},
+		cachedAt: time.Now().Add(-2 * defaultRouterTTL),
+	}
+	r.mu.Unlock()
+
+	if _, err := r.Get(ctx, uuidStr); err != nil {
+		t.Fatalf("Get(uuid) with fragmented raw-UUID entry: %v", err)
+	}
+	if resolveCount.Load() != 1 {
+		t.Errorf("resolver calls = %d, want 1 (raw-UUID entry should have been evicted as stale)", resolveCount.Load())
+	}
+
+	r.mu.RLock()
+	_, rawExists := r.agents[rawKey]
+	_, canonicalExists := r.agents[canonicalKey]
+	r.mu.RUnlock()
+
+	if rawExists {
+		t.Errorf("fragmented raw-UUID entry %q still in cache after TTL eviction", rawKey)
+	}
+	if !canonicalExists {
+		t.Errorf("canonical entry %q missing after resolver rewrite", canonicalKey)
+	}
+}
+
 // TestRouterGet_CanonicalDoubleCheckEvictsStaleEntry pins the TTL check inside
 // the canonical double-check branch. Scenario: an earlier caller wrote the
 // canonical entry, TTL expires, a UUID-form caller arrives. The raw UUID key
