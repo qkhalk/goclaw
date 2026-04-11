@@ -145,7 +145,7 @@ func (s *PGVaultStore) GetDocument(ctx context.Context, tenantID, agentID, path 
 		return nil, fmt.Errorf("vault get document: tenant: %w", err)
 	}
 
-	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, title, doc_type, content_hash, summary, metadata, created_at, updated_at
+	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents WHERE tenant_id = $1 AND path = $2`
 	args := []any{tid, path}
 	p := 3
@@ -197,10 +197,10 @@ func (s *PGVaultStore) GetDocumentByID(ctx context.Context, tenantID, id string)
 	}
 	var row vaultDocRow
 	err = s.db.QueryRowContext(ctx, `
-		SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, title, doc_type, content_hash, summary, metadata, created_at, updated_at
+		SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents WHERE id = $1 AND tenant_id = $2`, uid, tid,
 	).Scan(&row.ID, &row.TenantID, &row.AgentID, &row.TeamID, &row.Scope, &row.CustomScope,
-		&row.Path, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
+		&row.Path, &row.PathBasename, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
 		&row.MetaJSON, &row.CreatedAt, &row.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -225,7 +225,7 @@ func (s *PGVaultStore) GetDocumentsByIDs(ctx context.Context, tenantID string, d
 		end := min(start+chunkSize, len(docIDs))
 		var scanned []vaultDocRow
 		if err := pkgSqlxDB.SelectContext(ctx, &scanned,
-			`SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, title, doc_type, content_hash, summary, metadata, created_at, updated_at
+			`SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 			 FROM vault_documents WHERE id = ANY($1) AND tenant_id = $2`,
 			pqStringArray(docIDs[start:end]), tid); err != nil {
 			return nil, err
@@ -244,7 +244,7 @@ func (s *PGVaultStore) GetDocumentByBasename(ctx context.Context, tenantID, agen
 	if err != nil {
 		return nil, fmt.Errorf("vault get by basename: tenant: %w", err)
 	}
-	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, title, doc_type, content_hash, summary, metadata, created_at, updated_at
+	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents
 		WHERE tenant_id = $1 AND path_basename = lower($2)`
 	args := []any{tid, basename}
@@ -317,7 +317,7 @@ func (s *PGVaultStore) ListDocuments(ctx context.Context, tenantID, agentID stri
 		return nil, fmt.Errorf("vault list documents: tenant: %w", err)
 	}
 
-	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, title, doc_type, content_hash, summary, metadata, created_at, updated_at
+	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents WHERE tenant_id = $1`
 	args := []any{tid}
 	p := 2
@@ -532,7 +532,7 @@ func (tf searchTeamFilter) append(q string, args []any, p int) (string, []any, i
 }
 
 func (s *PGVaultStore) ftsSearch(ctx context.Context, query string, tenantID uuid.UUID, agentID *uuid.UUID, tf searchTeamFilter, scope string, docTypes []string, limit int) ([]store.VaultSearchResult, error) {
-	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, title, doc_type, content_hash, summary, metadata, created_at, updated_at,
+	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at,
 			ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
 		FROM vault_documents
 		WHERE tenant_id = $2 AND tsv @@ plainto_tsquery('simple', $1)`
@@ -570,7 +570,7 @@ func (s *PGVaultStore) ftsSearch(ctx context.Context, query string, tenantID uui
 
 func (s *PGVaultStore) vectorSearch(ctx context.Context, embedding []float32, tenantID uuid.UUID, agentID *uuid.UUID, tf searchTeamFilter, scope string, docTypes []string, limit int) ([]store.VaultSearchResult, error) {
 	vecStr := vectorToString(embedding)
-	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, title, doc_type, content_hash, summary, metadata, created_at, updated_at,
+	q := `SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at,
 			1 - (embedding <=> $1) AS score
 		FROM vault_documents
 		WHERE tenant_id = $2 AND embedding IS NOT NULL`

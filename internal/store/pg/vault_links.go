@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -75,7 +76,8 @@ func (s *PGVaultStore) CreateLinks(ctx context.Context, links []store.VaultLink)
 	for start := 0; start < len(valid); start += chunkSize {
 		end := min(start+chunkSize, len(valid))
 		chunk := valid[start:end]
-		const paramsPerRow = 6 // id, from_doc_id, to_doc_id, link_type, context, created_at
+		// id, from_doc_id, to_doc_id, link_type, context, metadata, created_at
+		const paramsPerRow = 7
 		args := make([]any, 0, len(chunk)*paramsPerRow)
 		ph := make([]string, 0, len(chunk))
 		now := time.Now().UTC()
@@ -88,17 +90,25 @@ func (s *PGVaultStore) CreateLinks(ctx context.Context, links []store.VaultLink)
 			if err != nil {
 				return fmt.Errorf("vault batch create links: to_doc_id: %w", err)
 			}
+			metaJSON, merr := json.Marshal(l.Metadata)
+			if merr != nil || len(metaJSON) == 0 {
+				metaJSON = []byte("{}")
+			}
 			b := i * paramsPerRow
-			ph = append(ph, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d)", b+1, b+2, b+3, b+4, b+5, b+6))
+			ph = append(ph, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+				b+1, b+2, b+3, b+4, b+5, b+6, b+7))
 			args = append(args,
 				uuid.Must(uuid.NewV7()),
 				fromID, toID,
-				l.LinkType, l.Context, now,
+				l.LinkType, l.Context, metaJSON, now,
 			)
 		}
-		q := `INSERT INTO vault_links (id, from_doc_id, to_doc_id, link_type, context, created_at)
+		// Single-winner metadata (Phase 03): ON CONFLICT replaces metadata.
+		q := `INSERT INTO vault_links (id, from_doc_id, to_doc_id, link_type, context, metadata, created_at)
 			VALUES ` + strings.Join(ph, ",") + `
-			ON CONFLICT (from_doc_id, to_doc_id, link_type) DO UPDATE SET context = EXCLUDED.context`
+			ON CONFLICT (from_doc_id, to_doc_id, link_type) DO UPDATE SET
+				context = EXCLUDED.context,
+				metadata = EXCLUDED.metadata`
 		if _, err := s.db.ExecContext(ctx, q, args...); err != nil {
 			return fmt.Errorf("vault batch create links: %w", err)
 		}
@@ -143,16 +153,21 @@ func (s *PGVaultStore) CreateLink(ctx context.Context, link *store.VaultLink) er
 		return fmt.Errorf("vault link: documents belong to different teams")
 	}
 
+	metaJSON, mErr := json.Marshal(link.Metadata)
+	if mErr != nil || len(metaJSON) == 0 {
+		metaJSON = []byte("{}")
+	}
 	id := uuid.Must(uuid.NewV7())
 	now := time.Now().UTC()
 	var actualID uuid.UUID
 	err = s.db.QueryRowContext(ctx, `
-		INSERT INTO vault_links (id, from_doc_id, to_doc_id, link_type, context, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO vault_links (id, from_doc_id, to_doc_id, link_type, context, metadata, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (from_doc_id, to_doc_id, link_type) DO UPDATE SET
-			context = EXCLUDED.context
+			context = EXCLUDED.context,
+			metadata = EXCLUDED.metadata
 		RETURNING id`,
-		id, fromID, toID, link.LinkType, link.Context, now,
+		id, fromID, toID, link.LinkType, link.Context, metaJSON, now,
 	).Scan(&actualID)
 	if err != nil {
 		return fmt.Errorf("vault create link: %w", err)
@@ -189,7 +204,7 @@ func (s *PGVaultStore) GetOutLinks(ctx context.Context, tenantID, docID string) 
 		return nil, fmt.Errorf("vault get out links: tenant: %w", err)
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT vl.id, vl.from_doc_id, vl.to_doc_id, vl.link_type, vl.context, vl.created_at
+		SELECT vl.id, vl.from_doc_id, vl.to_doc_id, vl.link_type, vl.context, vl.metadata, vl.created_at
 		FROM vault_links vl
 		JOIN vault_documents vd ON vl.from_doc_id = vd.id
 		WHERE vl.from_doc_id = $1 AND vd.tenant_id = $2
@@ -211,7 +226,7 @@ func (s *PGVaultStore) GetOutLinksBatch(ctx context.Context, tenantID string, do
 		return nil, fmt.Errorf("vault get out links batch: %w", err)
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT vl.id, vl.from_doc_id, vl.to_doc_id, vl.link_type, vl.context, vl.created_at
+		SELECT vl.id, vl.from_doc_id, vl.to_doc_id, vl.link_type, vl.context, vl.metadata, vl.created_at
 		FROM vault_links vl
 		JOIN vault_documents vd ON vl.from_doc_id = vd.id
 		WHERE vl.from_doc_id = ANY($1) AND vd.tenant_id = $2
@@ -334,12 +349,16 @@ func scanVaultLinks(rows *sql.Rows) ([]store.VaultLink, error) {
 	for rows.Next() {
 		var l store.VaultLink
 		var id, fromID, toID uuid.UUID
-		if err := rows.Scan(&id, &fromID, &toID, &l.LinkType, &l.Context, &l.CreatedAt); err != nil {
+		var metaJSON []byte
+		if err := rows.Scan(&id, &fromID, &toID, &l.LinkType, &l.Context, &metaJSON, &l.CreatedAt); err != nil {
 			return nil, err
 		}
 		l.ID = id.String()
 		l.FromDocID = fromID.String()
 		l.ToDocID = toID.String()
+		if len(metaJSON) > 0 {
+			_ = json.Unmarshal(metaJSON, &l.Metadata)
+		}
 		links = append(links, l)
 	}
 	return links, rows.Err()
