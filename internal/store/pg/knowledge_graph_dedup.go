@@ -148,10 +148,16 @@ func (s *PGKnowledgeGraphStore) insertDedupCandidate(ctx context.Context, agentI
 	if entityAID > entityBID {
 		entityAID, entityBID = entityBID, entityAID
 	}
-	aID, _ := uuid.Parse(entityAID)
-	bID, _ := uuid.Parse(entityBID)
+	aID, err := parseUUID(entityAID)
+	if err != nil {
+		return fmt.Errorf("insert dedup candidate: entity_a_id: %w", err)
+	}
+	bID, err := parseUUID(entityBID)
+	if err != nil {
+		return fmt.Errorf("insert dedup candidate: entity_b_id: %w", err)
+	}
 	tid := tenantIDForInsert(ctx)
-	_, err := s.db.ExecContext(ctx, `
+	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO kg_dedup_candidates (id, tenant_id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (entity_a_id, entity_b_id) DO NOTHING`,
@@ -229,8 +235,16 @@ func (s *PGKnowledgeGraphStore) ScanDuplicates(ctx context.Context, agentID, use
 		if aID > bID {
 			aID, bID = bID, aID
 		}
-		aUUID, _ := uuid.Parse(aID)
-		bUUID, _ := uuid.Parse(bID)
+		aUUID, err := parseUUID(aID)
+		if err != nil {
+			slog.Warn("kg.scan_duplicates: invalid entity_a UUID from DB row", "id", aID, "error", err)
+			continue
+		}
+		bUUID, err := parseUUID(bID)
+		if err != nil {
+			slog.Warn("kg.scan_duplicates: invalid entity_b UUID from DB row", "id", bID, "error", err)
+			continue
+		}
 		if _, err := s.db.ExecContext(ctx, `
 			INSERT INTO kg_dedup_candidates (id, tenant_id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
