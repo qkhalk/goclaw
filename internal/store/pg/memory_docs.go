@@ -464,12 +464,39 @@ func (s *PGMemoryStore) Close() error { return nil }
 
 // --- Helpers ---
 
-func mustParseUUID(s string) uuid.UUID {
+// parseUUID returns the parsed UUID or a descriptive error.
+// Use for every INSERT/UPDATE/UPSERT/DELETE/SELECT-WHERE path where silent nil
+// would either corrupt data (FK constraints reject it, but callers see cryptic
+// PG code 23503 instead of a clean Go error) OR hide bugs as empty reads /
+// zero-row updates. Phase 4 migration target for all 57 CRITICAL sites.
+// See docs/agent-identity-conventions.md (Phase 6).
+func parseUUID(s string) (uuid.UUID, error) {
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("parse uuid %q: %w", s, err)
+	}
+	return id, nil
+}
+
+// parseUUIDOrNil returns the parsed UUID or uuid.Nil on failure, without
+// raising an error. INTENTIONALLY silent — only use for read-only SELECT-WHERE
+// paths where a no-match (empty result) is acceptable. Do NOT use for writes,
+// updates, deletes, or any SELECT where empty result would hide a bug.
+// Prefer parseUUID for any new code.
+// See docs/agent-identity-conventions.md (Phase 6).
+func parseUUIDOrNil(s string) uuid.UUID {
 	id, err := uuid.Parse(s)
 	if err != nil {
 		return uuid.Nil
 	}
 	return id
+}
+
+// mustParseUUID is an alias for parseUUIDOrNil kept during the Phase 4
+// migration window. Will be removed in sub-step 4d (single-commit rename).
+// TODO(Phase 4 4d): remove after all call sites migrate.
+func mustParseUUID(s string) uuid.UUID {
+	return parseUUIDOrNil(s)
 }
 
 func vectorToString(v []float32) string {
