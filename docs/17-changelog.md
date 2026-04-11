@@ -67,6 +67,15 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
   - store/pg integration test depth improved — coverage attribution requires live pgvector in CI
 - **Deferred to separate plans**: `channels/feishu` (0%, 102 funcs), `providers/acp` (0%, 41 funcs), `channels/zalo` (regressed to 5%), `providers` (56%, 325 funcs), `channels/facebook` (31.8%)
 
+#### Deferred Coverage Waves A-C — Resolved (2026-04-11)
+Follow-up to Wave 1-3 above. Addresses the 6 modules deferred as too-large/greenfield/regression. Plan: `plans/260411-2020-deferred-coverage-waves/`.
+- **Wave A** — `internal/providers` 57.0 → 62.5% (hotspot tests for adapter/retry/SSE); `channels/zalo` 7.2 → 65.3% (regression fix + parse/policy/HTTP coverage)
+- **Wave B** — `channels/facebook` 23.1 → 81.9% (full bot lifecycle, media, policy); `store/pg` 1.3 → 3.5% (⚠️ capped at unit-test-only; 30% target requires CI integration wiring + pre-existing failing tenant-isolation tests — deferred separately)
+- **Wave C** — `providers/acp` 0.0 → **80.0%** greenfield (7 test files, 2560 LOC; JSON-RPC framing with adversarial input fuzz, terminal sandbox + allowlist + deny-pattern enforcement, ProcessPool lifecycle, tool_bridge with 3 permission modes); `channels/feishu` 20.6 → **63.9%** (15 test files; AES-CBC webhook decrypt + tamper detection, WS proto framing, larkclient HTTP error paths, media send/receive, bot parse/policy, lifecycle)
+- **Security tests added**: ACP JSON-RPC parser no-panic on 7 adversarial inputs; sandbox path-traversal + binary allowlist + deny-pattern (`rm -rf` even under `bash`); env sanitization strips 8 prefixes + 13 exact-name vars (GOCLAW/ANTHROPIC/OPENAI/DATABASE/AWS/GITHUB/SSH/STRIPE/DB_DSN/PG*/NPM_TOKEN/SECRET_KEY/JWT_SECRET). Feishu AES-CBC tamper detection + token mismatch drop; no real credentials in any fixture
+- **Scale**: ~375 new test functions across 22 files (~5858 LOC); zero source modifications — pure additive coverage
+- **Ratchet bumped**: `scripts/coverage_thresholds.json` — feishu 0 → 63.89, acp 0 → 80.05
+
 ### Added
 
 #### Episodic Memory Weighted Scoring — Dreaming Enhancement (2026-04-10, Phase 10)
