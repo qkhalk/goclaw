@@ -208,6 +208,24 @@ func (r *Router) IsRunning(ctx context.Context, agentID string) bool {
 	return false
 }
 
+// GetCached returns a cached agent without invoking the resolver. Used by
+// cache-aware helpers that want to avoid a DB roundtrip on the hot path.
+// Returns (nil, false) on miss or when the entry has exceeded TTL.
+// Does NOT trigger resolver fallback — call Router.Get() for that path.
+func (r *Router) GetCached(ctx context.Context, agentID string) (Agent, bool) {
+	cacheKey := agentCacheKey(ctx, agentID)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entry, ok := r.agents[cacheKey]
+	if !ok {
+		return nil, false
+	}
+	if r.ttl > 0 && time.Since(entry.cachedAt) >= r.ttl {
+		return nil, false
+	}
+	return entry.agent, true
+}
+
 // --- Active Run Tracking (matching TS chat-abort.ts) ---
 
 // ActiveRun tracks a running agent invocation so it can be aborted via chat.abort

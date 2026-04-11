@@ -408,6 +408,11 @@ func (m *AgentLinksMethods) invalidateLinkAgentsByID(ctx context.Context, source
 
 // --- helpers ---
 
+// resolveAgentUUID resolves an agent identifier (either UUID or agent_key) to its
+// canonical UUID via a DB lookup. Tenant-aware via store.TenantIDFromContext(ctx)
+// inside agentStore.GetByID/GetByKey. Prefer resolveAgentUUIDCached for hot-path
+// handlers to avoid an unnecessary DB roundtrip.
+// See docs/agent-identity-conventions.md trap zone 5.
 func resolveAgentUUID(ctx context.Context, agentStore store.AgentStore, keyOrID string) (uuid.UUID, error) {
 	if id, err := uuid.Parse(keyOrID); err == nil {
 		ag, err := agentStore.GetByID(ctx, id)
@@ -421,6 +426,36 @@ func resolveAgentUUID(ctx context.Context, agentStore store.AgentStore, keyOrID 
 		return uuid.Nil, err
 	}
 	return ag.ID, nil
+}
+
+// agentUUIDProvider is satisfied by *agent.Loop and by test stubs; lets the
+// cache-aware helper extract a canonical UUID from any cached Agent without
+// a direct dependency on the concrete Loop type.
+type agentUUIDProvider interface {
+	UUID() uuid.UUID
+}
+
+// resolveAgentUUIDCached is the cache-aware variant of resolveAgentUUID.
+// Checks the router cache first when the input is an agent_key and the Loop is
+// cached — avoids a DB roundtrip on the hot path. Falls back to DB lookup on
+// cache miss or when the input is a UUID string (not cached under the raw UUID
+// key post-Phase-2 canonicalization). If router is nil, delegates straight to
+// resolveAgentUUID. See docs/agent-identity-conventions.md trap zone 5.
+func resolveAgentUUIDCached(ctx context.Context, router *agent.Router, agentStore store.AgentStore, keyOrID string) (uuid.UUID, error) {
+	// Fast path: input is agent_key and the agent is cached in the router.
+	if router != nil {
+		if _, err := uuid.Parse(keyOrID); err != nil {
+			if ag, ok := router.GetCached(ctx, keyOrID); ok {
+				if up, ok := ag.(agentUUIDProvider); ok {
+					if uid := up.UUID(); uid != uuid.Nil {
+						return uid, nil
+					}
+				}
+			}
+		}
+	}
+	// Slow path: DB lookup.
+	return resolveAgentUUID(ctx, agentStore, keyOrID)
 }
 
 // resolveAgentInfo returns full agent data for validation and cache invalidation.
