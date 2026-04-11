@@ -220,13 +220,14 @@ func main() {
 		newThresholds[entry.pkg] = current
 	}
 
-	// Also preserve thresholds for packages still in file but not in coverage
-	// (e.g., tests excluded in this run); keep them to avoid false passes.
-	if !*update {
-		for k, v := range thresholds {
-			if _, ok := newThresholds[k]; !ok {
-				newThresholds[k] = v
-			}
+	// Preserve thresholds for packages still in file but absent from the
+	// current coverage profile (e.g., narrow coverprofile, tests excluded in
+	// this run, sqliteonly build tag). This MUST run in both check and
+	// --update modes — otherwise `--update` with a narrow profile silently
+	// wipes floors for all other packages, creating a regression vector.
+	for k, v := range thresholds {
+		if _, ok := newThresholds[k]; !ok {
+			newThresholds[k] = v
 		}
 	}
 
