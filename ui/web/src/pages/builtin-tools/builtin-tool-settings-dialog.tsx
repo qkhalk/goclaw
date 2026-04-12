@@ -16,9 +16,13 @@ import { MEDIA_TOOLS } from "./media-provider-params-schema";
 import { MediaProviderChainForm } from "./media-provider-chain-form";
 import { KGSettingsForm } from "./kg-settings-form";
 import { WebFetchExtractorChainForm } from "./web-fetch-extractor-chain-form";
+import { WebSearchChainForm } from "./web-search-chain-form";
+import { TtsProviderForm } from "./tts-provider-form";
 
 const KG_TOOL = "knowledge_graph_search";
 const WEB_FETCH_TOOL = "web_fetch";
+const WEB_SEARCH_TOOL = "web_search";
+const TTS_TOOL = "tts";
 
 interface Props {
   tool: BuiltinToolData | null;
@@ -55,7 +59,9 @@ export function BuiltinToolSettingsDialog({
   const isMedia = tool ? MEDIA_TOOLS.has(tool.name) : false;
   const isKG = tool?.name === KG_TOOL;
   const isWebFetch = tool?.name === WEB_FETCH_TOOL;
-  const wide = isMedia || isKG || isWebFetch;
+  const isWebSearch = tool?.name === WEB_SEARCH_TOOL;
+  const isTts = tool?.name === TTS_TOOL;
+  const wide = isMedia || isKG || isWebFetch || isWebSearch;
 
   // Tenant-scope overlay: prefer the tenant override when present; fall back
   // to the global default so the form opens pre-populated with something
@@ -77,7 +83,19 @@ export function BuiltinToolSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={wide ? "sm:max-w-2xl" : "sm:max-w-md"}>
         {modeBadge}
-        {isWebFetch && tool ? (
+        {isWebSearch && tool ? (
+          <WebSearchChainForm
+            initialSettings={initialSettings}
+            onSave={(settings) => onSave(tool.name, settings).then(() => onOpenChange(false))}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : isTts && tool ? (
+          <TtsProviderForm
+            initialSettings={initialSettings}
+            onSave={(settings) => onSave(tool.name, settings).then(() => onOpenChange(false))}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : isWebFetch && tool ? (
           <WebFetchExtractorChainForm
             initialSettings={initialSettings}
             onSave={(settings) => onSave(tool.name, settings).then(() => onOpenChange(false))}

@@ -143,6 +143,38 @@
       "save": "Lưu",
       "saving": "Đang lưu..."
     },
+    "searchChain": {
+      "title": "Chuỗi nhà cung cấp tìm kiếm web",
+      "description": "Kéo để sắp xếp lại nhà cung cấp tìm kiếm. Nhà cung cấp đầu tiên được bật với API key hợp lệ sẽ được thử trước.",
+      "maxResults": "Số kết quả tối đa",
+      "locked": "Dự phòng luôn bật",
+      "cancel": "Hủy",
+      "save": "Lưu",
+      "saving": "Đang lưu...",
+      "providers": {
+        "exa": "Exa",
+        "tavily": "Tavily",
+        "brave": "Brave Search",
+        "duckduckgo": "DuckDuckGo"
+      }
+    },
+    "ttsForm": {
+      "title": "Cài đặt TTS",
+      "description": "Cấu hình nhà cung cấp chuyển văn bản thành giọng nói và chế độ tự động áp dụng.",
+      "primary": "Nhà cung cấp chính",
+      "auto": "Chế độ tự động",
+      "autoOff": "Tắt",
+      "autoInbound": "Giọng nói đến",
+      "autoTagged": "Có thẻ",
+      "autoAlways": "Luôn luôn",
+      "autoOffDesc": "Chỉ khi agent tường minh sử dụng công cụ tts",
+      "autoInboundDesc": "Tự động áp dụng khi người dùng gửi giọng nói/âm thanh",
+      "autoTaggedDesc": "Áp dụng khi văn bản chứa chỉ thị [[tts]]",
+      "autoAlwaysDesc": "Luôn chuyển đổi câu trả lời cuối thành giọng nói",
+      "cancel": "Hủy",
+      "save": "Lưu",
+      "saving": "Đang lưu..."
+    },
     "extractorChain": {
       "title": "Web Fetch — Chuỗi bộ trích xuất",
       "description": "Danh sách bộ trích xuất nội dung theo thứ tự. Mỗi URL được thử từ trên xuống cho đến khi một bộ trả về nội dung chất lượng.",
