@@ -119,6 +119,13 @@ func (h *BuiltinToolsHandler) handleGet(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *BuiltinToolsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	// Phase 0b hotfix: builtin_tools is a global table with no tenant_id column,
+	// so this write must be restricted to master-scope callers. Non-master tenant
+	// admins must go through PUT /v1/tools/builtin/{name}/tenant-config instead.
+	// See plans/reports/debugger-260412-0922-tenant-scope-audit.md CRITICAL-1.
+	if !requireMasterScope(w, r) {
+		return
+	}
 	locale := extractLocale(r)
 	name := r.PathValue("name")
 	if name == "" {

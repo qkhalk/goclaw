@@ -108,6 +108,7 @@ func init() {
 		MsgRawConfigRequired:     "cấu hình raw là bắt buộc",
 		MsgRawPatchRequired:      "patch raw là bắt buộc",
 		MsgConfigMasterScopeOnly: "config.* chỉ áp dụng cho master scope; dùng endpoint tenant tool config cho override theo tenant",
+		MsgMasterScopeRequired:   "thao tác này yêu cầu phạm vi tenant chính",
 
 		// Storage / File
 		MsgCannotDeleteSkillsDir: "không thể xóa thư mục skill",
