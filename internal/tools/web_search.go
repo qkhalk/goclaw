@@ -182,9 +182,14 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) *Resul
 		return NewResult(cached)
 	}
 
+	// Resolve per-request provider chain (tenant may reorder / disable providers
+	// via builtin_tool_tenant_configs.settings → ctx → ResolveWebSearchChain).
+	// Defaults preserved when no override — backward-compat.
+	chain := ResolveWebSearchChain(ctx, t.providers)
+
 	// Try providers in order (first success wins)
 	var lastErr error
-	for _, provider := range t.providers {
+	for _, provider := range chain {
 		results, err := provider.Search(ctx, params)
 		if err != nil {
 			slog.Warn("web_search provider failed", "provider", provider.Name(), "error", err)
