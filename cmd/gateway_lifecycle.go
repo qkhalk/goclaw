@@ -106,21 +106,8 @@ func (d *gatewayDeps) runLifecycle(
 		slog.Info("tts config reloaded", "provider", newMgr.PrimaryProvider(), "auto", string(newMgr.AutoMode()))
 	})
 
-	// Hot-swap vault enrichment provider/model on config changes via pub/sub.
-	if d.updateVaultProvider != nil {
-		d.msgBus.Subscribe("vault-enrich-config-reload", func(evt bus.Event) {
-			if evt.Name != bus.TopicConfigChanged {
-				return
-			}
-			updatedCfg, ok := evt.Payload.(*config.Config)
-			if !ok {
-				return
-			}
-			if p, m := resolveBackgroundProvider(updatedCfg, d.providerRegistry); p != nil {
-				d.updateVaultProvider(p, m)
-			}
-		})
-	}
+	// Note: vault enrichment provider is resolved per-tenant at runtime,
+	// no hot-reload handler needed here
 
 	// Log orphaned providers on agent deletion. Auto-delete is unsafe because
 	// providers can be referenced by heartbeats (FK), OAuth tokens, media chains.

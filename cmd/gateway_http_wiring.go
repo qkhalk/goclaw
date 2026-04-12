@@ -118,12 +118,8 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 						pgMem.UpdateChunkConfig(mem.MaxChunkLen, mem.ChunkOverlap)
 					}
 				}
-				// Hot-swap vault enrichment provider/model if config changed
-				if d.updateVaultProvider != nil {
-					if p, m := resolveBackgroundProvider(d.cfg, d.providerRegistry); p != nil {
-						d.updateVaultProvider(p, m)
-					}
-				}
+				// Note: vault enrichment provider is resolved per-tenant at runtime,
+				// no hot-reload needed here
 				slog.Debug("system_configs refreshed to in-memory config", "keys", len(sysConfigs))
 			}
 		})

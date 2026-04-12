@@ -198,8 +198,8 @@ func runGateway() {
 				KGStore:       pgStores.KnowledgeGraph,
 				SessionStore:  pgStores.Sessions,
 				EventBus:      domainBus,
-				Provider:      bgProvider,
-				Model:         bgModel,
+				SystemConfigs: pgStores.SystemConfigs,
+				Registry:      providerRegistry,
 				Extractor:     kgExtractor,
 				AgentStore:    pgStores.Agents,
 			})
@@ -211,21 +211,22 @@ func runGateway() {
 	}
 
 	// V3: Wire vault enrichment worker (async summary + embedding + auto-linking).
+	// Provider is resolved per-tenant at runtime — no static provider needed.
 	var enrichProgress *vault.EnrichProgress
-	var updateVaultProvider vault.ProviderUpdater
-	if pgStores.Vault != nil && bgProvider != nil {
-		cleanupVaultEnrich, ep, updater := vault.RegisterEnrichWorker(vault.EnrichWorkerDeps{
-			VaultStore: pgStores.Vault,
-			Provider:   bgProvider,
-			Model:      bgModel,
-			EventBus:   domainBus,
-			MsgBus:     msgBus,
-			TeamStore:  pgStores.Teams, // Phase 04 task-based auto-linking
+	var enrichWorker *vault.EnrichWorker
+	if pgStores.Vault != nil && providerRegistry != nil {
+		cleanupVaultEnrich, ep, ew := vault.RegisterEnrichWorker(vault.EnrichWorkerDeps{
+			VaultStore:    pgStores.Vault,
+			SystemConfigs: pgStores.SystemConfigs,
+			Registry:      providerRegistry,
+			EventBus:      domainBus,
+			MsgBus:        msgBus,
+			TeamStore:     pgStores.Teams,
 		})
 		enrichProgress = ep
-		updateVaultProvider = updater
+		enrichWorker = ew
 		defer cleanupVaultEnrich()
-		slog.Info("vault enrichment worker registered", "provider", bgProvider.Name(), "model", bgModel)
+		slog.Info("vault enrichment worker registered (per-tenant provider resolution)")
 	}
 
 	loadBootstrapFiles(pgStores, workspace, agentCfg)
@@ -298,8 +299,8 @@ func runGateway() {
 		agentRouter:      agentRouter,
 		toolsReg:         toolsReg,
 		skillsLoader:     skillsLoader,
-		enrichProgress:      enrichProgress,
-		updateVaultProvider: updateVaultProvider,
+		enrichProgress: enrichProgress,
+		enrichWorker:   enrichWorker,
 		workspace:        workspace,
 		dataDir:          dataDir,
 		domainBus:        domainBus,

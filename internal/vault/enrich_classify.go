@@ -36,8 +36,7 @@ type candidatePair struct {
 }
 
 // classifyLinks orchestrates LLM-based link classification for enriched docs.
-func (w *enrichWorker) classifyLinks(ctx context.Context, tenantID, agentID string, results []enriched) {
-	provider, _ := w.llm()
+func (w *EnrichWorker) classifyLinks(ctx context.Context, provider providers.Provider, model, tenantID, agentID string, results []enriched) {
 	if provider == nil {
 		return
 	}
@@ -70,7 +69,7 @@ func (w *enrichWorker) classifyLinks(ctx context.Context, tenantID, agentID stri
 			chunk := allCandidates[chunkStart:chunkEnd]
 
 			system, user := buildClassifyPrompt(source, chunk)
-			raw, err := w.callClassifyWithRetry(ctx, system, user)
+			raw, err := w.callClassifyWithRetry(ctx, provider, model, system, user)
 			if err != nil {
 				slog.Warn("vault.classify: llm_failed", "doc", sourceDocID, "chunk", chunkStart, "err", err)
 				continue
@@ -80,7 +79,7 @@ func (w *enrichWorker) classifyLinks(ctx context.Context, tenantID, agentID stri
 			if err != nil {
 				slog.Warn("vault.classify: parse_failed_first", "doc", sourceDocID, "err", err, "raw_len", len(raw), "raw", raw)
 				hint := fmt.Sprintf("\n\nPrevious response was invalid JSON (error: %s). Output ONLY a valid JSON array.", err.Error())
-				raw2, err2 := w.callClassifyWithRetry(ctx, system, user+hint)
+				raw2, err2 := w.callClassifyWithRetry(ctx, provider, model, system, user+hint)
 				if err2 != nil {
 					slog.Warn("vault.classify: retry_parse_failed", "doc", sourceDocID, "err", err2)
 					continue
@@ -122,7 +121,7 @@ func (w *enrichWorker) classifyLinks(ctx context.Context, tenantID, agentID stri
 	}
 }
 
-func (w *enrichWorker) gatherCandidates(ctx context.Context, tenantID, _ string, results []enriched) map[string][]candidatePair {
+func (w *EnrichWorker) gatherCandidates(ctx context.Context, tenantID, _ string, results []enriched) map[string][]candidatePair {
 	seen := make(map[string]bool)
 	out := make(map[string][]candidatePair)
 
@@ -177,9 +176,8 @@ func (w *enrichWorker) gatherCandidates(ctx context.Context, tenantID, _ string,
 }
 
 // callClassifyWithRetry calls the LLM with shared retry logic.
-func (w *enrichWorker) callClassifyWithRetry(ctx context.Context, system, user string) (string, error) {
-	_, model := w.llm()
-	return w.chatWithRetry(ctx, "vault.classify", providers.ChatRequest{
+func (w *EnrichWorker) callClassifyWithRetry(ctx context.Context, provider providers.Provider, model, system, user string) (string, error) {
+	return w.chatWithRetry(ctx, provider, "vault.classify", providers.ChatRequest{
 		Messages: []providers.Message{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
