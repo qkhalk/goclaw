@@ -152,25 +152,24 @@ export function VaultPage() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" variant="outline" onClick={async () => { await rescan(); loadRoot(); }} disabled={rescanPending || enriching}>
-                  {(rescanPending || enriching) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderSync className="h-3.5 w-3.5" />}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={enriching ? stopEnrich : async () => { await rescan(); loadRoot(); }}
+                  disabled={rescanPending || stopPending}
+                >
+                  {rescanPending || stopPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : enriching ? (
+                    <StopCircle className="h-3.5 w-3.5 text-destructive" />
+                  ) : (
+                    <FolderSync className="h-3.5 w-3.5" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{enriching ? t("enriching", "Enriching documents...") : t("rescanTooltip", "Rescan workspace")}</TooltipContent>
+              <TooltipContent>{enriching ? t("stopEnrich", "Stop enrichment") : t("rescanTooltip", "Rescan workspace")}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          {enriching && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="outline" onClick={stopEnrich} disabled={stopPending}>
-                    {stopPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5 text-destructive" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("stopEnrich", "Stop enrichment")}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
