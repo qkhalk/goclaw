@@ -85,6 +85,10 @@
     "tenantDisabled": "Disabled for this tenant",
     "tenantDefault": "Using default",
     "resetToDefault": "Reset to default",
+    "tenantOverrideBadge": "Tenant override",
+    "tenantOverrideHint": "Editing this tenant's override. Changes apply only to this tenant.",
+    "tenantOverrideNewHint": "Creating a new override for this tenant. Pre-filled with global defaults.",
+    "resetToGlobalDefault": "Reset to global default",
     "unconfiguredWarning": "{{count}} tools need provider configuration for agents to use them at full capacity.",
     "unconfiguredAction": "Configure",
     "categories": {

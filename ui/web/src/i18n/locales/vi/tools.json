@@ -85,6 +85,10 @@
     "tenantDisabled": "Tắt cho tenant này",
     "tenantDefault": "Dùng mặc định",
     "resetToDefault": "Đặt lại mặc định",
+    "tenantOverrideBadge": "Ghi đè tenant",
+    "tenantOverrideHint": "Đang chỉnh ghi đè của tenant này. Thay đổi chỉ áp dụng cho tenant này.",
+    "tenantOverrideNewHint": "Tạo ghi đè mới cho tenant này. Đã điền sẵn giá trị mặc định toàn cục.",
+    "resetToGlobalDefault": "Đặt lại về mặc định toàn cục",
     "unconfiguredWarning": "{{count}} công cụ cần cấu hình provider để agent sử dụng đầy đủ năng lực.",
     "unconfiguredAction": "Cấu hình",
     "categories": {
