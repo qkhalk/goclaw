@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -133,26 +132,20 @@ type enriched struct {
 // Items are chunked into enrichBatchSize groups so bulk rescan doesn't
 // overwhelm the LLM provider with hundreds of concurrent requests.
 func (w *enrichWorker) processBatch(ctx context.Context, key string) {
+	w.progress.TrackBatch()
 	var totalQueued int
 
 	for {
 		items := w.queue.Drain(key)
 		if len(items) == 0 {
 			if w.queue.TryFinish(key) {
-				if totalQueued > 0 {
-					w.progress.Finish()
-				}
+				w.progress.MarkBatchDone()
 				return
 			}
 			continue
 		}
 
 		totalQueued += len(items)
-		tenantID := uuid.Nil
-		if len(items) > 0 {
-			tenantID, _ = uuid.Parse(items[0].TenantID)
-		}
-		w.progress.Start(totalQueued, tenantID)
 
 		// Process in chunks of enrichBatchSize, up to enrichMaxConcurrent in parallel.
 		var wg sync.WaitGroup
@@ -172,7 +165,7 @@ func (w *enrichWorker) processBatch(ctx context.Context, key string) {
 		wg.Wait()
 
 		if w.queue.TryFinish(key) {
-			w.progress.Finish()
+			w.progress.MarkBatchDone()
 			return
 		}
 	}
