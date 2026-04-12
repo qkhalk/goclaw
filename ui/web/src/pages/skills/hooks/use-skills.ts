@@ -51,7 +51,7 @@ export function useSkills() {
   // even if the SKILL_DEPS_* events were emitted before the client connected.
   useEffect(() => {
     if (connected) invalidate();
-  }, [connected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [connected]);  
 
   const getSkill = useCallback(
     async (name: string) => {
