@@ -174,9 +174,11 @@ func (s *PGVaultStore) GetDocument(ctx context.Context, tenantID, agentID, path 
 	}
 
 	var row vaultDocRow
+	// Scan order MUST match SELECT order above: 15 columns including
+	// path_basename (generated column added in migration 000047).
 	err = s.db.QueryRowContext(ctx, q, args...).Scan(
 		&row.ID, &row.TenantID, &row.AgentID, &row.TeamID, &row.Scope, &row.CustomScope,
-		&row.Path, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
+		&row.Path, &row.PathBasename, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
 		&row.MetaJSON, &row.CreatedAt, &row.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -259,9 +261,11 @@ func (s *PGVaultStore) GetDocumentByBasename(ctx context.Context, tenantID, agen
 	}
 	q += " LIMIT 1"
 	var row vaultDocRow
+	// Scan order MUST match SELECT order above: 15 columns including
+	// path_basename (generated column added in migration 000047).
 	err = s.db.QueryRowContext(ctx, q, args...).Scan(
 		&row.ID, &row.TenantID, &row.AgentID, &row.TeamID, &row.Scope, &row.CustomScope,
-		&row.Path, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
+		&row.Path, &row.PathBasename, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
 		&row.MetaJSON, &row.CreatedAt, &row.UpdatedAt)
 	if err != nil {
 		return nil, err
