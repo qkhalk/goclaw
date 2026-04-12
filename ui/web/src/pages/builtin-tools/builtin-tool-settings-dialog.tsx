@@ -86,6 +86,7 @@ export function BuiltinToolSettingsDialog({
         {isWebSearch && tool ? (
           <WebSearchChainForm
             initialSettings={initialSettings}
+            secretsSet={tool.secrets_set}
             onSave={(settings) => onSave(tool.name, settings).then(() => onOpenChange(false))}
             onCancel={() => onOpenChange(false)}
           />

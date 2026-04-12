@@ -20,6 +20,9 @@ export interface BuiltinToolData {
   tenant_settings: Record<string, unknown> | null;
   requires: string[];
   metadata: Record<string, unknown>;
+  // Boolean status map for tool API keys. Raw values are never returned.
+  // Key format: "tools.web.<provider>.api_key". Present only for tools with secrets.
+  secrets_set?: Record<string, boolean>;
   created_at: string;
   updated_at: string;
 }

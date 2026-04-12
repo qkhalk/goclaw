@@ -32,10 +32,14 @@ interface ProviderEntry {
   name: ProviderKey;
   enabled: boolean;
   max_results?: number;
+  /** Staged API key value — extracted and saved to config_secrets on PUT, never stored in settings */
+  apiKey?: string;
 }
 
 interface Props {
   initialSettings: Record<string, unknown>;
+  /** Boolean status map: "tools.web.<provider>.api_key" → true if a key is stored */
+  secretsSet?: Record<string, boolean>;
   onSave: (settings: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
 }
@@ -58,7 +62,7 @@ function parseInitialEntries(settings: Record<string, unknown>): ProviderEntry[]
       )
     : DEFAULT_ORDER;
 
-  const sortable: ProviderEntry[] = rawOrder.map((name) => {
+  return rawOrder.map((name) => {
     const cfg = (settings[name] ?? {}) as Record<string, unknown>;
     return {
       id: uniqueId(),
@@ -67,27 +71,31 @@ function parseInitialEntries(settings: Record<string, unknown>): ProviderEntry[]
       max_results: cfg.max_results != null ? Number(cfg.max_results) : undefined,
     };
   });
-
-  return sortable;
 }
 
 interface SortableCardProps {
   entry: ProviderEntry;
   index: number;
+  secretsSet?: Record<string, boolean>;
   onUpdate: (id: string, patch: Partial<ProviderEntry>) => void;
 }
 
-function SortableProviderCard({ entry, index, onUpdate }: SortableCardProps) {
+function SortableProviderCard({ entry, index, secretsSet, onUpdate }: SortableCardProps) {
   const { t } = useTranslation("tools");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
   });
+  const [showKeyInput, setShowKeyInput] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const secretKey = `tools.web.${entry.name}.api_key`;
+  const keyIsSet = secretsSet?.[secretKey] === true;
+  const showInput = showKeyInput || !keyIsSet;
 
   const displayName = t(`builtin.searchChain.providers.${entry.name}`, { defaultValue: entry.name });
 
@@ -116,6 +124,8 @@ function SortableProviderCard({ entry, index, onUpdate }: SortableCardProps) {
           />
           <span className="text-sm font-medium flex-1">{displayName}</span>
         </div>
+
+        {/* Max results row */}
         <div className="flex items-center gap-1.5 mt-2 pl-10">
           <Label className="text-xs text-muted-foreground whitespace-nowrap">
             {t("builtin.searchChain.maxResults")}
@@ -128,6 +138,41 @@ function SortableProviderCard({ entry, index, onUpdate }: SortableCardProps) {
             onChange={(e) => onUpdate(entry.id, { max_results: Number(e.target.value) })}
             className="h-7 w-16 text-base md:text-sm"
           />
+        </div>
+
+        {/* API key row */}
+        <div className="flex items-center gap-1.5 mt-2 pl-10">
+          <Label className="text-xs text-muted-foreground whitespace-nowrap">
+            {t("builtin.searchChain.apiKey")}
+          </Label>
+          {keyIsSet && !showInput ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                {t("builtin.searchChain.apiKeySet")}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => setShowKeyInput(true)}
+              >
+                {t("builtin.searchChain.apiKeyChange")}
+              </Button>
+            </div>
+          ) : (
+            <Input
+              type="password"
+              autoComplete="off"
+              placeholder={
+                keyIsSet
+                  ? t("builtin.searchChain.apiKeyReplacePlaceholder")
+                  : t("builtin.searchChain.apiKeyPlaceholder")
+              }
+              value={entry.apiKey ?? ""}
+              onChange={(e) => onUpdate(entry.id, { apiKey: e.target.value })}
+              className="h-7 flex-1 text-base md:text-sm font-mono"
+            />
+          )}
         </div>
       </div>
     </div>
@@ -157,7 +202,7 @@ function LockedDuckDuckGoCard({ settings }: { settings: Record<string, unknown> 
   );
 }
 
-export function WebSearchChainForm({ initialSettings, onSave, onCancel }: Props) {
+export function WebSearchChainForm({ initialSettings, secretsSet, onSave, onCancel }: Props) {
   const { t } = useTranslation("tools");
   const [entries, setEntries] = useState<ProviderEntry[]>(() =>
     parseInitialEntries(initialSettings),
@@ -192,6 +237,10 @@ export function WebSearchChainForm({ initialSettings, onSave, onCancel }: Props)
       for (const entry of entries) {
         const cfg: Record<string, unknown> = { enabled: entry.enabled };
         if (entry.max_results != null) cfg.max_results = entry.max_results;
+        // Include api_key only when user typed a new value — backend extracts and strips it
+        if (entry.apiKey && entry.apiKey.trim() !== "") {
+          cfg.api_key = entry.apiKey.trim();
+        }
         settings[entry.name] = cfg;
       }
       settings[LOCKED_PROVIDER] = { enabled: true };
@@ -218,16 +267,13 @@ export function WebSearchChainForm({ initialSettings, onSave, onCancel }: Props)
                 key={entry.id}
                 entry={entry}
                 index={index}
+                secretsSet={secretsSet}
                 onUpdate={handleUpdate}
               />
             ))}
           </SortableContext>
         </DndContext>
         <LockedDuckDuckGoCard settings={initialSettings} />
-
-        <p className="text-xs text-muted-foreground mt-3 px-1">
-          {t("builtin.searchChain.apiKeyHint")}
-        </p>
       </div>
 
       <DialogFooter>
