@@ -23,9 +23,8 @@ type pancakeInstanceConfig struct {
 	} `json:"features"`
 	CommentReplyOptions struct {
 		IncludePostContext bool     `json:"include_post_context"` // prepend post text to comment content
-		MaxThreadDepth     int      `json:"max_thread_depth"`
-		Filter             string   `json:"filter"`   // "all" | "keyword" (default: all)
-		Keywords           []string `json:"keywords"` // required when filter = "keyword"
+		Filter             string   `json:"filter"`               // "all" | "keyword" (default: all)
+		Keywords           []string `json:"keywords"`             // required when filter = "keyword"
 	} `json:"comment_reply_options"`
 	FirstInboxMessage   string   `json:"first_inbox_message,omitempty"`    // custom DM text; defaults to built-in message
 	PostContextCacheTTL string   `json:"post_context_cache_ttl,omitempty"` // e.g. "30m"; defaults to 15m

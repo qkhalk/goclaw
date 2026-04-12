@@ -94,16 +94,16 @@ func TestPrivateReply_MatchesOfficialContract(t *testing.T) {
 func TestPrivateReply_ReturnsError(t *testing.T) {
 	transport := &captureTransport{
 		resp: &http.Response{
-			StatusCode: http.StatusOK,
+			StatusCode: http.StatusBadRequest,
 			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader(`{"success":false,"message":"conversation not found"}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"code":400,"message":"conversation not found"}`)),
 		},
 	}
 	client := NewAPIClient("user-token", "page-token", "page-123")
 	client.httpClient = &http.Client{Transport: transport}
 
 	if err := client.PrivateReply(context.Background(), "conv-123", "hi"); err == nil {
-		t.Fatal("expected PrivateReply to return error when success=false")
+		t.Fatal("expected PrivateReply to return error on HTTP 400")
 	}
 }
 
