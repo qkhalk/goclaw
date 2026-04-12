@@ -105,8 +105,9 @@ func init() {
 		MsgInvalidLogAction: "action phải là 'start' hoặc 'stop'",
 
 		// Config
-		MsgRawConfigRequired: "cấu hình raw là bắt buộc",
-		MsgRawPatchRequired:  "patch raw là bắt buộc",
+		MsgRawConfigRequired:     "cấu hình raw là bắt buộc",
+		MsgRawPatchRequired:      "patch raw là bắt buộc",
+		MsgConfigMasterScopeOnly: "config.* chỉ áp dụng cho master scope; dùng endpoint tenant tool config cho override theo tenant",
 
 		// Storage / File
 		MsgCannotDeleteSkillsDir: "không thể xóa thư mục skill",

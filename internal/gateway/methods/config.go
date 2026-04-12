@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/titanous/json5"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
@@ -36,10 +37,10 @@ func (m *ConfigMethods) SetSystemConfigSync(fn func(ctx context.Context, cfg *co
 }
 
 func (m *ConfigMethods) Register(router *gateway.MethodRouter) {
-	router.Register(protocol.MethodConfigGet, m.requireOwner(m.handleGet))
-	router.Register(protocol.MethodConfigApply, m.requireOwner(m.handleApply))
-	router.Register(protocol.MethodConfigPatch, m.requireOwner(m.handlePatch))
-	router.Register(protocol.MethodConfigSchema, m.requireOwner(m.handleSchema))
+	router.Register(protocol.MethodConfigGet, m.requireMasterScope(m.requireOwner(m.handleGet)))
+	router.Register(protocol.MethodConfigApply, m.requireMasterScope(m.requireOwner(m.handleApply)))
+	router.Register(protocol.MethodConfigPatch, m.requireMasterScope(m.requireOwner(m.handlePatch)))
+	router.Register(protocol.MethodConfigSchema, m.requireMasterScope(m.requireOwner(m.handleSchema)))
 }
 
 // requireOwner wraps a handler to only allow owner-role users.
@@ -55,6 +56,40 @@ func (m *ConfigMethods) requireOwner(next gateway.MethodHandler) gateway.MethodH
 		}
 		next(ctx, client, req)
 	}
+}
+
+// requireMasterScope rejects config.* calls when the caller's ctx is scoped to
+// a non-master tenant. System owner callers (bypass-all) are allowed through.
+//
+// Background: config.* mutates the master in-memory *config.Config and the
+// on-disk config.json. A non-master tenant admin calling config.patch would
+// corrupt master state + leak master config to other tenants. This guard keeps
+// config.* strictly master-scoped until a tenant-aware refactor lands.
+func (m *ConfigMethods) requireMasterScope(next gateway.MethodHandler) gateway.MethodHandler {
+	return func(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+		if !isMasterScopeContext(ctx) {
+			locale := store.LocaleFromContext(ctx)
+			client.SendResponse(protocol.NewErrorResponse(
+				req.ID,
+				protocol.ErrUnauthorized,
+				i18n.T(locale, i18n.MsgConfigMasterScopeOnly),
+			))
+			return
+		}
+		next(ctx, client, req)
+	}
+}
+
+// isMasterScopeContext returns true when ctx should be treated as master-scope:
+// (a) system owner role (bypass-all), or
+// (b) tenant id is unset (uuid.Nil — legacy / system callers), or
+// (c) tenant id equals store.MasterTenantID.
+func isMasterScopeContext(ctx context.Context) bool {
+	if store.IsOwnerRole(ctx) {
+		return true
+	}
+	tid := store.TenantIDFromContext(ctx)
+	return tid == uuid.Nil || tid == store.MasterTenantID
 }
 
 func (m *ConfigMethods) handleGet(_ context.Context, client *gateway.Client, req *protocol.RequestFrame) {
