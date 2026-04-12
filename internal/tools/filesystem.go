@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
@@ -488,7 +489,13 @@ func resolvePath(path, workspace string, restrict bool) (string, error) {
 }
 
 // isPathInside checks whether child is inside or equal to parent directory.
+// On Windows, comparison is case-insensitive since NTFS paths are case-insensitive.
 func isPathInside(child, parent string) bool {
+	// Windows paths are case-insensitive; normalize to lowercase for comparison.
+	if runtime.GOOS == "windows" {
+		child = strings.ToLower(child)
+		parent = strings.ToLower(parent)
+	}
 	if child == parent {
 		return true
 	}

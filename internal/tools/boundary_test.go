@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -326,7 +327,7 @@ func TestIsPathInside(t *testing.T) {
 	}{
 		{"/a/b/c", "/a/b", true},
 		{"/a/b", "/a/b", true},
-		{"/a/bc", "/a/b", false},  // not a child, just prefix match
+		{"/a/bc", "/a/b", false}, // not a child, just prefix match
 		{"/a", "/a/b", false},
 		{"/x/y", "/a/b", false},
 	}
@@ -335,5 +336,130 @@ func TestIsPathInside(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("isPathInside(%q, %q) = %v, want %v", tt.child, tt.parent, got, tt.want)
 		}
+	}
+}
+
+func TestIsPathInside_WindowsCaseInsensitive(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows-specific test")
+	}
+	tests := []struct {
+		child, parent string
+		want          bool
+	}{
+		{`C:\Workspace\file.txt`, `c:\workspace`, true},       // case mismatch
+		{`c:\workspace\file.txt`, `C:\Workspace`, true},       // reverse case
+		{`C:\WORKSPACE\SUB\FILE`, `c:\workspace`, true},       // all caps child
+		{`D:\other`, `C:\workspace`, false},                   // different drive
+		{`C:\workspaceX\file.txt`, `C:\workspace`, false},     // prefix but not child
+	}
+	for _, tt := range tests {
+		got := isPathInside(tt.child, tt.parent)
+		if got != tt.want {
+			t.Errorf("isPathInside(%q, %q) = %v, want %v", tt.child, tt.parent, got, tt.want)
+		}
+	}
+}
+
+func TestResolvePathWithAllowed_CrossDriveAccess(t *testing.T) {
+	// Simulates cross-drive access on Windows using separate temp directories
+	// (on Unix these are just separate paths, but the test logic is the same).
+	workspace := t.TempDir()
+	crossDrive := t.TempDir() // simulates a different drive (e.g., F:\ vs E:\)
+
+	// Create files in both locations
+	if err := os.WriteFile(filepath.Join(workspace, "local.txt"), []byte("local"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(crossDrive, "remote.txt"), []byte("remote"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Without allowed paths: cross-drive should be BLOCKED
+	_, err := resolvePathWithAllowed(filepath.Join(crossDrive, "remote.txt"), workspace, true, nil)
+	if err == nil {
+		t.Fatal("expected error for cross-drive access without allowed paths")
+	}
+
+	// With allowed paths: cross-drive should be ALLOWED
+	_, err = resolvePathWithAllowed(filepath.Join(crossDrive, "remote.txt"), workspace, true, []string{crossDrive})
+	if err != nil {
+		t.Fatalf("expected success with cross-drive in allowed paths, got: %v", err)
+	}
+
+	// Allowed paths should not allow escaping to arbitrary locations
+	outsideAll := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outsideAll, "secret.txt"), []byte("secret"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = resolvePathWithAllowed(filepath.Join(outsideAll, "secret.txt"), workspace, true, []string{crossDrive})
+	if err == nil {
+		t.Fatal("expected error for path outside both workspace and allowed paths")
+	}
+}
+
+func TestResolvePathWithAllowed_TenantIsolation(t *testing.T) {
+	// Ensure that allowed paths cannot be used to escape tenant boundaries.
+	// Scenario: tenant A's workspace, tenant B's workspace, and a shared allowed path.
+	tenantA := t.TempDir()
+	tenantB := t.TempDir()
+	sharedSkills := t.TempDir()
+
+	// Create files
+	if err := os.WriteFile(filepath.Join(tenantA, "a.txt"), []byte("A"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tenantB, "b.txt"), []byte("B"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sharedSkills, "skill.md"), []byte("skill"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Tenant A can access their workspace
+	_, err := resolvePathWithAllowed(filepath.Join(tenantA, "a.txt"), tenantA, true, []string{sharedSkills})
+	if err != nil {
+		t.Fatalf("tenant A should access own workspace: %v", err)
+	}
+
+	// Tenant A can access shared skills
+	_, err = resolvePathWithAllowed(filepath.Join(sharedSkills, "skill.md"), tenantA, true, []string{sharedSkills})
+	if err != nil {
+		t.Fatalf("tenant A should access shared skills: %v", err)
+	}
+
+	// Tenant A CANNOT access tenant B's workspace (even with shared skills allowed)
+	_, err = resolvePathWithAllowed(filepath.Join(tenantB, "b.txt"), tenantA, true, []string{sharedSkills})
+	if err == nil {
+		t.Fatal("tenant A should NOT access tenant B's workspace")
+	}
+
+	// Verify the error message is about access denied
+	if !strings.Contains(err.Error(), "access denied") {
+		t.Errorf("expected 'access denied' error, got: %v", err)
+	}
+}
+
+func TestResolvePathWithAllowed_SymlinkEscapeBlocked(t *testing.T) {
+	// Ensure symlinks in allowed paths cannot be used to escape boundaries.
+	workspace := t.TempDir()
+	allowedDir := t.TempDir()
+	secretDir := t.TempDir()
+
+	// Create a secret file outside both workspace and allowed
+	if err := os.WriteFile(filepath.Join(secretDir, "secret.txt"), []byte("secret"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a symlink in allowed dir pointing to secret dir
+	evilLink := filepath.Join(allowedDir, "escape")
+	if err := os.Symlink(secretDir, evilLink); err != nil {
+		t.Skip("cannot create symlinks (permissions or OS limitation)")
+	}
+
+	// Attempt to access secret file via symlink escape
+	_, err := resolvePathWithAllowed(filepath.Join(evilLink, "secret.txt"), workspace, true, []string{allowedDir})
+	if err == nil {
+		t.Fatal("expected error for symlink escape attempt")
 	}
 }
