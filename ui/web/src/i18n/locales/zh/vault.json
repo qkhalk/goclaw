@@ -75,6 +75,8 @@
   "enrichStopped": "处理已停止",
   "enrichStopFailed": "停止处理失败",
   "stopEnrich": "停止处理",
+  "stopEnrichConfirm": "确定要停止处理吗？已处理的文档将保留其摘要。",
+  "stop": "停止",
   "errors": "错误",
   "rescanNew": "{{count}} 个新文件",
   "rescanUpdated": "{{count}} 个已更新",

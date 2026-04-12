@@ -75,6 +75,8 @@
   "enrichStopped": "Đã dừng xử lý",
   "enrichStopFailed": "Không thể dừng xử lý",
   "stopEnrich": "Dừng xử lý",
+  "stopEnrichConfirm": "Bạn có chắc muốn dừng quá trình xử lý? Các tài liệu đã xử lý sẽ giữ nguyên.",
+  "stop": "Dừng",
   "errors": "lỗi",
   "rescanNew": "{{count}} mới",
   "rescanUpdated": "{{count}} cập nhật",

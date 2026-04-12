@@ -14,6 +14,7 @@ import { toast } from "@/stores/use-toast-store";
 import { VaultDocumentSidebar } from "./vault-document-sidebar";
 import { VaultSearchDialog } from "./vault-search-dialog";
 import { VaultCreateDialog } from "./vault-create-dialog";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import type { VaultDocument } from "@/types/vault";
 
 const VaultGraphView = lazy(() =>
@@ -41,6 +42,7 @@ export function VaultPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
 
   const { rescan, isPending: rescanPending } = useRescanWorkspace();
   const { stop: stopEnrich, isPending: stopPending } = useStopEnrichment();
@@ -155,7 +157,7 @@ export function VaultPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={enriching ? stopEnrich : async () => { await rescan(); loadRoot(); }}
+                  onClick={enriching ? () => setStopConfirmOpen(true) : async () => { await rescan(); loadRoot(); }}
                   disabled={rescanPending || stopPending}
                 >
                   {rescanPending || stopPending ? (
@@ -222,6 +224,16 @@ export function VaultPage() {
         />
       )}
       <VaultCreateDialog open={createOpen} onOpenChange={setCreateOpen} defaultAgentId={selectedAgent} defaultTeamId={selectedTeam} />
+      <ConfirmDialog
+        open={stopConfirmOpen}
+        onOpenChange={setStopConfirmOpen}
+        title={t("stopEnrich", "Stop enrichment")}
+        description={t("stopEnrichConfirm", "Are you sure you want to stop the enrichment process? Documents already processed will keep their summaries.")}
+        confirmLabel={t("stop", "Stop")}
+        variant="destructive"
+        onConfirm={() => { stopEnrich(); setStopConfirmOpen(false); }}
+        loading={stopPending}
+      />
 
       <Suspense fallback={null}>
         <VaultDetailDialog

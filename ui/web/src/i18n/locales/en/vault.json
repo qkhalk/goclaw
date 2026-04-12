@@ -75,6 +75,8 @@
   "enrichStopped": "Enrichment stopped",
   "enrichStopFailed": "Failed to stop enrichment",
   "stopEnrich": "Stop enrichment",
+  "stopEnrichConfirm": "Are you sure you want to stop the enrichment process? Documents already processed will keep their summaries.",
+  "stop": "Stop",
   "errors": "errors",
   "rescanNew": "{{count}} new",
   "rescanUpdated": "{{count}} updated",
