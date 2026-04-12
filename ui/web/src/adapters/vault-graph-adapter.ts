@@ -2,17 +2,36 @@ import Graph from "graphology";
 import type { VaultDocument, VaultLink } from "@/types/vault";
 import { getNodeSize, truncateMiddle } from "@/components/graph/graph-utils";
 
-// Colors per vault document type — dominant types (note 44%, media 54%) use
-// softer tones; rare types use vivid accents for visibility.
-export const VAULT_TYPE_COLORS: Record<string, string> = {
-  context: "#6366f1",  // indigo (rare, vivid)
-  memory: "#8b5cf6",   // violet
-  note: "#14b8a6",     // teal (dominant, soft)
-  skill: "#22c55e",    // green
-  episodic: "#f59e0b", // amber
-  media: "#ec4899",    // pink (dominant, soft)
+// Colors per vault document type — matches DOC_TYPE_ICONS in vault-tree.tsx
+// Light mode: Tailwind -600 variants for contrast on white/light backgrounds
+// Dark mode: Tailwind -400 variants for visibility on dark backgrounds
+export const VAULT_TYPE_COLORS_LIGHT: Record<string, string> = {
+  context: "#2563eb",  // blue-600 (matches text-blue-600)
+  memory: "#9333ea",   // purple-600 (matches text-purple-600)
+  note: "#d97706",     // amber-600 (matches text-amber-600)
+  skill: "#059669",    // emerald-600 (matches text-emerald-600)
+  episodic: "#ea580c", // orange-600 (matches text-orange-600)
+  media: "#e11d48",    // rose-600 (matches text-rose-600)
+  document: "#0891b2", // cyan-600 (matches text-cyan-600)
 };
-const DEFAULT_COLOR = "#9ca3af";
+export const VAULT_TYPE_COLORS_DARK: Record<string, string> = {
+  context: "#60a5fa",  // blue-400 (matches dark:text-blue-400)
+  memory: "#c084fc",   // purple-400 (matches dark:text-purple-400)
+  note: "#fbbf24",     // amber-400 (matches dark:text-amber-400)
+  skill: "#34d399",    // emerald-400 (matches dark:text-emerald-400)
+  episodic: "#fb923c", // orange-400 (matches dark:text-orange-400)
+  media: "#fb7185",    // rose-400 (matches dark:text-rose-400)
+  document: "#22d3ee", // cyan-400 (matches dark:text-cyan-400)
+};
+const DEFAULT_COLOR_LIGHT = "#475569"; // slate-600
+const DEFAULT_COLOR_DARK = "#94a3b8";  // slate-400
+
+/** Get node color based on doc type and theme */
+export function getVaultNodeColor(docType: string, isDark: boolean): string {
+  const colors = isDark ? VAULT_TYPE_COLORS_DARK : VAULT_TYPE_COLORS_LIGHT;
+  const fallback = isDark ? DEFAULT_COLOR_DARK : DEFAULT_COLOR_LIGHT;
+  return colors[docType] ?? fallback;
+}
 
 /** Limit documents by degree centrality (highest-connected first). */
 export function limitVaultDocsByDegree(
@@ -56,7 +75,8 @@ export function buildVaultGraph(
       x: 0,
       y: 0,
       size: getNodeSize(degree),
-      color: VAULT_TYPE_COLORS[doc.doc_type] ?? DEFAULT_COLOR,
+      // Color set by nodeReducer based on theme; use light as initial fallback
+      color: VAULT_TYPE_COLORS_LIGHT[doc.doc_type] ?? DEFAULT_COLOR_LIGHT,
       docType: doc.doc_type,
     });
   }
@@ -69,6 +89,8 @@ export function buildVaultGraph(
         graph.addEdgeWithKey(link.id, link.from_doc_id, link.to_doc_id, {
           label: link.link_type,
           type: "curvedArrow",
+          color: "#a1a1aa", // zinc-400, lighter gray
+          size: 0.4,
         });
       }
     }
