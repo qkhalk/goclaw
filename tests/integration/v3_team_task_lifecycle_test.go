@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -437,24 +438,35 @@ func TestStoreTask_RaceToClaimSameTask(t *testing.T) {
 
 	teamID, _ := seedTeam(t, db, tenantID, agentID)
 
-	// Create additional team members
-	var memberIDs []uuid.UUID
+	// Create additional agents and add them as team members
+	var memberAgentIDs []uuid.UUID
 	for i := 0; i < 5; i++ {
-		memberID := uuid.New()
+		memberAgentID := uuid.New()
+		memberAgentKey := fmt.Sprintf("race-member-%d-%s", i, memberAgentID.String()[:8])
+		// Insert agent with all required columns
 		if _, err := db.Exec(
-			`INSERT INTO agent_team_members (id, team_id, agent_id, role, tenant_id)
-			 VALUES ($1, $2, $3, 'member', $4)`,
-			memberID, teamID, agentID, tenantID,
+			`INSERT INTO agents (id, tenant_id, agent_key, agent_type, status, provider, model, owner_id)
+			 VALUES ($1, $2, $3, 'predefined', 'active', 'test', 'test-model', 'test-owner')`,
+			memberAgentID, tenantID, memberAgentKey,
+		); err != nil {
+			t.Fatalf("create agent %d: %v", i, err)
+		}
+		// Add as team member
+		if _, err := db.Exec(
+			`INSERT INTO agent_team_members (team_id, agent_id, role, tenant_id)
+			 VALUES ($1, $2, 'member', $3)`,
+			teamID, memberAgentID, tenantID,
 		); err != nil {
 			t.Fatalf("create member %d: %v", i, err)
 		}
-		memberIDs = append(memberIDs, memberID)
+		memberAgentIDs = append(memberAgentIDs, memberAgentID)
 	}
 
-	// Cleanup test members
+	// Cleanup test members and agents
 	t.Cleanup(func() {
-		for _, mid := range memberIDs {
-			db.Exec("DELETE FROM agent_team_members WHERE id = $1", mid)
+		for _, aid := range memberAgentIDs {
+			db.Exec("DELETE FROM agent_team_members WHERE agent_id = $1", aid)
+			db.Exec("DELETE FROM agents WHERE id = $1", aid)
 		}
 	})
 
@@ -468,7 +480,7 @@ func TestStoreTask_RaceToClaimSameTask(t *testing.T) {
 	var successCount atomic.Int32
 	var failCount atomic.Int32
 
-	for _, memberID := range memberIDs {
+	for _, memberID := range memberAgentIDs {
 		wg.Add(1)
 		go func(mid uuid.UUID) {
 			defer wg.Done()

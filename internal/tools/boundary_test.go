@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -461,5 +462,80 @@ func TestResolvePathWithAllowed_SymlinkEscapeBlocked(t *testing.T) {
 	_, err := resolvePathWithAllowed(filepath.Join(evilLink, "secret.txt"), workspace, true, []string{allowedDir})
 	if err == nil {
 		t.Fatal("expected error for symlink escape attempt")
+	}
+}
+
+func TestAllowedWithTeamWorkspace_TenantPathsMerge(t *testing.T) {
+	// Test that allowedWithTeamWorkspace correctly merges:
+	// base (global) + tenant paths (from context) + team workspace (from context)
+	ctx := context.Background()
+
+	base := []string{"/global/skills", "/global/builtin"}
+	tenantPaths := []string{"/tenant/allowed1", "/tenant/allowed2"}
+	teamWs := "/team/workspace"
+
+	// Inject tenant paths and team workspace into context
+	ctx = WithTenantAllowedPaths(ctx, tenantPaths)
+	ctx = WithToolTeamWorkspace(ctx, teamWs)
+
+	result := allowedWithTeamWorkspace(ctx, base)
+
+	// Verify all paths are present in correct order
+	expected := []string{"/global/skills", "/global/builtin", "/tenant/allowed1", "/tenant/allowed2", "/team/workspace"}
+	if len(result) != len(expected) {
+		t.Fatalf("expected %d paths, got %d", len(expected), len(result))
+	}
+	for i, exp := range expected {
+		if result[i] != exp {
+			t.Errorf("path[%d]: expected %q, got %q", i, exp, result[i])
+		}
+	}
+}
+
+func TestAllowedWithTeamWorkspace_TenantPathsOnly(t *testing.T) {
+	// Test tenant paths without team workspace
+	ctx := context.Background()
+	base := []string{"/global/skills"}
+	tenantPaths := []string{"/tenant/data"}
+
+	ctx = WithTenantAllowedPaths(ctx, tenantPaths)
+
+	result := allowedWithTeamWorkspace(ctx, base)
+
+	if len(result) != 2 {
+		t.Fatalf("expected 2 paths, got %d", len(result))
+	}
+	if result[0] != "/global/skills" || result[1] != "/tenant/data" {
+		t.Errorf("unexpected result: %v", result)
+	}
+}
+
+func TestAllowedWithTeamWorkspace_EmptyContext(t *testing.T) {
+	// Test with no tenant paths or team workspace in context
+	ctx := context.Background()
+	base := []string{"/global/skills"}
+
+	result := allowedWithTeamWorkspace(ctx, base)
+
+	// Should return base unchanged
+	if len(result) != 1 || result[0] != "/global/skills" {
+		t.Errorf("expected base unchanged, got: %v", result)
+	}
+}
+
+func TestTenantAllowedPathsFromCtx_Inheritance(t *testing.T) {
+	// Test that TenantAllowedPathsFromCtx correctly reads from RunContext fallback
+	ctx := context.Background()
+	tenantPaths := []string{"/tenant/path1", "/tenant/path2"}
+
+	// Set via direct context
+	ctx = WithTenantAllowedPaths(ctx, tenantPaths)
+	result := TenantAllowedPathsFromCtx(ctx)
+
+	if len(result) != 2 {
+		t.Fatalf("expected 2 paths, got %d", len(result))
+	}
+	if result[0] != "/tenant/path1" || result[1] != "/tenant/path2" {
+		t.Errorf("unexpected result: %v", result)
 	}
 }
