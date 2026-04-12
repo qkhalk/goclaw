@@ -118,6 +118,12 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 						pgMem.UpdateChunkConfig(mem.MaxChunkLen, mem.ChunkOverlap)
 					}
 				}
+				// Hot-swap vault enrichment provider/model if config changed
+				if d.updateVaultProvider != nil {
+					if p, m := resolveBackgroundProvider(d.cfg, d.providerRegistry); p != nil {
+						d.updateVaultProvider(p, m)
+					}
+				}
 				slog.Debug("system_configs refreshed to in-memory config", "keys", len(sysConfigs))
 			}
 		})

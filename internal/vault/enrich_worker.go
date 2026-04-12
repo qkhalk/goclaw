@@ -45,9 +45,12 @@ type EnrichWorkerDeps struct {
 	TeamStore  store.TaskCommentStore    // for Phase 2.5 task-based auto-linking (nil-safe)
 }
 
+// ProviderUpdater allows hot-swapping the LLM provider/model at runtime.
+type ProviderUpdater func(p providers.Provider, model string)
+
 // RegisterEnrichWorker subscribes the enrichment worker to vault doc events.
-// Returns (unsubscribe func, progress tracker for WS broadcast).
-func RegisterEnrichWorker(deps EnrichWorkerDeps) (func(), *EnrichProgress) {
+// Returns (unsubscribe func, progress tracker, provider updater for hot-reload).
+func RegisterEnrichWorker(deps EnrichWorkerDeps) (func(), *EnrichProgress, ProviderUpdater) {
 	progress := NewEnrichProgress(deps.MsgBus)
 	w := &enrichWorker{
 		vault:     deps.VaultStore,
@@ -59,7 +62,7 @@ func RegisterEnrichWorker(deps EnrichWorkerDeps) (func(), *EnrichProgress) {
 		progress:  progress,
 	}
 	unsub := deps.EventBus.Subscribe(eventbus.EventVaultDocUpserted, w.Handle)
-	return unsub, progress
+	return unsub, progress, w.UpdateProvider
 }
 
 // enrichWorker processes vault document upsert events to generate summaries,
@@ -69,6 +72,7 @@ type enrichWorker struct {
 	teamStore store.TaskCommentStore // nil-tolerant — Phase 2.5 disabled when nil
 	provider  providers.Provider
 	model     string
+	llmMu    sync.RWMutex // guards provider + model hot-swap
 	queue     enrichBatchQueue
 	progress  *EnrichProgress
 
@@ -76,6 +80,26 @@ type enrichWorker struct {
 	dedupMu sync.Mutex
 	dedup   map[string]string
 	sem     *semaphore.Weighted // limits concurrent LLM summarize calls
+}
+
+// UpdateProvider hot-swaps the LLM provider and model used by the enrichment worker.
+// Called when background worker config changes at runtime.
+func (w *enrichWorker) UpdateProvider(p providers.Provider, model string) {
+	w.llmMu.Lock()
+	defer w.llmMu.Unlock()
+	if w.provider != nil && w.provider.Name() == p.Name() && w.model == model {
+		return // no change
+	}
+	w.provider = p
+	w.model = model
+	slog.Info("vault.enrich: provider updated", "provider", p.Name(), "model", model)
+}
+
+// llm returns the current provider and model, safe for concurrent reads.
+func (w *enrichWorker) llm() (providers.Provider, string) {
+	w.llmMu.RLock()
+	defer w.llmMu.RUnlock()
+	return w.provider, w.model
 }
 
 // enrichTaskSiblingCap bounds the number of auto-linked siblings per
@@ -337,13 +361,14 @@ func (w *enrichWorker) batchSummarize(ctx context.Context, paths, contents []str
 		fmt.Fprintf(&b, "[%d] File: %s\n%s\n\n", i+1, paths[i], contents[i])
 	}
 
+	_, model := w.llm()
 	raw, err := w.chatWithRetry(ctx, "vault.batch_summarize", providers.ChatRequest{
 		Messages: []providers.Message{
 			{Role: "system", Content: batchSummarizePrompt},
 			{Role: "user", Content: b.String()},
 		},
-		Model:   w.model,
-		Options: map[string]any{"max_tokens": 1536, "temperature": 0.2},
+		Model:   model,
+		Options: map[string]any{"max_tokens": 4096, "temperature": 0.2},
 	})
 	if err != nil {
 		slog.Warn("vault.enrich: batch_summarize", "count", len(paths), "err", err)
@@ -371,7 +396,7 @@ func parseBatchSummaries(raw string, expected int) []string {
 		Summary string `json:"summary"`
 	}
 	if err := json.Unmarshal([]byte(raw), &results); err != nil {
-		slog.Warn("vault.enrich: parse_batch_summaries", "err", err)
+		slog.Warn("vault.enrich: parse_batch_summaries", "err", err, "raw_len", len(raw), "raw", raw)
 		return nil
 	}
 
@@ -397,13 +422,17 @@ func (w *enrichWorker) chatWithRetry(ctx context.Context, logPrefix string, req 
 			case <-time.After(enrichRetryBackoffs[attempt]):
 			}
 		}
+		provider, _ := w.llm()
 		cctx, cancel := context.WithTimeout(ctx, enrichRetryTimeouts[attempt])
-		resp, err := w.provider.Chat(cctx, req)
+		resp, err := provider.Chat(cctx, req)
 		cancel()
 		if err != nil {
 			lastErr = err
 			slog.Warn(logPrefix+": retry", "attempt", attempt+1, "err", err)
 			continue
+		}
+		if resp.FinishReason == "length" {
+			slog.Warn(logPrefix+": truncated", "finish_reason", "length", "model", req.Model, "content_len", len(resp.Content), "max_tokens", req.Options["max_tokens"])
 		}
 		return strings.TrimSpace(resp.Content), nil
 	}

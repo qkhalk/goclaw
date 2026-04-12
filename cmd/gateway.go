@@ -212,8 +212,9 @@ func runGateway() {
 
 	// V3: Wire vault enrichment worker (async summary + embedding + auto-linking).
 	var enrichProgress *vault.EnrichProgress
+	var updateVaultProvider vault.ProviderUpdater
 	if pgStores.Vault != nil && bgProvider != nil {
-		cleanupVaultEnrich, ep := vault.RegisterEnrichWorker(vault.EnrichWorkerDeps{
+		cleanupVaultEnrich, ep, updater := vault.RegisterEnrichWorker(vault.EnrichWorkerDeps{
 			VaultStore: pgStores.Vault,
 			Provider:   bgProvider,
 			Model:      bgModel,
@@ -222,6 +223,7 @@ func runGateway() {
 			TeamStore:  pgStores.Teams, // Phase 04 task-based auto-linking
 		})
 		enrichProgress = ep
+		updateVaultProvider = updater
 		defer cleanupVaultEnrich()
 		slog.Info("vault enrichment worker registered", "provider", bgProvider.Name(), "model", bgModel)
 	}
@@ -296,7 +298,8 @@ func runGateway() {
 		agentRouter:      agentRouter,
 		toolsReg:         toolsReg,
 		skillsLoader:     skillsLoader,
-		enrichProgress:   enrichProgress,
+		enrichProgress:      enrichProgress,
+		updateVaultProvider: updateVaultProvider,
 		workspace:        workspace,
 		dataDir:          dataDir,
 		domainBus:        domainBus,

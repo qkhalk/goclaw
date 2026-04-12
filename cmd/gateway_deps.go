@@ -28,7 +28,8 @@ type gatewayDeps struct {
 	toolsReg         *tools.Registry
 	skillsLoader     *skills.Loader // optional: enables skill creation in evolution approval
 	permCache        *cache.PermissionCache // nil if no tenant store; closed on shutdown to stop sweep goroutines
-	enrichProgress   *vault.EnrichProgress  // nil if enrichment worker not registered
+	enrichProgress      *vault.EnrichProgress  // nil if enrichment worker not registered
+	updateVaultProvider vault.ProviderUpdater  // nil if enrichment worker not registered; hot-swaps LLM
 	workspace        string
 	dataDir          string
 	domainBus        eventbus.DomainEventBus

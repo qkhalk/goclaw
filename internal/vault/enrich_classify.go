@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	classifyMaxTokens       = 1024
+	classifyMaxTokens       = 2048
 	classifyTemperature     = 0.1
 	classifyCtxMaxLen       = 256 // max context string length stored in DB
 	classifySummaryMaxChars = 300 // max summary chars in prompt (validated: 300 for accuracy)
@@ -37,7 +37,8 @@ type candidatePair struct {
 
 // classifyLinks orchestrates LLM-based link classification for enriched docs.
 func (w *enrichWorker) classifyLinks(ctx context.Context, tenantID, agentID string, results []enriched) {
-	if w.provider == nil {
+	provider, _ := w.llm()
+	if provider == nil {
 		return
 	}
 
@@ -77,6 +78,7 @@ func (w *enrichWorker) classifyLinks(ctx context.Context, tenantID, agentID stri
 
 			parsed, err := parseClassifyResponse(raw, len(chunk))
 			if err != nil {
+				slog.Warn("vault.classify: parse_failed_first", "doc", sourceDocID, "err", err, "raw_len", len(raw), "raw", raw)
 				hint := fmt.Sprintf("\n\nPrevious response was invalid JSON (error: %s). Output ONLY a valid JSON array.", err.Error())
 				raw2, err2 := w.callClassifyWithRetry(ctx, system, user+hint)
 				if err2 != nil {
@@ -85,7 +87,7 @@ func (w *enrichWorker) classifyLinks(ctx context.Context, tenantID, agentID stri
 				}
 				parsed, err = parseClassifyResponse(raw2, len(chunk))
 				if err != nil {
-					slog.Warn("vault.classify: parse_still_failed", "doc", sourceDocID, "err", err)
+					slog.Warn("vault.classify: parse_still_failed", "doc", sourceDocID, "err", err, "raw_len", len(raw2), "raw", raw2)
 					continue
 				}
 			}
@@ -176,12 +178,13 @@ func (w *enrichWorker) gatherCandidates(ctx context.Context, tenantID, _ string,
 
 // callClassifyWithRetry calls the LLM with shared retry logic.
 func (w *enrichWorker) callClassifyWithRetry(ctx context.Context, system, user string) (string, error) {
+	_, model := w.llm()
 	return w.chatWithRetry(ctx, "vault.classify", providers.ChatRequest{
 		Messages: []providers.Message{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
-		Model:   w.model,
+		Model:   model,
 		Options: map[string]any{"max_tokens": classifyMaxTokens, "temperature": classifyTemperature},
 	})
 }
