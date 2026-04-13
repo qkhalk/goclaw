@@ -460,7 +460,8 @@ func (w *EnrichWorker) batchSummarize(ctx context.Context, provider providers.Pr
 	})
 	if err != nil {
 		slog.Warn("vault.enrich: batch_summarize", "count", len(paths), "err", err)
-		if w.progress != nil {
+		// Don't report context cancellation as enrichment error — expected during stop.
+		if w.progress != nil && ctx.Err() == nil {
 			w.progress.AddError(fmt.Sprintf("batch summarize failed: %v", err))
 		}
 		return nil
