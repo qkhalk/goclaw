@@ -137,11 +137,13 @@ func setupToolRegistry(
 	toolsReg.Register(tools.NewCreateAudioTool(providerRegistry,
 		cfg.Tts.ElevenLabs.APIKey, cfg.Tts.ElevenLabs.BaseURL))
 
-	// TTS (text-to-speech) system — always create TtsTool so config reload can populate it later
+	// Audio system (TTS today, STT/Music/SFX in later phases) — always create
+	// TtsTool so config reload can populate it later.
 	ttsMgr := setupTTS(cfg)
 	if ttsMgr == nil {
 		ttsMgr = tts.NewManager(tts.ManagerConfig{})
 	}
+	setupAudioExtras(cfg, ttsMgr) // Phase 1 stub; Phase 3/4 wire Music/STT.
 	ttsTool = tools.NewTtsTool(ttsMgr)
 	toolsReg.Register(ttsTool)
 	if ttsMgr.HasProviders() {

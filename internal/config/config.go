@@ -50,6 +50,7 @@ type Config struct {
 	Sessions  SessionsConfig  `json:"sessions"`
 	Database  DatabaseConfig  `json:"database"`
 	Tts       TtsConfig       `json:"tts"`
+	Audio     *AudioConfig    `json:"audio,omitempty"` // optional STT/Music defaults (Phase 3/4)
 	Cron      CronConfig      `json:"cron"`
 	Telemetry TelemetryConfig `json:"telemetry"`
 	Tailscale TailscaleConfig `json:"tailscale"`

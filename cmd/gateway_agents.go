@@ -274,3 +274,13 @@ func setupTTS(cfg *config.Config) *tts.Manager {
 
 	return mgr
 }
+
+// setupAudioExtras wires optional STT + Music static defaults into the audio
+// Manager. Phase 1 placeholder: body is empty — Phase 3 wires Music providers,
+// Phase 4 wires STT providers. Kept here so the call-site in gateway_setup.go
+// is stable from Phase 1 onward.
+//
+//nolint:unused // Phase 1 stub; wired in Phase 3/4.
+func setupAudioExtras(_ *config.Config, _ *tts.Manager) {
+	// Intentionally empty. Phase 3/4 will register Music/STT providers here.
+}
