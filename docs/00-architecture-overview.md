@@ -120,7 +120,8 @@ flowchart TD
 | `internal/permissions/` | RBAC policy engine (admin, operator, viewer roles) |
 | `internal/store/pg/pairing.go` | DM/device pairing service (8-character codes, database-backed) |
 | `internal/sandbox/` | Docker-based code execution sandbox |
-| `internal/tts/` | Text-to-Speech providers: OpenAI, ElevenLabs, Edge, MiniMax |
+| `internal/audio/` | Unified audio manager: 4 provider interfaces (TTS active; STT/Music/SFX stubbed/partial). Orchestrates ElevenLabs, OpenAI, Edge, MiniMax TTS providers. `internal/tts/` retained as backward-compat alias |
+| `internal/tts/` | Backward-compat alias layer (24 symbols) — all pre-refactor callers compile unchanged |
 | `internal/http/` | HTTP API handlers: /v1/chat/completions, /v1/agents, /v1/skills, /v1/traces, /v1/mcp, /v1/delegations, summoner |
 | `internal/crypto/` | AES-256-GCM encryption for API keys |
 | `internal/tracing/` | LLM call tracing (traces + spans), in-memory buffer with periodic store flush |

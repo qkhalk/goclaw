@@ -34,6 +34,20 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ### Added
 
+#### ElevenLabs Audio Manager Refactor — Phase 1 (2026-04-14)
+
+Unified audio provider management via new `internal/audio/` package with pluggable interface-based architecture. Phase 1 wires TTS providers (ElevenLabs, OpenAI, Edge, MiniMax); STT/Music/SFX interfaces defined for Phase 3-4.
+
+**What changed:**
+- **`internal/audio/` package**: Central `Manager` orchestrates 4 provider kinds via interfaces (`TTSProvider`, `STTProvider`, `MusicProvider`, `SFXProvider`)
+- **Provider organization**: Implementations in `internal/audio/{elevenlabs,openai,edge,minimax}/`. ElevenLabs shared HTTP client (`xi-api-key` header) for both TTS and SFX subproviders
+- **`internal/tts/` → backward-compat alias**: 24-symbol package (15 types + 6 consts + 5 constructors + 5 signature guards). All pre-refactor callers compile unchanged, zero breaking changes
+- **Config extension**: `config.Audio` optional pointer (nil-safe) added for future STT/Music subsections. `cfg.Tts` retained unchanged
+- **ElevenLabs SFX tool**: `internal/tools/create_audio_elevenlabs.go` rewritten as thin shim calling `elevenlabs.NewSFXProvider(...).GenerateSFX(ctx, audio.SFXOptions{...})`
+- **WS `tts.*` namespace**: 6 methods unchanged externally
+
+**Impact**: Existing TTS flows fully compatible. New code can import `internal/audio` directly. STT/Music/SFX wiring deferred to Phase 3-4.
+
 #### Trace Stop/Abort Redesign — Cascading 4-Layer Fix (2026-04-14)
 
 The Stop button on the traces page now reliably aborts running traces. Previous implementation had independent race conditions across HTTP streaming, agent router, trace persistence, and UI polling; this redesign fixes all four layers atomically.
