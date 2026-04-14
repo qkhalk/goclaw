@@ -200,9 +200,13 @@ Apply before finalizing any multi-phase plan. Trust-but-verify between scout →
 10. **Context key style convention** — check existing `context.go` pattern before introducing new key types. Mixed = code smell.
 11. **Alias/shim coverage** — enumerate ALL exported symbols via `go doc <pkg>`. Add compile-time signature guards.
 12. **Verify pass MANDATORY after rewrite** — spawn fresh Explore/grep to audit planner output. Don't trust self-validation.
+13. **No fabricated Go identifiers** — every type/function/package referenced in plan must be grep-verified to exist (`grep -rn '^func <name>\|^type <name>' <pkg>`). Plausible-sounding APIs (`Keyring`, `StartSpan`, `Validator`, `security.SSRF`) are RED FLAGS — conventions differ per codebase. Rule of thumb: if you can't cite `file_path:line_number` for a symbol, you're fabricating. Apply especially when planner says "reuse existing X" — re-verify X exists before writing into plan.
+14. **Plausible-but-wrong API families** — watch for: OTel-style `StartSpan/EndSpan` (codebase may be emit-based); wrapper types like `Keyring/Vault/Manager` (codebase may use free functions); `internal/security` or `internal/auth` packages (often scattered instead of centralized). When unsure, `go doc <pkg>` lists actual exported surface.
 
 **Pattern to avoid:** user asks → planner writes → report "done".
 **Safer pattern:** user asks → scout → planner writes → audit-verify → report.
+
+**Concrete red-team practice:** After planner completes, run `code-reviewer`/`brainstormer` agent in audit mode with explicit instruction "spot-check 15+ factual claims against live codebase". Caught fabricated `internal/security/`, `crypto.Keyring`, `tracing.StartSpan` in Agent Hooks plan (see `plans/260414-2229-agent-hooks-system/reports/audit-260414-2310-plan-review.md`).
 
 ## Post-Implementation Checklist
 

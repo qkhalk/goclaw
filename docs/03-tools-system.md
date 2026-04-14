@@ -812,9 +812,16 @@ func (t *MyTool) Execute(ctx context.Context, params MyParams) (*Result, error) 
 #### tts (tenant override shape)
 ```json
 {
-  "primary": "elevenlabs"
+  "primary": "elevenlabs",
+  "default_voice_id": "pMsXgVXv3BLzUgSXRplE",
+  "default_model": "eleven_flash_v2_5"
 }
 ```
+
+**Fields:**
+- `primary`: Provider selection (elevenlabs, openai, edge, minimax)
+- `default_voice_id`: Tenant-level voice ID fallback (ElevenLabs); overridable per-agent via `agent.other_config.tts_voice_id`
+- `default_model`: Tenant-level model choice (eleven_v3, eleven_flash_v2_5, eleven_multilingual_v2, eleven_turbo_v2_5); overridable per-agent via `agent.other_config.tts_model_id`
 
 **Secret vs non-secret split:**
 - Non-secret (provider priorities, max_results, allowed_domains): `builtin_tool_tenant_configs.settings` (editable via UI)

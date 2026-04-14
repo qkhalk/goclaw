@@ -48,6 +48,22 @@ Unified audio provider management via new `internal/audio/` package with pluggab
 
 **Impact**: Existing TTS flows fully compatible. New code can import `internal/audio` directly. STT/Music/SFX wiring deferred to Phase 3-4.
 
+#### ElevenLabs Audio Manager Enhancements — Phase 2 (2026-04-14)
+
+Voice discovery and agent-level audio config via new backend endpoints, in-memory cache, and web UI picker. Bundles producer/consumer context pattern (`store.WithAgentAudio`) for seamless voice/model resolution throughout the tool execution pipeline.
+
+**What changed:**
+- **Voice cache** (`internal/audio/voice_cache.go`): In-memory LRU (cap 1000 tenants) with TTL 1h, shared between HTTP + WS handlers, thread-safe under concurrent access
+- **Streaming TTS interface** (`internal/audio/types.go`): New `StreamingTTSProvider` optional interface for ElevenLabs `/v1/text-to-speech/{voice_id}/stream` chunked playback
+- **ElevenLabs enhancements**: Model allowlist (11_v3, eleven_flash_v2_5, eleven_multilingual_v2, eleven_turbo_v2_5), `SynthesizeStream()` method, `ListVoices()` via `/v1/voices`
+- **Agent audio context** (`internal/store/context.go`): New `WithAgentAudio` / `AgentAudioFromCtx` bundle; producer wires snapshot at dispatcher level (internal/agent/), consumer (`TtsTool.Execute`) reads voice/model overrides from agent config
+- **Agent config extension** (`agents.other_config` JSONB): New `tts_voice_id` and `tts_model_id` fields with resolution precedence: args → agent → tenant → provider default
+- **HTTP + WS endpoints**: GET /v1/voices (cached), POST /v1/voices/refresh (admin-only), WS method `voices.list` + `voices.refresh`
+- **Web voice picker** (`ui/web/src/components/voice-picker.tsx`): Combobox with search, preview button (HTML audio + onError → refresh), embedded in PromptSettingsSection
+- **i18n**: 10 new frontend keys (voice_label, voice_placeholder, voice_refresh, voice_preview, model_label, etc.) + 2 new backend keys (MsgTtsUnknownModel, MsgVoicesListFailed) across en/vi/zh
+
+**Impact**: Existing TTS callers fully compatible (backward-compat via Phase 1 alias layer). Web UI gains voice discovery + per-agent voice/model overrides. Zero breaking changes. Integration test validates producer+consumer context flow.
+
 #### Trace Stop/Abort Redesign — Cascading 4-Layer Fix (2026-04-14)
 
 The Stop button on the traces page now reliably aborts running traces. Previous implementation had independent race conditions across HTTP streaming, agent router, trace persistence, and UI polling; this redesign fixes all four layers atomically.
