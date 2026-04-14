@@ -39,7 +39,7 @@ During cancellation:
 
 Trace finalization persists independently with a detached context (`context.WithoutCancel`), 5-second timeout, and exponential backoff retry (3 tries, max 10 total via retry queue). This ensures trace status writes don't fail silently due to cancellation.
 
-Stale recovery worker runs every 30 seconds and catches zombie traces (stuck in "running" state) older than 10 minutes. Threshold is conservative because it measures against `start_time`, not last activity — a tighter value would kill healthy long-running agent runs. (Follow-up: add `last_span_at` column to enable aggressive recovery of inactive runs.) Context values (traceID, collector) survive cancellation — only `ctx.Done()` and `ctx.Err()` change.
+Stale recovery is **currently disabled**. The implementation exists but the background loop is not started in `Collector.Start()`. Reason: the sweep condition is `start_time < NOW() - threshold`, which measures trace age rather than inactivity. Any threshold low enough to be useful (2–10 min) would kill healthy long-running agent runs (research chains, large code generation, extended shell commands). Re-enable only after adding a `last_span_at` column so recovery can gate on "no activity for N minutes" instead of "started > N min ago". Until then, zombie traces from gateway crashes may remain `running` in the DB — an accepted safety-net gap traded against false kills. The primary abort path (router 2-phase abort + `trace.status` WS event) handles the common case. Context values (traceID, collector) survive cancellation — only `ctx.Done()` and `ctx.Err()` change.
 
 ---
 

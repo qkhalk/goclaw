@@ -146,14 +146,27 @@ func (c *Collector) SetStatusBroadcaster(b StatusBroadcaster) {
 	c.broadcastStatus = b
 }
 
-// Start begins the background flush loop, retry worker, and stale recovery loop.
+// Start begins the background flush loop and retry worker.
+//
+// NOTE: staleRecoveryLoop is intentionally NOT started. The current implementation
+// sweeps traces by `start_time`, which would kill legitimate long-running agent
+// runs (research chains, large code generation, long shell commands routinely
+// exceed 10 minutes). Re-enable only after adding a `last_span_at` column so
+// recovery can gate on "no activity for N minutes" instead of "started > N min
+// ago". Until then, crashed/orphaned traces may remain `running` in DB — the
+// primary abort path (router 2-phase + trace.status WS event) handles the
+// common case; this is a safety-net gap we accept over false kills.
 func (c *Collector) Start() {
-	c.wg.Add(3) // flushLoop + retryWorker + staleRecoveryLoop
+	c.wg.Add(2) // flushLoop + retryWorker (staleRecoveryLoop disabled — see note above)
 	go c.flushLoop()
 	go c.retryWorker()
-	go c.staleRecoveryLoop()
+	// go c.staleRecoveryLoop() // disabled: would kill healthy long runs. See Start() godoc.
 	slog.Info("tracing collector started")
 }
+
+// keep staleRecoveryLoop reachable to silence "unused" linter; re-enabled in
+// Start() once last_span_at-based recovery lands.
+var _ = (*Collector).staleRecoveryLoop
 
 // Stop gracefully shuts down the collector, flushing remaining spans.
 func (c *Collector) Stop() {
