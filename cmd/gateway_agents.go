@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/nextlevelbuilder/goclaw/internal/audio/elevenlabs"
+	minimaxaudio "github.com/nextlevelbuilder/goclaw/internal/audio/minimax"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/memory"
@@ -275,12 +277,42 @@ func setupTTS(cfg *config.Config) *tts.Manager {
 	return mgr
 }
 
-// setupAudioExtras wires optional STT + Music static defaults into the audio
-// Manager. Phase 1 placeholder: body is empty — Phase 3 wires Music providers,
-// Phase 4 wires STT providers. Kept here so the call-site in gateway_setup.go
-// is stable from Phase 1 onward.
-//
-//nolint:unused // Phase 1 stub; wired in Phase 3/4.
-func setupAudioExtras(_ *config.Config, _ *tts.Manager) {
-	// Intentionally empty. Phase 3/4 will register Music/STT providers here.
+// setupAudioExtras wires Music and SFX providers into the audio Manager.
+// ElevenLabs is registered for both SFX and Music when an API key is present.
+// MiniMax music is registered when cfg.Audio.Music is configured with a key.
+// Phase 4 will add STT providers here.
+func setupAudioExtras(cfg *config.Config, mgr *tts.Manager) {
+	ellKey := cfg.Tts.ElevenLabs.APIKey
+	ellBase := cfg.Tts.ElevenLabs.BaseURL
+
+	// ElevenLabs SFX — reuse TTS credentials.
+	if ellKey != "" {
+		mgr.RegisterSFX(elevenlabs.NewSFXProvider(elevenlabs.Config{
+			APIKey:  ellKey,
+			BaseURL: ellBase,
+		}))
+		slog.Info("audio.sfx: elevenlabs registered")
+	}
+
+	// ElevenLabs Music — same credentials, uses /v1/music endpoint.
+	if ellKey != "" {
+		mgr.RegisterMusic(elevenlabs.NewMusicProvider(elevenlabs.Config{
+			APIKey:  ellKey,
+			BaseURL: ellBase,
+		}))
+		slog.Info("audio.music: elevenlabs registered")
+	}
+
+	// MiniMax Music — optional, from cfg.Audio.Music block.
+	if cfg.Audio != nil && cfg.Audio.Music != nil {
+		mc := cfg.Audio.Music
+		if mc.APIKey != "" {
+			mgr.RegisterMusic(minimaxaudio.NewMusicProvider(minimaxaudio.MusicConfig{
+				APIKey:  mc.APIKey,
+				APIBase: mc.BaseURL,
+				Model:   mc.Model,
+			}))
+			slog.Info("audio.music: minimax registered")
+		}
+	}
 }

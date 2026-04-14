@@ -133,17 +133,17 @@ func setupToolRegistry(
 	toolsReg.Register(tools.NewReadImageTool(providerRegistry))
 	toolsReg.Register(tools.NewCreateImageTool(providerRegistry))
 
-	// Audio generation tool (MiniMax music + ElevenLabs sound effects)
-	toolsReg.Register(tools.NewCreateAudioTool(providerRegistry,
-		cfg.Tts.ElevenLabs.APIKey, cfg.Tts.ElevenLabs.BaseURL))
-
-	// Audio system (TTS today, STT/Music/SFX in later phases) — always create
-	// TtsTool so config reload can populate it later.
+	// Audio system: build Manager first so Music/SFX providers are registered
+	// before the create_audio tool is constructed.
 	ttsMgr := setupTTS(cfg)
 	if ttsMgr == nil {
 		ttsMgr = tts.NewManager(tts.ManagerConfig{})
 	}
-	setupAudioExtras(cfg, ttsMgr) // Phase 1 stub; Phase 3/4 wire Music/STT.
+	setupAudioExtras(cfg, ttsMgr) // Phase 3: registers Music + SFX providers.
+
+	// Audio generation tool — backed by audio.Manager (Music + SFX).
+	toolsReg.Register(tools.NewCreateAudioTool(ttsMgr))
+
 	ttsTool = tools.NewTtsTool(ttsMgr)
 	toolsReg.Register(ttsTool)
 	if ttsMgr.HasProviders() {
