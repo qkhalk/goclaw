@@ -6,7 +6,15 @@
 // implementations land in Phase 3 (Music/SFX) and Phase 4 (STT).
 package audio
 
-import "context"
+import (
+	"context"
+	"errors"
+	"io"
+)
+
+// ErrStreamingNotSupported is returned when a caller requests streaming TTS
+// on a provider that does not implement StreamingTTSProvider.
+var ErrStreamingNotSupported = errors.New("streaming not supported")
 
 // ---- TTS (implemented Phase 1) ----
 
@@ -14,6 +22,22 @@ import "context"
 type TTSProvider interface {
 	Name() string
 	Synthesize(ctx context.Context, text string, opts TTSOptions) (*SynthResult, error)
+}
+
+// StreamingTTSProvider is the optional streaming extension of TTSProvider.
+// Providers that support HTTP chunked streaming implement this to return
+// bytes as they arrive, reducing time-to-first-byte for long texts.
+type StreamingTTSProvider interface {
+	TTSProvider
+	SynthesizeStream(ctx context.Context, text string, opts TTSOptions) (*StreamResult, error)
+}
+
+// StreamResult is the output of a streaming TTS synthesis call. Callers MUST
+// Close the Audio reader when finished to release the underlying HTTP body.
+type StreamResult struct {
+	Audio     io.ReadCloser // chunked audio stream — caller must Close
+	Extension string        // file extension without dot: "mp3", "opus", "ogg"
+	MimeType  string        // e.g. "audio/mpeg", "audio/ogg"
 }
 
 // TTSOptions controls TTS synthesis parameters.

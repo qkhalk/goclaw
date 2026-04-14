@@ -124,6 +124,21 @@ func (m *Manager) Synthesize(ctx context.Context, text string, opts TTSOptions) 
 	return p.Synthesize(ctx, text, opts)
 }
 
+// SynthesizeStream dispatches streaming TTS to the primary provider. Returns
+// ErrStreamingNotSupported if the primary does not implement
+// StreamingTTSProvider, letting callers fall back to buffered Synthesize.
+func (m *Manager) SynthesizeStream(ctx context.Context, text string, opts TTSOptions) (*StreamResult, error) {
+	p, ok := m.ttsProviders[m.primary]
+	if !ok {
+		return nil, fmt.Errorf("tts provider not found: %s", m.primary)
+	}
+	sp, ok := p.(StreamingTTSProvider)
+	if !ok {
+		return nil, ErrStreamingNotSupported
+	}
+	return sp.SynthesizeStream(ctx, text, opts)
+}
+
 // SynthesizeWithFallback tries primary first, then any other registered
 // provider on error. Returns first success or aggregate failure.
 func (m *Manager) SynthesizeWithFallback(ctx context.Context, text string, opts TTSOptions) (*SynthResult, error) {

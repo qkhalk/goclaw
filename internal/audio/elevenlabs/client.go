@@ -62,6 +62,35 @@ func (c *client) postJSON(ctx context.Context, path string, body []byte, customT
 	return out, nil
 }
 
+// getJSON performs a GET request to {baseURL}/path and returns the raw response
+// bytes on 200 OK. Non-200 responses surface as errors with a truncated body —
+// mirrors the postJSON error handling pattern.
+func (c *client) getJSON(ctx context.Context, path string) ([]byte, error) {
+	url := strings.TrimRight(c.baseURL, "/") + path
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("xi-api-key", c.apiKey)
+
+	hc := &http.Client{Timeout: time.Duration(c.timeoutMs) * time.Millisecond}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		errBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ElevenLabs API error %d: %s", resp.StatusCode, truncate(errBody, 500))
+	}
+	out, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+	return out, nil
+}
+
 func truncate(b []byte, n int) string {
 	if len(b) <= n {
 		return string(b)
