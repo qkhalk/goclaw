@@ -139,6 +139,94 @@ func (m *Manager) SynthesizeStream(ctx context.Context, text string, opts TTSOpt
 	return sp.SynthesizeStream(ctx, text, opts)
 }
 
+// ---- Music dispatch ----
+
+// GenerateMusic tries registered music providers in chain order until one succeeds.
+// Chain order: elevenlabs first (if registered), then remaining providers.
+// Override order by setting m.musicChain before the first call.
+func (m *Manager) GenerateMusic(ctx context.Context, opts MusicOptions) (*AudioResult, error) {
+	chain := m.resolveMusicChain()
+	if len(chain) == 0 {
+		return nil, fmt.Errorf("no music providers registered")
+	}
+	var lastErr error
+	for _, name := range chain {
+		p, ok := m.musicProviders[name]
+		if !ok {
+			slog.Info("audio.music provider not registered, skipping", "provider", name)
+			continue
+		}
+		if res, err := p.GenerateMusic(ctx, opts); err == nil {
+			return res, nil
+		} else {
+			slog.Warn("audio.music provider failed", "provider", name, "error", err)
+			lastErr = err
+		}
+	}
+	if lastErr != nil {
+		return nil, fmt.Errorf("all music providers failed: %w", lastErr)
+	}
+	return nil, fmt.Errorf("no music providers registered")
+}
+
+// GenerateSFX tries SFX providers in order: elevenlabs first, then any other registered.
+func (m *Manager) GenerateSFX(ctx context.Context, opts SFXOptions) (*AudioResult, error) {
+	order := m.resolveSFXChain()
+	if len(order) == 0 {
+		return nil, fmt.Errorf("no sfx providers registered")
+	}
+	var lastErr error
+	for _, name := range order {
+		p, ok := m.sfxProviders[name]
+		if !ok {
+			continue
+		}
+		if res, err := p.GenerateSFX(ctx, opts); err == nil {
+			return res, nil
+		} else {
+			slog.Warn("audio.sfx provider failed", "provider", name, "error", err)
+			lastErr = err
+		}
+	}
+	if lastErr != nil {
+		return nil, fmt.Errorf("all sfx providers failed: %w", lastErr)
+	}
+	return nil, fmt.Errorf("no sfx providers registered")
+}
+
+// resolveMusicChain returns the ordered provider names for music generation.
+// If m.musicChain is set explicitly it is used as-is; otherwise elevenlabs is
+// preferred and remaining providers follow in registration order.
+func (m *Manager) resolveMusicChain() []string {
+	if len(m.musicChain) > 0 {
+		return m.musicChain
+	}
+	out := make([]string, 0, len(m.musicProviders))
+	if _, ok := m.musicProviders["elevenlabs"]; ok {
+		out = append(out, "elevenlabs")
+	}
+	for name := range m.musicProviders {
+		if name != "elevenlabs" {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// resolveSFXChain returns the ordered provider names for SFX generation.
+func (m *Manager) resolveSFXChain() []string {
+	out := make([]string, 0, len(m.sfxProviders))
+	if _, ok := m.sfxProviders["elevenlabs"]; ok {
+		out = append(out, "elevenlabs")
+	}
+	for name := range m.sfxProviders {
+		if name != "elevenlabs" {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 // SynthesizeWithFallback tries primary first, then any other registered
 // provider on error. Returns first success or aggregate failure.
 func (m *Manager) SynthesizeWithFallback(ctx context.Context, text string, opts TTSOptions) (*SynthResult, error) {

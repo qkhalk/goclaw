@@ -109,12 +109,15 @@ type MusicProvider interface {
 
 // MusicOptions controls music generation.
 type MusicOptions struct {
-	Prompt   string
-	Lyrics   string
-	Duration int // seconds
+	Prompt       string
+	Lyrics       string
+	Instrumental bool
+	Duration     int    // seconds (ElevenLabs: converts to music_length_ms)
+	Model        string // provider-specific model override
+	TimeoutSec   int    // 0 = provider default
 }
 
-// ---- SFX (stubs — implementations land in Phase 3) ----
+// ---- SFX (implementations land in Phase 3) ----
 
 // SFXProvider generates short sound effects from a prompt.
 type SFXProvider interface {
@@ -133,4 +136,6 @@ type AudioResult struct {
 	Audio     []byte
 	Extension string
 	MimeType  string
+	Model     string // actual model used (optional, for observability)
+	Provider  string // provider name that produced the audio (optional, for observability)
 }
