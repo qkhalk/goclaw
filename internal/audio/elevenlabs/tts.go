@@ -38,6 +38,9 @@ func (p *TTSProvider) Synthesize(ctx context.Context, text string, opts audio.TT
 	if modelID == "" {
 		modelID = p.cfg.ModelID
 	}
+	if err := ValidateModel(modelID); err != nil {
+		return nil, err
+	}
 
 	// Output format: MP3 128kbps default, Opus 64kbps for Telegram voice.
 	outputFormat, ext, mime := "mp3_44100_128", "mp3", "audio/mpeg"
