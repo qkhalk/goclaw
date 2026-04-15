@@ -201,5 +201,6 @@ func init() {
 		MsgSTTAllProvidersFailed:     "Tất cả nhà cung cấp STT đều thất bại",
 		MsgSTTLegacyConfigDeprecated: "Cấu hình STT cũ đã lỗi thời; hãy chuyển sang builtin_tools[stt]",
 		MsgSTTWhatsappPrivacyWarning: "Bật STT cho WhatsApp sẽ phá vỡ mã hóa đầu cuối cho tin nhắn thoại gửi đến agent này.",
+		MsgVoiceMessageFallback:      "[Tin nhắn thoại]",
 	})
 }

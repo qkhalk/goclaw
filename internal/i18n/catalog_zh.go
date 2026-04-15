@@ -201,5 +201,6 @@ func init() {
 		MsgSTTAllProvidersFailed:     "所有 STT 提供商均失败",
 		MsgSTTLegacyConfigDeprecated: "旧版 STT 配置已弃用；请迁移至 builtin_tools[stt]",
 		MsgSTTWhatsappPrivacyWarning: "为 WhatsApp 启用 STT 将破坏发送至此 Agent 的语音消息的端对端加密。",
+		MsgVoiceMessageFallback:      "[语音消息]",
 	})
 }

@@ -201,5 +201,6 @@ func init() {
 		MsgSTTAllProvidersFailed:     "All STT providers failed",
 		MsgSTTLegacyConfigDeprecated: "Legacy STT config deprecated; migrate to builtin_tools[stt]",
 		MsgSTTWhatsappPrivacyWarning: "Enabling STT for WhatsApp breaks end-to-end encryption for voice messages sent to this agent.",
+		MsgVoiceMessageFallback:      "[Voice message]",
 	})
 }
