@@ -24,7 +24,8 @@
     "scope": "Phạm vi",
     "matcher": "Bộ lọc",
     "enabled": "Bật",
-    "actions": "Thao tác"
+    "actions": "Thao tác",
+    "systemBadge": "Hệ thống"
   },
   "form": {
     "title_create": "Tạo Hook",
@@ -47,6 +48,11 @@
     "promptTemplate": "Mẫu prompt",
     "model": "Mô hình",
     "maxInvocationsPerTurn": "Số lần gọi tối đa mỗi lượt",
+    "scriptSource": "Mã nguồn script (ES5.1 JavaScript)",
+    "scriptSchemaHelp": "Hàm handle(event) trả về {decision: \"allow\"|\"block\", reason?: string, updatedInput?: object}. Giới hạn 32 KiB.",
+    "compileError": "Lỗi cú pháp tại dòng {{line}}, cột {{col}}",
+    "builtinReadonly": "Hook dựng sẵn — chỉ có thể bật/tắt, không chỉnh sửa nội dung.",
+    "saveToggle": "Lưu bật/tắt",
     "save": "Lưu",
     "cancel": "Hủy"
   },
@@ -66,6 +72,7 @@
     "firing": "Đang kích hoạt\u2026",
     "decision": "Quyết định",
     "duration": "Thời gian",
+    "reason": "Lý do",
     "stdout": "Stdout",
     "stderr": "Stderr",
     "statusCode": "Mã trạng thái",
@@ -93,7 +100,8 @@
   "validation": {
     "promptRequiresMatcher": "Hook prompt yêu cầu matcher hoặc if_expr",
     "invalidRegex": "Regex không hợp lệ",
-    "promptTemplateRequired": "Mẫu prompt là bắt buộc"
+    "promptTemplateRequired": "Mẫu prompt là bắt buộc",
+    "scriptSourceRequired": "Mã nguồn script là bắt buộc"
   },
   "decision": {
     "allow": "Cho phép",

@@ -57,6 +57,10 @@ function buildConfig(data: HookFormData): Record<string, unknown> {
       body_template: data.body_template ?? "",
     };
   }
+  if (data.handler_type === "script") {
+    // Backend goja handler reads cfg.Config.source (Phase 03). Zod caps at 32 KiB.
+    return { source: data.script_source ?? "" };
+  }
   // prompt
   return {
     prompt_template: data.prompt_template ?? "",

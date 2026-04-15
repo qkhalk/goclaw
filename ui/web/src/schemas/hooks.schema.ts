@@ -13,7 +13,8 @@ export const HookEventEnum = z.enum([
 // `command` deliberately absent: Wave 1 removes UI surface for it. Legacy Standard rows
 // with handler_type="command" are auto-disabled at startup (Phase 07). Lite keeps running
 // existing command hooks via dispatcher but cannot create new ones through the UI.
-export const HookHandlerTypeEnum = z.enum(["http", "prompt"]);
+// `script` added in Phase 06 (goja ES5.1 runtime; builtin PII redactor ships in Phase 05).
+export const HookHandlerTypeEnum = z.enum(["script", "http", "prompt"]);
 
 export const HookScopeEnum = z.enum(["global", "tenant", "agent"]);
 
@@ -36,6 +37,9 @@ export const hookFormSchema = z
     prompt_template: z.string().optional(),
     model: z.string().optional(),
     max_invocations_per_turn: z.number().int().min(1).max(20).optional(),
+    // Script handler source (ES5.1 JavaScript). Cap mirrors backend 32 KiB
+    // enforcement in the goja handler.
+    script_source: z.string().max(32_768).optional(),
   })
   .superRefine((data, ctx) => {
     // Validate regex if matcher is provided
@@ -66,6 +70,13 @@ export const hookFormSchema = z
           message: "validation.promptTemplateRequired",
         });
       }
+    }
+    if (data.handler_type === "script" && !data.script_source?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["script_source"],
+        message: "validation.scriptSourceRequired",
+      });
     }
   });
 

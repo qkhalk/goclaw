@@ -10,7 +10,7 @@ export interface HookConfig {
   tenant_id: string;
   agent_id?: string | null;
   event: string;
-  handler_type: "command" | "http" | "prompt";
+  handler_type: "command" | "http" | "prompt" | "script";
   scope: "global" | "tenant" | "agent";
   config: Record<string, unknown>;
   matcher?: string;
@@ -20,7 +20,7 @@ export interface HookConfig {
   priority: number;
   enabled: boolean;
   version: number;
-  source: "ui" | "api" | "seed";
+  source: "ui" | "api" | "seed" | "builtin";
   metadata: Record<string, unknown>;
   created_by?: string;
   created_at: string;

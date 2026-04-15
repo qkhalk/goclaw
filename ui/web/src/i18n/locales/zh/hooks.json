@@ -24,7 +24,8 @@
     "scope": "范围",
     "matcher": "匹配器",
     "enabled": "已启用",
-    "actions": "操作"
+    "actions": "操作",
+    "systemBadge": "系统"
   },
   "form": {
     "title_create": "创建钩子",
@@ -47,6 +48,11 @@
     "promptTemplate": "Prompt 模板",
     "model": "模型",
     "maxInvocationsPerTurn": "每轮最大调用次数",
+    "scriptSource": "脚本源码（ES5.1 JavaScript）",
+    "scriptSchemaHelp": "函数 handle(event) 返回 {decision: \"allow\"|\"block\", reason?: string, updatedInput?: object}。限制 32 KiB。",
+    "compileError": "语法错误,位于第 {{line}} 行第 {{col}} 列",
+    "builtinReadonly": "内置钩子 — 仅可切换启用状态,不能修改内容。",
+    "saveToggle": "保存开关",
     "save": "保存",
     "cancel": "取消"
   },
@@ -66,6 +72,7 @@
     "firing": "触发中\u2026",
     "decision": "决策",
     "duration": "耗时",
+    "reason": "原因",
     "stdout": "标准输出",
     "stderr": "标准错误",
     "statusCode": "状态码",
@@ -93,7 +100,8 @@
   "validation": {
     "promptRequiresMatcher": "Prompt 钩子需要 matcher 或 if_expr",
     "invalidRegex": "无效的正则表达式",
-    "promptTemplateRequired": "Prompt 模板为必填项"
+    "promptTemplateRequired": "Prompt 模板为必填项",
+    "scriptSourceRequired": "脚本源码为必填项"
   },
   "decision": {
     "allow": "允许",

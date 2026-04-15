@@ -24,7 +24,8 @@
     "scope": "Scope",
     "matcher": "Matcher",
     "enabled": "Enabled",
-    "actions": "Actions"
+    "actions": "Actions",
+    "systemBadge": "System"
   },
   "form": {
     "title_create": "Create Hook",
@@ -47,6 +48,11 @@
     "promptTemplate": "Prompt Template",
     "model": "Model",
     "maxInvocationsPerTurn": "Max Invocations per Turn",
+    "scriptSource": "Script source (ES5.1 JavaScript)",
+    "scriptSchemaHelp": "Export function handle(event) returning {decision: \"allow\"|\"block\", reason?: string, updatedInput?: object}. Limit 32 KiB.",
+    "compileError": "Syntax error at line {{line}}, column {{col}}",
+    "builtinReadonly": "Built-in hook — only the enabled toggle can be changed.",
+    "saveToggle": "Save toggle",
     "save": "Save",
     "cancel": "Cancel"
   },
@@ -66,6 +72,7 @@
     "firing": "Firing\u2026",
     "decision": "Decision",
     "duration": "Duration",
+    "reason": "Reason",
     "stdout": "Stdout",
     "stderr": "Stderr",
     "statusCode": "Status code",
@@ -93,7 +100,8 @@
   "validation": {
     "promptRequiresMatcher": "Prompt hooks require a matcher or if_expr",
     "invalidRegex": "Invalid regex",
-    "promptTemplateRequired": "Prompt template is required"
+    "promptTemplateRequired": "Prompt template is required",
+    "scriptSourceRequired": "Script source is required"
   },
   "decision": {
     "allow": "Allow",

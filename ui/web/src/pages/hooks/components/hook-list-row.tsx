@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { HookConfig } from "@/hooks/use-hooks";
+import { SystemBadge } from "./system-badge";
 
 interface HookListRowProps {
   hook: HookConfig;
@@ -28,6 +29,7 @@ const HANDLER_COLORS: Record<string, string> = {
   command: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   http: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
   prompt: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300",
+  script: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
 };
 
 export function HookListRow({ hook, onClick, onToggle, onEdit, onDelete, onTest }: HookListRowProps) {
@@ -56,6 +58,7 @@ export function HookListRow({ hook, onClick, onToggle, onEdit, onDelete, onTest 
           <Badge variant="outline" className="text-2xs px-1 py-0">
             {hook.scope}
           </Badge>
+          {hook.source === "builtin" && <SystemBadge />}
         </div>
         {hook.matcher && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground font-mono">{hook.matcher}</p>
@@ -95,9 +98,10 @@ export function HookListRow({ hook, onClick, onToggle, onEdit, onDelete, onTest 
         <Button
           variant="ghost"
           size="xs"
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground hover:text-destructive disabled:opacity-40"
           onClick={onDelete}
-          title={t("actions.delete")}
+          disabled={hook.source === "builtin"}
+          title={hook.source === "builtin" ? t("form.builtinReadonly") : t("actions.delete")}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
