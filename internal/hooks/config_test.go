@@ -254,3 +254,66 @@ func TestValidate_CapsTimeoutToMax(t *testing.T) {
 		t.Fatal("expected error for timeout > MaxTimeoutMS")
 	}
 }
+
+// ─── Script handler validation (Phase 03) ────────────────────────────────────
+
+func baseValidScriptHook() hooks.HookConfig {
+	h := baseValidCommandHook()
+	h.HandlerType = hooks.HandlerScript
+	h.Config = map[string]any{"source": `function handle(e){return {decision:"allow"}}`}
+	return h
+}
+
+func TestValidate_AcceptsValidScriptHook(t *testing.T) {
+	h := baseValidScriptHook()
+	if err := h.Validate(edition.Standard); err != nil {
+		t.Fatalf("expected nil error; got %v", err)
+	}
+}
+
+func TestValidate_RejectsEmptyScriptSource(t *testing.T) {
+	h := baseValidScriptHook()
+	h.Config = map[string]any{"source": ""}
+	err := h.Validate(edition.Standard)
+	if err == nil || !strings.Contains(err.Error(), "non-empty") {
+		t.Fatalf("expected non-empty source error; got %v", err)
+	}
+}
+
+func TestValidate_RejectsOversizedScriptSource(t *testing.T) {
+	h := baseValidScriptHook()
+	big := strings.Repeat("// pad\n", 6000) // >32 KiB
+	h.Config = map[string]any{"source": big}
+	err := h.Validate(edition.Standard)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("expected exceeds-bytes error; got %v", err)
+	}
+}
+
+func TestValidate_RejectsScriptCompileError(t *testing.T) {
+	h := baseValidScriptHook()
+	// Missing closing brace → parser error with line:col.
+	h.Config = map[string]any{"source": `function handle(e) { return {`}
+	err := h.Validate(edition.Standard)
+	if err == nil || !strings.Contains(err.Error(), "compile error") {
+		t.Fatalf("expected compile error; got %v", err)
+	}
+}
+
+func TestValidate_RejectsOnTimeoutAsk(t *testing.T) {
+	h := baseValidScriptHook()
+	h.OnTimeout = hooks.DecisionAsk
+	err := h.Validate(edition.Standard)
+	if err == nil || !strings.Contains(err.Error(), "on_timeout") {
+		t.Fatalf("expected on_timeout rejection; got %v", err)
+	}
+}
+
+func TestValidate_RejectsOnTimeoutDefer(t *testing.T) {
+	h := baseValidScriptHook()
+	h.OnTimeout = hooks.DecisionDefer
+	err := h.Validate(edition.Standard)
+	if err == nil || !strings.Contains(err.Error(), "on_timeout") {
+		t.Fatalf("expected on_timeout rejection; got %v", err)
+	}
+}

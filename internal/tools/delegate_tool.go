@@ -172,7 +172,7 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]any) *Result
 			HookEvent: hooks.EventSubagentStart,
 			Depth:     hooks.DepthFrom(ctx),
 		}
-		dec, err := t.hookDispatcher.Fire(ctx, evt)
+		r, err := t.hookDispatcher.Fire(ctx, evt)
 		if err != nil {
 			t.emitEvent(ctx, eventbus.EventDelegateFailed, eventbus.DelegateFailedPayload{
 				DelegationID: req.DelegationID,
@@ -182,7 +182,9 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]any) *Result
 			})
 			return ErrorResult(fmt.Sprintf("subagent_start hook error: %v", err))
 		}
-		if dec == hooks.DecisionBlock {
+		// Updated* from FireResult intentionally unused — delegate has no
+		// mutation need in Wave 1.
+		if r.Decision == hooks.DecisionBlock {
 			t.emitEvent(ctx, eventbus.EventDelegateFailed, eventbus.DelegateFailedPayload{
 				DelegationID: req.DelegationID,
 				FromAgent:    req.FromAgentKey,

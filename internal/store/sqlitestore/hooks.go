@@ -45,7 +45,13 @@ func NewSQLiteHookStore(db *sql.DB) *SqliteHookStore {
 // ─── Create ─────────────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UUID, error) {
-	id := uuid.Must(uuid.NewV7())
+	// Honor caller-provided fixed ID (H9) — Phase 04 builtin seeder uses
+	// UUIDv5 for idempotent UPSERT; tests need deterministic IDs. Only
+	// auto-generate when the caller left ID unset.
+	id := cfg.ID
+	if id == uuid.Nil {
+		id = uuid.Must(uuid.NewV7())
+	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 
 	cfgJSON, err := json.Marshal(cfg.Config)

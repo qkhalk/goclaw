@@ -88,12 +88,12 @@ func TestHooksIntegration_HTTPHandler_AllowWritesAudit(t *testing.T) {
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}
-	dec, err := d.Fire(ctx, ev)
+	r, err := d.Fire(ctx, ev)
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionAllow {
-		t.Errorf("decision=%q, want allow", dec)
+	if r.Decision != hooks.DecisionAllow {
+		t.Errorf("decision=%q, want allow", r.Decision)
 	}
 
 	// Give the audit writer a moment (sync path, but defensive).
@@ -159,12 +159,12 @@ func TestHooksIntegration_HTTPHandler_Block(t *testing.T) {
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}
-	dec, err := d.Fire(ctx, ev)
+	r, err := d.Fire(ctx, ev)
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block", r.Decision)
 	}
 
 	var count int
@@ -221,12 +221,12 @@ func TestHooksIntegration_CommandHandler_LiteEdition(t *testing.T) {
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}
-	dec, err := d.Fire(ctx, ev)
+	r, err := d.Fire(ctx, ev)
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionAllow {
-		t.Errorf("decision=%q, want allow", dec)
+	if r.Decision != hooks.DecisionAllow {
+		t.Errorf("decision=%q, want allow", r.Decision)
 	}
 
 	var count int

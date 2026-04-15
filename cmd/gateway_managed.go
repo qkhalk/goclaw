@@ -148,7 +148,7 @@ func wireExtras(
 	// Agent Hooks (Issue #875) — lifecycle dispatcher + handlers.
 	var hookDispatcher hooks.Dispatcher = hooks.NewNoopDispatcher()
 	if hs, ok := stores.Hooks.(hooks.HookStore); ok && hs != nil {
-		handlers := buildHookHandlers(stores, providerReg)
+		handlers := buildHookHandlers(stores, providerReg, appCfg.Hooks)
 		stdOpts := hooks.StdDispatcherOpts{
 			Store:    hs,
 			Audit:    hooks.NewAuditWriter(hs, ""),

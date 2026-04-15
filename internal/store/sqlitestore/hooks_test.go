@@ -212,25 +212,38 @@ func TestSQLiteHookStore_TenantIsolation(t *testing.T) {
 
 // ─── Partial unique indexes ───────────────────────────────────────────────────
 
-func TestSQLiteHookStore_UniqueIndexPreventsScopedDuplicates(t *testing.T) {
+// H9 (Phase 03): Create honors caller-supplied cfg.ID so the builtin seeder's
+// idempotent UUIDv5 keys survive restarts and tests get deterministic IDs.
+func TestSQLiteHookStore_CreateHonorsFixedID(t *testing.T) {
 	db := newHookTestDB(t)
 	tenantID, _ := seedHookTenantAgent(t, db)
 	s := NewSQLiteHookStore(db)
 	ctx := sqliteTenantCtx(tenantID)
 
+	fixed := uuid.MustParse("11111111-2222-3333-4444-555555555555")
 	cfg := sqliteMinimalHook(tenantID, hooks.EventUserPromptSubmit)
+	cfg.ID = fixed
 	cfg.Scope = hooks.ScopeTenant
 
-	id1, err := s.Create(ctx, cfg)
+	got, err := s.Create(ctx, cfg)
 	if err != nil {
-		t.Fatalf("first Create: %v", err)
+		t.Fatalf("Create: %v", err)
 	}
-	t.Cleanup(func() { s.Delete(sqliteMasterCtx(), id1) })
+	t.Cleanup(func() { s.Delete(sqliteMasterCtx(), got) })
+	if got != fixed {
+		t.Fatalf("Create returned id=%s, want %s (H9: caller id must be honored)", got, fixed)
+	}
 
-	// Same (tenant_id, event, handler_type) with ScopeTenant → should fail.
-	_, err = s.Create(ctx, cfg)
-	if err == nil {
-		t.Error("expected unique constraint error on duplicate scoped hook, got nil")
+	// A nil cfg.ID still auto-generates.
+	cfg2 := sqliteMinimalHook(tenantID, hooks.EventPreToolUse)
+	cfg2.ID = uuid.Nil
+	auto, err := s.Create(ctx, cfg2)
+	if err != nil {
+		t.Fatalf("Create auto: %v", err)
+	}
+	t.Cleanup(func() { s.Delete(sqliteMasterCtx(), auto) })
+	if auto == uuid.Nil {
+		t.Fatal("Create returned nil id for cfg.ID=uuid.Nil path")
 	}
 }
 

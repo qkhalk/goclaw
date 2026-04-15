@@ -134,6 +134,25 @@ func (d Decision) IsBlock() bool {
 	return d == DecisionBlock
 }
 
+// FireResult is the return value of Dispatcher.Fire. Callers read Decision to
+// branch on allow/block and apply Updated* when a builtin hook mutated input.
+//
+// UpdatedToolInput is non-nil only when at least one builtin-source hook in
+// the chain returned updatedInput AND the dispatcher applied allow-listed
+// fields. Callers overwrite their own tc.Arguments / state.Input with it.
+//
+// UpdatedRawInput points to a string only when a builtin hook mutated
+// rawInput. Callers replace state.Input.Message with the dereferenced value.
+//
+// For non-builtin scripts returning updatedInput the dispatcher strips the
+// mutation + logs a WARN; Updated* stay nil (defense-in-depth against a
+// tenant-authored script escalating its capability tier).
+type FireResult struct {
+	Decision         Decision
+	UpdatedToolInput map[string]any
+	UpdatedRawInput  *string
+}
+
 // ─── Config & execution structs ──────────────────────────────────────────────
 
 // HookConfig mirrors the agent_hooks DB row. All pointer fields correspond to

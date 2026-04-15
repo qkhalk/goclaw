@@ -43,7 +43,14 @@ func NewPGHookStore(db *sql.DB) *PGHookStore {
 // ─── Create ─────────────────────────────────────────────────────────────────
 
 func (s *PGHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UUID, error) {
-	id := uuid.Must(uuid.NewV7())
+	// Honor a caller-provided fixed ID when non-nil (H9 fix) — the Phase 04
+	// builtin seeder needs idempotent UPSERTs keyed by UUIDv5, and tests need
+	// deterministic IDs. Fall back to UUIDv7 only when the caller did not
+	// supply one.
+	id := cfg.ID
+	if id == uuid.Nil {
+		id = uuid.Must(uuid.NewV7())
+	}
 	now := time.Now().UTC()
 
 	cfgJSON, err := json.Marshal(cfg.Config)

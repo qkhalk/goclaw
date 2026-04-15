@@ -4,6 +4,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 	hookhandlers "github.com/nextlevelbuilder/goclaw/internal/hooks/handlers"
@@ -26,7 +27,7 @@ var sharedHookHandlers map[hooks.HandlerType]hooks.Handler
 // Budget wiring (C1 fix): the PromptHandler receives a budget.Store bound
 // to pg.NewPGHookBudget so token spend is atomically deducted per tenant.
 // When the DB handle is unavailable, budget falls back to nil (Lite desktop).
-func buildHookHandlers(stores *store.Stores, providerReg *providers.Registry) map[hooks.HandlerType]hooks.Handler {
+func buildHookHandlers(stores *store.Stores, providerReg *providers.Registry, hooksCfg config.HooksConfig) map[hooks.HandlerType]hooks.Handler {
 	encryptKey := os.Getenv("GOCLAW_ENCRYPTION_KEY")
 
 	var budgetStore *budget.Store
@@ -40,6 +41,15 @@ func buildHookHandlers(stores *store.Stores, providerReg *providers.Registry) ma
 		DefaultModel: "haiku",
 	}
 
+	// ScriptHandler: bounded by cfg.Hooks caps; zero values fall back to
+	// handler defaults (10 / 3 / 500). Safe for concurrent reuse across
+	// dispatcher + hooks.test runner (each Execute allocates its own runtime).
+	scriptHandler := hookhandlers.NewScriptHandler(
+		hooksCfg.ScriptConcurrency,
+		hooksCfg.ScriptPerTenantConcurrency,
+		hooksCfg.ScriptCacheSize,
+	)
+
 	return map[hooks.HandlerType]hooks.Handler{
 		hooks.HandlerCommand: &hookhandlers.CommandHandler{Edition: edition.Current()},
 		hooks.HandlerHTTP: &hookhandlers.HTTPHandler{
@@ -47,5 +57,6 @@ func buildHookHandlers(stores *store.Stores, providerReg *providers.Registry) ma
 			Client:     security.NewSafeClient(10 * time.Second),
 		},
 		hooks.HandlerPrompt: promptHandler,
+		hooks.HandlerScript: scriptHandler,
 	}
 }

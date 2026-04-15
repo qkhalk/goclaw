@@ -73,14 +73,14 @@ func TestHooksE2E_AllEvents_AllowsDefault(t *testing.T) {
 				db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
 			})
 
-			dec, err := d.Fire(ctx, hooks.Event{
+			r, err := d.Fire(ctx, hooks.Event{
 				EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID, HookEvent: ev,
 			})
 			if err != nil {
 				t.Fatalf("Fire %s: %v", ev, err)
 			}
-			if dec != hooks.DecisionAllow {
-				t.Errorf("%s: decision=%q, want allow", ev, dec)
+			if r.Decision != hooks.DecisionAllow {
+				t.Errorf("%s: decision=%q, want allow", ev, r.Decision)
 			}
 
 			// Non-blocking events write audit from a goroutine; poll briefly
@@ -122,15 +122,15 @@ func TestHooksE2E_CommandHandler_BlockOnExitTwo(t *testing.T) {
 		hooks.HandlerCommand: &hookhandlers.CommandHandler{Edition: edition.Lite},
 	})
 
-	dec, err := d.Fire(ctx, hooks.Event{
+	r, err := d.Fire(ctx, hooks.Event{
 		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block (exit 2)", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block (exit 2)", r.Decision)
 	}
 	assertHookAuditCount(t, db, hookID, "block", 1)
 }
@@ -174,12 +174,12 @@ func TestHooksE2E_ContextUpdateInjection(t *testing.T) {
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
 		hooks.HandlerHTTP: &hookhandlers.HTTPHandler{Client: srv.Client()},
 	})
-	dec, err := d.Fire(ctx, hooks.Event{
+	r, err := d.Fire(ctx, hooks.Event{
 		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	})
-	if err != nil || dec != hooks.DecisionAllow {
-		t.Errorf("decision=%q err=%v, want allow+nil", dec, err)
+	if err != nil || r.Decision != hooks.DecisionAllow {
+		t.Errorf("decision=%q err=%v, want allow+nil", r.Decision, err)
 	}
 	assertHookAuditCount(t, db, hookID, "allow", 1)
 }
@@ -276,13 +276,13 @@ func TestHooksE2E_EditionGate_CommandOnStandard(t *testing.T) {
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
 		hooks.HandlerCommand: &hookhandlers.CommandHandler{Edition: edition.Standard},
 	})
-	dec, _ := d.Fire(ctx, hooks.Event{
+	r, _ := d.Fire(ctx, hooks.Event{
 		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	// Blocking event + handler error → fail-closed Block.
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block (edition gate)", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block (edition gate)", r.Decision)
 	}
 }
 

@@ -122,15 +122,15 @@ func TestDispatcher_NoHooks_ReturnsAllow(t *testing.T) {
 		Store: fs,
 		Audit: hooks.NewAuditWriter(fs, ""),
 	})
-	dec, err := d.Fire(context.Background(), hooks.Event{
+	r, err := d.Fire(context.Background(), hooks.Event{
 		EventID:   "e1",
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionAllow {
-		t.Errorf("decision=%q, want allow", dec)
+	if r.Decision != hooks.DecisionAllow {
+		t.Errorf("decision=%q, want allow", r.Decision)
 	}
 }
 
@@ -157,15 +157,15 @@ func TestDispatcher_SyncChain_FirstBlockWins(t *testing.T) {
 			},
 		},
 	})
-	dec, err := d.Fire(context.Background(), hooks.Event{
+	r, err := d.Fire(context.Background(), hooks.Event{
 		EventID:   "e-block",
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block", r.Decision)
 	}
 	if atomic.LoadInt32(&lateHandler.calls) != 0 {
 		t.Errorf("post-block handler ran %d times, want 0", lateHandler.calls)
@@ -198,15 +198,15 @@ func TestDispatcher_PerHookTimeout_FailsClosed(t *testing.T) {
 		PerHookTimeout: 20 * time.Millisecond,
 		ChainBudget:    5 * time.Second,
 	})
-	dec, err := d.Fire(context.Background(), hooks.Event{
+	r, err := d.Fire(context.Background(), hooks.Event{
 		EventID:   "e-timeout",
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block (fail-closed on timeout)", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block (fail-closed on timeout)", r.Decision)
 	}
 	// Exactly one execution row recorded with timeout decision.
 	execs := fs.snapshotExecs()
@@ -281,15 +281,15 @@ func TestDispatcher_NonBlockingEvent_AsyncNoDecision(t *testing.T) {
 			}),
 		},
 	})
-	dec, err := d.Fire(context.Background(), hooks.Event{
+	r, err := d.Fire(context.Background(), hooks.Event{
 		EventID:   "e-async",
 		HookEvent: hooks.EventPostToolUse,
 	})
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionAllow {
-		t.Errorf("decision=%q, want allow (non-blocking path never blocks)", dec)
+	if r.Decision != hooks.DecisionAllow {
+		t.Errorf("decision=%q, want allow (non-blocking path never blocks)", r.Decision)
 	}
 	select {
 	case <-done:
@@ -314,15 +314,15 @@ func TestDispatcher_AllAllow_ReturnsAllow(t *testing.T) {
 		Audit:    hooks.NewAuditWriter(fs, ""),
 		Handlers: map[hooks.HandlerType]hooks.Handler{hooks.HandlerHTTP: &fakeHandler{decision: hooks.DecisionAllow}},
 	})
-	dec, err := d.Fire(context.Background(), hooks.Event{
+	r, err := d.Fire(context.Background(), hooks.Event{
 		EventID:   "e-all-allow",
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionAllow {
-		t.Errorf("decision=%q, want allow", dec)
+	if r.Decision != hooks.DecisionAllow {
+		t.Errorf("decision=%q, want allow", r.Decision)
 	}
 	if got := len(fs.snapshotExecs()); got != 2 {
 		t.Errorf("exec rows=%d, want 2 (one per hook)", got)
@@ -335,15 +335,15 @@ func TestDispatcher_ResolveError_FailsClosed(t *testing.T) {
 		Store: fs,
 		Audit: hooks.NewAuditWriter(fs, ""),
 	})
-	dec, err := d.Fire(context.Background(), hooks.Event{
+	r, err := d.Fire(context.Background(), hooks.Event{
 		EventID:   "e-resolve-err",
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if err == nil {
 		t.Fatal("Fire err=nil, want non-nil on resolve failure")
 	}
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block (fail-closed)", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block (fail-closed)", r.Decision)
 	}
 }
 
@@ -356,12 +356,12 @@ func TestDispatcher_MissingHandler_BlocksBlockingEvent(t *testing.T) {
 		Store: fs,
 		Audit: hooks.NewAuditWriter(fs, ""),
 	})
-	dec, _ := d.Fire(context.Background(), hooks.Event{
+	r, _ := d.Fire(context.Background(), hooks.Event{
 		EventID:   "e-no-handler",
 		HookEvent: hooks.EventPreToolUse,
 	})
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block (missing handler → fail-closed)", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block (missing handler → fail-closed)", r.Decision)
 	}
 }
 
@@ -388,14 +388,93 @@ func TestDispatcher_DedupKey_IncludesEventID(t *testing.T) {
 
 func TestNoopDispatcher_AlwaysAllows(t *testing.T) {
 	d := hooks.NewNoopDispatcher()
-	dec, err := d.Fire(context.Background(), hooks.Event{
+	r, err := d.Fire(context.Background(), hooks.Event{
 		EventID:   "e",
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if err != nil {
 		t.Fatalf("Fire: %v", err)
 	}
-	if dec != hooks.DecisionAllow {
-		t.Errorf("decision=%q, want allow", dec)
+	if r.Decision != hooks.DecisionAllow {
+		t.Errorf("decision=%q, want allow", r.Decision)
+	}
+	if r.UpdatedToolInput != nil || r.UpdatedRawInput != nil {
+		t.Errorf("noop must return zero Updated* (got ti=%v ri=%v)", r.UpdatedToolInput, r.UpdatedRawInput)
+	}
+}
+
+// mutatingHandler writes an UpdatedInput to the ctx-carried ScriptResult so
+// the dispatcher's source-tier gate can be exercised without invoking the
+// real goja runtime.
+type mutatingHandler struct {
+	updated map[string]any
+}
+
+func (h *mutatingHandler) Execute(ctx context.Context, _ hooks.HookConfig, _ hooks.Event) (hooks.Decision, error) {
+	if r := hooks.ScriptResultFrom(ctx); r != nil {
+		r.UpdatedInput = h.updated
+	}
+	return hooks.DecisionAllow, nil
+}
+
+// TestDispatcher_ScriptMutation_BuiltinSourceApplies verifies the source-tier
+// capability: a script hook with source="builtin" has its UpdatedInput applied
+// to FireResult.Updated*; a script hook with source="ui" does NOT.
+func TestDispatcher_ScriptMutation_BuiltinSourceApplies(t *testing.T) {
+	cfg := newBaseHook(hooks.HandlerScript, hooks.EventUserPromptSubmit)
+	cfg.Source = hooks.SourceBuiltin
+	fs := &fakeStore{hooks: []hooks.HookConfig{cfg}}
+
+	h := &mutatingHandler{updated: map[string]any{"rawInput": "REDACTED"}}
+	d := hooks.NewStdDispatcher(hooks.StdDispatcherOpts{
+		Store:    fs,
+		Audit:    hooks.NewAuditWriter(fs, ""),
+		Handlers: map[hooks.HandlerType]hooks.Handler{hooks.HandlerScript: h},
+	})
+
+	r, err := d.Fire(context.Background(), hooks.Event{
+		EventID:   "e-builtin",
+		HookEvent: hooks.EventUserPromptSubmit,
+		RawInput:  "ssn is 123-45-6789",
+	})
+	if err != nil {
+		t.Fatalf("Fire: %v", err)
+	}
+	if r.Decision != hooks.DecisionAllow {
+		t.Fatalf("decision=%q, want allow", r.Decision)
+	}
+	if r.UpdatedRawInput == nil {
+		t.Fatal("UpdatedRawInput nil; expected redacted rawInput from builtin hook")
+	}
+	if *r.UpdatedRawInput != "REDACTED" {
+		t.Errorf("UpdatedRawInput=%q, want REDACTED", *r.UpdatedRawInput)
+	}
+}
+
+func TestDispatcher_ScriptMutation_UISourceDenied(t *testing.T) {
+	cfg := newBaseHook(hooks.HandlerScript, hooks.EventUserPromptSubmit)
+	cfg.Source = "ui"
+	fs := &fakeStore{hooks: []hooks.HookConfig{cfg}}
+
+	h := &mutatingHandler{updated: map[string]any{"rawInput": "pwn"}}
+	d := hooks.NewStdDispatcher(hooks.StdDispatcherOpts{
+		Store:    fs,
+		Audit:    hooks.NewAuditWriter(fs, ""),
+		Handlers: map[hooks.HandlerType]hooks.Handler{hooks.HandlerScript: h},
+	})
+
+	r, err := d.Fire(context.Background(), hooks.Event{
+		EventID:   "e-ui",
+		HookEvent: hooks.EventUserPromptSubmit,
+		RawInput:  "original",
+	})
+	if err != nil {
+		t.Fatalf("Fire: %v", err)
+	}
+	if r.Decision != hooks.DecisionAllow {
+		t.Fatalf("decision=%q, want allow", r.Decision)
+	}
+	if r.UpdatedRawInput != nil {
+		t.Fatalf("non-builtin mutation leaked: UpdatedRawInput=%v", *r.UpdatedRawInput)
 	}
 }

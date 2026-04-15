@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 20
+const SchemaVersion = 21
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -460,6 +460,14 @@ WHERE context_pruning IS NOT NULL
 	// Creates agent_hooks, hook_executions, tenant_hook_budget tables.
 	// All idempotent (CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS).
 	19: addAgentHooksTables,
+
+	// Version 20 → 21: relax agent_hooks CHECK constraints for script handler
+	// + builtin source. The inline patch is a no-op (`SELECT 1`) because SQLite
+	// can't ALTER a CHECK constraint — the table must be rebuilt, which
+	// requires `PRAGMA foreign_keys = OFF` outside any transaction. The actual
+	// rebuild runs in rebuildAgentHooksV21 triggered after the v20→21 migration
+	// tx commits (parallel to backfillV16 at EnsureSchema:677).
+	20: `SELECT 1;`,
 }
 
 // addAgentHooksTables is the SQLite incremental migration for schema v19 → v20.
@@ -677,6 +685,16 @@ func EnsureSchema(db *sql.DB) error {
 			if v == 15 {
 				if err := backfillV16(context.Background(), db); err != nil {
 					return fmt.Errorf("v16 backfill: %w", err)
+				}
+			}
+			// v20 → v21: rebuild agent_hooks table to widen the
+			// handler_type + source CHECK constraints. SQLite forbids
+			// ALTER TABLE ... ADD/DROP CONSTRAINT, so the table is recreated
+			// with the new CHECKs. Runs outside the migration tx because
+			// PRAGMA foreign_keys is silently ignored inside a transaction.
+			if v == 20 {
+				if err := rebuildAgentHooksV21(context.Background(), db); err != nil {
+					return fmt.Errorf("v21 rebuild: %w", err)
 				}
 			}
 			slog.Info("sqlite: applied migration", "version", v+1)

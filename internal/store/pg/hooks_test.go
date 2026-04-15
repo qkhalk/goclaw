@@ -381,3 +381,38 @@ func TestPGHookStore_CacheInvalidatedOnWrite(t *testing.T) {
 		t.Errorf("expected more hooks after create: before=%d after=%d", beforeCount, len(after))
 	}
 }
+
+// H9 (Phase 03): Create must honor a caller-supplied cfg.ID so the builtin
+// seeder's idempotent UUIDv5 keys survive restarts and tests can use
+// deterministic IDs. Verified on both Create paths (fixed + auto).
+func TestPGHookStore_CreateHonorsFixedID(t *testing.T) {
+	db := hooksTestDB(t)
+	tenantID, _ := seedTenantAndAgent(t, db)
+	s := NewPGHookStore(db)
+	ctx := tenantScopedCtx(tenantID)
+
+	fixed := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+	cfg := minimalHook(tenantID, hooks.EventUserPromptSubmit)
+	cfg.ID = fixed
+
+	got, err := s.Create(ctx, cfg)
+	if err != nil {
+		t.Fatalf("Create fixed id: %v", err)
+	}
+	t.Cleanup(func() { s.Delete(masterCtx(), got) })
+	if got != fixed {
+		t.Fatalf("returned id=%s, want %s (H9: caller id must be honored)", got, fixed)
+	}
+
+	// Nil cfg.ID still auto-generates a UUIDv7.
+	cfg2 := minimalHook(tenantID, hooks.EventPreToolUse)
+	cfg2.ID = uuid.Nil
+	auto, err := s.Create(ctx, cfg2)
+	if err != nil {
+		t.Fatalf("Create auto id: %v", err)
+	}
+	t.Cleanup(func() { s.Delete(masterCtx(), auto) })
+	if auto == uuid.Nil {
+		t.Fatal("Create returned nil id for cfg.ID=uuid.Nil path")
+	}
+}

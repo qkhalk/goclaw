@@ -3,6 +3,7 @@ package hooks
 import (
 	"fmt"
 
+	"github.com/dop251/goja"
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
@@ -121,6 +122,19 @@ func (h *HookConfig) validateHandler(ed edition.Edition) error {
 		if tmpl, _ := h.Config["prompt_template"].(string); tmpl == "" {
 			return fmt.Errorf("hook: prompt handler requires non-empty prompt_template")
 		}
+	case HandlerScript:
+		source, _ := h.Config["source"].(string)
+		if source == "" {
+			return fmt.Errorf("hook: script handler requires non-empty config.source")
+		}
+		if len(source) > MaxScriptSourceBytes {
+			return fmt.Errorf("hook: script source exceeds %d bytes (got %d)", MaxScriptSourceBytes, len(source))
+		}
+		// Strict=true parallels the handler's compile; surfaces `Line N:M`
+		// errors that the UI editor can display inline.
+		if _, err := goja.Compile(h.ID.String(), source, true); err != nil {
+			return fmt.Errorf("hook: script compile error: %w", err)
+		}
 	case HandlerCommand, HandlerHTTP:
 		// No extra filter required — matcher/if_expr are optional.
 	default:
@@ -129,7 +143,14 @@ func (h *HookConfig) validateHandler(ed edition.Edition) error {
 	return nil
 }
 
-// validateTimeout bounds the per-hook timeout within [0, MaxTimeoutMS].
+// MaxScriptSourceBytes mirrors handlers.MaxScriptSourceBytes (32 KiB). Declared
+// here to avoid importing the handlers package (which imports goja) just for
+// this constant — the size cap is part of the config contract and should be
+// enforceable without the runtime dep elsewhere.
+const MaxScriptSourceBytes = 32 * 1024
+
+// validateTimeout bounds the per-hook timeout within [0, MaxTimeoutMS] and
+// rejects on_timeout values reserved for future phases.
 // Zero is normalized to DefaultTimeoutMS in applyDefaults.
 func (h *HookConfig) validateTimeout() error {
 	if h.TimeoutMS < 0 {
@@ -137,6 +158,13 @@ func (h *HookConfig) validateTimeout() error {
 	}
 	if h.TimeoutMS > MaxTimeoutMS {
 		return fmt.Errorf("hook: timeout_ms %d exceeds max %d", h.TimeoutMS, MaxTimeoutMS)
+	}
+	// ask/defer are reserved for Wave 3 human-approval + external-arbitration
+	// flows. Until the dispatcher wires a `request_user_input` path, accepting
+	// these as timeout-fallback would let a misconfigured hook hang blocking
+	// events indefinitely.
+	if h.OnTimeout == DecisionAsk || h.OnTimeout == DecisionDefer {
+		return fmt.Errorf("hook: on_timeout=%q not supported in Wave 1 (reserved for future)", h.OnTimeout)
 	}
 	return nil
 }

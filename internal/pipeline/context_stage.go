@@ -48,16 +48,20 @@ func (s *ContextStage) Execute(ctx context.Context, state *RunState) error {
 		})
 	}
 
-	// Hook: sync UserPromptSubmit — blocking; abort if blocked.
-	if dec, _ := s.deps.FireHook(ctx, hooks.Event{
+	// Hook: sync UserPromptSubmit — blocking; abort if blocked. A builtin-
+	// source hook may rewrite RawInput (e.g. PII redactor); apply the update
+	// before any downstream stage reads state.Input.Message.
+	if r, _ := s.deps.FireHook(ctx, hooks.Event{
 		EventID:   uuid.NewString(),
 		SessionID: state.Input.SessionKey,
 		TenantID:  store.TenantIDFromContext(ctx),
 		AgentID:   store.AgentIDFromContext(ctx),
 		RawInput:  state.Input.Message,
 		HookEvent: hooks.EventUserPromptSubmit,
-	}); dec == hooks.DecisionBlock {
+	}); r.Decision == hooks.DecisionBlock {
 		return fmt.Errorf("hook blocked user_prompt_submit")
+	} else if r.UpdatedRawInput != nil {
+		state.Input.Message = *r.UpdatedRawInput
 	}
 
 	// 0. Inject context values (agent/tenant/user/workspace scoping, input guard, truncation).

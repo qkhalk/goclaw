@@ -56,13 +56,13 @@ func TestHooksChaos_HTTPHandler_ProviderDown(t *testing.T) {
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
 		hooks.HandlerHTTP: &hookhandlers.HTTPHandler{Client: &http.Client{Timeout: 1 * time.Second}},
 	})
-	dec, _ := d.Fire(ctx, hooks.Event{
+	r, _ := d.Fire(ctx, hooks.Event{
 		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	// Blocking event + unexpected error → fail-closed Block.
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block (fail-closed on provider down)", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block (fail-closed on provider down)", r.Decision)
 	}
 }
 
@@ -104,14 +104,14 @@ func TestHooksChaos_PerHookTimeout(t *testing.T) {
 		hooks.HandlerHTTP: &hookhandlers.HTTPHandler{Client: srv.Client()},
 	})
 	start := time.Now()
-	dec, _ := d.Fire(ctx, hooks.Event{
+	r, _ := d.Fire(ctx, hooks.Event{
 		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	elapsed := time.Since(start)
 
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block (OnTimeout=block)", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block (OnTimeout=block)", r.Decision)
 	}
 	// Must NOT have waited the full 2s; per-hook timeout caps at ~300ms+retry.
 	if elapsed > 4*time.Second {
@@ -193,15 +193,15 @@ func TestHooksChaos_LoopDepthExceeded(t *testing.T) {
 
 	// Wrap ctx with depth > MaxLoopDepth.
 	ctx := hooks.WithDepth(tenantCtx(tenantID), hooks.MaxLoopDepth+1)
-	dec, err := d.Fire(ctx, hooks.Event{
+	r, err := d.Fire(ctx, hooks.Event{
 		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if !errors.Is(err, hooks.ErrLoopDepthExceeded) {
 		t.Errorf("err=%v, want ErrLoopDepthExceeded", err)
 	}
-	if dec != hooks.DecisionError {
-		t.Errorf("decision=%q, want error", dec)
+	if r.Decision != hooks.DecisionError {
+		t.Errorf("decision=%q, want error", r.Decision)
 	}
 }
 
@@ -295,13 +295,13 @@ func TestHooksChaos_HTTPHandler_5xxRetriesThenErrors(t *testing.T) {
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
 		hooks.HandlerHTTP: &hookhandlers.HTTPHandler{Client: srv.Client()},
 	})
-	dec, _ := d.Fire(ctx, hooks.Event{
+	r, _ := d.Fire(ctx, hooks.Event{
 		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	// Blocking event + repeated 5xx → fail-closed Block.
-	if dec != hooks.DecisionBlock {
-		t.Errorf("decision=%q, want block (fail-closed on 5xx)", dec)
+	if r.Decision != hooks.DecisionBlock {
+		t.Errorf("decision=%q, want block (fail-closed on 5xx)", r.Decision)
 	}
 	// Verify the handler did perform its single retry (hits >= 2).
 	if hits.Load() < 2 {

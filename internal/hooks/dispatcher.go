@@ -20,9 +20,11 @@ type Handler interface {
 }
 
 // Dispatcher is the pipeline integration surface. Stages call Fire and act on
-// the Decision (allow → continue; block → abort with i18n error).
+// FireResult.Decision (allow → continue; block → abort with i18n error).
+// FireResult.Updated* carry mutations authored by builtin-source hooks —
+// callers apply them to their own tc.Arguments / state.Input when non-nil.
 type Dispatcher interface {
-	Fire(ctx context.Context, ev Event) (Decision, error)
+	Fire(ctx context.Context, ev Event) (FireResult, error)
 }
 
 // MaxLoopDepth caps nested hook invocation (M5). Depth increments when a hook
@@ -130,8 +132,8 @@ func NewNoopDispatcher() Dispatcher {
 
 type noopDispatcher struct{}
 
-func (noopDispatcher) Fire(context.Context, Event) (Decision, error) {
-	return DecisionAllow, nil
+func (noopDispatcher) Fire(context.Context, Event) (FireResult, error) {
+	return FireResult{Decision: DecisionAllow}, nil
 }
 
 // ── stdDispatcher ────────────────────────────────────────────────────────────
@@ -146,13 +148,13 @@ type stdDispatcher struct {
 	cb          *circuitBreaker
 }
 
-func (d *stdDispatcher) Fire(ctx context.Context, ev Event) (Decision, error) {
+func (d *stdDispatcher) Fire(ctx context.Context, ev Event) (FireResult, error) {
 	if depthFromCtx(ctx) > MaxLoopDepth {
 		slog.Warn("security.hook.loop_depth_exceeded",
 			"event_id", ev.EventID,
 			"hook_event", ev.HookEvent,
 		)
-		return DecisionError, ErrLoopDepthExceeded
+		return FireResult{Decision: DecisionError}, ErrLoopDepthExceeded
 	}
 
 	hooks, err := d.store.ResolveForEvent(ctx, ev)
@@ -160,67 +162,173 @@ func (d *stdDispatcher) Fire(ctx context.Context, ev Event) (Decision, error) {
 		// Fail-closed: a DB blip must not let a pre-tool gate open silently.
 		slog.Warn("security.hook.resolve_error", "err", err, "event_id", ev.EventID)
 		if ev.HookEvent.IsBlocking() {
-			return DecisionBlock, err
+			return FireResult{Decision: DecisionBlock}, err
 		}
-		return DecisionAllow, err
+		return FireResult{Decision: DecisionAllow}, err
 	}
 	if len(hooks) == 0 {
-		return DecisionAllow, nil
+		return FireResult{Decision: DecisionAllow}, nil
 	}
 
 	if ev.HookEvent.IsBlocking() {
 		return d.runSync(ctx, ev, hooks)
 	}
 	d.runAsync(ctx, ev, hooks)
-	return DecisionAllow, nil
+	return FireResult{Decision: DecisionAllow}, nil
 }
 
 // runSync executes the blocking chain with a wall-time budget and per-hook
 // timeouts. First block wins; any fail-closed condition aborts to Block.
-func (d *stdDispatcher) runSync(ctx context.Context, ev Event, chain []HookConfig) (Decision, error) {
+//
+// Mutation propagation (Phase 03): the dispatcher keeps a local evMut copy
+// with its own ToolInput map so a builtin-source hook's updatedInput becomes
+// visible to downstream hooks in the chain (and to the caller via FireResult)
+// without leaking mutations back into the caller's original event on error
+// paths. Non-builtin scripts returning updatedInput get their mutation
+// dropped + logged — source tier enforced at the dispatcher.
+func (d *stdDispatcher) runSync(ctx context.Context, ev Event, chain []HookConfig) (FireResult, error) {
 	chainCtx, cancel := context.WithTimeout(ctx, d.chainBudget)
 	defer cancel()
+
+	evMut := ev
+	if ev.ToolInput != nil {
+		evMut.ToolInput = cloneMap(ev.ToolInput)
+	}
+	mutated := false
 
 	for _, cfg := range chain {
 		if !cfg.Enabled {
 			continue
 		}
 		if d.cb.isTripped(cfg.ID, d.now()) {
-			d.writeExec(ctx, cfg, ev, DecisionBlock, 0, "circuit breaker open")
-			return DecisionBlock, nil
+			d.writeExec(ctx, cfg, evMut, DecisionBlock, 0, "circuit breaker open")
+			return FireResult{Decision: DecisionBlock}, nil
 		}
-		if !d.prefilter(cfg, ev) {
+		if !d.prefilter(cfg, evMut) {
 			continue
 		}
-		dec, execErr, duration := d.runOne(chainCtx, cfg, ev)
+
+		// Attach fresh ScriptResult carrier per-hook so the script handler can
+		// report its non-decision outputs (reason/updatedInput/stdout). Other
+		// handler types ignore the ctx value — zero-cost.
+		scriptRes := &ScriptResult{}
+		hctx := WithScriptResult(chainCtx, scriptRes)
+
+		dec, execErr, duration := d.runOne(hctx, cfg, evMut)
 		errMsg := ""
 		if execErr != nil {
 			errMsg = execErr.Error()
 		}
-		d.writeExec(ctx, cfg, ev, dec, duration, errMsg)
+		d.writeExec(ctx, cfg, evMut, dec, duration, errMsg)
+
+		// Apply mutation to the local copy only when the hook is builtin-source.
+		// Non-builtin scripts get their updatedInput stripped + warned.
+		if cfg.HandlerType == HandlerScript && dec == DecisionAllow && scriptRes.UpdatedInput != nil {
+			if cfg.Source == SourceBuiltin {
+				applyBuiltinMutation(&evMut, scriptRes.UpdatedInput, builtinAllowlistFor(cfg.ID))
+				mutated = true
+			} else {
+				slog.Warn("hooks.script_mutation_denied",
+					"hook_id", cfg.ID,
+					"source", cfg.Source,
+					"field_count", len(scriptRes.UpdatedInput),
+				)
+			}
+		}
 
 		switch dec {
 		case DecisionBlock:
 			d.cb.record(cfg.ID, d.now(), d.store)
-			return DecisionBlock, nil
+			return FireResult{Decision: DecisionBlock}, nil
 		case DecisionTimeout:
 			d.cb.record(cfg.ID, d.now(), d.store)
 			if cfg.OnTimeout == DecisionBlock {
-				return DecisionBlock, nil
+				return FireResult{Decision: DecisionBlock}, nil
 			}
 			// OnTimeout=allow: degrade gracefully but keep scanning.
 		case DecisionError:
 			// Unexpected error in a blocking chain → fail-closed.
-			return DecisionBlock, nil
+			return FireResult{Decision: DecisionBlock}, nil
 		}
 
 		if chainCtx.Err() != nil {
 			// Chain wall-time budget exhausted (H3): fail-closed.
-			return DecisionBlock, nil
+			return FireResult{Decision: DecisionBlock}, nil
 		}
 	}
-	return DecisionAllow, nil
+
+	result := FireResult{Decision: DecisionAllow}
+	if mutated {
+		if evMut.ToolInput != nil {
+			result.UpdatedToolInput = evMut.ToolInput
+		}
+		if evMut.RawInput != ev.RawInput {
+			s := evMut.RawInput
+			result.UpdatedRawInput = &s
+		}
+	}
+	return result, nil
 }
+
+// cloneMap returns a shallow copy of m. Used so runSync's mutations on the
+// local evMut don't leak back to the caller's event when a downstream hook
+// blocks or the chain aborts.
+func cloneMap(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+// applyBuiltinMutation applies the builtin hook's updatedInput fields into ev,
+// gated by the per-builtin allowlist. The allowlist is loaded in Phase 04 from
+// builtins.yaml; Phase 03 uses a permissive default (rawInput + toolInput).
+func applyBuiltinMutation(ev *Event, updated map[string]any, allowlist []string) {
+	if updated == nil {
+		return
+	}
+	allowSet := make(map[string]struct{}, len(allowlist))
+	for _, f := range allowlist {
+		allowSet[f] = struct{}{}
+	}
+	if _, ok := allowSet["rawInput"]; ok {
+		if s, ok2 := updated["rawInput"].(string); ok2 {
+			ev.RawInput = s
+		}
+	}
+	if m, ok := updated["toolInput"].(map[string]any); ok {
+		if _, wildcard := allowSet["toolInput"]; wildcard {
+			if ev.ToolInput == nil {
+				ev.ToolInput = map[string]any{}
+			}
+			for k, v := range m {
+				ev.ToolInput[k] = v
+			}
+		} else {
+			for k, v := range m {
+				if _, ok := allowSet["toolInput."+k]; ok {
+					if ev.ToolInput == nil {
+						ev.ToolInput = map[string]any{}
+					}
+					ev.ToolInput[k] = v
+				}
+			}
+		}
+	}
+}
+
+// builtinAllowlistFor returns the field allowlist for a builtin hook.
+// Phase 03 ships a permissive default; Phase 04 overrides with a per-hook
+// allowlist loaded from builtins.yaml at startup.
+func builtinAllowlistFor(_ uuid.UUID) []string {
+	return []string{"rawInput", "toolInput"}
+}
+
+// SourceBuiltin is the `source` value marking a hook seeded by the builtin
+// infrastructure (Phase 04 loader). Only builtin-source hooks are allowed to
+// mutate event input through the script handler's updatedInput field.
+const SourceBuiltin = "builtin"
 
 // runAsync fires non-blocking hooks concurrently. Phase 1 uses a simple
 // goroutine-per-hook; Phase 2 will route through the eventbus worker pool.
