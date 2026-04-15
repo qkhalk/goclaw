@@ -188,6 +188,19 @@ func (p *OpenAIProvider) buildRequestBody(model string, req ChatRequest, stream 
 		}
 	}
 
+	// Gemini (Google OpenAI-compat) accepts reasoning_effort mapped to thinking_config.
+	// Without forwarding, Gemini 3 defaults to "high" thinking and consumes the entire
+	// max_tokens budget, leaving no room for tool call arguments on small models.
+	// Gate narrowly: apiBase contains "generativelanguage" OR model substring "gemini"
+	// (covers OpenRouter / LiteLLM / Vertex proxies).
+	if _, already := body[OptReasoningEffort]; !already && p.isGeminiRoute(model) {
+		if level, ok := req.Options[OptThinkingLevel].(string); ok {
+			if mapped, forward := mapGeminiReasoningEffort(level); forward {
+				body[OptReasoningEffort] = mapped
+			}
+		}
+	}
+
 	// DashScope-specific passthrough keys — never send to other OpenAI-compat hosts.
 	if p.dashScopePassthroughKeys() {
 		if v, ok := req.Options[OptEnableThinking]; ok {
@@ -217,6 +230,32 @@ func buildToolNameIndex(msgs []Message) map[string]string {
 		}
 	}
 	return idx
+}
+
+// isGeminiRoute returns true when this OpenAI-compat request targets Gemini,
+// either via the native Google endpoint or a proxy (OpenRouter, LiteLLM) that
+// routes by model string. Narrower than the supportsThoughtSignature gate —
+// we require explicit intent before forwarding reasoning_effort on proxies.
+func (p *OpenAIProvider) isGeminiRoute(model string) bool {
+	if strings.Contains(strings.ToLower(p.apiBase), "generativelanguage") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(model), "gemini")
+}
+
+// mapGeminiReasoningEffort returns (value, shouldForward). Gemini 3 Preview
+// rejects "medium" with HTTP 400, so we map it to the nearest valid option.
+// "off" and unknown values do not forward — respect user intent (off=disable)
+// and avoid injecting defaults the model might otherwise apply conservatively.
+func mapGeminiReasoningEffort(level string) (string, bool) {
+	switch level {
+	case "low", "minimal", "high":
+		return level, true
+	case "medium":
+		return "high", true
+	default:
+		return "", false
+	}
 }
 
 // modelFamily strips provider prefixes (for example "openai/o3-mini") so capability
