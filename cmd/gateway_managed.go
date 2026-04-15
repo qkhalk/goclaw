@@ -164,6 +164,17 @@ func wireExtras(
 			}
 		}
 
+		// Phase 07: runtime migration — auto-disable legacy command-type hooks
+		// on Standard edition. No-op on Lite. Idempotent. Runs synchronously
+		// before listeners so traffic never sees a command hook fire on a
+		// post-Wave-1 Standard instance.
+		if n, err := hooks.DisableLegacyCommandHooks(context.Background(), hs, edition.Current()); err != nil {
+			slog.Warn("hooks.command_migration_failed", "err", err)
+		} else if n > 0 {
+			slog.Info("hooks.command_migration_ran",
+				"disabled_count", n, "edition", edition.Current().Name)
+		}
+
 		handlers := buildHookHandlers(stores, providerReg, appCfg.Hooks)
 		stdOpts := hooks.StdDispatcherOpts{
 			Store:    hs,
