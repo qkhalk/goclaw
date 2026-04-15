@@ -251,14 +251,18 @@ func (p *OpenAIProvider) isGeminiRoute(model string) bool {
 
 // mapGeminiReasoningEffort returns (value, shouldForward). Gemini 3 Preview
 // rejects "medium" with HTTP 400, so we map it to the nearest valid option.
-// "off" and unknown values do not forward — respect user intent (off=disable)
-// and avoid injecting defaults the model might otherwise apply conservatively.
+// "off" maps to "low" (the minimum effort accepted by all Gemini models via
+// OpenAI-compat). Forwarding is required because Gemini's default is "high",
+// which consumes the entire max_tokens budget on reasoning traces and leaves
+// no room for the response. Unknown values do not forward.
 func mapGeminiReasoningEffort(level string) (string, bool) {
 	switch level {
 	case "low", "minimal", "high":
 		return level, true
 	case "medium":
 		return "high", true
+	case "off":
+		return "low", true
 	default:
 		return "", false
 	}

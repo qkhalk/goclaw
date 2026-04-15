@@ -20,7 +20,7 @@ func TestBuildRequestBody_GeminiForwardsReasoningEffort(t *testing.T) {
 		{"minimal_verbatim", "minimal", "minimal", true},
 		{"high_verbatim", "high", "high", true},
 		{"medium_maps_to_high", "medium", "high", true},
-		{"off_omitted", "off", "", false},
+		{"off_maps_to_low", "off", "low", true},
 		{"empty_omitted", "", "", false},
 		{"unknown_omitted", "garbage", "", false},
 	}
