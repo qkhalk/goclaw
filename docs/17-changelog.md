@@ -6,6 +6,68 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ## [Unreleased] — 2026-04-15
 
+#### Agent Hooks System — Phase 3: Prompt Handler + Web UI (2026-04-15)
+
+Third handler type (`prompt`) with full cost safeguards, WS RPC surface, complete Web UI, 3-language i18n, and production wiring. Closes Issue #875 feature parity with Claude-Code-style hooks.
+
+### Added
+- **`internal/hooks/handlers/prompt.go`**: LLM hook handler with structured tool-call output (`decide` tool), anti-injection system preamble, fenced user-input delimiter, in-memory decision cache (60s TTL keyed by `sha256(hook_id||version||tool_name||tool_input)`), per-turn invocation cap (default 5), provider resolver abstraction
+- **`internal/hooks/handlers/prompt_resolver.go`**: `RegistryResolver` maps model aliases (haiku/sonnet/opus, gpt-*, gemini-*, qwen-*) to tenant providers; falls back to system configs (`hooks.prompt.provider`, `background.provider`) then first registered
+- **`internal/hooks/budget/` package**: `Store` + `Dialect` interface for atomic per-tenant monthly token budget deduction; `ShouldWarn` helper at 20% threshold
+- **Budget store implementations**: `pg.PGHookBudget` (single UPDATE + RETURNING with UPSERT seed on month rollover) and `sqlitestore.SqliteHookBudget` (tx-wrapped equivalent)
+- **WS RPC methods** (`internal/gateway/methods/hooks.go`): `hooks.list` (viewer+), `hooks.create`/`update`/`delete`/`toggle` (admin+, master-scope for global), `hooks.test` (operator+, dryRun no audit write), `hooks.history` (viewer+, stub pending phase 4 pagination)
+- **Protocol constants**: `MethodHooksList/Create/Update/Delete/Toggle/Test/History` in `pkg/protocol/methods.go`
+- **Web UI `/hooks` page**: single route with `useParams().id` — list view when no id, detail view when present (CLAUDE.md "route params as source of truth"). Tabs: Overview | Config | Test | History
+- **Web UI components**: `hook-list-row`, `hook-form-dialog` (3 sub-forms per handler type; command radio disabled on Standard with tooltip), `hook-test-panel` (fires `dryRun=true`, decision badge + duration + stdout/stderr/status), `hook-diff-viewer` (side-by-side JSON diff via highlight.js), `hook-history-table`, `hook-overview-tab`
+- **Zod + TanStack Query**: `schemas/hooks.schema.ts` (prompt requires matcher|if_expr + prompt_template), `hooks/use-hooks.ts` (useHooksList/Hook/CreateHook/UpdateHook/DeleteHook/ToggleHook/TestHook/HookHistory)
+- **i18n backend**: 6 new keys (`hook.invalid_matcher`, `hook.command_disabled_standard`, `hook.prompt_requires_matcher`, `hook.circuit_breaker_tripped`, `hook.budget_exceeded`, `hook.per_turn_cap_reached`) in en/vi/zh catalogs
+- **i18n UI**: `ui/web/src/i18n/locales/{en,vi,zh}/hooks.json` with identical key ordering (per CLAUDE.md memory rule)
+- **Production wiring**: `cmd/gateway_managed.go` registers `HandlerPrompt` in dispatcher handlers map; `cmd/gateway.go` registers `HookMethods` in router
+- **Sidebar nav**: "Hooks" entry with `Webhook` icon in Capabilities group
+
+### Security / cost safeguards
+- **Structured output enforcement**: evaluator MUST call the `decide` tool; free-text responses fail-closed to block
+- **Sanitized input**: only `tool_input` reaches the evaluator inside a fenced `USER INPUT` block; raw user message never included
+- **Injection detection flag**: evaluator can signal `injection_detected=true` via structured output
+- **Version-busted cache**: hook config edits bump `version` → cache key changes → forces re-evaluation
+- **Atomic budget deduct**: no select-then-update race (L2 mitigation)
+
+### Testing
+- **Unit**: `prompt_test.go` (14 tests — cache hit/miss, version bust, per-turn cap, fail-closed paths, schema assertions), `prompt_injection_test.go` (4 tests — hostile inputs, unicode homoglyphs, nested JSON, fenced delimiter integrity), `budget_test.go` (9 tests — atomic deduct, exceed-returns-err, month rollover, zero-cost, nil tenant, warn threshold)
+- **WS RPC unit**: `gateway/methods/hooks_test.go` (param parsing + HookTestResult struct round-trip)
+- **UI**: 56/56 vitest passing including 20 new hook-specific tests (schema validation, list rendering, test panel, diff viewer, i18n contracts)
+
+#### Agent Hooks System — Phase 4: Hardening + Docs (2026-04-15)
+
+Integration / chaos / RBAC / tracing coverage + user documentation + copy-paste example hooks library. Merge gate.
+
+### Added
+- **Integration tests** (`tests/integration/hooks_e2e_test.go`): 7 events × HTTP/command handler coverage, tenant isolation (cross-tenant events don't hit other tenants' hooks), context-update injection path, edition gate at dispatch time
+- **Chaos tests** (`hooks_chaos_test.go`): provider down (fail-closed block on blocking event), per-hook timeout respected, circuit breaker auto-disables after 3 consecutive blocks and persists `enabled=false`, `ErrLoopDepthExceeded` when depth > `MaxLoopDepth` (M5), `dedup_key` unique index suppresses double audit rows on retry (H6), 5xx retry-once-then-error
+- **RBAC tests** (`hooks_rbac_test.go`): store tenant isolation (List/Get/Update/Delete all respect tenant_id), global-scope visible to all tenants, ResolveForEvent unions tenant + global hooks, `HasMinRole` matrix over the hooks.* method surface
+- **Tracing tests** (`hooks_tracing_test.go`): `EmitHookSpan` writes row with canonical name `hook.<handler_type>.<event>`; dispatcher + traced-handler wrapper emits spans end-to-end
+- **User docs** `docs/agent-hooks.md`: concepts, security model, handler reference, matcher guide, safeguard table, Web UI walkthrough, observability (audit table + tracing spans + slog keys), troubleshooting, migration notes, known limitations
+- **Example library** `examples/hooks/`: `block-rm-rf.json` (command, Lite), `auto-lint-after-write.json` (http async), `audit-tool-usage.json` (tenant-wide audit), `session-context-injector.json` (context bootstrap), `notify-discord-on-stop.json` (webhook notification), `README.md` with safety guidance
+
+### Fixed
+- **`PGHookStore.GetByID` + `SqliteHookStore.GetByID`** now enforce tenant scope: non-master callers only see own + global rows. Previously returned any row by UUID which leaked cross-tenant.
+- **Existing pipeline integration tests** now call `security.SetAllowLoopbackForTest(true)` via shared helper; no longer flake on SSRF block for httptest endpoints.
+
+### Testing
+- All hook integration tests pass under `TEST_DATABASE_URL` PG container (7 new test files, 18 new top-level tests)
+- `go build` + `go build -tags sqliteonly` + `go vet` clean
+- `pnpm test` 56/56 pass
+- Race detector clean for `internal/hooks/...` + `internal/gateway/methods/`
+
+### Deferred (post-MVP)
+- Cluster-wide prompt decision cache via Redis
+- Skill-frontmatter hooks
+- `agent` handler type (inter-agent delegation via prompt instead)
+- Desktop Wails UI parity for hooks page
+- Load/throughput benchmarks (explicitly dropped from Phase 4 scope)
+
+---
+
 #### Agent Hooks System — Phase 1: Foundation (2026-04-15)
 
 Lifecycle hook infrastructure: event dispatcher (sync/async paths), audit logging, database schema (PostgreSQL + SQLite), store interface, config validation, edition gating. Handlers + pipeline integration deferred to Phase 2.
