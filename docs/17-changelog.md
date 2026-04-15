@@ -6,6 +6,40 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ## [Unreleased] — 2026-04-15
 
+#### ElevenLabs Audio Manager Refactor — Phase 6 (2026-04-15)
+
+Desktop UI parity: voice picker + STT admin form ported from web to Wails desktop frontend. Completes 6-phase plan; all audio surfaces (TTS/STT/Music/SFX) now manageable from both web and desktop Lite editions.
+
+### Added
+- **Desktop voice picker**: `ui/desktop/frontend/src/components/agents/voice-picker.tsx` — uses desktop's native Combobox primitive; embedded in `AgentDetailPanel` with `other_config.tts_voice_id` persistence via spread-merge pattern
+- **Desktop voice preview button**: `ui/desktop/frontend/src/components/agents/voice-preview-button.tsx` — singleton `<audio>` (module-level `currentAudio` ref); hidden when `preview_url` absent (resolves P6-L)
+- **Desktop STT admin form**: `ui/desktop/frontend/src/components/builtin-tools/stt-provider-form.tsx` — mirrors web fields + `whatsapp_enabled` toggle + privacy banner; routed via `ToolSettingsDialog` when `tool.name === 'stt'`
+- **Desktop voices service + hook**: `services/voices.ts` (`listVoices`, `refreshVoices`) + `hooks/use-voices.ts` (plain useState/useEffect — no React Query on desktop; mirrors web hook shape)
+- **Desktop Vitest infrastructure**: `vitest.config.ts` + `test/setup.ts` (jsdom + jest-dom + HTMLMediaElement mock) — resolves P6-H3 (desktop tests previously impossible)
+- **Desktop i18n `tts` namespace**: `i18n/locales/{en,vi,zh}/tts.json` (15 → 16 total namespaces registered in `i18n/index.ts`) + `tools.json` extended with `builtin.sttForm.*` keys
+- **Desktop component tests**: voice picker (4 tests) + STT form (3 tests) — parity subset covering render, save, preview, privacy banner
+
+### Changed
+- **Desktop `AgentDetailPanel`**: Added `ttsVoiceId` local state + `onSaveWithVoice` wrapper that preserves existing `other_config` fields via spread-merge before overwriting `tts_voice_id`
+- **Desktop `ToolSettingsDialog`**: Added `tool.name === 'stt'` routing branch before JsonSettingsForm fallback; existing `web_fetch` + MEDIA_TOOLS routing unchanged
+- **Desktop `package.json`**: Added devDeps (`vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`, `@vitejs/plugin-react`) + `test` / `test:watch` npm scripts
+
+### Resolved
+- **Audit finding P6-B1**: Gate G5 verified — Phase 5 merged green before Phase 6 work began
+- **Audit finding P6-B2**: Desktop path rewrite confirmed — no `pages/` dir used; component composition via `AgentDetailPanel` + `ToolSettingsDialog`
+- **Audit finding P6-B3**: `tts.json` namespace created + registered in desktop `i18n/index.ts` (web-desktop i18n parity)
+- **Audit finding P6-H1**: `tools.json` extended with STT labels; `tts.json` created per Decision 4
+- **Audit finding P6-H2**: SttProviderForm integration point identified (`ToolSettingsDialog.tsx` name-routing) + wired
+- **Audit finding P6-H3**: Vitest installed + configured in desktop frontend (was previously absent)
+- **Audit finding P6-L**: Voice preview button hidden (not disabled) when `preview_url` null/empty
+- **Audit finding P6-M** (codec): MP3 + Opus codec smoke test remains on manual verification checklist (user to confirm on macOS WKWebView + Windows WebView2)
+- **Cross-phase XP-5**: Desktop paths confirmed — `components/agents/`, `components/builtin-tools/`, `services/`, `hooks/` (no `pages/`)
+
+### Deferred
+- **Manual smoke test**: `wails dev -tags sqliteonly` voice picker save + STT form submit + codec playback requires user verification (cannot run headless in automation)
+
+---
+
 #### ElevenLabs Audio Manager Refactor — Phase 5 (2026-04-15)
 
 Channel STT migration (Telegram/Feishu/Discord) + WhatsApp voice transcription with tenant opt-in (default disabled due to E2E encryption trade-off, resolves privacy red-team finding).

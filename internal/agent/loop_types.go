@@ -241,6 +241,14 @@ type Loop struct {
 
 	// User identity resolver: maps channel contacts to merged tenant users for credential lookups.
 	userResolver UserIdentityResolver
+
+	// Per-session cache-touch timestamps for the cache-TTL pruning gate (Phase 06).
+	// Key: sessionKey (string), Value: time.Time of last prune mutation.
+	// sync.Map zero value is ready to use — no init required.
+	// Grows with distinct sessions; typical gateway has bounded session count.
+	// Note: in-memory only — timestamps reset on process restart (one extra prune
+	// per session on restart, then steady-state resumes).
+	cacheTouchBySession sync.Map
 }
 
 // AgentEvent is emitted during agent execution for WS broadcasting.
