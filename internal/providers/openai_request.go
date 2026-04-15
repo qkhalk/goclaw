@@ -112,11 +112,17 @@ func (p *OpenAIProvider) buildRequestBody(model string, req ChatRequest, stream 
 
 		if m.ToolCallID != "" {
 			msg["tool_call_id"] = p.wireToolCallID(m.ToolCallID)
-			if name := toolNameByID[m.ToolCallID]; name != "" {
-				msg["name"] = name
-			} else if m.Role == "tool" {
-				slog.Warn("openai: tool msg without matching tool_call",
-					"provider", p.name, "tool_call_id", m.ToolCallID)
+			// `name` on role=tool is required by Google Gemini's OpenAI-compat shim
+			// (FunctionResponse.name). Most other OpenAI-compat hosts (Together, Groq,
+			// vLLM) either ignore or reject unknown fields — gate to Gemini only to
+			// avoid silent 400s on stricter proxies.
+			if supportsThoughtSignature {
+				if name := toolNameByID[m.ToolCallID]; name != "" {
+					msg["name"] = name
+				} else if m.Role == "tool" {
+					slog.Warn("openai: tool msg without matching tool_call",
+						"provider", p.name, "tool_call_id", m.ToolCallID)
+				}
 			}
 		}
 
