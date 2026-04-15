@@ -40,6 +40,7 @@ func (m *ConfigMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodConfigApply, m.requireMasterScope(m.requireOwner(m.handleApply)))
 	router.Register(protocol.MethodConfigPatch, m.requireMasterScope(m.requireOwner(m.handlePatch)))
 	router.Register(protocol.MethodConfigSchema, m.requireMasterScope(m.requireOwner(m.handleSchema)))
+	router.Register(protocol.MethodConfigDefaults, m.requireMasterScope(m.requireOwner(m.handleDefaults)))
 }
 
 // requireOwner wraps a handler to only allow owner-role users.
