@@ -4,7 +4,38 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ---
 
-## [Unreleased] — 2026-04-14
+## [Unreleased] — 2026-04-15
+
+#### ElevenLabs Audio Manager Refactor — Phase 4 (2026-04-15)
+
+STT via ElevenLabs Scribe + proxy fallback with tenant config migration + admin UI form. Legacy per-channel STT config bridged with 2-week deprecation grace.
+
+### Added
+- **ElevenLabs Scribe STT provider**: `internal/audio/elevenlabs/stt.go` — POST `/v1/speech-to-text`, multipart upload, 20MB cap, configurable language + diarization
+- **Proxy STT wrapper**: `internal/audio/proxy_stt/provider.go` — backward-compat bridge for legacy `media.TranscribeAudio` with automatic temp-file handling
+- **STT admin form**: `ui/web/src/pages/builtin-tools/stt-provider-form.tsx` — mirrors TTS form pattern, includes tenant config (API keys, providers list, WhatsApp opt-in toggle)
+- **`audio.Manager.Transcribe()`**: Chain-based STT dispatch with channel-override precedence (per-channel STTProxyURL wins over tenant builtin_tools[stt])
+- **i18n keys**: `MsgSTTAllProvidersFailed`, `MsgSTTLegacyConfigDeprecated`, `MsgSTTWhatsappPrivacyWarning` across en/vi/zh
+
+### Changed
+- **STT config location**: Migrated from per-channel fields (Telegram/Feishu/Discord `STTProxyURL`) to tenant `builtin_tools[stt].settings` (Decision 1 per audit)
+- **`builtin_tools[stt]` table entry**: New seed row via migration 000050 (PG) + schema.go incremental (SQLite)
+- **Legacy bridge**: Startup-time scan of per-channel STT configs → auto-registers `proxy_stt.Provider` with deprecation warn when tenant lacks `builtin_tools[stt]` (2-week grace period)
+
+### Resolved
+- **Audit finding P4-H1** (channel-override precedence): Decision 2 — per-channel config takes priority; tenant fallback when channel config absent
+- **Audit finding P4-H2** (Scribe endpoint verification): ElevenLabs Scribe v2 `/v1/speech-to-text` confirmed with xi-api-key auth
+- **Audit finding P4-B3** (explicit bridge loop): 3-channel explicit loop (Telegram, Feishu, Discord) replaces ambiguous iteration
+- **Cross-phase XP-3** (12 test ported): All 12 Telegram STT scenarios (NoProxy, EmptyFile, Success, Error, etc.) ported into `proxy_stt/provider_test.go` before Phase 5 channel migration
+
+### Deprecated
+- Per-channel `STTProxyURL`, `STTAPIKey`, `STTTenantID` fields (Telegram, Feishu, Discord configs) — soft deprecation with 2-week grace; migration to `builtin_tools[stt]` required for Phase 5+ channels
+
+### Fixed
+- **JSON schema divergence**: `duration_secs` → `audio_duration_secs` in Scribe response parsing (matches ElevenLabs API)
+- **Provider registration**: Scribe + SetSTTChain wired into setupAudioExtras for Phase 5 channel integration
+
+---
 
 #### ElevenLabs Audio Manager Refactor — Phase 3 (2026-04-14)
 
