@@ -47,7 +47,7 @@ func TestVoiceCache_LRUEviction(t *testing.T) {
 	voices := []audio.Voice{{ID: "x"}}
 
 	// Fill to capacity
-	for i := 0; i < cap; i++ {
+	for i := range cap {
 		c.Set(ids[i], voices)
 	}
 	// Access ids[0] to make it recently used
@@ -83,15 +83,13 @@ func TestVoiceCache_Invalidate(t *testing.T) {
 func TestVoiceCache_ConcurrentSafe(t *testing.T) {
 	c := audio.NewVoiceCache(time.Hour, 500)
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 100 {
+		wg.Go(func() {
 			tid := uuid.New()
 			c.Set(tid, []audio.Voice{{ID: "v"}})
 			c.Get(tid)
 			c.Invalidate(tid)
-		}()
+		})
 	}
 	wg.Wait()
 }

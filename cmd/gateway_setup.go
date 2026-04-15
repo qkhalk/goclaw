@@ -45,6 +45,7 @@ func setupToolRegistry(
 	browserMgr *browser.Manager,
 	webFetchTool *tools.WebFetchTool,
 	ttsTool *tools.TtsTool,
+	audioMgr *audio.Manager,
 	permPE *permissions.PolicyEngine,
 	toolPE *tools.PolicyEngine,
 	dataDir string,
@@ -142,6 +143,7 @@ func setupToolRegistry(
 	}
 	setupAudioExtras(cfg, ttsMgr)      // Phase 3: registers Music + SFX providers.
 	audio.BridgeLegacySTT(ttsMgr, cfg) // Phase 4: bridge per-channel STTProxyURL → channel-scoped providers.
+	audioMgr = ttsMgr                  // expose to caller for channel STT wiring (Phase 5)
 
 	// Audio generation tool — backed by audio.Manager (Music + SFX).
 	toolsReg.Register(tools.NewCreateAudioTool(ttsMgr))
