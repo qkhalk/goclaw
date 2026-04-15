@@ -5,6 +5,7 @@ package sqlitestore
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -436,5 +437,52 @@ func TestSQLiteHookStore_GlobalScopeVisibleToTenant(t *testing.T) {
 	}
 	if !found {
 		t.Error("global hook not visible in ResolveForEvent from tenant scope")
+	}
+}
+
+// TestSQLiteHookStore_BuiltinReadOnly mirrors the PG test: user-facing writes
+// on source='builtin' rows may only toggle enabled; WithSeedBypass unlocks.
+func TestSQLiteHookStore_BuiltinReadOnly(t *testing.T) {
+	db := newHookTestDB(t)
+	tenantID, _ := seedHookTenantAgent(t, db)
+	s := NewSQLiteHookStore(db)
+
+	seedCtx := hooks.WithSeedBypass(store.WithRole(sqliteMasterCtx(), store.RoleOwner))
+
+	cfg := hooks.HookConfig{
+		ID:          uuid.MustParse("11111111-2222-3333-4444-555555555555"),
+		TenantID:    hooks.SentinelTenantID,
+		Event:       hooks.EventUserPromptSubmit,
+		HandlerType: hooks.HandlerScript,
+		Scope:       hooks.ScopeGlobal,
+		Config:      map[string]any{"source": "// v1"},
+		Metadata:    map[string]any{"builtin": true, "version": 1},
+		TimeoutMS:   500,
+		OnTimeout:   hooks.DecisionAllow,
+		Source:      hooks.SourceBuiltin,
+		Enabled:     true,
+	}
+	id, err := s.Create(seedCtx, cfg)
+	if err != nil {
+		t.Fatalf("seed create: %v", err)
+	}
+	t.Cleanup(func() { s.Delete(seedCtx, id) })
+
+	userCtx := sqliteTenantCtx(tenantID)
+
+	if err := s.Update(userCtx, id, map[string]any{"matcher": "evil"}); !errors.Is(err, hooks.ErrBuiltinReadOnly) {
+		t.Fatalf("Update(matcher) err=%v, want ErrBuiltinReadOnly", err)
+	}
+
+	if err := s.Update(sqliteMasterCtx(), id, map[string]any{"enabled": false}); err != nil {
+		t.Fatalf("Update(enabled) should succeed: %v", err)
+	}
+
+	if err := s.Delete(userCtx, id); !errors.Is(err, hooks.ErrBuiltinReadOnly) {
+		t.Fatalf("Delete user err=%v, want ErrBuiltinReadOnly", err)
+	}
+
+	if err := s.Update(seedCtx, id, map[string]any{"matcher": "ok"}); err != nil {
+		t.Fatalf("seed-bypass Update should succeed: %v", err)
 	}
 }

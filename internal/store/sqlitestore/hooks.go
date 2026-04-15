@@ -205,6 +205,24 @@ func (s *SqliteHookStore) Update(ctx context.Context, id uuid.UUID, updates map[
 		return fmt.Errorf("callers must not include 'version' in update map")
 	}
 
+	// Builtin-row protection (Phase 04). User/UI writes may only toggle
+	// `enabled`; the builtin seeder itself bypasses this via hooks.WithSeedBypass.
+	// Fail-closed on GetByID errors — silently passing here could let wide
+	// patches through on a transient DB read failure.
+	if !hooks.IsSeedBypass(ctx) {
+		current, err := s.GetByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("builtin guard: %w", err)
+		}
+		if current != nil && current.Source == hooks.SourceBuiltin {
+			for k := range updates {
+				if k != "enabled" {
+					return hooks.ErrBuiltinReadOnly
+				}
+			}
+		}
+	}
+
 	// Marshal map/slice values to JSON strings for SQLite TEXT columns.
 	for k, v := range updates {
 		switch k {
@@ -258,6 +276,18 @@ func (s *SqliteHookStore) Update(ctx context.Context, id uuid.UUID, updates map[
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) Delete(ctx context.Context, id uuid.UUID) error {
+	// Builtin-row protection (Phase 04): reject unless caller marked seed-bypass.
+	// Fail-closed on GetByID errors.
+	if !hooks.IsSeedBypass(ctx) {
+		current, err := s.GetByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("builtin guard: %w", err)
+		}
+		if current != nil && current.Source == hooks.SourceBuiltin {
+			return hooks.ErrBuiltinReadOnly
+		}
+	}
+
 	q := "DELETE FROM agent_hooks WHERE id = ?"
 	args := []any{id.String()}
 

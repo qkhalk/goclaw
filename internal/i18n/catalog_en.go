@@ -210,5 +210,6 @@ func init() {
 		MsgHookCircuitBreakerTripped:   "hook auto-disabled after repeated failures",
 		MsgHookBudgetExceeded:          "tenant hook token budget exceeded",
 		MsgHookPerTurnCapReached:       "hook invocation per-turn cap reached",
+		MsgHookBuiltinReadOnly:         "builtin hooks are read-only except for the enabled toggle",
 	})
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
+	hookbuiltin "github.com/nextlevelbuilder/goclaw/internal/hooks/builtin"
 	"github.com/nextlevelbuilder/goclaw/internal/orchestration"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	kg "github.com/nextlevelbuilder/goclaw/internal/knowledgegraph"
@@ -148,6 +149,21 @@ func wireExtras(
 	// Agent Hooks (Issue #875) — lifecycle dispatcher + handlers.
 	var hookDispatcher hooks.Dispatcher = hooks.NewNoopDispatcher()
 	if hs, ok := stores.Hooks.(hooks.HookStore); ok && hs != nil {
+		// Phase 04: wire builtin registry. Install a strip-all lookup FIRST so a
+		// Load() failure leaves the dispatcher failing closed (no wide fallback
+		// via the Phase 03 permissive default). On successful Load we swap in the
+		// real per-id allowlist, then UPSERT canonical rows with stable UUIDv5s.
+		// Seed failures log but never block startup.
+		hooks.SetBuiltinAllowlistLookup(func(uuid.UUID) []string { return nil })
+		if err := hookbuiltin.Load(); err != nil {
+			slog.Warn("hooks.builtin_load_failed", "err", err)
+		} else {
+			hooks.SetBuiltinAllowlistLookup(hookbuiltin.AllowlistFor)
+			if err := hookbuiltin.Seed(context.Background(), hs, appCfg.Hooks); err != nil {
+				slog.Warn("hooks.builtin_seed_failed", "err", err)
+			}
+		}
+
 		handlers := buildHookHandlers(stores, providerReg, appCfg.Hooks)
 		stdOpts := hooks.StdDispatcherOpts{
 			Store:    hs,

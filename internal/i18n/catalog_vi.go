@@ -210,5 +210,6 @@ func init() {
 		MsgHookCircuitBreakerTripped:   "hook đã tự tắt sau nhiều lần thất bại liên tiếp",
 		MsgHookBudgetExceeded:          "tenant đã vượt ngân sách token cho hook",
 		MsgHookPerTurnCapReached:       "đã đạt giới hạn số lần gọi hook trong một lượt",
+		MsgHookBuiltinReadOnly:         "hook dựng sẵn chỉ cho phép bật/tắt, không thể chỉnh sửa",
 	})
 }

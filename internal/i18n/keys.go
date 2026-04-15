@@ -214,4 +214,5 @@ const (
 	MsgHookCircuitBreakerTripped    = "hook.circuit_breaker_tripped"    // "hook auto-disabled after repeated failures"
 	MsgHookBudgetExceeded           = "hook.budget_exceeded"            // "tenant hook token budget exceeded"
 	MsgHookPerTurnCapReached        = "hook.per_turn_cap_reached"       // "hook invocation per-turn cap reached"
+	MsgHookBuiltinReadOnly          = "hook.builtin_readonly"           // "builtin hooks are read-only except for the enabled toggle"
 )

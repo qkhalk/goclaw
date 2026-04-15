@@ -318,10 +318,27 @@ func applyBuiltinMutation(ev *Event, updated map[string]any, allowlist []string)
 	}
 }
 
-// builtinAllowlistFor returns the field allowlist for a builtin hook.
-// Phase 03 ships a permissive default; Phase 04 overrides with a per-hook
-// allowlist loaded from builtins.yaml at startup.
-func builtinAllowlistFor(_ uuid.UUID) []string {
+// builtinAllowlistLookup is set at startup by the builtin package wiring
+// (cmd/gateway_managed.go calls SetBuiltinAllowlistLookup(builtin.AllowlistFor)).
+// When nil (tests that don't wire the registry) we fall back to the Phase 03
+// permissive default so legacy mutation tests stay green.
+var builtinAllowlistLookup func(id uuid.UUID) []string
+
+// SetBuiltinAllowlistLookup installs the per-id allowlist function. Called
+// once at startup from cmd/gateway_managed.go. Safe to leave unset in tests —
+// callers get the permissive default (rawInput + toolInput) below.
+func SetBuiltinAllowlistLookup(f func(uuid.UUID) []string) {
+	builtinAllowlistLookup = f
+}
+
+// builtinAllowlistFor returns the field allowlist for a builtin hook row.
+// Registered builtin → YAML mutable_fields. Unknown id under a wired lookup
+// → empty allowlist (mutations stripped, defense-in-depth). Unset lookup
+// (unit tests) → Phase 03 permissive default.
+func builtinAllowlistFor(id uuid.UUID) []string {
+	if builtinAllowlistLookup != nil {
+		return builtinAllowlistLookup(id)
+	}
 	return []string{"rawInput", "toolInput"}
 }
 

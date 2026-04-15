@@ -199,6 +199,25 @@ func (s *PGHookStore) Update(ctx context.Context, id uuid.UUID, updates map[stri
 		return fmt.Errorf("callers must not include 'version' in update map")
 	}
 
+	// Builtin-row protection (Phase 04). Rows with source='builtin' are canonical
+	// embed-seeded artifacts: UI/user writes may only toggle `enabled`. The
+	// builtin seeder itself passes through via hooks.WithSeedBypass ctx.
+	// Fail-closed: a transient GetByID error must not let a non-enabled patch
+	// slip through against a builtin row.
+	if !hooks.IsSeedBypass(ctx) {
+		current, err := s.GetByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("builtin guard: %w", err)
+		}
+		if current != nil && current.Source == hooks.SourceBuiltin {
+			for k := range updates {
+				if k != "enabled" {
+					return hooks.ErrBuiltinReadOnly
+				}
+			}
+		}
+	}
+
 	// Marshal map/slice values to JSON for JSONB columns.
 	for k, v := range updates {
 		switch k {
@@ -256,6 +275,18 @@ func (s *PGHookStore) Update(ctx context.Context, id uuid.UUID, updates map[stri
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
 func (s *PGHookStore) Delete(ctx context.Context, id uuid.UUID) error {
+	// Builtin-row protection (Phase 04): reject unless caller marked seed-bypass.
+	// Fail-closed on GetByID errors so we don't accidentally delete a builtin.
+	if !hooks.IsSeedBypass(ctx) {
+		current, err := s.GetByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("builtin guard: %w", err)
+		}
+		if current != nil && current.Source == hooks.SourceBuiltin {
+			return hooks.ErrBuiltinReadOnly
+		}
+	}
+
 	q := "DELETE FROM agent_hooks WHERE id = $1"
 	args := []any{id}
 

@@ -210,5 +210,6 @@ func init() {
 		MsgHookCircuitBreakerTripped:   "钩子在多次失败后已自动禁用",
 		MsgHookBudgetExceeded:          "租户钩子令牌预算已耗尽",
 		MsgHookPerTurnCapReached:       "单轮钩子调用次数已达上限",
+		MsgHookBuiltinReadOnly:         "内置钩子只读,仅允许切换启用状态",
 	})
 }
