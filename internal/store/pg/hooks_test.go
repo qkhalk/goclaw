@@ -35,7 +35,7 @@ func hooksTestDB(t *testing.T) *sql.DB {
 		t.Skipf("PG not reachable: %v", err)
 	}
 
-	m, err := migrate.New("file://../../../../migrations", dsn)
+	m, err := migrate.New("file://../../../migrations", dsn)
 	if err != nil {
 		db.Close()
 		t.Fatalf("migrate.New: %v", err)
@@ -57,16 +57,21 @@ func seedTenantAndAgent(t *testing.T, db *sql.DB) (tenantID, agentID uuid.UUID) 
 	tenantID = uuid.Must(uuid.NewV7())
 	agentID = uuid.Must(uuid.NewV7())
 
+	// UUIDv7s generated in the same millisecond share their 8-char prefix,
+	// so deriving slug/agent_key from `[:8]` collides when a test calls
+	// seedTenantAndAgent twice back-to-back and the second INSERT is swallowed
+	// by ON CONFLICT DO NOTHING on the unique slug/agent_key constraint. Use
+	// the full UUID — always unique.
 	_, err := db.Exec(
 		`INSERT INTO tenants (id, name, slug, status) VALUES ($1,$2,$3,'active') ON CONFLICT DO NOTHING`,
-		tenantID, "hook-test-"+tenantID.String()[:8], "ht"+tenantID.String()[:8])
+		tenantID, "hook-test-"+tenantID.String()[:8], "ht-"+tenantID.String())
 	if err != nil {
 		t.Fatalf("seed tenant: %v", err)
 	}
 	_, err = db.Exec(
 		`INSERT INTO agents (id, tenant_id, agent_key, agent_type, status, provider, model, owner_id)
 		 VALUES ($1,$2,$3,'predefined','active','test','test-model','owner') ON CONFLICT DO NOTHING`,
-		agentID, tenantID, "hook-agent-"+agentID.String()[:8])
+		agentID, tenantID, "hook-agent-"+agentID.String())
 	if err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}
