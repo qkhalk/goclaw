@@ -202,5 +202,13 @@ func init() {
 		MsgSTTLegacyConfigDeprecated: "Cấu hình STT cũ đã lỗi thời; hãy chuyển sang builtin_tools[stt]",
 		MsgSTTWhatsappPrivacyWarning: "Bật STT cho WhatsApp sẽ phá vỡ mã hóa đầu cuối cho tin nhắn thoại gửi đến agent này.",
 		MsgVoiceMessageFallback:      "[Tin nhắn thoại]",
+
+		// Hooks
+		MsgHookInvalidMatcher:          "biểu thức regex matcher không hợp lệ: %s",
+		MsgHookCommandDisabledStandard: "hook loại command chỉ khả dụng trên phiên bản Lite",
+		MsgHookPromptRequiresMatcher:   "hook prompt bắt buộc có matcher hoặc if_expr (chống chi phí vượt kiểm soát)",
+		MsgHookCircuitBreakerTripped:   "hook đã tự tắt sau nhiều lần thất bại liên tiếp",
+		MsgHookBudgetExceeded:          "tenant đã vượt ngân sách token cho hook",
+		MsgHookPerTurnCapReached:       "đã đạt giới hạn số lần gọi hook trong một lượt",
 	})
 }

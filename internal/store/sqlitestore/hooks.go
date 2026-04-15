@@ -103,12 +103,25 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 // ─── GetByID ─────────────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.HookConfig, error) {
-	row := s.db.QueryRowContext(ctx, `
+	q := `
 		SELECT id, tenant_id, agent_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, created_by,
 		       created_at, updated_at
-		FROM agent_hooks WHERE id = ?`, id.String())
+		FROM agent_hooks WHERE id = ?`
+	args := []any{id.String()}
+
+	// Tenant-scope guard: non-master callers only see own + global rows.
+	if !store.IsMasterScope(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid == uuid.Nil {
+			return nil, fmt.Errorf("tenant_id required for non-master scope")
+		}
+		q += " AND (tenant_id = ? OR tenant_id = ?)"
+		args = append(args, tid.String(), store.MasterTenantID.String())
+	}
+
+	row := s.db.QueryRowContext(ctx, q, args...)
 	cfg, err := scanHookSQLiteRow(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

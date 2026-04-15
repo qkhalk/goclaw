@@ -90,12 +90,26 @@ func (s *PGHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UU
 // ─── GetByID ─────────────────────────────────────────────────────────────────
 
 func (s *PGHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.HookConfig, error) {
-	row := s.db.QueryRowContext(ctx, `
+	q := `
 		SELECT id, tenant_id, agent_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, created_by,
 		       created_at, updated_at
-		FROM agent_hooks WHERE id = $1`, id)
+		FROM agent_hooks WHERE id = $1`
+	args := []any{id}
+
+	// Tenant-scope guard: non-master callers only see their own rows + globals.
+	// Global hooks use tenant_id = SentinelTenantID (store.MasterTenantID).
+	if !store.IsMasterScope(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid == uuid.Nil {
+			return nil, fmt.Errorf("tenant_id required for non-master scope")
+		}
+		q += " AND (tenant_id = $2 OR tenant_id = $3)"
+		args = append(args, tid, store.MasterTenantID)
+	}
+
+	row := s.db.QueryRowContext(ctx, q, args...)
 	cfg, err := scanHookPGRow(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

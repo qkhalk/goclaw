@@ -206,4 +206,12 @@ const (
 	MsgTenantUserNotFound  = "error.tenant_user_not_found"  // "tenant user not found"
 	MsgTenantMismatch      = "error.tenant_mismatch"        // "tenant user does not belong to this tenant"
 	MsgTenantScopeRequired = "error.tenant_scope_required"  // "tenant scope is required for this operation"
+
+	// --- Hooks ---
+	MsgHookInvalidMatcher           = "hook.invalid_matcher"            // "invalid matcher regex: %s"
+	MsgHookCommandDisabledStandard  = "hook.command_disabled_standard"  // "command-type hooks are only available on Lite edition"
+	MsgHookPromptRequiresMatcher    = "hook.prompt_requires_matcher"    // "prompt hooks require a matcher or if_expr (runaway-cost guard)"
+	MsgHookCircuitBreakerTripped    = "hook.circuit_breaker_tripped"    // "hook auto-disabled after repeated failures"
+	MsgHookBudgetExceeded           = "hook.budget_exceeded"            // "tenant hook token budget exceeded"
+	MsgHookPerTurnCapReached        = "hook.per_turn_cap_reached"       // "hook invocation per-turn cap reached"
 )

@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -19,7 +17,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
-	hookhandlers "github.com/nextlevelbuilder/goclaw/internal/hooks/handlers"
 	"github.com/nextlevelbuilder/goclaw/internal/orchestration"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	kg "github.com/nextlevelbuilder/goclaw/internal/knowledgegraph"
@@ -28,7 +25,6 @@ import (
 	memorypkg "github.com/nextlevelbuilder/goclaw/internal/memory"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
-	"github.com/nextlevelbuilder/goclaw/internal/security"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
@@ -152,21 +148,17 @@ func wireExtras(
 	// Agent Hooks (Issue #875) — lifecycle dispatcher + handlers.
 	var hookDispatcher hooks.Dispatcher = hooks.NewNoopDispatcher()
 	if hs, ok := stores.Hooks.(hooks.HookStore); ok && hs != nil {
-		encryptKey := os.Getenv("GOCLAW_ENCRYPTION_KEY")
+		handlers := buildHookHandlers(stores, providerReg)
 		stdOpts := hooks.StdDispatcherOpts{
-			Store: hs,
-			Audit: hooks.NewAuditWriter(hs, ""),
-			Handlers: map[hooks.HandlerType]hooks.Handler{
-				hooks.HandlerCommand: &hookhandlers.CommandHandler{Edition: edition.Current()},
-				hooks.HandlerHTTP: &hookhandlers.HTTPHandler{
-					EncryptKey: encryptKey,
-					Client:     security.NewSafeClient(10 * time.Second),
-				},
-			},
+			Store:    hs,
+			Audit:    hooks.NewAuditWriter(hs, ""),
+			Handlers: handlers,
 		}
 		hookDispatcher = hooks.NewStdDispatcher(stdOpts)
 		hooks.SubscribeDelegateEvents(domainBus, hookDispatcher)
-		slog.Info("agent hooks dispatcher wired", "handlers", "command,http")
+		// Stash handlers for later gateway.go wiring (test runner).
+		sharedHookHandlers = handlers
+		slog.Info("agent hooks dispatcher wired", "handlers", "command,http,prompt")
 	}
 
 	resolver := agent.NewManagedResolver(agent.ResolverDeps{
