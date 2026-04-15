@@ -14,8 +14,18 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 	hookhandlers "github.com/nextlevelbuilder/goclaw/internal/hooks/handlers"
+	"github.com/nextlevelbuilder/goclaw/internal/security"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
+
+// allowLoopbackForTest relaxes SSRF checks for the duration of a single test
+// so httptest servers on 127.0.0.1 can receive requests. Phase 4 covers all
+// integration tests that spin up fake HTTP endpoints.
+func allowLoopbackForTest(t *testing.T) {
+	t.Helper()
+	security.SetAllowLoopbackForTest(true)
+	t.Cleanup(func() { security.SetAllowLoopbackForTest(false) })
+}
 
 // newDispatcher wires a StdDispatcher with the supplied handler map over a
 // live PG hook store. Audit writer runs without encryption (dev mode).
@@ -36,6 +46,7 @@ func TestHooksIntegration_HTTPHandler_AllowWritesAudit(t *testing.T) {
 	db := testDB(t)
 	tenantID, agentID := seedTenantAgent(t, db)
 	ctx := tenantCtx(tenantID)
+	allowLoopbackForTest(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -104,6 +115,7 @@ func TestHooksIntegration_HTTPHandler_Block(t *testing.T) {
 	db := testDB(t)
 	tenantID, agentID := seedTenantAgent(t, db)
 	ctx := tenantCtx(tenantID)
+	allowLoopbackForTest(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
