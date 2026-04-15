@@ -6,6 +6,39 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ## [Unreleased] — 2026-04-15
 
+#### ElevenLabs Audio Manager Refactor — Phase 5 (2026-04-15)
+
+Channel STT migration (Telegram/Feishu/Discord) + WhatsApp voice transcription with tenant opt-in (default disabled due to E2E encryption trade-off, resolves privacy red-team finding).
+
+### Added
+- **WhatsApp voice transcription**: `internal/channels/whatsapp/stt.go` — opt-in per-tenant via `builtin_tools[stt].settings.whatsapp_enabled` (default `false` per Decision 6)
+- **Synchronous 10s timeout**: All 4 channels (Telegram/Feishu/Discord/WhatsApp) enforce ctx timeout for voice message processing; timeout/error → fallback label
+- **i18n fallback key**: `MsgVoiceMessageFallback` ("voice message" placeholder in en/vi/zh) rendered when STT unavailable or disabled
+- **Privacy banner**: Admin UI displays E2E encryption trade-off warning when enabling WhatsApp STT
+
+### Changed
+- **Channel STT handlers**: All 4 channels now call `audio.Manager.Transcribe()` with 10s timeout instead of per-channel `transcribeAudio()` helpers
+- **Channel factory signatures**: All 4 factories (`NewChannel`) accept `audioMgr *audio.Manager` parameter
+- **WhatsApp messaging**: Voice messages now transcribed (opt-in) and appended to message text for agent understanding
+
+### Removed
+- **Per-channel STT helpers**: Deleted `internal/channels/{telegram,feishu,discord}/stt.go` (consolidated into Manager)
+- **Telegram STT tests**: Deleted `internal/channels/telegram/stt_test.go` — coverage preserved in `internal/audio/proxy_stt/provider_test.go` (12 ported scenarios, deliberate deletion documented)
+
+### Resolved
+- **Audit finding P5-B1**: Gate G4 verified; Manager.Transcribe chain wired
+- **Audit finding P5-H1**: All transcribeAudio call sites migrated; grep confirms zero direct channel STT calls
+- **Audit finding P5-H2** + **Decision 6** (privacy): WhatsApp STT opt-in with default=false; privacy banner + docs note E2E trade-off
+- **Cross-phase XP-3**: Telegram test ported/deleted with 12-scenario coverage guarantee
+- **Cross-phase XP-4**: `MsgVoiceMessageFallback` pre-wired in Phase 5 step 1 (blocking)
+
+### Security / Privacy
+- **WhatsApp E2E encryption**: Voice transcription breaks end-to-end guarantee. **Tenant opt-in required** with explicit admin acknowledgment (privacy banner in UI)
+- **Temp file cleanup**: Existing `scheduleMediaCleanup` preserves file handles during 10s STT window; no race condition risk
+- **Audit logging**: WhatsApp STT invocation logged at info level for audit trail
+
+---
+
 #### ElevenLabs Audio Manager Refactor — Phase 4 (2026-04-15)
 
 STT via ElevenLabs Scribe + proxy fallback with tenant config migration + admin UI form. Legacy per-channel STT config bridged with 2-week deprecation grace.
