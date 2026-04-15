@@ -315,4 +315,16 @@ func setupAudioExtras(cfg *config.Config, mgr *tts.Manager) {
 			slog.Info("audio.music: minimax registered")
 		}
 	}
+
+	// ElevenLabs STT (Scribe v2) — reuse TTS credentials. Registered as tenant-scope
+	// default; per-request tenant override lands via builtin_tools[stt] in Phase 5
+	// channel migration. Legacy per-channel STTProxyURL is bridged separately.
+	if ellKey != "" {
+		mgr.RegisterSTT(elevenlabs.NewSTTProvider(elevenlabs.Config{
+			APIKey:  ellKey,
+			BaseURL: ellBase,
+		}))
+		mgr.SetSTTChain([]string{"elevenlabs", "proxy"})
+		slog.Info("audio.stt: elevenlabs registered")
+	}
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
@@ -139,7 +140,8 @@ func setupToolRegistry(
 	if ttsMgr == nil {
 		ttsMgr = tts.NewManager(tts.ManagerConfig{})
 	}
-	setupAudioExtras(cfg, ttsMgr) // Phase 3: registers Music + SFX providers.
+	setupAudioExtras(cfg, ttsMgr)      // Phase 3: registers Music + SFX providers.
+	audio.BridgeLegacySTT(ttsMgr, cfg) // Phase 4: bridge per-channel STTProxyURL → channel-scoped providers.
 
 	// Audio generation tool — backed by audio.Manager (Music + SFX).
 	toolsReg.Register(tools.NewCreateAudioTool(ttsMgr))
