@@ -165,6 +165,26 @@ func TestGetUpdates_ParsesSingleUpdate(t *testing.T) {
 	}
 }
 
+// TestGetUpdates_EmptyResultReturnsNilSlice verifies that when the Zalo API
+// returns an empty update object (no pending events), getUpdates returns nil
+// instead of a slice with a zero-valued element — the poll loop treats it as
+// "nothing to dispatch" without invoking processUpdate.
+func TestGetUpdates_EmptyResultReturnsNilSlice(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+	}))
+	defer srv.Close()
+
+	ch := newTestChannel(t, srv.URL)
+	updates, err := ch.getUpdates(1)
+	if err != nil {
+		t.Fatalf("getUpdates: %v", err)
+	}
+	if updates != nil {
+		t.Errorf("updates = %+v, want nil (empty result object)", updates)
+	}
+}
+
 // TestGetUpdates_UnmarshalError verifies a malformed result surfaces an error.
 func TestGetUpdates_UnmarshalError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -24,11 +24,12 @@ import (
 )
 
 const (
-	defaultPollTimeout = 30
-	maxTextLength      = 2000
-	defaultMediaMaxMB  = 5
-	pollErrorBackoff   = 5 * time.Second
-	pairingDebounce    = 60 * time.Second
+	defaultPollTimeout  = 30
+	maxTextLength       = 2000
+	defaultMediaMaxMB   = 5
+	pollErrorBackoff    = 5 * time.Second
+	pairingDebounce     = 60 * time.Second
+	pollTimeoutHeadroom = 7 * time.Second
 )
 
 // apiBase is the Zalo Bot API root. Declared as a variable so tests can
@@ -494,7 +495,7 @@ func (c *Channel) getUpdates(timeout int) ([]zaloUpdate, error) {
 		"timeout": timeout,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout+7)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second+pollTimeoutHeadroom)
 	defer cancel()
 
 	result, err := c.callAPIWith(ctx, c.pollClient, "getUpdates", params)
