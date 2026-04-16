@@ -1531,7 +1531,13 @@ CREATE TABLE IF NOT EXISTS vault_documents (
     summary       TEXT NOT NULL DEFAULT '',
     metadata      TEXT DEFAULT '{}',
     created_at    TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at    TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    updated_at    TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    CONSTRAINT vault_documents_scope_consistency CHECK (
+        (scope = 'personal' AND agent_id IS NOT NULL AND team_id IS NULL) OR
+        (scope = 'team'     AND team_id  IS NOT NULL AND agent_id IS NULL) OR
+        (scope = 'shared'   AND agent_id IS NULL     AND team_id  IS NULL) OR
+        scope = 'custom'
+    )
 );
 -- SQLite prohibits expressions in inline UNIQUE constraints; use a unique index instead.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_vault_docs_unique_path

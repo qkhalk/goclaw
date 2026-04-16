@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 23
+const SchemaVersion = 24
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -466,6 +466,36 @@ WHERE context_pruning IS NOT NULL
 	20: `SELECT 1;`,
 	21: `SELECT 1;`,
 	22: `SELECT 1;`,
+
+	// Version 23 → 24: vault_documents scope/ownership consistency triggers.
+	// Mirrors PG migration 000055 CHECK constraint; SQLite cannot add CHECK via
+	// ALTER TABLE so we use BEFORE INSERT + BEFORE UPDATE triggers instead.
+	// fresh DBs get the inline CHECK in schema.sql; existing DBs get triggers.
+	23: `CREATE TRIGGER IF NOT EXISTS trg_vault_docs_scope_consistency_ins
+  BEFORE INSERT ON vault_documents
+  FOR EACH ROW
+  WHEN NOT (
+    (NEW.scope='personal' AND NEW.agent_id IS NOT NULL AND NEW.team_id IS NULL) OR
+    (NEW.scope='team'     AND NEW.team_id  IS NOT NULL AND NEW.agent_id IS NULL) OR
+    (NEW.scope='shared'   AND NEW.agent_id IS NULL     AND NEW.team_id  IS NULL) OR
+    NEW.scope='custom'
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'vault_documents_scope_consistency violation');
+  END;
+
+CREATE TRIGGER IF NOT EXISTS trg_vault_docs_scope_consistency_upd
+  BEFORE UPDATE OF scope, agent_id, team_id ON vault_documents
+  FOR EACH ROW
+  WHEN NOT (
+    (NEW.scope='personal' AND NEW.agent_id IS NOT NULL AND NEW.team_id IS NULL) OR
+    (NEW.scope='team'     AND NEW.team_id  IS NOT NULL AND NEW.agent_id IS NULL) OR
+    (NEW.scope='shared'   AND NEW.agent_id IS NULL     AND NEW.team_id  IS NULL) OR
+    NEW.scope='custom'
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'vault_documents_scope_consistency violation');
+  END;`,
 }
 
 // addHooksTables is the SQLite incremental migration for schema v19 → v20.

@@ -52,6 +52,7 @@ Integration / chaos / RBAC / tracing coverage + user documentation + copy-paste 
 ### Fixed
 - **`PGHookStore.GetByID` + `SqliteHookStore.GetByID`** now enforce tenant scope: non-master callers only see own + global rows. Previously returned any row by UUID which leaked cross-tenant.
 - **Existing pipeline integration tests** now call `security.SetAllowLoopbackForTest(true)` via shared helper; no longer flake on SSRF block for httptest endpoints.
+- **Vault**: Shared docs (`scope='shared'`, `agent_id=NULL`) are now visible to agents via `vault_search`, `ListDocuments`, `CountDocuments`. Previously excluded by strict `agent_id = $N` predicate after migration 000046 made `agent_id` nullable. Also fixes single-team filter to include shared docs. Adds CHECK invariant (migration 000055) to prevent future scope/ownership drift. Affects PostgreSQL and SQLite (desktop edition). (#917)
 
 ### Testing
 - All hook integration tests pass under `TEST_DATABASE_URL` PG container (7 new test files, 18 new top-level tests)
