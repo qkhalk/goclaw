@@ -195,6 +195,23 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 	// Mid-run injection: if session already has an active run, inject the message
 	// into the running loop instead of starting a new concurrent run.
 	if m.agents.IsSessionBusy(sessionKey) {
+		// Exact cancel keyword detection: auto-abort when user sends "stop", "cancel", etc.
+		if agent.IsExactCancelKeyword(params.Message) {
+			results := m.agents.AbortRunsForSession(sessionKey)
+			aborted := false
+			for _, r := range results {
+				if r.Stopped || r.Forced {
+					aborted = true
+					break
+				}
+			}
+			client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
+				"cancelled": true,
+				"aborted":   aborted,
+			}))
+			return
+		}
+
 		injected := m.agents.InjectMessage(sessionKey, agent.InjectedMessage{
 			Content: params.Message,
 			UserID:  userID,
