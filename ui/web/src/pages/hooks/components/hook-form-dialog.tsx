@@ -15,6 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { hookFormSchema, type HookFormData } from "@/schemas/hooks.schema";
 import type { HookConfig } from "@/hooks/use-hooks";
 import { useAuthStore } from "@/stores/use-auth-store";
+import { useAgents } from "@/pages/agents/hooks/use-agents";
 import { ScriptEditor } from "./script-editor";
 
 const HOOK_EVENTS = [
@@ -44,6 +45,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
     resolver: zodResolver(hookFormSchema),
     defaultValues: {
       name: "",
+      agent_ids: [],
       event: "pre_tool_use",
       handler_type: "script",
       scope: "tenant",
@@ -57,6 +59,8 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
   });
 
   const handlerType = watch("handler_type");
+  const scope = watch("scope");
+  const { agents } = useAgents();
   // Builtin rows (Phase 04/05) ship with source='builtin'. UI + backend agree:
   // only `enabled` is mutable. All other inputs render as read-only, and the
   // Save button label changes to reflect the narrowed scope.
@@ -75,6 +79,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
           initial.handler_type === "command" ? "http" : initial.handler_type;
         reset({
           name: initial.name ?? "",
+          agent_ids: initial.agent_ids ?? [],
           event: initial.event as HookFormData["event"],
           handler_type: handlerType,
           scope: initial.scope,
@@ -163,6 +168,36 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
               )} />
             </div>
           </div>
+
+          {/* Agent picker — visible only when scope=agent */}
+          {scope === "agent" && agents.length > 0 && (
+            <Controller control={control} name="agent_ids" render={({ field }) => (
+              <div className="space-y-1.5">
+                <Label>{t("form.agents")}</Label>
+                <div className="grid gap-1.5 max-h-40 overflow-y-auto rounded border p-2 sm:grid-cols-2">
+                  {agents.map((a) => {
+                    const checked = (field.value ?? []).includes(a.id);
+                    return (
+                      <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer rounded px-1.5 py-1 hover:bg-muted">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={isBuiltin}
+                          className="rounded border-input"
+                          onChange={(e) => {
+                            const ids = field.value ?? [];
+                            field.onChange(e.target.checked ? [...ids, a.id] : ids.filter((x: string) => x !== a.id));
+                          }}
+                        />
+                        <span className="truncate">{a.display_name || a.agent_key}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">{t("form.agentsHint")}</p>
+              </div>
+            )} />
+          )}
 
           {/* Handler type — `command` intentionally absent post-Wave-1. Lite users keep
               existing rows but cannot create new ones via UI (DB/CLI path only).

@@ -68,11 +68,7 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 		tid = tenantIDForInsert(ctx)
 	}
 
-	var agentID, createdBy, matcher, ifExpr, name *string
-	if cfg.AgentID != nil {
-		s := cfg.AgentID.String()
-		agentID = &s
-	}
+	var createdBy, matcher, ifExpr, name *string
 	if cfg.CreatedBy != nil {
 		s := cfg.CreatedBy.String()
 		createdBy = &s
@@ -88,13 +84,13 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 	}
 
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO agent_hooks
-		  (id, tenant_id, agent_id, scope, event, handler_type,
+		INSERT INTO hooks
+		  (id, tenant_id, scope, event, handler_type,
 		   config, matcher, if_expr, timeout_ms, on_timeout,
 		   priority, enabled, version, source, metadata, name, created_by,
 		   created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)`,
-		id.String(), tid.String(), agentID,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)`,
+		id.String(), tid.String(),
 		string(cfg.Scope), string(cfg.Event), string(cfg.HandlerType),
 		string(cfgJSON), matcher, ifExpr,
 		cfg.TimeoutMS, string(cfg.OnTimeout),
@@ -105,6 +101,17 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("insert hook: %w", err)
 	}
+	agentIDs := cfg.AgentIDs
+	if len(agentIDs) == 0 && cfg.AgentID != nil && *cfg.AgentID != uuid.Nil {
+		agentIDs = []uuid.UUID{*cfg.AgentID}
+	}
+	for _, aid := range agentIDs {
+		if _, err := s.db.ExecContext(ctx,
+			`INSERT OR IGNORE INTO hook_agents (hook_id, agent_id) VALUES (?, ?)`,
+			id.String(), aid.String()); err != nil {
+			return uuid.Nil, fmt.Errorf("insert hook agent link: %w", err)
+		}
+	}
 	s.invalidateCache()
 	return id, nil
 }
@@ -113,11 +120,11 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 
 func (s *SqliteHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.HookConfig, error) {
 	q := `
-		SELECT id, tenant_id, agent_id, scope, event, handler_type,
+		SELECT id, tenant_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
-		FROM agent_hooks WHERE id = ?`
+		FROM hooks WHERE id = ?`
 	args := []any{id.String()}
 
 	// Tenant-scope guard: non-master callers only see own + global rows.
@@ -138,16 +145,19 @@ func (s *SqliteHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.Hoo
 	if err != nil {
 		return nil, fmt.Errorf("get hook by id: %w", err)
 	}
+	if aids, err := s.GetHookAgents(ctx, cfg.ID); err == nil {
+		cfg.AgentIDs = aids
+	}
 	return cfg, nil
 }
 
 // ─── List ────────────────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) List(ctx context.Context, filter hooks.ListFilter) ([]hooks.HookConfig, error) {
-	q := `SELECT id, tenant_id, agent_id, scope, event, handler_type,
+	q := `SELECT id, tenant_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
-		       created_at, updated_at FROM agent_hooks WHERE 1=1`
+		       created_at, updated_at FROM hooks WHERE 1=1`
 	var args []any
 
 	if !store.IsMasterScope(ctx) {
@@ -163,7 +173,7 @@ func (s *SqliteHookStore) List(ctx context.Context, filter hooks.ListFilter) ([]
 	}
 
 	if filter.AgentID != nil {
-		q += " AND agent_id = ?"
+		q += " AND id IN (SELECT hook_id FROM hook_agents WHERE agent_id = ?)"
 		args = append(args, filter.AgentID.String())
 	}
 	if filter.Event != nil {
@@ -198,7 +208,15 @@ func (s *SqliteHookStore) List(ctx context.Context, filter hooks.ListFilter) ([]
 		}
 		result = append(result, *cfg)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range result {
+		if aids, err := s.GetHookAgents(ctx, result[i].ID); err == nil {
+			result[i].AgentIDs = aids
+		}
+	}
+	return result, nil
 }
 
 // ─── Update ──────────────────────────────────────────────────────────────────
@@ -223,6 +241,18 @@ func (s *SqliteHookStore) Update(ctx context.Context, id uuid.UUID, updates map[
 					return hooks.ErrBuiltinReadOnly
 				}
 			}
+		}
+	}
+
+	// Handle agent_ids separately — routes to junction table, not a column.
+	if raw, ok := updates["agent_ids"]; ok {
+		delete(updates, "agent_ids")
+		ids, err := parseAgentIDsFromAny(raw)
+		if err != nil {
+			return fmt.Errorf("invalid agent_ids: %w", err)
+		}
+		if err := s.SetHookAgents(ctx, id, ids); err != nil {
+			return err
 		}
 	}
 
@@ -253,7 +283,7 @@ func (s *SqliteHookStore) Update(ctx context.Context, id uuid.UUID, updates map[
 	args = append(args, time.Now().UTC().Format(time.RFC3339Nano))
 
 	args = append(args, id.String())
-	q := fmt.Sprintf("UPDATE agent_hooks SET %s WHERE id = ?",
+	q := fmt.Sprintf("UPDATE hooks SET %s WHERE id = ?",
 		strings.Join(setClauses, ", "))
 
 	if !store.IsMasterScope(ctx) {
@@ -291,7 +321,7 @@ func (s *SqliteHookStore) Delete(ctx context.Context, id uuid.UUID) error {
 		}
 	}
 
-	q := "DELETE FROM agent_hooks WHERE id = ?"
+	q := "DELETE FROM hooks WHERE id = ?"
 	args := []any{id.String()}
 
 	if !store.IsMasterScope(ctx) {
@@ -324,10 +354,16 @@ func (s *SqliteHookStore) ResolveForEvent(ctx context.Context, event hooks.Event
 	// Check max version to validate cache freshness.
 	var maxVersion int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COALESCE(MAX(version),0) FROM agent_hooks
+		`SELECT COALESCE(MAX(version),0) FROM hooks
 		 WHERE enabled = 1 AND event = ?
 		   AND (tenant_id = ? OR tenant_id = ?)
-		   AND (agent_id = ? OR agent_id IS NULL)`,
+		   AND (
+		     scope IN ('global', 'tenant')
+		     OR (scope = 'agent' AND EXISTS (
+		       SELECT 1 FROM hook_agents aha
+		       WHERE aha.hook_id = hooks.id AND aha.agent_id = ?
+		     ))
+		   )`,
 		string(hookEvent), tenantID.String(), store.MasterTenantID.String(), agentID.String(),
 	).Scan(&maxVersion)
 	if err != nil {
@@ -344,14 +380,20 @@ func (s *SqliteHookStore) ResolveForEvent(ctx context.Context, event hooks.Event
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, tenant_id, agent_id, scope, event, handler_type,
+		SELECT id, tenant_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
-		FROM agent_hooks
+		FROM hooks
 		WHERE enabled = 1 AND event = ?
 		  AND (tenant_id = ? OR tenant_id = ?)
-		  AND (agent_id = ? OR agent_id IS NULL)
+		  AND (
+		    scope IN ('global', 'tenant')
+		    OR (scope = 'agent' AND EXISTS (
+		      SELECT 1 FROM hook_agents aha
+		      WHERE aha.hook_id = hooks.id AND aha.agent_id = ?
+		    ))
+		  )
 		ORDER BY priority DESC, created_at ASC`,
 		string(hookEvent), tenantID.String(), store.MasterTenantID.String(), agentID.String(),
 	)
@@ -431,6 +473,72 @@ func (s *SqliteHookStore) WriteExecution(ctx context.Context, exec hooks.HookExe
 	return nil
 }
 
+// ─── N:M junction: hook_agents ────────────────────────────────────────
+
+func parseAgentIDsFromAny(raw any) ([]uuid.UUID, error) {
+	switch v := raw.(type) {
+	case []any:
+		var ids []uuid.UUID
+		for _, item := range v {
+			s, ok := item.(string)
+			if !ok {
+				continue
+			}
+			id, err := uuid.Parse(s)
+			if err != nil {
+				return nil, fmt.Errorf("invalid agent_id %q: %w", s, err)
+			}
+			ids = append(ids, id)
+		}
+		return ids, nil
+	case []uuid.UUID:
+		return v, nil
+	default:
+		return nil, fmt.Errorf("agent_ids: unsupported type %T", raw)
+	}
+}
+
+func (s *SqliteHookStore) SetHookAgents(ctx context.Context, hookID uuid.UUID, agentIDs []uuid.UUID) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM hook_agents WHERE hook_id = ?", hookID.String()); err != nil {
+		return fmt.Errorf("clear hook agents: %w", err)
+	}
+	for _, aid := range agentIDs {
+		if _, err := tx.ExecContext(ctx,
+			"INSERT OR IGNORE INTO hook_agents (hook_id, agent_id) VALUES (?, ?)",
+			hookID.String(), aid.String()); err != nil {
+			return fmt.Errorf("insert hook agent: %w", err)
+		}
+	}
+	s.invalidateCache()
+	return tx.Commit()
+}
+
+func (s *SqliteHookStore) GetHookAgents(ctx context.Context, hookID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT agent_id FROM hook_agents WHERE hook_id = ?", hookID.String())
+	if err != nil {
+		return nil, fmt.Errorf("get hook agents: %w", err)
+	}
+	defer rows.Close()
+	var ids []uuid.UUID
+	for rows.Next() {
+		var idStr string
+		if err := rows.Scan(&idStr); err != nil {
+			return nil, err
+		}
+		if id, err := uuid.Parse(idStr); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids, rows.Err()
+}
+
 // ─── cache helpers ───────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) invalidateCache() {
@@ -453,7 +561,6 @@ func scanHookSQLiteRow(row sqliteRowScanner) (*hooks.HookConfig, error) {
 	var (
 		cfg                    hooks.HookConfig
 		idStr, tenantStr       string
-		agentIDStr             sql.NullString
 		createdByStr           sql.NullString
 		scope, event           string
 		handlerType, onTimeout string
@@ -464,7 +571,7 @@ func scanHookSQLiteRow(row sqliteRowScanner) (*hooks.HookConfig, error) {
 		createdAt, updatedAt   sqliteTime
 	)
 	err := row.Scan(
-		&idStr, &tenantStr, &agentIDStr,
+		&idStr, &tenantStr,
 		&scope, &event, &handlerType,
 		&cfgStr, &matcher, &ifExpr,
 		&cfg.TimeoutMS, &onTimeout,
@@ -481,11 +588,6 @@ func scanHookSQLiteRow(row sqliteRowScanner) (*hooks.HookConfig, error) {
 	}
 	if parsed, err := uuid.Parse(tenantStr); err == nil {
 		cfg.TenantID = parsed
-	}
-	if agentIDStr.Valid {
-		if parsed, err := uuid.Parse(agentIDStr.String); err == nil {
-			cfg.AgentID = &parsed
-		}
 	}
 	if createdByStr.Valid {
 		if parsed, err := uuid.Parse(createdByStr.String); err == nil {

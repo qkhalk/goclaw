@@ -39,7 +39,7 @@ func TestHooksRBAC_StoreTenantIsolation(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookA)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookA)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookA)
 	})
 
 	hookB, err := hs.Create(tenantCtx(tenantB), hooks.HookConfig{
@@ -56,7 +56,7 @@ func TestHooksRBAC_StoreTenantIsolation(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookB)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookB)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookB)
 	})
 
 	// List under tenantA ctx → must not include hookB.
@@ -130,7 +130,7 @@ func TestHooksRBAC_GlobalScope_VisibleToAllTenants(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", globalHook)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", globalHook)
+		db.Exec("DELETE FROM hooks WHERE id = $1", globalHook)
 	})
 
 	// Both tenants should see the global hook in their list.
@@ -176,7 +176,7 @@ func TestHooksRBAC_ResolveForEvent_IncludesGlobalAndTenant(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookT)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookT)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookT)
 	})
 
 	masterCtx := store.WithCrossTenant(store.WithTenantID(context.Background(), store.MasterTenantID))
@@ -195,7 +195,7 @@ func TestHooksRBAC_ResolveForEvent_IncludesGlobalAndTenant(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookG)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookG)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookG)
 	})
 
 	got, err := hs.ResolveForEvent(tenantCtx(tenantA), hooks.Event{

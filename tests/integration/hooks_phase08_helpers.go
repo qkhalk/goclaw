@@ -53,8 +53,8 @@ func seedExtraTenant(t *testing.T, db *sql.DB) uuid.UUID {
 // the seed-reconciliation tests that re-run Seed() and need a clean slate.
 func purgeAgentHooksByTenant(t *testing.T, db *sql.DB, tenantID uuid.UUID) {
 	t.Helper()
-	db.Exec(`DELETE FROM hook_executions WHERE hook_id IN (SELECT id FROM agent_hooks WHERE tenant_id = $1)`, tenantID)
-	db.Exec(`DELETE FROM agent_hooks WHERE tenant_id = $1`, tenantID)
+	db.Exec(`DELETE FROM hook_executions WHERE hook_id IN (SELECT id FROM hooks WHERE tenant_id = $1)`, tenantID)
+	db.Exec(`DELETE FROM hooks WHERE tenant_id = $1`, tenantID)
 }
 
 // purgeAgentHookByID removes one hook row + its audit. Standard cleanup
@@ -62,7 +62,7 @@ func purgeAgentHooksByTenant(t *testing.T, db *sql.DB, tenantID uuid.UUID) {
 func purgeAgentHookByID(t *testing.T, db *sql.DB, id uuid.UUID) {
 	t.Helper()
 	db.Exec(`DELETE FROM hook_executions WHERE hook_id = $1`, id)
-	db.Exec(`DELETE FROM agent_hooks WHERE id = $1`, id)
+	db.Exec(`DELETE FROM hooks WHERE id = $1`, id)
 }
 
 // pollAuditDecision polls hook_executions for one row matching (hookID,

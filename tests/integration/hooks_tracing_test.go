@@ -114,7 +114,7 @@ func TestHooksTracing_DispatcherEmitsSpan(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	// Wrap ctx with tracing collector + trace ID — dispatcher's emit helper

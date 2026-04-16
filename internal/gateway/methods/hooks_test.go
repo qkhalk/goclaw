@@ -78,6 +78,10 @@ func (f *fakeStore) ResolveForEvent(_ context.Context, _ hooks.Event) ([]hooks.H
 func (f *fakeStore) WriteExecution(_ context.Context, _ hooks.HookExecution) error {
 	return nil
 }
+func (f *fakeStore) SetHookAgents(_ context.Context, _ uuid.UUID, _ []uuid.UUID) error { return nil }
+func (f *fakeStore) GetHookAgents(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
 
 // Basic happy-path tests exercise the parse helpers and the configuration
 // invariants. Full RPC wiring (gateway.Client, MethodRouter) is covered in

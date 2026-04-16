@@ -65,6 +65,10 @@ func (f *fakeStore) WriteExecution(_ context.Context, e hooks.HookExecution) err
 	return nil
 }
 
+func (f *fakeStore) SetHookAgents(context.Context, uuid.UUID, []uuid.UUID) error { return nil }
+func (f *fakeStore) GetHookAgents(context.Context, uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
 func (f *fakeStore) snapshotExecs() []hooks.HookExecution {
 	f.mu.Lock()
 	defer f.mu.Unlock()

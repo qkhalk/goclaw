@@ -61,6 +61,7 @@ export const queryKeys = {
   },
   config: {
     all: ["config"] as const,
+    defaults: ["config", "defaults"] as const,
   },
   tts: {
     all: ["tts"] as const,

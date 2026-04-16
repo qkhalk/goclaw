@@ -146,11 +146,13 @@ func overlaySubagents(dst *subagentDefaultsJSON, src *config.SubagentsConfig) {
 	if src.MaxConcurrent > 0 {
 		dst.MaxConcurrent = src.MaxConcurrent
 	}
+	// Mirror runtime clamps in cmd/gateway_agents.go so UI placeholders reflect
+	// the effective value (not operator's raw over-limit config.json).
 	if src.MaxSpawnDepth > 0 {
-		dst.MaxSpawnDepth = src.MaxSpawnDepth
+		dst.MaxSpawnDepth = min(src.MaxSpawnDepth, 5)
 	}
 	if src.MaxChildrenPerAgent > 0 {
-		dst.MaxChildrenPerAgent = src.MaxChildrenPerAgent
+		dst.MaxChildrenPerAgent = min(src.MaxChildrenPerAgent, 20)
 	}
 	if src.ArchiveAfterMinutes > 0 {
 		dst.ArchiveAfterMinutes = src.ArchiveAfterMinutes

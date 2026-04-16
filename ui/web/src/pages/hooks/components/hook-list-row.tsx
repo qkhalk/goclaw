@@ -62,6 +62,11 @@ export function HookListRow({ hook, onClick, onToggle, onEdit, onDelete, onTest 
             {hook.scope}
           </Badge>
           {hook.source === "builtin" && <SystemBadge />}
+          {hook.scope === "agent" && hook.agent_ids && hook.agent_ids.length > 0 && (
+            <Badge variant="outline" className="text-2xs px-1 py-0">
+              {hook.agent_ids.length} agent{hook.agent_ids.length > 1 ? "s" : ""}
+            </Badge>
+          )}
         </div>
         {hook.matcher && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground font-mono">{hook.matcher}</p>

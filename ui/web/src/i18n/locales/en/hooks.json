@@ -54,6 +54,8 @@
     "title_edit": "Edit Hook",
     "name": "Name",
     "namePlaceholder": "e.g. Block sensitive tools",
+    "agents": "Agents",
+    "agentsHint": "Select which agents this hook applies to",
     "event": "Event",
     "handlerType": "Handler Type",
     "scope": "Scope",

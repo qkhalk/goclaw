@@ -97,6 +97,10 @@ func (f *fakeHookStore) ResolveForEvent(context.Context, hooks.Event) ([]hooks.H
 }
 
 func (f *fakeHookStore) WriteExecution(context.Context, hooks.HookExecution) error { return nil }
+func (f *fakeHookStore) SetHookAgents(context.Context, uuid.UUID, []uuid.UUID) error { return nil }
+func (f *fakeHookStore) GetHookAgents(context.Context, uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
 
 type errStr string
 

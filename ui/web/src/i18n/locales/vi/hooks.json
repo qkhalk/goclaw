@@ -54,6 +54,8 @@
     "title_edit": "Sửa Hook",
     "name": "Tên",
     "namePlaceholder": "VD: Chặn tool nhạy cảm",
+    "agents": "Agents",
+    "agentsHint": "Chọn agents mà hook này áp dụng",
     "event": "Sự kiện",
     "handlerType": "Loại xử lý",
     "scope": "Phạm vi",

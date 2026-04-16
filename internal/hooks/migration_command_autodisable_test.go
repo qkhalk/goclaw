@@ -61,6 +61,10 @@ func (m *migStore) ResolveForEvent(context.Context, hooks.Event) ([]hooks.HookCo
 	return nil, nil
 }
 func (m *migStore) WriteExecution(context.Context, hooks.HookExecution) error { return nil }
+func (m *migStore) SetHookAgents(context.Context, uuid.UUID, []uuid.UUID) error { return nil }
+func (m *migStore) GetHookAgents(context.Context, uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
 
 // fixtureRows covers every branch of the migration:
 //

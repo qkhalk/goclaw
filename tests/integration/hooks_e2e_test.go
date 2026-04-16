@@ -70,7 +70,7 @@ func TestHooksE2E_AllEvents_AllowsDefault(t *testing.T) {
 			}
 			t.Cleanup(func() {
 				db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-				db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+				db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 			})
 
 			r, err := d.Fire(ctx, hooks.Event{
@@ -115,7 +115,7 @@ func TestHooksE2E_CommandHandler_BlockOnExitTwo(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
@@ -168,7 +168,7 @@ func TestHooksE2E_ContextUpdateInjection(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
@@ -216,7 +216,7 @@ func TestHooksE2E_TenantIsolation(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
@@ -269,7 +269,7 @@ func TestHooksE2E_EditionGate_CommandOnStandard(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	// Dispatcher with Standard edition command handler — must refuse to run.

@@ -96,8 +96,12 @@ func (h *HookConfig) validateScope() error {
 		if h.TenantID == SentinelTenantID || h.TenantID == uuid.Nil {
 			return fmt.Errorf("hook: agent scope requires a real tenant_id")
 		}
-		if h.AgentID == nil || *h.AgentID == uuid.Nil {
-			return fmt.Errorf("hook: agent scope requires agent_id")
+		if len(h.AgentIDs) == 0 {
+			if h.AgentID != nil && *h.AgentID != uuid.Nil {
+				h.AgentIDs = []uuid.UUID{*h.AgentID}
+			} else {
+				return fmt.Errorf("hook: agent scope requires at least one agent_id")
+			}
 		}
 	default:
 		return fmt.Errorf("hook: unknown scope %q", h.Scope)

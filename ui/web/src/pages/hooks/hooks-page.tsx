@@ -121,6 +121,7 @@ export function HooksPage() {
     }
     await createMutation.mutateAsync({
       name: data.name ?? "",
+      agent_ids: data.agent_ids ?? [],
       event: data.event,
       handler_type: data.handler_type,
       scope: data.scope,
@@ -147,6 +148,7 @@ export function HooksPage() {
       hookId: editTarget.id,
       updates: {
         name: data.name ?? "",
+        agent_ids: data.agent_ids ?? [],
         event: data.event,
         handler_type: data.handler_type,
         scope: data.scope,

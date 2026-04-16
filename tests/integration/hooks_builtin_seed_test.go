@@ -18,7 +18,7 @@ import (
 
 // Phase 08 — D bucket: builtin seed reconciliation against live PG.
 //
-// Seed() runs against shared state (the PG agent_hooks table) — these tests
+// Seed() runs against shared state (the PG hooks table) — these tests
 // share the test DB with other integration tests, so each one purges the
 // seeded rows in t.Cleanup. Tests run sequentially via the shared DB lock.
 
@@ -40,7 +40,7 @@ func purgeBuiltinRows(t *testing.T, name string) {
 	for _, ev := range builtinEventList(t, name) {
 		id := builtin.BuiltinEventID(name, ev)
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", id)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", id)
+		db.Exec("DELETE FROM hooks WHERE id = $1", id)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestHooksD1b_SeedIdempotent(t *testing.T) {
 	// Cross-check the COUNT — only one row per (id) should exist (PK guard).
 	var n int
 	if err := testDB(t).QueryRow(
-		`SELECT COUNT(*) FROM agent_hooks WHERE source = 'builtin'`,
+		`SELECT COUNT(*) FROM hooks WHERE source = 'builtin'`,
 	).Scan(&n); err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestHooksD2_VersionBumpUpdatesRows(t *testing.T) {
 	for _, ev := range events {
 		id := builtin.BuiltinEventID(seededBuiltinName, ev)
 		_, err := db.Exec(
-			`UPDATE agent_hooks SET metadata = jsonb_set(metadata, '{version}', '0'::jsonb) WHERE id = $1`,
+			`UPDATE hooks SET metadata = jsonb_set(metadata, '{version}', '0'::jsonb) WHERE id = $1`,
 			id,
 		)
 		if err != nil {
@@ -188,7 +188,7 @@ func TestHooksD3_DowngradeSkippedWithWarning(t *testing.T) {
 	for _, ev := range events {
 		id := builtin.BuiltinEventID(seededBuiltinName, ev)
 		if _, err := db.Exec(
-			`UPDATE agent_hooks SET metadata = jsonb_set(metadata, '{version}', '99'::jsonb) WHERE id = $1`,
+			`UPDATE hooks SET metadata = jsonb_set(metadata, '{version}', '99'::jsonb) WHERE id = $1`,
 			id,
 		); err != nil {
 			t.Fatalf("upgrade: %v", err)

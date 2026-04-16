@@ -76,4 +76,10 @@ type HookStore interface {
 	// WriteExecution appends an immutable execution audit row.
 	// Caller must pre-truncate Error to 256 chars and encrypt ErrorDetail.
 	WriteExecution(ctx context.Context, exec HookExecution) error
+
+	// SetHookAgents replaces all junction rows for hookID with the given agentIDs.
+	SetHookAgents(ctx context.Context, hookID uuid.UUID, agentIDs []uuid.UUID) error
+
+	// GetHookAgents returns the agent UUIDs linked to hookID via the junction table.
+	GetHookAgents(ctx context.Context, hookID uuid.UUID) ([]uuid.UUID, error)
 }

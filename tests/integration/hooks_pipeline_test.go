@@ -75,7 +75,7 @@ func TestHooksIntegration_HTTPHandler_AllowWritesAudit(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
@@ -146,7 +146,7 @@ func TestHooksIntegration_HTTPHandler_Block(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
@@ -208,7 +208,7 @@ func TestHooksIntegration_CommandHandler_LiteEdition(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{

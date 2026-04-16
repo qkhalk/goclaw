@@ -50,7 +50,7 @@ func TestHooksChaos_HTTPHandler_ProviderDown(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
@@ -97,7 +97,7 @@ func TestHooksChaos_PerHookTimeout(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{
@@ -150,7 +150,7 @@ func TestHooksChaos_CircuitBreaker_AutoDisables(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	// Tight breaker: 3 blocks within 10s.
@@ -174,7 +174,7 @@ func TestHooksChaos_CircuitBreaker_AutoDisables(t *testing.T) {
 
 	// After 3 consecutive blocks, breaker should persist enabled=false.
 	var enabled bool
-	if err := db.QueryRow(`SELECT enabled FROM agent_hooks WHERE id = $1`, hookID).Scan(&enabled); err != nil {
+	if err := db.QueryRow(`SELECT enabled FROM hooks WHERE id = $1`, hookID).Scan(&enabled); err != nil {
 		t.Fatalf("read enabled: %v", err)
 	}
 	if enabled {
@@ -228,7 +228,7 @@ func TestHooksChaos_RetryDedup_SuppressesDoubleAudit(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	// Write the same dedup_key twice — second INSERT must be suppressed.
@@ -289,7 +289,7 @@ func TestHooksChaos_HTTPHandler_5xxRetriesThenErrors(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		db.Exec("DELETE FROM hook_executions WHERE hook_id = $1", hookID)
-		db.Exec("DELETE FROM agent_hooks WHERE id = $1", hookID)
+		db.Exec("DELETE FROM hooks WHERE id = $1", hookID)
 	})
 
 	d := newDispatcher(t, hs, map[hooks.HandlerType]hooks.Handler{

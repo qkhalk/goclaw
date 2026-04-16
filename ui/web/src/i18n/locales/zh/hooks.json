@@ -54,6 +54,8 @@
     "title_edit": "编辑钩子",
     "name": "名称",
     "namePlaceholder": "例如：阻止敏感工具",
+    "agents": "Agents",
+    "agentsHint": "选择此钩子适用的 Agent",
     "event": "事件",
     "handlerType": "处理器类型",
     "scope": "范围",

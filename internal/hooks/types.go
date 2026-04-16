@@ -160,7 +160,8 @@ type FireResult struct {
 type HookConfig struct {
 	ID          uuid.UUID          `json:"id"`
 	TenantID    uuid.UUID          `json:"tenant_id"`
-	AgentID     *uuid.UUID         `json:"agent_id,omitempty"`
+	AgentID     *uuid.UUID         `json:"agent_id,omitempty"`     // DEPRECATED: kept for JSON backward compat
+	AgentIDs    []uuid.UUID        `json:"agent_ids,omitempty"`
 	Event       HookEvent          `json:"event"`
 	HandlerType HandlerType        `json:"handler_type"`
 	Scope       Scope              `json:"scope"`

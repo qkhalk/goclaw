@@ -77,8 +77,8 @@ func seedTenantAndAgent(t *testing.T, db *sql.DB) (tenantID, agentID uuid.UUID) 
 		t.Fatalf("seed agent: %v", err)
 	}
 	t.Cleanup(func() {
-		db.Exec("DELETE FROM hook_executions WHERE hook_id IN (SELECT id FROM agent_hooks WHERE tenant_id=$1)", tenantID)
-		db.Exec("DELETE FROM agent_hooks WHERE tenant_id=$1", tenantID)
+		db.Exec("DELETE FROM hook_executions WHERE hook_id IN (SELECT id FROM hooks WHERE tenant_id=$1)", tenantID)
+		db.Exec("DELETE FROM hooks WHERE tenant_id=$1", tenantID)
 		db.Exec("DELETE FROM agents WHERE id=$1", agentID)
 		db.Exec("DELETE FROM tenants WHERE id=$1", tenantID)
 	})

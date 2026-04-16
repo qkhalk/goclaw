@@ -242,6 +242,19 @@ func applyHookPatch(cur hooks.HookConfig, p map[string]any) hooks.HookConfig {
 	if v, ok := p["name"].(string); ok {
 		cur.Name = v
 	}
+	if v, ok := p["agent_ids"]; ok {
+		if arr, ok := v.([]any); ok {
+			var ids []uuid.UUID
+			for _, item := range arr {
+				if s, ok := item.(string); ok {
+					if id, err := uuid.Parse(s); err == nil {
+						ids = append(ids, id)
+					}
+				}
+			}
+			cur.AgentIDs = ids
+		}
+	}
 	if v, ok := p["event"].(string); ok && v != "" {
 		cur.Event = hooks.HookEvent(v)
 	}
@@ -421,6 +434,10 @@ func parseHookConfigParams(raw json.RawMessage) (*hooks.HookConfig, error) {
 	cfg.ID = uuid.Nil
 	cfg.CreatedBy = nil
 	cfg.Version = 0
+	// Backward compat: singular agent_id → single-element AgentIDs.
+	if len(cfg.AgentIDs) == 0 && cfg.AgentID != nil && *cfg.AgentID != uuid.Nil {
+		cfg.AgentIDs = []uuid.UUID{*cfg.AgentID}
+	}
 	return &cfg, nil
 }
 
