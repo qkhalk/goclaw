@@ -68,7 +68,7 @@ function modelPatch(provider: string, value: string): [ProviderKey, Partial<TtsP
 export function TtsPage() {
   const { t } = useTranslation("tts");
   const { t: tc } = useTranslation("common");
-  const { tts, loading, saving, error, refresh, save, synthesize } = useTtsConfig();
+  const { tts, loading, saving, error, refresh, save, synthesize, testConnection } = useTtsConfig();
   const spinning = useMinLoading(loading);
 
   const [draft, setDraft] = useState<TtsConfig>(tts);
@@ -138,7 +138,7 @@ export function TtsPage() {
           provider={draft.provider}
           draft={draft}
           onUpdate={updateProvider}
-          synthesize={synthesize}
+          testConnection={testConnection}
         />
       )}
 

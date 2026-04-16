@@ -52,6 +52,22 @@ export interface SynthesizeParams {
   model_id?: string;
 }
 
+export interface TestConnectionParams {
+  provider: string;
+  api_key?: string;
+  api_base?: string;
+  voice_id?: string;
+  model_id?: string;
+  group_id?: string;
+}
+
+export interface TestConnectionResult {
+  success: boolean;
+  provider?: string;
+  latency_ms?: number;
+  error?: string;
+}
+
 export function useTtsConfig() {
   const ws = useWs();
   const http = useHttp();
@@ -114,5 +130,22 @@ export function useTtsConfig() {
     [http],
   );
 
-  return { tts, loading, saving, error, refresh: invalidate, save, synthesize };
+  // Test connection with unsaved credentials — uses ephemeral provider.
+  const testConnection = useCallback(
+    async (params: TestConnectionParams): Promise<TestConnectionResult> => {
+      const res = await fetch("/v1/tts/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...http.getAuthHeaders() },
+        body: JSON.stringify(params),
+      });
+      const data = (await res.json()) as TestConnectionResult;
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `Test failed (${res.status})`);
+      }
+      return data;
+    },
+    [http],
+  );
+
+  return { tts, loading, saving, error, refresh: invalidate, save, synthesize, testConnection };
 }
