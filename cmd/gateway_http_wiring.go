@@ -245,6 +245,17 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 		methods.NewVoicesMethods(voiceCache, nil).Register(d.server.Router())
 	}
 
+	// TTS synthesize endpoint — shares audio.Manager with setupTTS.
+	if d.audioMgr != nil {
+		ttsH := httpapi.NewTTSHandler(d.audioMgr)
+		// Reuse the server's rate limiter (per-IP/token; NOT per-user).
+		// Server.RateLimiter() is non-nil by construction (server.go:104).
+		if rl := d.server.RateLimiter(); rl != nil && rl.Enabled() {
+			ttsH.SetRateLimiter(rl.Allow)
+		}
+		d.server.SetTTSHandler(ttsH)
+	}
+
 	// Seed + apply builtin tool disables
 	if d.pgStores.BuiltinTools != nil {
 		seedBuiltinTools(context.Background(), d.pgStores.BuiltinTools)

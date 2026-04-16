@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
+	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/cache"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
@@ -33,4 +34,5 @@ type gatewayDeps struct {
 	workspace        string
 	dataDir          string
 	domainBus        eventbus.DomainEventBus
+	audioMgr         *audio.Manager // nil if TTS not configured; used by TTSHandler
 }
