@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Play, FlaskConical, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +60,7 @@ export function HookTestPanel({ hook }: HookTestPanelProps) {
     try {
       toolInput = JSON.parse(toolInputRaw);
     } catch {
-      setParseError("Tool input must be valid JSON");
+      setParseError(t("test.parseError"));
       return;
     }
 
@@ -73,107 +74,147 @@ export function HookTestPanel({ hook }: HookTestPanelProps) {
   };
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm font-medium">{t("test.sampleEvent")}</p>
+    <div className="grid gap-5 lg:grid-cols-2">
+      {/* ── Left: sample event input ─────────────────────────────── */}
+      <section className="space-y-3 rounded-lg border bg-card p-4">
+        <header className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">{t("test.sampleEvent")}</p>
+            <p className="text-xs text-muted-foreground">{t("test.sampleEventHint")}</p>
+          </div>
+        </header>
 
-      {/* Tool name */}
-      <div className="space-y-1.5">
-        <Label className="text-xs">{t("test.toolName")}</Label>
-        <Input
-          value={toolName}
-          onChange={(e) => setToolName(e.target.value)}
-          placeholder="bash"
-          className="text-base md:text-sm font-mono"
-        />
-      </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("test.toolName")}</Label>
+          <Input
+            value={toolName}
+            onChange={(e) => setToolName(e.target.value)}
+            placeholder="bash"
+            className="text-base md:text-sm font-mono"
+          />
+          <p className="text-2xs text-muted-foreground">{t("test.toolNameHint")}</p>
+        </div>
 
-      {/* Tool input */}
-      <div className="space-y-1.5">
-        <Label className="text-xs">{t("test.toolInput")}</Label>
-        <Textarea
-          value={toolInputRaw}
-          onChange={(e) => setToolInputRaw(e.target.value)}
-          rows={5}
-          placeholder='{"command": "ls -la"}'
-          className="text-base md:text-sm font-mono"
-        />
-        {parseError && <p className="text-xs text-destructive">{parseError}</p>}
-      </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("test.toolInput")}</Label>
+          <Textarea
+            value={toolInputRaw}
+            onChange={(e) => setToolInputRaw(e.target.value)}
+            rows={6}
+            placeholder='{"command": "ls -la"}'
+            className="text-base md:text-sm font-mono"
+          />
+          {parseError ? (
+            <p className="text-xs text-destructive">{parseError}</p>
+          ) : (
+            <p className="text-2xs text-muted-foreground">{t("test.toolInputHint")}</p>
+          )}
+        </div>
 
-      {/* Raw input (optional) */}
-      <div className="space-y-1.5">
-        <Label className="text-xs">{t("test.rawInput")}</Label>
-        <Input
-          value={rawInput}
-          onChange={(e) => setRawInput(e.target.value)}
-          placeholder="Optional raw user message"
-          className="text-base md:text-sm"
-        />
-      </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t("test.rawInput")}</Label>
+          <Input
+            value={rawInput}
+            onChange={(e) => setRawInput(e.target.value)}
+            placeholder={t("test.rawInputPlaceholder")}
+            className="text-base md:text-sm"
+          />
+          <p className="text-2xs text-muted-foreground">{t("test.rawInputHint")}</p>
+        </div>
 
-      <Button
-        onClick={handleFire}
-        disabled={testMutation.isPending}
-        size="sm"
-        className="gap-1.5"
-      >
-        {testMutation.isPending ? t("test.firing") : t("test.fire")}
-      </Button>
+        <Button
+          onClick={handleFire}
+          disabled={testMutation.isPending}
+          className="w-full gap-1.5"
+        >
+          <Play className="h-3.5 w-3.5" />
+          {testMutation.isPending ? t("test.firing") : t("test.fire")}
+        </Button>
+      </section>
 
-      {/* Result */}
-      {result && (
-        <div className="space-y-3 rounded-lg border p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div>
-              <span className="text-xs text-muted-foreground">{t("test.decision")}: </span>
+      {/* ── Right: result ────────────────────────────────────────── */}
+      <section className="space-y-3 rounded-lg border bg-card p-4">
+        <header>
+          <p className="text-sm font-medium">{t("test.resultTitle")}</p>
+          <p className="text-xs text-muted-foreground">{t("test.resultHint")}</p>
+        </header>
+
+        {!result && !testMutation.isPending && (
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+            <FlaskConical className="h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">{t("test.emptyState")}</p>
+          </div>
+        )}
+
+        {testMutation.isPending && (
+          <div className="flex items-center justify-center py-12">
+            <p className="text-sm text-muted-foreground animate-pulse">{t("test.firing")}</p>
+          </div>
+        )}
+
+        {result && (
+          <div className="space-y-4">
+            {/* Decision pill row */}
+            <div className="flex flex-wrap items-center gap-3">
               <span
-                className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${DECISION_STYLES[result.decision] ?? "bg-muted text-muted-foreground"}`}
+                className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${DECISION_STYLES[result.decision] ?? "bg-muted text-muted-foreground"}`}
               >
                 {t(`decision.${result.decision}`)}
               </span>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {t("test.duration")}: <span className="font-mono">{result.durationMs}ms</span>
-            </div>
-            {result.statusCode != null && (
               <div className="text-xs text-muted-foreground">
-                {t("test.statusCode")}: <Badge variant="outline">{result.statusCode}</Badge>
+                <span className="font-medium">{t("test.duration")}:</span>{" "}
+                <span className="font-mono">{result.durationMs}ms</span>
+              </div>
+              {result.statusCode != null && (
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-medium">{t("test.statusCode")}:</span>{" "}
+                  <Badge variant="outline">{result.statusCode}</Badge>
+                </div>
+              )}
+            </div>
+
+            {result.reason && (
+              <div className="rounded border bg-muted/40 p-3">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground mb-1">{t("test.reason")}</p>
+                <p className="text-sm">{result.reason}</p>
+              </div>
+            )}
+
+            {result.stdout && (
+              <div className="space-y-1">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground">{t("test.stdout")}</p>
+                <pre className="overflow-x-auto rounded bg-muted p-2 text-xs font-mono">{result.stdout}</pre>
+              </div>
+            )}
+
+            {result.stderr && (
+              <div className="space-y-1">
+                <p className="text-2xs uppercase tracking-wide text-destructive">{t("test.stderr")}</p>
+                <pre className="overflow-x-auto rounded bg-destructive/10 p-2 text-xs font-mono text-destructive">{result.stderr}</pre>
+              </div>
+            )}
+
+            {result.error && (
+              <div className="flex items-start gap-2 rounded border border-destructive/30 bg-destructive/5 p-3">
+                <AlertCircle className="h-4 w-4 shrink-0 text-destructive mt-0.5" />
+                <p className="text-xs text-destructive">{result.error}</p>
+              </div>
+            )}
+
+            {result.updatedInput && (
+              <div className="space-y-1">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground">{t("test.updatedInput")}</p>
+                <HookDiffViewer
+                  before={(() => {
+                    try { return JSON.parse(toolInputRaw); } catch { return {}; }
+                  })()}
+                  after={result.updatedInput}
+                />
               </div>
             )}
           </div>
-
-          {result.reason && (
-            <p className="text-sm text-muted-foreground">{result.reason}</p>
-          )}
-
-          {result.stdout && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium">{t("test.stdout")}</p>
-              <pre className="overflow-x-auto rounded bg-muted p-2 text-xs">{result.stdout}</pre>
-            </div>
-          )}
-
-          {result.stderr && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-destructive">{t("test.stderr")}</p>
-              <pre className="overflow-x-auto rounded bg-destructive/10 p-2 text-xs text-destructive">{result.stderr}</pre>
-            </div>
-          )}
-
-          {result.error && (
-            <p className="text-xs text-destructive">{result.error}</p>
-          )}
-
-          {result.updatedInput && (
-            <HookDiffViewer
-              before={(() => {
-                try { return JSON.parse(toolInputRaw); } catch { return {}; }
-              })()}
-              after={result.updatedInput}
-            />
-          )}
-        </div>
-      )}
+        )}
+      </section>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Webhook, Plus, RefreshCw, ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
@@ -21,6 +22,7 @@ import { HookFormDialog } from "./components/hook-form-dialog";
 import { HookTestPanel } from "./components/hook-test-panel";
 import { HookOverviewTab } from "./components/hook-overview-tab";
 import { HookHistoryTable } from "./components/hook-history-table";
+import { BetaInfoCard } from "./components/beta-info-card";
 import type { HookFormData } from "@/schemas/hooks.schema";
 
 const HOOK_EVENTS = [
@@ -260,6 +262,10 @@ export function HooksPage() {
         }
       />
 
+      <div className="mt-4">
+        <BetaInfoCard />
+      </div>
+
       {/* Filters */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <SearchInput value={search} onChange={setSearch} placeholder={t("filters.event")} className="max-w-xs" />
@@ -345,15 +351,21 @@ export function HooksPage() {
         />
       )}
 
-      {/* Inline test drawer / panel (list view) */}
+      {/* Test dialog — centered modal with 2-col input/result layout. */}
       {testTarget && (
-        <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-xl border-t bg-background p-4 shadow-2xl sm:inset-auto sm:bottom-6 sm:right-6 sm:w-[480px] sm:rounded-xl sm:border">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="font-medium text-sm">{t("test.title")}: <span className="font-mono">{testTarget.event}</span></p>
-            <Button variant="ghost" size="xs" onClick={() => setTestTarget(null)}>✕</Button>
-          </div>
-          <HookTestPanel hook={testTarget} />
-        </div>
+        <Dialog open onOpenChange={(o) => { if (!o) setTestTarget(null); }}>
+          <DialogContent className="max-h-[90vh] flex flex-col max-sm:inset-0 max-sm:rounded-none sm:max-w-4xl lg:max-w-5xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                {t("test.title")}
+                <span className="font-mono text-sm text-muted-foreground">{testTarget.event}</span>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto -mx-4 px-4 sm:-mx-6 sm:px-6">
+              <HookTestPanel hook={testTarget} />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

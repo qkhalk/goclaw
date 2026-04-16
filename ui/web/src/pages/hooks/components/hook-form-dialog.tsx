@@ -104,7 +104,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] flex flex-col max-sm:inset-0 max-sm:rounded-none sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] flex flex-col max-sm:inset-0 max-sm:rounded-none sm:max-w-3xl lg:max-w-4xl">
         <DialogHeader>
           <DialogTitle>{initial ? t("form.title_edit") : t("form.title_create")}</DialogTitle>
         </DialogHeader>
@@ -116,21 +116,39 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
             </div>
           )}
 
-          {/* Event */}
-          <div className="space-y-1.5">
-            <Label>{t("form.event")}</Label>
-            <Controller control={control} name="event" render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange} disabled={isBuiltin}>
-                <SelectTrigger className="text-base md:text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {HOOK_EVENTS.map((e) => (
-                    <SelectItem key={e} value={e}>{e}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )} />
+          {/* Event + Scope side-by-side on wider viewports */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>{t("form.event")}</Label>
+              <Controller control={control} name="event" render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange} disabled={isBuiltin}>
+                  <SelectTrigger className="text-base md:text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HOOK_EVENTS.map((e) => (
+                      <SelectItem key={e} value={e}>{e}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )} />
+            </div>
+            {/* Scope — global hidden for non-master callers (advisory UI hint; backend enforces). */}
+            <div className="space-y-1.5">
+              <Label>{t("form.scope")}</Label>
+              <Controller control={control} name="scope" render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange} disabled={isBuiltin}>
+                  <SelectTrigger className="text-base md:text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {scopeOptions.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )} />
+            </div>
           </div>
 
           {/* Handler type — `command` intentionally absent post-Wave-1. Lite users keep
@@ -142,7 +160,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
               <RadioGroup
                 value={field.value}
                 onValueChange={field.onChange}
-                className="flex gap-4"
+                className="flex flex-wrap gap-4"
                 disabled={isBuiltin}
               >
                 {(["script", "http", "prompt"] as const).map((ht) => (
@@ -157,48 +175,31 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
             )} />
           </div>
 
-          {/* Scope — global hidden for non-master callers (advisory UI hint; backend enforces). */}
-          <div className="space-y-1.5">
-            <Label>{t("form.scope")}</Label>
-            <Controller control={control} name="scope" render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange} disabled={isBuiltin}>
-                <SelectTrigger className="text-base md:text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {scopeOptions.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )} />
-          </div>
-
-          {/* Matcher */}
-          <div className="space-y-1.5">
-            <Label>{t("form.matcher")}</Label>
-            <Input
-              {...register("matcher")}
-              placeholder="^bash$"
-              className="text-base md:text-sm font-mono"
-              disabled={isBuiltin}
-            />
-            {errors.matcher
-              ? <p className="text-xs text-destructive">{errors.matcher.message}</p>
-              : <p className="text-xs text-muted-foreground">{t("form.matcherHint")}</p>
-            }
-          </div>
-
-          {/* if_expr */}
-          <div className="space-y-1.5">
-            <Label>{t("form.ifExpr")}</Label>
-            <Input
-              {...register("if_expr")}
-              placeholder='tool_input.path.startsWith("/etc")'
-              className="text-base md:text-sm font-mono"
-              disabled={isBuiltin}
-            />
-            <p className="text-xs text-muted-foreground">{t("form.ifExprHint")}</p>
+          {/* Matcher + if_expr side-by-side */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>{t("form.matcher")}</Label>
+              <Input
+                {...register("matcher")}
+                placeholder="^bash$"
+                className="text-base md:text-sm font-mono"
+                disabled={isBuiltin}
+              />
+              {errors.matcher
+                ? <p className="text-xs text-destructive">{errors.matcher.message}</p>
+                : <p className="text-xs text-muted-foreground">{t("form.matcherHint")}</p>
+              }
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("form.ifExpr")}</Label>
+              <Input
+                {...register("if_expr")}
+                placeholder='tool_input.path.startsWith("/etc")'
+                className="text-base md:text-sm font-mono"
+                disabled={isBuiltin}
+              />
+              <p className="text-xs text-muted-foreground">{t("form.ifExprHint")}</p>
+            </div>
           </div>
 
           {/* Handler-specific sub-forms */}
@@ -303,8 +304,10 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
             </div>
           )}
 
-          {/* Timeout + on_timeout */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Timeout / on_timeout / priority on one row when wide, stacks on mobile.
+              Enabled toggle stays actionable on every row (only field user can
+              change for builtin hooks). */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label>{t("form.timeout")}</Label>
               <Input
@@ -329,11 +332,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
                 </Select>
               )} />
             </div>
-          </div>
-
-          {/* Priority + enabled — enabled stays actionable even on builtin rows. */}
-          <div className="flex items-center gap-4">
-            <div className="flex-1 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>{t("form.priority")}</Label>
               <Input
                 type="number"
