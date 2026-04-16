@@ -292,3 +292,67 @@ func TestTelegramGroupWriteFilePermission_DMEmptySenderPasses(t *testing.T) {
 		t.Errorf("DM empty sender expected nil, got: %v", err)
 	}
 }
+
+// Fixture A.10 — admin / operator / owner role in ctx bypasses per-user
+// writer grants in group/guild context (#915). Covers dashboard users who
+// dispatch team tasks that write files in Telegram/Discord groups — they
+// passed RBAC at the gateway edge and shouldn't need a per-channel grant.
+func TestTelegramGroupWriteFilePermission_AdminRoleBypass(t *testing.T) {
+	db := testDB(t)
+	pg.InitSqlx(db)
+	tenantID, agentID := seedTenantAgent(t, db)
+
+	permStore := pg.NewPGConfigPermissionStore(db)
+
+	cases := []string{"admin", "operator", "owner"}
+	for _, role := range cases {
+		t.Run(role, func(t *testing.T) {
+			ctx := store.WithTenantID(context.Background(), tenantID)
+			ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
+			ctx = store.WithAgentID(ctx, agentID)
+			ctx = store.WithRole(ctx, role)
+			// NB: no SenderID set — normally this would DENY, but the role
+			// bypass kicks in before the synthetic-sender check.
+
+			if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+				t.Errorf("role=%q expected bypass (nil), got: %v", role, err)
+			}
+			if err := store.CheckCronPermission(ctx, permStore); err != nil {
+				t.Errorf("role=%q cron expected bypass (nil), got: %v", role, err)
+			}
+		})
+	}
+}
+
+// Fixture A.11 — viewer / empty role does NOT bypass. Guards against the
+// RBAC bypass leaking to read-only/unscoped roles.
+func TestTelegramGroupWriteFilePermission_ViewerRoleDoesNotBypass(t *testing.T) {
+	db := testDB(t)
+	pg.InitSqlx(db)
+	tenantID, agentID := seedTenantAgent(t, db)
+
+	permStore := pg.NewPGConfigPermissionStore(db)
+
+	cases := []string{"viewer", ""}
+	for _, role := range cases {
+		label := role
+		if label == "" {
+			label = "empty"
+		}
+		t.Run(label, func(t *testing.T) {
+			ctx := store.WithTenantID(context.Background(), tenantID)
+			ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
+			ctx = store.WithAgentID(ctx, agentID)
+			if role != "" {
+				ctx = store.WithRole(ctx, role)
+			}
+			// Empty sender — with viewer/empty role, should fall through to
+			// the synthetic-sender DENY.
+
+			err := store.CheckFileWriterPermission(ctx, permStore)
+			if err == nil {
+				t.Fatalf("role=%q expected deny (no bypass), got nil", role)
+			}
+		})
+	}
+}
