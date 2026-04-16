@@ -168,3 +168,127 @@ func TestTelegramGroupWriteFilePermission_DelimitedSender(t *testing.T) {
 		t.Errorf("delimited sender expected nil after split, got: %v", err)
 	}
 }
+
+// Fixture A.6 — post-F1 policy: empty SenderID in group context MUST deny.
+// Protects against the silent-bypass in subagent/delegate announce re-ingress
+// when origin sender is not propagated through the wrapper chain (#915 BUG-A).
+// Before F1 this returned nil (fail-open) → any system-triggered turn could
+// write files in a group chat without a grant.
+func TestTelegramGroupWriteFilePermission_EmptySenderDenied(t *testing.T) {
+	db := testDB(t)
+	pg.InitSqlx(db)
+	tenantID, agentID := seedTenantAgent(t, db)
+
+	permStore := pg.NewPGConfigPermissionStore(db)
+
+	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
+	ctx = store.WithAgentID(ctx, agentID)
+	// Deliberately no WithSenderID.
+
+	err := store.CheckFileWriterPermission(ctx, permStore)
+	if err == nil {
+		t.Fatalf("empty SenderID in group context expected deny, got nil")
+	}
+	if !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("expected permission denied error, got: %v", err)
+	}
+}
+
+// Fixture A.7 — synthetic sender prefixes must deny in group context (#915 BUG-B).
+// Covers: subagent:, notification:, teammate:, system:, ticker:, subagent:delegate:,
+// session_send_tool.
+func TestTelegramGroupWriteFilePermission_SyntheticSendersDenied(t *testing.T) {
+	db := testDB(t)
+	pg.InitSqlx(db)
+	tenantID, agentID := seedTenantAgent(t, db)
+
+	permStore := pg.NewPGConfigPermissionStore(db)
+
+	cases := []string{
+		"subagent:abc-123",
+		"subagent:delegate:xyz",
+		"notification:system",
+		"teammate:dashboard",
+		"system:escalation",
+		"ticker:heartbeat",
+		"session_send_tool",
+	}
+	for _, syntheticID := range cases {
+		t.Run(syntheticID, func(t *testing.T) {
+			ctx := store.WithTenantID(context.Background(), tenantID)
+			ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
+			ctx = store.WithSenderID(ctx, syntheticID)
+			ctx = store.WithAgentID(ctx, agentID)
+
+			err := store.CheckFileWriterPermission(ctx, permStore)
+			if err == nil {
+				t.Fatalf("synthetic sender %q expected deny, got nil", syntheticID)
+			}
+			if !strings.Contains(err.Error(), "permission denied") {
+				t.Errorf("expected permission denied, got: %v", err)
+			}
+		})
+	}
+}
+
+// Fixture A.8 — real sender propagated through announce re-ingress retains
+// writer grant. This is the positive case for F2/F3: after propagation the
+// parent's announce turn carries the original user's sender, so a legit
+// /addwriter user can still write files when responding to subagent output.
+func TestTelegramGroupWriteFilePermission_PropagatedSenderAllowed(t *testing.T) {
+	db := testDB(t)
+	pg.InitSqlx(db)
+	tenantID, agentID := seedTenantAgent(t, db)
+
+	permStore := pg.NewPGConfigPermissionStore(db)
+
+	const (
+		chatID       = "-100987654321"
+		realSenderID = "42"
+	)
+
+	ctxGrant := tenantCtx(tenantID)
+	if err := permStore.Grant(ctxGrant, &store.ConfigPermission{
+		AgentID:    agentID,
+		Scope:      "group:telegram:" + chatID,
+		ConfigType: store.ConfigTypeFileWriter,
+		UserID:     realSenderID,
+		Permission: "allow",
+		GrantedBy:  strPtr("test-admin"),
+	}); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+
+	// Simulate announce re-ingress: ctx built from propagated OriginSenderID
+	// (per F2/F3). If propagation is intact, SenderID == real user's numeric.
+	// If a future change drops propagation, this test flips to the synthetic
+	// "subagent:<id>" branch and fails with "permission denied".
+	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx = store.WithUserID(ctx, "group:telegram:"+chatID)
+	ctx = store.WithSenderID(ctx, realSenderID) // propagated from MetaOriginSenderID
+	ctx = store.WithAgentID(ctx, agentID)
+
+	if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+		t.Errorf("propagated real sender expected allow, got: %v", err)
+	}
+}
+
+// Fixture A.9 — DM path with empty SenderID stays nil (no group gate applies).
+// Ensures F1's deny-on-empty does not bleed into DM contexts where no
+// per-user writer grants exist.
+func TestTelegramGroupWriteFilePermission_DMEmptySenderPasses(t *testing.T) {
+	db := testDB(t)
+	pg.InitSqlx(db)
+	_, agentID := seedTenantAgent(t, db)
+
+	permStore := pg.NewPGConfigPermissionStore(db)
+
+	ctx := store.WithUserID(context.Background(), "user-private-42")
+	// No SenderID. DM context has no group: prefix → pre-empty branch.
+	ctx = store.WithAgentID(ctx, agentID)
+
+	if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+		t.Errorf("DM empty sender expected nil, got: %v", err)
+	}
+}
