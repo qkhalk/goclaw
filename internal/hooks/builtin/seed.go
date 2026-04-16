@@ -86,6 +86,11 @@ func reconcile(
 	}
 
 	if current == nil {
+		// Fresh insert: honor both the operator force-disable list AND the
+		// spec's default_disabled flag. Spec-default off keeps high-impact
+		// builtins (e.g. PII redactor) opt-in so users opt them in
+		// deliberately rather than having mutation enabled silently.
+		enabled := !forceDisabled && !s.DefaultDisabled
 		cfg := hooks.HookConfig{
 			ID:          id,
 			TenantID:    hooks.SentinelTenantID,
@@ -98,7 +103,7 @@ func reconcile(
 			TimeoutMS:   s.TimeoutMS,
 			OnTimeout:   hooks.Decision(s.OnTimeout),
 			Priority:    s.Priority,
-			Enabled:     !forceDisabled,
+			Enabled:     enabled,
 			Source:      hooks.SourceBuiltin,
 			Metadata:    metadata,
 		}
@@ -120,6 +125,17 @@ func reconcile(
 			"on_timeout": string(hooks.Decision(s.OnTimeout)),
 			"priority":   s.Priority,
 			"metadata":   metadata,
+		}
+		// One-shot: when a version bump introduces default_disabled=true on
+		// a row that was previously enabled, flip it off too. Lets us roll
+		// out the "input mutation is opt-in" policy retroactively without
+		// stomping on a user who deliberately re-enables afterwards (the
+		// next boot finds dbVersion >= s.Version, skips this branch).
+		if s.DefaultDisabled && current.Enabled {
+			patch["enabled"] = false
+			slog.Info("hooks.builtin_default_off_applied",
+				"id", s.ID, "event", event,
+				"reason", "version bump introduced default_disabled=true")
 		}
 		if err := hs.Update(ctx, id, patch); err != nil {
 			return fmt.Errorf("update: %w", err)

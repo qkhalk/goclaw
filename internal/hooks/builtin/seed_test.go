@@ -239,6 +239,75 @@ func TestSeed_DowngradeDetected(t *testing.T) {
 	}
 }
 
+// TestSeed_DefaultDisabledOnFreshInsert verifies a spec carrying
+// default_disabled=true creates rows with enabled=false on first insert.
+func TestSeed_DefaultDisabledOnFreshInsert(t *testing.T) {
+	spec := fixtureSpec(1)
+	spec.DefaultDisabled = true
+	withTestRegistry(t, spec, []byte("// v1"))
+
+	fs := newFakeHookStore()
+	if err := Seed(context.Background(), fs, config.HooksConfig{}); err != nil {
+		t.Fatalf("Seed: %v", err)
+	}
+	for id, row := range fs.rows {
+		if row.Enabled {
+			t.Errorf("row %s enabled despite default_disabled spec", id)
+		}
+	}
+}
+
+// TestSeed_DefaultDisabledFlipsOnVersionBump ensures the one-shot retroactive
+// disable kicks in when a version bump introduces the policy on rows that
+// were previously enabled. Subsequent boots (no version bump) leave the
+// user's manual re-enable alone.
+func TestSeed_DefaultDisabledFlipsOnVersionBump(t *testing.T) {
+	// Boot 1: spec v1, default_disabled NOT set → row created enabled.
+	withTestRegistry(t, fixtureSpec(1), []byte("// v1"))
+	fs := newFakeHookStore()
+	if err := Seed(context.Background(), fs, config.HooksConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range fs.rows {
+		if !row.Enabled {
+			t.Fatal("baseline: row should be enabled before policy change")
+		}
+	}
+
+	// Boot 2: spec v2 with default_disabled=true → flips existing enabled rows.
+	v2 := fixtureSpec(2)
+	v2.DefaultDisabled = true
+	withTestRegistry(t, v2, []byte("// v2"))
+	if err := Seed(context.Background(), fs, config.HooksConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	for id, row := range fs.rows {
+		if row.Enabled {
+			t.Errorf("row %s still enabled after policy version bump", id)
+		}
+	}
+
+	// User re-enables one row through the UI.
+	for id := range fs.rows {
+		fs.rows[id].Enabled = true
+		break
+	}
+
+	// Boot 3: same spec v2 (no version bump) → user's choice is preserved.
+	if err := Seed(context.Background(), fs, config.HooksConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	enabledAfter := 0
+	for _, row := range fs.rows {
+		if row.Enabled {
+			enabledAfter++
+		}
+	}
+	if enabledAfter != 1 {
+		t.Errorf("user re-enable lost: enabled=%d, want 1", enabledAfter)
+	}
+}
+
 // TestSeed_BuiltinDisableForcesOff applies the operator escape-hatch list.
 func TestSeed_BuiltinDisableForcesOff(t *testing.T) {
 	withTestRegistry(t, fixtureSpec(1), []byte("// v1"))

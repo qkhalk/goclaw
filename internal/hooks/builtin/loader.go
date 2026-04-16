@@ -45,19 +45,26 @@ func BuiltinEventID(name, event string) uuid.UUID {
 
 // Spec mirrors one entry in builtins.yaml. All fields optional except id,
 // events, source_file; loader validates at parse time.
+//
+// DefaultDisabled flips the initial enabled value for fresh installs (true →
+// row created with enabled=false). Reverse-named so the zero value preserves
+// the old "default on" behaviour for any builtin that omits the field. Only
+// affects INSERT — existing DB rows retain their user-set enabled toggle
+// across version bumps.
 type Spec struct {
-	ID            string   `yaml:"id"`
-	Version       int      `yaml:"version"`
-	Events        []string `yaml:"events"`
-	Scope         string   `yaml:"scope"`
-	Matcher       string   `yaml:"matcher"`
-	IfExpr        string   `yaml:"if_expr"`
-	TimeoutMS     int      `yaml:"timeout_ms"`
-	OnTimeout     string   `yaml:"on_timeout"`
-	Priority      int      `yaml:"priority"`
-	MutableFields []string `yaml:"mutable_fields"`
-	SourceFile    string   `yaml:"source_file"`
-	Description   string   `yaml:"description"`
+	ID              string   `yaml:"id"`
+	Version         int      `yaml:"version"`
+	Events          []string `yaml:"events"`
+	Scope           string   `yaml:"scope"`
+	Matcher         string   `yaml:"matcher"`
+	IfExpr          string   `yaml:"if_expr"`
+	TimeoutMS       int      `yaml:"timeout_ms"`
+	OnTimeout       string   `yaml:"on_timeout"`
+	Priority        int      `yaml:"priority"`
+	MutableFields   []string `yaml:"mutable_fields"`
+	SourceFile      string   `yaml:"source_file"`
+	Description     string   `yaml:"description"`
+	DefaultDisabled bool     `yaml:"default_disabled"`
 }
 
 type catalog struct {
