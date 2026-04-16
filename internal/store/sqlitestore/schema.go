@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 21
+const SchemaVersion = 22
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -468,6 +468,9 @@ WHERE context_pruning IS NOT NULL
 	// rebuild runs in rebuildAgentHooksV21 triggered after the v20→21 migration
 	// tx commits (parallel to backfillV16 at EnsureSchema:677).
 	20: `SELECT 1;`,
+
+	// Version 21 → 22: add name column to agent_hooks.
+	21: `ALTER TABLE agent_hooks ADD COLUMN name TEXT;`,
 }
 
 // addAgentHooksTables is the SQLite incremental migration for schema v19 → v20.

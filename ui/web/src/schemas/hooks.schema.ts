@@ -20,6 +20,7 @@ export const HookScopeEnum = z.enum(["global", "tenant", "agent"]);
 
 export const hookFormSchema = z
   .object({
+    name: z.string().max(255).optional(),
     event: HookEventEnum,
     handler_type: HookHandlerTypeEnum,
     scope: HookScopeEnum,

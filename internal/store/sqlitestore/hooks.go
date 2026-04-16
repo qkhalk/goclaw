@@ -68,7 +68,7 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 		tid = tenantIDForInsert(ctx)
 	}
 
-	var agentID, createdBy, matcher, ifExpr *string
+	var agentID, createdBy, matcher, ifExpr, name *string
 	if cfg.AgentID != nil {
 		s := cfg.AgentID.String()
 		agentID = &s
@@ -83,20 +83,23 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 	if cfg.IfExpr != "" {
 		ifExpr = &cfg.IfExpr
 	}
+	if cfg.Name != "" {
+		name = &cfg.Name
+	}
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO agent_hooks
 		  (id, tenant_id, agent_id, scope, event, handler_type,
 		   config, matcher, if_expr, timeout_ms, on_timeout,
-		   priority, enabled, version, source, metadata, created_by,
+		   priority, enabled, version, source, metadata, name, created_by,
 		   created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)`,
 		id.String(), tid.String(), agentID,
 		string(cfg.Scope), string(cfg.Event), string(cfg.HandlerType),
 		string(cfgJSON), matcher, ifExpr,
 		cfg.TimeoutMS, string(cfg.OnTimeout),
 		cfg.Priority, cfg.Enabled,
-		string(cfg.Source), string(metaJSON), createdBy,
+		string(cfg.Source), string(metaJSON), name, createdBy,
 		now, now,
 	)
 	if err != nil {
@@ -112,7 +115,7 @@ func (s *SqliteHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.Hoo
 	q := `
 		SELECT id, tenant_id, agent_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
-		       priority, enabled, version, source, metadata, created_by,
+		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
 		FROM agent_hooks WHERE id = ?`
 	args := []any{id.String()}
@@ -143,7 +146,7 @@ func (s *SqliteHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.Hoo
 func (s *SqliteHookStore) List(ctx context.Context, filter hooks.ListFilter) ([]hooks.HookConfig, error) {
 	q := `SELECT id, tenant_id, agent_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
-		       priority, enabled, version, source, metadata, created_by,
+		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at FROM agent_hooks WHERE 1=1`
 	var args []any
 
@@ -343,7 +346,7 @@ func (s *SqliteHookStore) ResolveForEvent(ctx context.Context, event hooks.Event
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, tenant_id, agent_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
-		       priority, enabled, version, source, metadata, created_by,
+		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
 		FROM agent_hooks
 		WHERE enabled = 1 AND event = ?
@@ -455,7 +458,7 @@ func scanHookSQLiteRow(row sqliteRowScanner) (*hooks.HookConfig, error) {
 		scope, event           string
 		handlerType, onTimeout string
 		source                 string
-		matcher, ifExpr        sql.NullString
+		matcher, ifExpr, name  sql.NullString
 		cfgStr, metaStr        string
 		enabledInt             int
 		createdAt, updatedAt   sqliteTime
@@ -466,7 +469,7 @@ func scanHookSQLiteRow(row sqliteRowScanner) (*hooks.HookConfig, error) {
 		&cfgStr, &matcher, &ifExpr,
 		&cfg.TimeoutMS, &onTimeout,
 		&cfg.Priority, &enabledInt, &cfg.Version,
-		&source, &metaStr, &createdByStr,
+		&source, &metaStr, &name, &createdByStr,
 		&createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -504,6 +507,9 @@ func scanHookSQLiteRow(row sqliteRowScanner) (*hooks.HookConfig, error) {
 	}
 	if ifExpr.Valid {
 		cfg.IfExpr = ifExpr.String
+	}
+	if name.Valid {
+		cfg.Name = name.String
 	}
 
 	if cfgStr != "" {

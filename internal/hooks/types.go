@@ -164,6 +164,7 @@ type HookConfig struct {
 	Event       HookEvent          `json:"event"`
 	HandlerType HandlerType        `json:"handler_type"`
 	Scope       Scope              `json:"scope"`
+	Name        string             `json:"name,omitempty"`
 	// Config holds handler-specific options (command path, HTTP URL, prompt template).
 	Config      map[string]any     `json:"config"`
 	Matcher     string             `json:"matcher,omitempty"`

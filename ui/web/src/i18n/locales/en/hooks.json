@@ -13,7 +13,17 @@
     "howItWorksBody2": "Script runs sandboxed JavaScript. HTTP posts to your webhook. Prompt asks an LLM. Built-in hooks (System badge) ship with GoClaw and only the enabled toggle is editable.",
     "howItWorksTitle3": "3. Test before enabling",
     "howItWorksBody3": "Use Run hook with a sample event to preview the decision, the duration, and any input mutations — nothing touches a real session until enabled.",
-    "collapse": "Hide"
+    "collapse": "Hide",
+    "learnMore": "How hooks work with Skills & MCP",
+    "modalTitle": "Hooks + Skills + MCP",
+    "modalIntro": "Hooks integrate with GoClaw's Skill system and MCP (Model Context Protocol) servers to give you fine-grained control over the agent pipeline.",
+    "modalSkillTitle": "Hooks × Skills",
+    "modalSkillBody": "When a skill is invoked, the agent fires pre_tool_use and post_tool_use events. A hook on pre_tool_use can inspect the skill name and arguments, then allow, block, or rewrite them before execution. Post-tool hooks observe results for logging or chaining.",
+    "modalMcpTitle": "Hooks × MCP Servers",
+    "modalMcpBody": "MCP tools registered from external servers appear as regular tools in the agent pipeline. Hooks fire on the same pre_tool_use / post_tool_use events — no special wiring needed. Use a matcher regex to target specific MCP tool names (e.g. mcp__.*).",
+    "modalBuiltinTitle": "Built-in hooks (System)",
+    "modalBuiltinBody": "Built-in hooks like the PII Redactor run as sandboxed scripts with elevated privileges: they can rewrite user input (rawInput) and tool arguments before the agent sees them. User-created scripts cannot — this is enforced at the dispatcher level.",
+    "modalClose": "Got it"
   },
   "actions": {
     "create": "Create hook",
@@ -42,6 +52,8 @@
   "form": {
     "title_create": "Create Hook",
     "title_edit": "Edit Hook",
+    "name": "Name",
+    "namePlaceholder": "e.g. Block sensitive tools",
     "event": "Event",
     "handlerType": "Handler Type",
     "scope": "Scope",

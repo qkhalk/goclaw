@@ -94,6 +94,7 @@ func reconcile(
 		cfg := hooks.HookConfig{
 			ID:          id,
 			TenantID:    hooks.SentinelTenantID,
+			Name:        s.ID,
 			Event:       hooks.HookEvent(event),
 			HandlerType: hooks.HandlerScript,
 			Scope:       hooks.Scope(s.Scope),

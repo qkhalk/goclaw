@@ -13,7 +13,17 @@
     "howItWorksBody2": "Script 在沙箱中运行 JavaScript。HTTP 调用你的 Webhook。Prompt 询问 LLM。内置钩子（系统徽章）由 GoClaw 提供 — 仅可切换启用状态。",
     "howItWorksTitle3": "3. 启用前先测试",
     "howItWorksBody3": "使用「运行钩子」配合示例事件预览决策、耗时及输入修改 — 启用前不会触及任何真实会话。",
-    "collapse": "收起"
+    "collapse": "收起",
+    "learnMore": "Hooks 如何与 Skills 和 MCP 配合",
+    "modalTitle": "Hooks + Skills + MCP",
+    "modalIntro": "Hooks 与 GoClaw 的 Skill 系统和 MCP（Model Context Protocol）服务器集成，为你提供对 Agent 管道的精细控制。",
+    "modalSkillTitle": "Hooks × Skills",
+    "modalSkillBody": "当 Skill 被调用时，Agent 触发 pre_tool_use 和 post_tool_use 事件。pre_tool_use 上的 Hook 可以检查 Skill 名称和参数，然后决定放行、阻止或改写。post-tool Hook 用于观察结果以记录日志或链式处理。",
+    "modalMcpTitle": "Hooks × MCP Servers",
+    "modalMcpBody": "来自外部 MCP 服务器的工具在 Agent 管道中作为普通工具出现。Hooks 同样在 pre_tool_use / post_tool_use 上触发 — 无需特殊配置。使用 matcher 正则来匹配特定 MCP 工具名（如 mcp__.*）。",
+    "modalBuiltinTitle": "内置 Hook（系统）",
+    "modalBuiltinBody": "内置 Hook（如 PII Redactor）以沙箱脚本运行并拥有提升的权限：可以在 Agent 看到之前改写用户输入（rawInput）和工具参数。用户创建的脚本无此权限 — 由调度器层面强制执行。",
+    "modalClose": "知道了"
   },
   "actions": {
     "create": "创建钩子",
@@ -42,6 +52,8 @@
   "form": {
     "title_create": "创建钩子",
     "title_edit": "编辑钩子",
+    "name": "名称",
+    "namePlaceholder": "例如：阻止敏感工具",
     "event": "事件",
     "handlerType": "处理器类型",
     "scope": "范围",

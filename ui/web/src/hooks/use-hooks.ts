@@ -9,6 +9,7 @@ export interface HookConfig {
   id: string;
   tenant_id: string;
   agent_id?: string | null;
+  name?: string;
   event: string;
   handler_type: "command" | "http" | "prompt" | "script";
   scope: "global" | "tenant" | "agent";

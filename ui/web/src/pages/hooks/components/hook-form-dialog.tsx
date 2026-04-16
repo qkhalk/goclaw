@@ -43,8 +43,9 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
   } = useForm<HookFormData>({
     resolver: zodResolver(hookFormSchema),
     defaultValues: {
+      name: "",
       event: "pre_tool_use",
-      handler_type: "http",
+      handler_type: "script",
       scope: "tenant",
       timeout_ms: 5000,
       on_timeout: "block",
@@ -73,6 +74,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
         const handlerType: HookFormData["handler_type"] =
           initial.handler_type === "command" ? "http" : initial.handler_type;
         reset({
+          name: initial.name ?? "",
           event: initial.event as HookFormData["event"],
           handler_type: handlerType,
           scope: initial.scope,
@@ -115,6 +117,17 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
               {t("form.builtinReadonly")}
             </div>
           )}
+
+          {/* Name — optional user-facing label */}
+          <div className="space-y-1.5">
+            <Label>{t("form.name")}</Label>
+            <Input
+              {...register("name")}
+              placeholder={t("form.namePlaceholder")}
+              className="text-base md:text-sm"
+              disabled={isBuiltin}
+            />
+          </div>
 
           {/* Event + Scope side-by-side on wider viewports */}
           <div className="grid gap-4 sm:grid-cols-2">
@@ -204,7 +217,8 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
 
           {/* Handler-specific sub-forms */}
           {handlerType === "script" && (
-            <div className="space-y-3 rounded-lg border p-3">
+            <div className="rounded-lg border p-3">
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto">
               <Controller
                 control={control}
                 name="script_source"
@@ -217,6 +231,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
                   />
                 )}
               />
+            </div>
             </div>
           )}
 

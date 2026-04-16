@@ -239,6 +239,9 @@ func (m *HookMethods) handleUpdate(ctx context.Context, client *gateway.Client, 
 // columns). Used pre-validation so the Validate() contract runs on the
 // full, merged config exactly as it will exist after Update commits.
 func applyHookPatch(cur hooks.HookConfig, p map[string]any) hooks.HookConfig {
+	if v, ok := p["name"].(string); ok {
+		cur.Name = v
+	}
 	if v, ok := p["event"].(string); ok && v != "" {
 		cur.Event = hooks.HookEvent(v)
 	}

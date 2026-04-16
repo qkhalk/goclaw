@@ -1595,6 +1595,7 @@ CREATE TABLE IF NOT EXISTS agent_hooks (
     version      INTEGER NOT NULL DEFAULT 1,
     source       TEXT NOT NULL DEFAULT 'ui' CHECK (source IN ('ui', 'api', 'seed', 'builtin')),
     metadata     TEXT NOT NULL DEFAULT '{}',
+    name         TEXT,
     created_by   TEXT,
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))

@@ -67,24 +67,27 @@ func (s *PGHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UU
 		tid = tenantIDForInsert(ctx)
 	}
 
-	var matcher, ifExpr *string
+	var matcher, ifExpr, name *string
 	if cfg.Matcher != "" {
 		matcher = &cfg.Matcher
 	}
 	if cfg.IfExpr != "" {
 		ifExpr = &cfg.IfExpr
 	}
+	if cfg.Name != "" {
+		name = &cfg.Name
+	}
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO agent_hooks
 		  (id, tenant_id, agent_id, scope, event, handler_type,
 		   config, matcher, if_expr, timeout_ms, on_timeout,
-		   priority, enabled, version, source, metadata, created_by,
+		   priority, enabled, version, source, metadata, name, created_by,
 		   created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1,$14,$15,$16,$17,$17)`,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1,$14,$15,$16,$17,$18,$18)`,
 		id, tid, cfg.AgentID, string(cfg.Scope), string(cfg.Event), string(cfg.HandlerType),
 		cfgJSON, matcher, ifExpr, cfg.TimeoutMS, string(cfg.OnTimeout),
-		cfg.Priority, cfg.Enabled, string(cfg.Source), metaJSON, cfg.CreatedBy,
+		cfg.Priority, cfg.Enabled, string(cfg.Source), metaJSON, name, cfg.CreatedBy,
 		now,
 	)
 	if err != nil {
@@ -100,7 +103,7 @@ func (s *PGHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.HookCon
 	q := `
 		SELECT id, tenant_id, agent_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
-		       priority, enabled, version, source, metadata, created_by,
+		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
 		FROM agent_hooks WHERE id = $1`
 	args := []any{id}
@@ -132,7 +135,7 @@ func (s *PGHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.HookCon
 func (s *PGHookStore) List(ctx context.Context, filter hooks.ListFilter) ([]hooks.HookConfig, error) {
 	q := `SELECT id, tenant_id, agent_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
-		       priority, enabled, version, source, metadata, created_by,
+		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at FROM agent_hooks WHERE 1=1`
 	var args []any
 	n := 1
@@ -342,7 +345,7 @@ func (s *PGHookStore) ResolveForEvent(ctx context.Context, event hooks.Event) ([
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, tenant_id, agent_id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
-		       priority, enabled, version, source, metadata, created_by,
+		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
 		FROM agent_hooks
 		WHERE enabled = TRUE AND event = $1
@@ -449,7 +452,7 @@ func scanHookPGRow(row pgRowScanner) (*hooks.HookConfig, error) {
 		scope, event           string
 		handlerType, onTimeout string
 		source                 string
-		matcher, ifExpr        sql.NullString
+		matcher, ifExpr, name  sql.NullString
 		cfgJSON, metaJSON      []byte
 	)
 	err := row.Scan(
@@ -458,7 +461,7 @@ func scanHookPGRow(row pgRowScanner) (*hooks.HookConfig, error) {
 		&cfgJSON, &matcher, &ifExpr,
 		&cfg.TimeoutMS, &onTimeout,
 		&cfg.Priority, &cfg.Enabled, &cfg.Version,
-		&source, &metaJSON, &createdBy,
+		&source, &metaJSON, &name, &createdBy,
 		&cfg.CreatedAt, &cfg.UpdatedAt,
 	)
 	if err != nil {
@@ -478,6 +481,9 @@ func scanHookPGRow(row pgRowScanner) (*hooks.HookConfig, error) {
 	}
 	if ifExpr.Valid {
 		cfg.IfExpr = ifExpr.String
+	}
+	if name.Valid {
+		cfg.Name = name.String
 	}
 
 	if len(cfgJSON) > 0 {

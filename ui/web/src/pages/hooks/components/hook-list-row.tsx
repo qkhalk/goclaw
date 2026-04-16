@@ -44,7 +44,10 @@ export function HookListRow({ hook, onClick, onToggle, onEdit, onDelete, onTest 
 
       {/* Main info */}
       <button type="button" onClick={onClick} className="min-w-0 flex-1 text-left">
-        <div className="flex flex-wrap items-center gap-1.5">
+        {hook.name && (
+          <p className="truncate text-sm font-medium">{hook.name}</p>
+        )}
+        <div className={`flex flex-wrap items-center gap-1.5 ${hook.name ? "mt-0.5" : ""}`}>
           <span
             className={`inline-flex items-center rounded px-1.5 py-0.5 text-2xs font-medium ${EVENT_COLORS[hook.event] ?? "bg-muted text-muted-foreground"}`}
           >
