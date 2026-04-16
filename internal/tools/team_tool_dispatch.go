@@ -171,6 +171,9 @@ func (m *TeamToolManager) dispatchTaskToAgent(ctx context.Context, task *store.T
 	if originSenderID != "" {
 		meta[MetaOriginSenderID] = originSenderID
 	}
+	if originRole := store.RoleFromContext(ctx); originRole != "" {
+		meta[MetaOriginRole] = originRole
+	}
 	// Resolve local key from context; fallback to task metadata for deferred dispatches.
 	localKey := ToolLocalKeyFromCtx(ctx)
 	if localKey == "" {

@@ -72,6 +72,13 @@ func CheckFileWriterPermission(ctx context.Context, permStore ConfigPermissionSt
 	if agentID == uuid.Nil {
 		return nil // no agent context
 	}
+	// RBAC bypass: admin / operator / owner roles are pre-authenticated by
+	// the tenant RBAC system (dashboard users, tenant admins). File-writer
+	// grants exist to gate random group members; authenticated admins
+	// shouldn't trip over them when dispatching work that writes files.
+	if isAdminRole(ctx) {
+		return nil
+	}
 	senderID := SenderIDFromContext(ctx)
 	if senderID == "" || isSyntheticSender(senderID) {
 		return fmt.Errorf("permission denied: system context cannot write files in group chats. If this is a legitimate user action, ensure the acting sender is preserved through the tool chain")
@@ -85,6 +92,19 @@ func CheckFileWriterPermission(ctx context.Context, permStore ConfigPermissionSt
 		return fmt.Errorf("permission denied: only file writers can modify files in this group. Use /addwriter to get write access")
 	}
 	return nil
+}
+
+// isAdminRole reports whether ctx carries an elevated RBAC role
+// (admin / operator / owner) that should bypass per-user file-writer
+// grants. Tenant-authenticated identities pre-pass RBAC at the gateway
+// edge; re-checking per-channel grants here is redundant and blocks
+// legitimate dashboard-dispatched work (#915).
+func isAdminRole(ctx context.Context) bool {
+	switch RoleFromContext(ctx) {
+	case "admin", "operator", RoleOwner:
+		return true
+	}
+	return false
 }
 
 // isSyntheticSender reports whether senderID is an internal system component
@@ -113,6 +133,9 @@ func CheckCronPermission(ctx context.Context, permStore ConfigPermissionStore) e
 	agentID := AgentIDFromContext(ctx)
 	if agentID == uuid.Nil {
 		return nil // no agent context
+	}
+	if isAdminRole(ctx) {
+		return nil // RBAC bypass (admin/operator/owner)
 	}
 	senderID := SenderIDFromContext(ctx)
 	if senderID == "" || isSyntheticSender(senderID) {

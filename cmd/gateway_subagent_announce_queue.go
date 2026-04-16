@@ -50,6 +50,9 @@ func makeDelegateAnnounceCallback(
 		if meta.OriginSenderID != "" {
 			batchMeta[tools.MetaOriginSenderID] = meta.OriginSenderID
 		}
+		if meta.OriginRole != "" {
+			batchMeta[tools.MetaOriginRole] = meta.OriginRole
+		}
 		if meta.OriginUserID != "" {
 			batchMeta[tools.MetaOriginUserID] = meta.OriginUserID
 		}
@@ -102,6 +105,7 @@ type subagentAnnounceRouting struct {
 	OrigLocalKey     string
 	UserID           string
 	SenderID         string // real acting sender (preserves permission attribution through re-ingress, #915)
+	Role             string // caller's RBAC role; bypasses per-user grants for admin/operator/owner (#915)
 	ParentAgent      string
 	ParentTraceID    uuid.UUID
 	ParentRootSpanID uuid.UUID
@@ -176,6 +180,7 @@ func processSubagentAnnounceLoop(
 			LocalKey:         r.OrigLocalKey,
 			UserID:           r.UserID,
 			SenderID:         r.SenderID, // preserves real acting sender for permission checks (#915)
+			Role:             r.Role,     // preserves RBAC role for admin bypass in group writes (#915)
 			RunID:            fmt.Sprintf("subagent-announce-%s-%d", r.ParentAgent, len(entries)),
 			RunKind:          "announce",
 			HideInput:        true,

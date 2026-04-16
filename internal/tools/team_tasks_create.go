@@ -209,6 +209,10 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 	if sender := store.SenderIDFromContext(ctx); sender != "" {
 		taskMeta["origin_sender_id"] = sender
 	}
+	// Persist caller role for RBAC-aware bypass at dispatch time.
+	if role := store.RoleFromContext(ctx); role != "" {
+		taskMeta["origin_role"] = role
+	}
 
 	task := &store.TeamTaskData{
 		TeamID:           team.ID,

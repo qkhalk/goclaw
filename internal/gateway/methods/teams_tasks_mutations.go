@@ -410,6 +410,16 @@ func (m *TeamsMethods) dispatchTaskToAgent(ctx context.Context, task *store.Team
 			meta["origin_sender_id"] = taskSender
 		}
 	}
+	// Propagate RBAC role so the teammate's permission checks can bypass
+	// per-user grants for authenticated admin dispatchers (#915). Live WS
+	// caller's role wins; falls back to role stored on the task at create.
+	if dispatchRole := store.RoleFromContext(ctx); dispatchRole != "" {
+		meta["origin_role"] = dispatchRole
+	} else if task.Metadata != nil {
+		if taskRole, _ := task.Metadata["origin_role"].(string); taskRole != "" {
+			meta["origin_role"] = taskRole
+		}
+	}
 
 	m.msgBus.PublishInbound(bus.InboundMessage{
 		Channel:  "system",

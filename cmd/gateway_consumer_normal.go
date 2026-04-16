@@ -363,6 +363,11 @@ func processNormalMessage(
 			effectiveSenderID = realSender
 		}
 	}
+	// Role propagation: carry the RBAC role of the originating actor so
+	// permission checks during the re-ingress turn can bypass per-user
+	// grants for authenticated admins (#915). Only present when the
+	// upstream dispatch set MetaOriginRole.
+	effectiveRole := msg.Metadata[tools.MetaOriginRole]
 
 	// Schedule through main lane (per-session concurrency controlled by maxConcurrent)
 	outCh := deps.Sched.ScheduleWithOpts(schedCtx, "main", agent.RunRequest{
@@ -378,6 +383,7 @@ func processNormalMessage(
 		LocalKey:          msg.Metadata["local_key"],
 		UserID:            userID,
 		SenderID:          effectiveSenderID,
+		Role:              effectiveRole,
 		SenderName:        resolveSenderName(msg),
 		RunID:             runID,
 		Stream:            enableStream,
