@@ -152,17 +152,18 @@ func (t *SkillManageTool) executeCreate(ctx context.Context, args map[string]any
 	fileHash := fmt.Sprintf("%x", hasher.Sum(nil))
 	fileSize := int64(len(contentBytes))
 
-	// DB insert
-	userID := store.UserIDFromContext(ctx)
-	if userID == "" {
-		userID = "system"
+	// DB insert — owner = actor (real sender) so skill belongs to the individual
+	// user rather than the group principal in group chats (#915).
+	ownerID := store.ActorIDFromContext(ctx)
+	if ownerID == "" {
+		ownerID = "system"
 	}
 	desc := description
 	id, err := t.skills.CreateSkillManaged(ctx, store.SkillCreateParams{
 		Name:        name,
 		Slug:        slug,
 		Description: &desc,
-		OwnerID:     userID,
+		OwnerID:     ownerID,
 		Visibility:  "private",
 		Version:     version,
 		FilePath:    destDir,
@@ -174,13 +175,13 @@ func (t *SkillManageTool) executeCreate(ctx context.Context, args map[string]any
 		return ErrorResult(fmt.Sprintf("failed to register skill: %v", err))
 	}
 
-	slog.Info("skill_manage: created", "id", id, "slug", slug, "version", version, "owner", userID)
+	slog.Info("skill_manage: created", "id", id, "slug", slug, "version", version, "owner", ownerID)
 
-	// Auto-grant to calling agent
+	// Auto-grant to calling agent (granted-by = owner, same as CreateSkillManaged)
 	granted := false
 	agentID := store.AgentIDFromContext(ctx)
 	if agentID != uuid.Nil {
-		if err := t.skills.GrantToAgent(ctx, id, agentID, version, userID); err != nil {
+		if err := t.skills.GrantToAgent(ctx, id, agentID, version, ownerID); err != nil {
 			slog.Warn("skill_manage: auto-grant failed", "error", err)
 		} else {
 			granted = true
@@ -233,9 +234,14 @@ func (t *SkillManageTool) executePatch(ctx context.Context, args map[string]any)
 		return ErrorResult(fmt.Sprintf("cannot manage system skill %q", slug))
 	}
 
-	// Ownership check: only the skill owner can patch
-	userID := store.UserIDFromContext(ctx)
-	if ownerID, found := t.skills.GetSkillOwnerIDBySlug(ctx, slug); found && ownerID != userID {
+	// Ownership check: only the skill owner can patch.
+	// Accept actor (new post-#915 format) or user-scope (legacy pre-#915 rows
+	// where owner_id was set to the group principal). Legacy fallback lets
+	// any group member manage skills created before the ACTOR migration;
+	// they can re-publish under their individual identity to tighten ownership.
+	actorID := store.ActorIDFromContext(ctx)
+	legacyID := store.UserIDFromContext(ctx)
+	if ownerID, found := t.skills.GetSkillOwnerIDBySlug(ctx, slug); found && ownerID != actorID && ownerID != legacyID {
 		return ErrorResult(fmt.Sprintf("cannot manage skill %q: you are not the owner", slug))
 	}
 
@@ -323,9 +329,11 @@ func (t *SkillManageTool) executeDelete(ctx context.Context, args map[string]any
 		return ErrorResult(fmt.Sprintf("cannot manage system skill %q", slug))
 	}
 
-	// Ownership check: only the skill owner can delete
-	deleteUserID := store.UserIDFromContext(ctx)
-	if ownerID, found := t.skills.GetSkillOwnerIDBySlug(ctx, slug); found && ownerID != deleteUserID {
+	// Ownership check: only the skill owner can delete.
+	// Same legacy fallback pattern as patch-flow above (#915).
+	deleteActorID := store.ActorIDFromContext(ctx)
+	deleteLegacyID := store.UserIDFromContext(ctx)
+	if ownerID, found := t.skills.GetSkillOwnerIDBySlug(ctx, slug); found && ownerID != deleteActorID && ownerID != deleteLegacyID {
 		return ErrorResult(fmt.Sprintf("cannot manage skill %q: you are not the owner", slug))
 	}
 

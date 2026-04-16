@@ -42,6 +42,7 @@ func (sm *SubagentManager) runTask(ctx context.Context, task *SubagentTask, call
 			OriginPeerKind:   task.OriginPeerKind,
 			OriginLocalKey:   task.OriginLocalKey,
 			OriginUserID:     task.OriginUserID,
+			OriginSenderID:   task.OriginSenderID,
 			OriginSessionKey: task.OriginSessionKey,
 			OriginTenantID:   task.OriginTenantID,
 			ParentAgent:      task.ParentID,
@@ -78,6 +79,12 @@ func (sm *SubagentManager) runTask(ctx context.Context, task *SubagentTask, call
 			}
 			if task.OriginSessionKey != "" {
 				announceMeta[MetaOriginSessionKey] = task.OriginSessionKey
+			}
+			if task.OriginSenderID != "" {
+				announceMeta[MetaOriginSenderID] = task.OriginSenderID
+			}
+			if task.OriginUserID != "" {
+				announceMeta[MetaOriginUserID] = task.OriginUserID
 			}
 			sm.msgBus.PublishInbound(bus.InboundMessage{
 				Channel:  "system",

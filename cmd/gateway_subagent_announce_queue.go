@@ -47,6 +47,12 @@ func makeDelegateAnnounceCallback(
 		if meta.OriginSessionKey != "" {
 			batchMeta[tools.MetaOriginSessionKey] = meta.OriginSessionKey
 		}
+		if meta.OriginSenderID != "" {
+			batchMeta[tools.MetaOriginSenderID] = meta.OriginSenderID
+		}
+		if meta.OriginUserID != "" {
+			batchMeta[tools.MetaOriginUserID] = meta.OriginUserID
+		}
 		// Collect media from all items in the batch.
 		var batchMedia []bus.MediaFile
 		for _, item := range items {
@@ -95,6 +101,7 @@ type subagentAnnounceRouting struct {
 	OrigPeerKind     string
 	OrigLocalKey     string
 	UserID           string
+	SenderID         string // real acting sender (preserves permission attribution through re-ingress, #915)
 	ParentAgent      string
 	ParentTraceID    uuid.UUID
 	ParentRootSpanID uuid.UUID
@@ -168,6 +175,7 @@ func processSubagentAnnounceLoop(
 			PeerKind:         r.OrigPeerKind,
 			LocalKey:         r.OrigLocalKey,
 			UserID:           r.UserID,
+			SenderID:         r.SenderID, // preserves real acting sender for permission checks (#915)
 			RunID:            fmt.Sprintf("subagent-announce-%s-%d", r.ParentAgent, len(entries)),
 			RunKind:          "announce",
 			HideInput:        true,
