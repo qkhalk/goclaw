@@ -32,6 +32,25 @@ func NewSkillManageTool(skills store.SkillManageStore, baseDir, dataDir string, 
 	return &SkillManageTool{skills: skills, base: baseDir, dataDir: dataDir, loader: loader}
 }
 
+// isOwnerOfSkill returns true if the caller owns the skill identified by slug.
+// Matches owner_id against three identities for backward compatibility (#915):
+//   - ActorIDFromContext: current helper, merge-aware in DM, sender in groups
+//   - UserIDFromContext:  legacy rows pre-#915 (group-scope) and merged tenant id
+//   - SenderIDFromContext: raw channel sender (covers the pre-merge-aware ActorID window)
+//
+// If the slug does not exist, returns true (caller sees "skill not found" error
+// from the downstream resolver — preserves the existing error surface).
+func isOwnerOfSkill(ctx context.Context, skills store.SkillManageStore, slug string) bool {
+	ownerID, found := skills.GetSkillOwnerIDBySlug(ctx, slug)
+	if !found {
+		return true
+	}
+	actorID := store.ActorIDFromContext(ctx)
+	userID := store.UserIDFromContext(ctx)
+	senderID := store.SenderIDFromContext(ctx)
+	return ownerID == actorID || ownerID == userID || ownerID == senderID
+}
+
 // tenantSkillsDir returns the skills-store directory scoped to the calling agent's tenant.
 func (t *SkillManageTool) tenantSkillsDir(ctx context.Context) string {
 	tid := store.TenantIDFromContext(ctx)
@@ -235,13 +254,15 @@ func (t *SkillManageTool) executePatch(ctx context.Context, args map[string]any)
 	}
 
 	// Ownership check: only the skill owner can patch.
-	// Accept actor (new post-#915 format) or user-scope (legacy pre-#915 rows
-	// where owner_id was set to the group principal). Legacy fallback lets
-	// any group member manage skills created before the ACTOR migration;
-	// they can re-publish under their individual identity to tighten ownership.
-	actorID := store.ActorIDFromContext(ctx)
-	legacyID := store.UserIDFromContext(ctx)
-	if ownerID, found := t.skills.GetSkillOwnerIDBySlug(ctx, slug); found && ownerID != actorID && ownerID != legacyID {
+	// Accept any of three identities the same human maps to:
+	//   - actor (current merge-aware helper — preferred for new rows)
+	//   - userID (legacy pre-#915 rows where owner_id was group principal
+	//     or the merged tenant identity)
+	//   - senderID (legacy rows from the pre-merge-aware ActorID window
+	//     where DM owners got the raw channel sender)
+	// A DM user merged to "viettx" with Telegram ID "386246614" matches all
+	// three of their skills regardless of when they were created.
+	if !isOwnerOfSkill(ctx, t.skills, slug) {
 		return ErrorResult(fmt.Sprintf("cannot manage skill %q: you are not the owner", slug))
 	}
 
@@ -330,10 +351,8 @@ func (t *SkillManageTool) executeDelete(ctx context.Context, args map[string]any
 	}
 
 	// Ownership check: only the skill owner can delete.
-	// Same legacy fallback pattern as patch-flow above (#915).
-	deleteActorID := store.ActorIDFromContext(ctx)
-	deleteLegacyID := store.UserIDFromContext(ctx)
-	if ownerID, found := t.skills.GetSkillOwnerIDBySlug(ctx, slug); found && ownerID != deleteActorID && ownerID != deleteLegacyID {
+	// Same three-identity match as the patch flow above (#915).
+	if !isOwnerOfSkill(ctx, t.skills, slug) {
 		return ErrorResult(fmt.Sprintf("cannot manage skill %q: you are not the owner", slug))
 	}
 
