@@ -4,6 +4,8 @@ import { Play, FlaskConical, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ToolSingleCombobox } from "@/components/shared/tool-single-combobox";
+import { TOOL_INPUT_TEMPLATES } from "./tool-input-templates";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useTestHook, type HookConfig, type HookTestResult } from "@/hooks/use-hooks";
@@ -54,6 +56,16 @@ export function HookTestPanel({ hook }: HookTestPanelProps) {
   const [result, setResult] = useState<HookTestResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
 
+  const handleToolSelect = (name: string) => {
+    const template = TOOL_INPUT_TEMPLATES[name];
+    if (!template) return;
+    const json = JSON.stringify(template, null, 2);
+    if (toolInputRaw.trim() && toolInputRaw.trim() !== "{}") {
+      if (!window.confirm(t("test.overwriteConfirm"))) return;
+    }
+    setToolInputRaw(json);
+  };
+
   const handleFire = async () => {
     setParseError(null);
     let toolInput: Record<string, unknown>;
@@ -86,11 +98,11 @@ export function HookTestPanel({ hook }: HookTestPanelProps) {
 
         <div className="space-y-1.5">
           <Label className="text-xs">{t("test.toolName")}</Label>
-          <Input
+          <ToolSingleCombobox
             value={toolName}
-            onChange={(e) => setToolName(e.target.value)}
-            placeholder="bash"
-            className="text-base md:text-sm font-mono"
+            onChange={setToolName}
+            onToolSelect={handleToolSelect}
+            placeholder={t("test.toolNamePickerPlaceholder")}
           />
           <p className="text-2xs text-muted-foreground">{t("test.toolNameHint")}</p>
         </div>
@@ -100,7 +112,7 @@ export function HookTestPanel({ hook }: HookTestPanelProps) {
           <Textarea
             value={toolInputRaw}
             onChange={(e) => setToolInputRaw(e.target.value)}
-            rows={6}
+            rows={10}
             placeholder='{"command": "ls -la"}'
             className="text-base md:text-sm font-mono"
           />

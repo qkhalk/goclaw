@@ -111,7 +111,9 @@
     "stdout": "标准输出",
     "stderr": "标准错误",
     "statusCode": "状态码",
-    "updatedInput": "已更新输入（差异）"
+    "updatedInput": "已更新输入（差异）",
+    "toolNamePickerPlaceholder": "选择或输入工具名称...",
+    "overwriteConfirm": "当前内容将被模板替换。继续？"
   },
   "history": {
     "title": "执行历史",

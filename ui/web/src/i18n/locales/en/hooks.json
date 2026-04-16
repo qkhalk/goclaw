@@ -111,7 +111,9 @@
     "stdout": "Stdout",
     "stderr": "Stderr",
     "statusCode": "Status code",
-    "updatedInput": "Updated input (diff)"
+    "updatedInput": "Updated input (diff)",
+    "toolNamePickerPlaceholder": "Select or type tool name...",
+    "overwriteConfirm": "Current input will be replaced with template. Continue?"
   },
   "history": {
     "title": "Execution history",

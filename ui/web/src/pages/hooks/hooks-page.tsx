@@ -358,7 +358,7 @@ export function HooksPage() {
       {/* Test dialog — centered modal with 2-col input/result layout. */}
       {testTarget && (
         <Dialog open onOpenChange={(o) => { if (!o) setTestTarget(null); }}>
-          <DialogContent className="max-h-[90vh] flex flex-col max-sm:inset-0 max-sm:rounded-none sm:max-w-4xl lg:max-w-5xl">
+          <DialogContent className="max-h-[90vh] flex flex-col max-sm:inset-0 max-sm:rounded-none sm:max-w-5xl lg:max-w-6xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base">
                 {t("test.title")}

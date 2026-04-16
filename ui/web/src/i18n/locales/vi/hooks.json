@@ -111,7 +111,9 @@
     "stdout": "Stdout",
     "stderr": "Stderr",
     "statusCode": "Mã trạng thái",
-    "updatedInput": "Đầu vào đã cập nhật (diff)"
+    "updatedInput": "Đầu vào đã cập nhật (diff)",
+    "toolNamePickerPlaceholder": "Chọn hoặc nhập tên tool...",
+    "overwriteConfirm": "Nội dung hiện tại sẽ bị thay thế bằng mẫu. Tiếp tục?"
   },
   "history": {
     "title": "Lịch sử thực thi",
