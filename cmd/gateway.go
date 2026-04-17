@@ -143,6 +143,17 @@ func runGateway() {
 	}
 
 	pgStores, traceCollector, snapshotWorker := setupStoresAndTracing(cfg, dataDir, msgBus)
+
+	// Recover from crashes: flip ghost 'summoning' rows to 'summon_failed'.
+	// Summon goroutines don't survive process restart; stale DB rows would trap the UI.
+	if pgStores.Agents != nil {
+		if n, err := pgStores.Agents.ResetStuckSummoning(context.Background()); err != nil {
+			slog.Warn("agents.reset_stuck_summoning_failed", "err", err)
+		} else if n > 0 {
+			slog.Info("agents.reset_stuck_summoning", "count", n)
+		}
+	}
+
 	if traceCollector != nil {
 		defer traceCollector.Stop()
 		// OTel OTLP export: compiled via build tags. Build with 'go build -tags otel' to enable.
