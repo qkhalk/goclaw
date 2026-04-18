@@ -4,6 +4,23 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ---
 
+### web_search now tenant-scoped only (2026-04-18)
+
+Completes issue #952: moved `web_search` configuration to tenant-exclusive settings. Global `config.Tools.Web.*` path in `config.json5` is no longer supported. All configuration is now per-tenant via `/tools/builtin/web_search` UI or `/v1/tools/builtin/web_search/tenant-config` HTTP API.
+
+#### Breaking
+
+- `config.json5` path `tools.web.*` removed (no longer parsed). Migration hook auto-migrates inline keys to `config_secrets` on startup.
+- Builtin tool tenant config is tenant-scoped; per-agent overrides reserved for future.
+
+#### Non-breaking
+
+- DuckDuckGo remains always-on as last-resort fallback (free, no API key required)
+- Existing secrets auto-migrated from legacy `builtin_tool_tenant_configs.settings` JSON blobs to encrypted `config_secrets` rows (idempotent hook 055)
+- Tenant isolation verified: two tenants with different Brave/Exa keys get independent chains with no cross-tenant leakage
+
+---
+
 ### Secure CLI grant enforcement — registered binaries now hard-deny ungranted exec (2026-04-17)
 
 Closes a credential-scope bypass: an agent with no `secure_cli_agent_grants` row for a registered binary could still invoke it via shell fallthrough (`gh ...`, `sh -c 'gh ...'`) and pick up inherited env (`$GH_TOKEN`) or on-disk OAuth state (`~/.config/gh`). Registration is now an authorization boundary, not only a credential-injection hint.
