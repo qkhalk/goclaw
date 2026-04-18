@@ -276,28 +276,6 @@ func (s *PGConfigPermissionStore) ListFileWriters(ctx context.Context, agentID u
 	return perms, nil
 }
 
-// ListFileWritersMissingMetadata returns file_writer rows with empty metadata
-// (NULL, '', '{}', or 'null'). Used by the backfill subcommand.
-func (s *PGConfigPermissionStore) ListFileWritersMissingMetadata(ctx context.Context, channelName string) ([]store.ConfigPermission, error) {
-	query := `SELECT id, agent_id, scope, config_type, user_id, permission, granted_by, metadata, created_at, updated_at
-	          FROM agent_config_permissions
-	          WHERE config_type = 'file_writer'
-	            AND (metadata IS NULL OR metadata::text IN ('{}', '', 'null'))`
-	args := []any{}
-	if channelName != "" {
-		args = append(args, "group:"+channelName+":%")
-		query += ` AND scope LIKE $1`
-	}
-	query += ` ORDER BY created_at`
-
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanConfigPermissions(rows)
-}
-
 func scanConfigPermissions(rows *sql.Rows) ([]store.ConfigPermission, error) {
 	var perms []store.ConfigPermission
 	for rows.Next() {

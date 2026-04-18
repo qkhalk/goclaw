@@ -73,10 +73,6 @@ func (f *fakeConfigPermStore) ListFileWriters(ctx context.Context, agentID uuid.
 	return f.List(ctx, agentID, store.ConfigTypeFileWriter, scope)
 }
 
-func (f *fakeConfigPermStore) ListFileWritersMissingMetadata(_ context.Context, _ string) ([]store.ConfigPermission, error) {
-	return nil, nil
-}
-
 // newTestChannel builds a minimal Feishu Channel suitable for writer-command
 // unit tests: BaseChannel with a UUID agent key, stub lark client pointing
 // at the provided httptest server, and the supplied permission store.

@@ -71,8 +71,6 @@ func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
 		mux.HandleFunc("GET /v1/channels/instances/{id}/writers", h.auth(h.handleListWriters))
 		mux.HandleFunc("POST /v1/channels/instances/{id}/writers", h.adminAuth(h.handleAddWriter))
 		mux.HandleFunc("DELETE /v1/channels/instances/{id}/writers/{userId}", h.adminAuth(h.handleRemoveWriter))
-		// One-shot legacy-row backfill. Admin-only, idempotent, safe to re-run.
-		mux.HandleFunc("POST /v1/admin/writer-metadata/backfill", h.adminAuth(h.handleBackfillWriterMetadata))
 	}
 }
 

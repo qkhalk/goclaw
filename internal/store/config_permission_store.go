@@ -43,11 +43,6 @@ type ConfigPermissionStore interface {
 	List(ctx context.Context, agentID uuid.UUID, configType, scope string) ([]ConfigPermission, error)
 	// ListFileWriters returns cached file_writer allow permissions for a given agentID+scope (hot-path).
 	ListFileWriters(ctx context.Context, agentID uuid.UUID, scope string) ([]ConfigPermission, error)
-	// ListFileWritersMissingMetadata returns file_writer rows whose metadata is
-	// empty (NULL, '', '{}', or 'null'). Used by the backfill subcommand to
-	// re-enrich legacy rows. channelName="" matches all; otherwise filters on
-	// scope prefix "group:<channelName>:".
-	ListFileWritersMissingMetadata(ctx context.Context, channelName string) ([]ConfigPermission, error)
 }
 
 // CheckFileWriterPermission returns an error if the caller is in a group context
