@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -42,6 +43,75 @@ func parseMediaResult(toolOutput string) *MediaResult {
 		ContentType: mimeFromExt(filepath.Ext(path)),
 		AsVoice:     asVoice,
 	}
+}
+
+// extractMediaFromContent scans text for MEDIA:<path> tokens the LLM may echo
+// in its final response (e.g. when a tool returned the MEDIA: prefix as plain
+// text instead of setting Result.Media). Relative paths are resolved against
+// workspace. Called before sanitize strips the tokens so the attachments are
+// still delivered.
+//
+// Security: only paths that (a) exist on disk and (b) resolve inside the
+// workspace root are accepted. An LLM cannot inject attachments pointing at
+// /etc/passwd, a sibling tenant's workspace, or a hallucinated path — the
+// extractor silently drops them. When workspace is empty, only legacy absolute
+// paths from tool outputs (via parseMediaResult's upstream flow) are trusted;
+// LLM-echoed absolute paths without a workspace context are dropped.
+func extractMediaFromContent(content, workspace string) []MediaResult {
+	if !strings.Contains(content, "MEDIA:") || workspace == "" {
+		return nil
+	}
+	matches := mediaPathPattern.FindAllString(content, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	wsRoot := ""
+	if abs, err := filepath.Abs(workspace); err == nil {
+		wsRoot = filepath.Clean(abs)
+	}
+	if wsRoot == "" {
+		return nil
+	}
+	results := make([]MediaResult, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, m := range matches {
+		path := strings.TrimSpace(strings.TrimPrefix(m, "MEDIA:"))
+		if path == "" {
+			continue
+		}
+		// Drop markdown/JSON trailing punctuation that would otherwise stick:
+		// ")", "]", "\"", "'", ",", ";", ".".
+		path = strings.TrimRight(path, `)]"',;.`)
+		if path == "" {
+			continue
+		}
+		// Resolve relative paths against workspace.
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(wsRoot, path)
+		}
+		cleaned := filepath.Clean(path)
+		// Workspace containment check — blocks "../" escapes and absolute paths
+		// outside the agent's allowed area.
+		rel, err := filepath.Rel(wsRoot, cleaned)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+		// Existence + regular-file check prevents hallucinated paths and
+		// directory/symlink-device shenanigans from reaching the outbound queue.
+		info, err := os.Lstat(cleaned)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if _, dup := seen[cleaned]; dup {
+			continue
+		}
+		seen[cleaned] = struct{}{}
+		results = append(results, MediaResult{
+			Path:        cleaned,
+			ContentType: mimeFromExt(filepath.Ext(cleaned)),
+		})
+	}
+	return results
 }
 
 // deduplicateMedia removes duplicate media results by path, keeping the first occurrence.
