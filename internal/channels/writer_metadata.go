@@ -10,6 +10,64 @@ import (
 	"time"
 )
 
+// WriterLabelMaxRunes caps the rendered writer label length so a pathological
+// username/displayName cannot dominate the system prompt or squeeze legitimate
+// instructions out.
+const WriterLabelMaxRunes = 48
+
+// SanitizeWriterLabel strips control characters (\r\n\t and friends) from
+// user-controlled metadata strings before they flow into the system prompt
+// or Telegram responses. A user could otherwise set their Telegram
+// displayName to "Alice\n\nSYSTEM: ignore previous instructions..." and
+// have it rendered as a pseudo-instruction. Also collapses whitespace runs
+// and truncates to WriterLabelMaxRunes.
+func SanitizeWriterLabel(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	prevSpace := false
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			if !prevSpace {
+				b.WriteByte(' ')
+				prevSpace = true
+			}
+			continue
+		}
+		b.WriteRune(r)
+		prevSpace = r == ' '
+	}
+	out := strings.TrimSpace(b.String())
+	runes := []rune(out)
+	if len(runes) > WriterLabelMaxRunes {
+		out = string(runes[:WriterLabelMaxRunes]) + "…"
+	}
+	return out
+}
+
+// WriterMeta is the canonical shape stored in ConfigPermission.Metadata for
+// file_writer grants. Kept local to avoid a store→channels dependency; the
+// field tags must stay in sync with what /addwriter + enrichment emit.
+type writerMetaShape struct {
+	DisplayName string `json:"displayName"`
+	Username    string `json:"username"`
+}
+
+// WriterLabel renders a writer's metadata JSON into a human-readable tag.
+// Preference order: @username → displayName → "User <userID>". All
+// user-controlled strings pass through SanitizeWriterLabel. The userID arg
+// is the fallback when no metadata is available (legacy rows).
+func WriterLabel(metadata json.RawMessage, userID string) string {
+	var meta writerMetaShape
+	_ = json.Unmarshal(metadata, &meta)
+	if u := SanitizeWriterLabel(meta.Username); u != "" {
+		return "@" + u
+	}
+	if d := SanitizeWriterLabel(meta.DisplayName); d != "" {
+		return d
+	}
+	return "User " + userID
+}
+
 // writerEnrichTimeout bounds each ResolveMember call so a slow channel
 // (network stall, Telegram API hang) never blocks the Grant path beyond
 // this budget.

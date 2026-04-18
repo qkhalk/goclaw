@@ -2,33 +2,14 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
+	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
-
-// writerLabel renders a file_writer permission as a human-readable identifier
-// for the system prompt. Preference: @username → displayName → "User <id>".
-// Keeps the writer list consistent with /writers Telegram render and the UI.
-func writerLabel(w store.ConfigPermission) string {
-	var meta struct {
-		DisplayName string `json:"displayName"`
-		Username    string `json:"username"`
-	}
-	_ = json.Unmarshal(w.Metadata, &meta)
-	switch {
-	case meta.Username != "":
-		return "@" + meta.Username
-	case meta.DisplayName != "":
-		return meta.DisplayName
-	default:
-		return "User " + w.UserID
-	}
-}
 
 // teamGuidance returns edition-specific system prompt guidance for team members.
 func teamGuidance(fullMode bool) string {
@@ -128,7 +109,7 @@ func (l *Loop) buildGroupWriterPrompt(ctx context.Context, groupID, senderID str
 	for _, w := range writers {
 		if w.UserID == numericID {
 			isWriter = true
-			senderLabel = writerLabel(w)
+			senderLabel = channels.WriterLabel(w.Metadata, w.UserID)
 			break
 		}
 	}
@@ -139,7 +120,7 @@ func (l *Loop) buildGroupWriterPrompt(ctx context.Context, groupID, senderID str
 	// permission check below and confuse the model about who can write.
 	var names []string
 	for _, w := range writers {
-		names = append(names, writerLabel(w))
+		names = append(names, channels.WriterLabel(w.Metadata, w.UserID))
 	}
 
 	var sb strings.Builder

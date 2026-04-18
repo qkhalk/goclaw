@@ -202,11 +202,6 @@ func (c *Channel) handleListWriters(ctx context.Context, chatID int64, chatIDStr
 		return
 	}
 
-	type fwMeta struct {
-		DisplayName string `json:"displayName"`
-		Username    string `json:"username"`
-	}
-
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("File writers for this group (%d):\n", len(writers)))
 	// needsHeal collects rows whose metadata is empty so we can async-enrich
@@ -214,17 +209,10 @@ func (c *Channel) handleListWriters(ctx context.Context, chatID int64, chatIDStr
 	// rows that failed enrichment at grant time get healed on list.
 	var needsHeal []store.ConfigPermission
 	for i, w := range writers {
-		var meta fwMeta
-		_ = json.Unmarshal(w.Metadata, &meta)
-		// Fallback label makes the ID unambiguous even without metadata —
-		// prefixing "User" prevents the UX regression of a bare numeric string.
-		label := "User " + w.UserID
-		switch {
-		case meta.Username != "":
-			label = "@" + meta.Username
-		case meta.DisplayName != "":
-			label = meta.DisplayName
-		default:
+		label := channels.WriterLabel(w.Metadata, w.UserID)
+		// A label of the shape "User <id>" means neither username nor
+		// displayName was present — flag the row for background enrichment.
+		if strings.HasPrefix(label, "User ") {
 			needsHeal = append(needsHeal, w)
 		}
 		sb.WriteString(fmt.Sprintf("%d. %s (ID: %s)\n", i+1, label, w.UserID))
