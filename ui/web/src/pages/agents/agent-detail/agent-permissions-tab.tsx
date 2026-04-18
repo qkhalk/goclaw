@@ -237,7 +237,12 @@ export function AgentPermissionsTab({ agentId }: AgentPermissionsTabProps) {
                       <span className="text-xs font-medium text-muted-foreground">{scopeLabels.get(scopeKey) ?? scopeKey}</span>
                     </div>
                     {writers.map((p) => {
-                      const label = p.metadata?.displayName || formatUserLabel(p.userId, resolve);
+                      // Label preference: displayName → contact resolver → "User <id>" fallback.
+                      // Username is rendered separately next to the label when present.
+                      const resolved = formatUserLabel(p.userId, resolve);
+                      const isNumericFallback = /^#?-?\d+$/.test(resolved);
+                      const label = p.metadata?.displayName
+                        || (isNumericFallback ? t("permissions.unknownWriterLabel", { id: p.userId }) : resolved);
                       const username = p.metadata?.username ? ` @${p.metadata.username}` : "";
                       return (
                         <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 pl-7">
