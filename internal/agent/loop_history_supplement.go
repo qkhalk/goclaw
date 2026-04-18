@@ -112,7 +112,10 @@ func (l *Loop) buildGroupWriterPrompt(ctx context.Context, groupID, senderID str
 		}
 	}
 
-	// Build writer display names from metadata JSON
+	// Build writer display names from metadata JSON. Rows with empty metadata
+	// (legacy /) fall back to "User <id>" so the LLM sees a complete roster —
+	// omitting a user silently would make the prompt inconsistent with the
+	// permission check below and confuse the model about who can write.
 	type fwMeta struct {
 		DisplayName string `json:"displayName"`
 		Username    string `json:"username"`
@@ -121,10 +124,13 @@ func (l *Loop) buildGroupWriterPrompt(ctx context.Context, groupID, senderID str
 	for _, w := range writers {
 		var meta fwMeta
 		_ = json.Unmarshal(w.Metadata, &meta)
-		if meta.Username != "" {
+		switch {
+		case meta.Username != "":
 			names = append(names, "@"+meta.Username)
-		} else if meta.DisplayName != "" {
+		case meta.DisplayName != "":
 			names = append(names, meta.DisplayName)
+		default:
+			names = append(names, "User "+w.UserID)
 		}
 	}
 
