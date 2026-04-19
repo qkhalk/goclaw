@@ -637,7 +637,7 @@ Evolution analysis runs as a periodic cron job (default: daily).
 
 ### 8.5 API & WebSocket
 
-**HTTP Endpoints** (see [22 — V3 HTTP Endpoints](22-v3-http-endpoints.md)):
+**HTTP Endpoints** (see [18 — HTTP REST API](18-http-api.md#14-evolution-metrics--suggestions)):
 - `GET /v1/agents/{agentID}/evolution/metrics` — Query/aggregate metrics
 - `GET /v1/agents/{agentID}/evolution/suggestions` — List suggestions
 - `PATCH /v1/agents/{agentID}/evolution/suggestions/{suggestionID}` — Approve/reject/rollback
@@ -674,4 +674,4 @@ Defaults used if keys absent. Set `evolution_enabled: false` to disable metrics 
 - [15 - Core Skills System](./15-core-skills-system.md) — Bundled system skills, startup seeding, dependency checking
 - [16 - Skill Publishing System](./16-skill-publishing.md) — `publish_skill` tool and `skill-creator` core skill
 - [19 - WebSocket RPC Methods](./19-websocket-rpc.md) — V3 WebSocket methods for evolution, episodic, vault
-- [22 - V3 HTTP Endpoints](./22-v3-http-endpoints.md) — HTTP REST endpoints for evolution metrics, suggestions, episodic memory, vault documents
+- [18 - HTTP REST API](./18-http-api.md) — HTTP REST endpoints for evolution metrics, suggestions, episodic memory, vault documents
