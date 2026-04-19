@@ -278,7 +278,7 @@ flowchart TD
 
 ### Phase 6: Response Finalization
 
-- Run `SanitizeAssistantContent` -- a 7-step cleanup pipeline (see Section 3).
+- Run the 7-step output sanitization pipeline (see Section 3).
 - Detect `NO_REPLY` in the final content. If present, suppress message delivery (silent reply).
 - Flush all buffered messages atomically to the session (user message, tool messages, assistant message). This prevents concurrent runs from interleaving partial history.
 - Update session metadata: model name, provider name, cumulative token counts.
@@ -341,31 +341,31 @@ A 7-step pipeline cleans raw LLM output before delivering it to the user.
 ```mermaid
 flowchart TD
     IN[Raw LLM Output] --> S1
-    S1["1. stripGarbledToolXML<br/>Remove broken XML tool artifacts<br/>from DeepSeek, GLM, Minimax"] --> S2
-    S2["2. stripDowngradedToolCallText<br/>Remove text-format tool calls:<br/>[Tool Call: ...], [Tool Result ...]"] --> S3
-    S3["3. stripThinkingTags<br/>Remove reasoning tags:<br/>think, thinking, thought, antThinking"] --> S4
-    S4["4. stripFinalTags<br/>Remove final tag wrappers,<br/>preserve inner content"] --> S5
-    S5["5. stripEchoedSystemMessages<br/>Remove hallucinated<br/>[System Message] blocks"] --> S6
-    S6["6. collapseConsecutiveDuplicateBlocks<br/>Deduplicate repeated paragraphs<br/>caused by model stuttering"] --> S7
-    S7["7. stripLeadingBlankLines<br/>Remove leading whitespace lines"] --> TRIM
-    TRIM["TrimSpace()"] --> OUT[Clean Output]
+    S1["1. Strip garbled tool XML<br/>Remove broken XML tool artifacts<br/>from DeepSeek, GLM, Minimax"] --> S2
+    S2["2. Strip downgraded tool call text<br/>Remove text-format tool calls:<br/>[Tool Call: ...], [Tool Result ...]"] --> S3
+    S3["3. Strip thinking tags<br/>Remove reasoning tags:<br/>think, thinking, thought, antThinking"] --> S4
+    S4["4. Strip final wrapper tags<br/>Remove final tag wrappers,<br/>preserve inner content"] --> S5
+    S5["5. Strip echoed system messages<br/>Remove hallucinated<br/>[System Message] blocks"] --> S6
+    S6["6. Collapse consecutive duplicates<br/>Deduplicate repeated paragraphs<br/>caused by model stuttering"] --> S7
+    S7["7. Strip leading blank lines<br/>Remove leading whitespace lines"] --> TRIM
+    TRIM["Trim whitespace"] --> OUT[Clean Output]
 ```
 
 ### Step Details
 
-1. **stripGarbledToolXML** -- Some models (DeepSeek, GLM, Minimax) emit tool-call XML as plain text instead of proper structured tool calls. This step removes tags like `<tool_call>`, `<function_call>`, `<tool_use>`, `<minimax:tool_call>`, and `<parameter name=...>`. If the entire response consists of garbled XML, an empty string is returned.
+1. **Garbled tool XML** — Some models (DeepSeek, GLM, Minimax) emit tool-call XML as plain text instead of proper structured tool calls. Tags like `<tool_call>`, `<function_call>`, `<tool_use>`, `<minimax:tool_call>`, and `<parameter name=...>` are stripped. If the entire response consists of garbled XML, an empty string is returned.
 
-2. **stripDowngradedToolCallText** -- Removes text-format tool calls such as `[Tool Call: ...]`, `[Tool Result ...]`, and `[Historical context: ...]` along with any accompanying JSON arguments and output. Uses line-by-line scanning because Go regex does not support lookahead.
+2. **Downgraded tool call text** — Text-format tool calls such as `[Tool Call: ...]`, `[Tool Result ...]`, and `[Historical context: ...]` are removed along with any accompanying JSON arguments. Scanning is line-by-line.
 
-3. **stripThinkingTags** -- Removes internal reasoning tags: `<think>`, `<thinking>`, `<thought>`, `<antThinking>`. Case-insensitive, non-greedy matching.
+3. **Thinking tags** — Internal reasoning tags (`<think>`, `<thinking>`, `<thought>`, `<antThinking>`) are stripped. Case-insensitive, non-greedy matching.
 
-4. **stripFinalTags** -- Removes `<final>` and `</final>` wrapper tags but preserves the content inside them.
+4. **Final wrapper tags** — `<final>` and `</final>` wrapper tags are removed while the inner content is preserved.
 
-5. **stripEchoedSystemMessages** -- Removes `[System Message]` blocks that the LLM hallucinates or echoes in its response. Scans line by line, skipping content until an empty line is reached.
+5. **Echoed system messages** — `[System Message]` blocks that the LLM hallucinates or echoes back are stripped by scanning line by line until an empty line is reached.
 
-6. **collapseConsecutiveDuplicateBlocks** -- Removes paragraphs that repeat consecutively (a symptom of model stuttering). Splits by `\n\n` and compares each trimmed block against its predecessor.
+6. **Consecutive duplicate blocks** — Paragraphs that repeat back-to-back (model stuttering) are collapsed. Each block is compared against its predecessor after splitting on `\n\n`.
 
-7. **stripLeadingBlankLines** -- Removes whitespace-only lines at the beginning of the output while preserving indentation in the remaining content.
+7. **Leading blank lines** — Whitespace-only lines at the start of the output are removed while preserving indentation in the remaining content.
 
 ---
 
@@ -571,21 +571,21 @@ flowchart TD
 
 ### Cache Invalidation
 
-`InvalidateAgent(agentID)` removes a specific agent from the cache, forcing the next `Get()` call to re-resolve from the database.
+Invalidating an agent removes it from the cache, forcing the next request to re-resolve from the database.
 
 ### Active Run Tracking
 
-| Method | Behavior |
-|--------|----------|
-| `RegisterRun(runID, sessionKey, agentID, cancel)` | Register a new active run with its cancel function |
-| `AbortRun(runID, sessionKey)` | Cancel a run (verifies sessionKey match before aborting) |
-| `AbortRunsForSession(sessionKey)` | Cancel all active runs belonging to a session |
+| Operation | Behavior |
+|-----------|----------|
+| Register run | Record a new active run with its agent, session, and cancellation handle |
+| Abort run | Cancel a specific run; verifies session key ownership before aborting |
+| Abort session runs | Cancel all active runs belonging to a session |
 
 ---
 
 ## 10. Resolver
 
-The `ManagedResolver` lazy-creates Loop instances from PostgreSQL data when the Router encounters a cache miss.
+The Resolver lazy-creates Loop instances from PostgreSQL data when the Router encounters a cache miss.
 
 ```mermaid
 flowchart TD
@@ -601,11 +601,11 @@ flowchart TD
 ### Resolved Properties
 
 - **Provider**: looked up by name from the provider registry. Falls back to the first registered provider if not found.
-- **Bootstrap files**: loaded from the workspace directory via `bootstrap.LoadWorkspaceFiles()`. Standard files: AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, BOOTSTRAP.md. Additional files (MEMORY.md, USER_PREDEFINED.md, DELEGATION.md, TEAM.md, AVAILABILITY.md) loaded separately as needed. Per-user files (USER.md) created on first chat via `EnsureUserFilesFunc`.
+- **Bootstrap files**: loaded from the workspace directory. Standard files: AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, BOOTSTRAP.md. Additional files (MEMORY.md, USER_PREDEFINED.md, DELEGATION.md, TEAM.md, AVAILABILITY.md) loaded separately as needed. Per-user files (USER.md) are created on first chat.
 - **Agent type**: `open` (per-user context, seeded from template files) or `predefined` (agent-level context plus per-user USER.md overlay).
-- **Per-user seeding**: `EnsureUserFilesFunc` seeds template files on first chat, idempotent (skips files that already exist). Uses PostgreSQL's `xmax` trick in `GetOrCreateUserProfile` to distinguish INSERT from ON CONFLICT UPDATE, triggering seeding only for genuinely new users.
-- **Dynamic context loading**: `ContextFileLoaderFunc` resolves context files based on agent type and request context. Returns a `[]bootstrap.ContextFile` list with truncated content for system prompt injection. For open agents: loads per-user files from workspace. For predefined agents: loads agent-level files plus per-user USER.md.
-- **Custom tools**: `DynamicLoader.LoadForAgent()` clones the global tool registry and adds per-agent custom tools, ensuring each agent gets its own isolated set of dynamic tools.
+- **Per-user seeding**: Template files are seeded on first chat, idempotent — skips files that already exist. A database-level check distinguishes genuine new users from returning ones, triggering seeding only once.
+- **Dynamic context loading**: Context files are resolved based on agent type and request context, with truncated content for system prompt injection. Open agents load per-user workspace files; predefined agents load agent-level files plus per-user USER.md.
+- **Custom tools**: Each agent gets its own isolated clone of the tool registry with any per-agent custom tools appended.
 - **Team context**: auto-resolved for agents that belong to a team. Lead agents get the team workspace as default workspace; non-lead members keep their own workspace with team workspace accessible via absolute path tool context.
 
 ---
@@ -633,11 +633,11 @@ Agents that belong to a team have access to shared team workspaces for collabora
 
 ### Context Variables
 
-During runs with team context:
-- `WithToolTeamWorkspace(ctx, wsDir)` — absolute path to shared team workspace
-- `WithToolWorkspace(ctx, effectiveWorkspace)` — effective default workspace for file operations
-- `WithToolTeamID(ctx, teamID)` — team UUID string for team-scoped tool operations
-- `WithToolTaskID(ctx, taskID)` — team task ID when executing dispatched team tasks
+During runs with team context, the following values are injected so tools can resolve the correct paths and scopes:
+- Shared team workspace path (absolute, for cross-member file access)
+- Effective default workspace (team or agent workspace depending on role)
+- Team UUID (for team-scoped tool operations)
+- Active task ID (for workspace file auto-linking during dispatched tasks)
 
 ---
 

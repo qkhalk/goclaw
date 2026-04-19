@@ -329,30 +329,13 @@ Without `require_approval`, tasks move directly to `completed` after member call
 
 ## 5. Team Mailbox
 
-The mailbox enables peer-to-peer communication between team members via the `team_message` tool.
+The mailbox enables peer-to-peer communication between team members via the `team_message` tool. Messages flow through the message bus with a `"teammate:"` prefix and are delivered as inbound messages to the target agent's session, routed through the team scheduler lane. The response is published back to the originating channel so the user (and lead) can see it.
 
-| Action | Description |
-|--------|-------------|
-| `send` | Send a direct message to a specific teammate by agent key |
-| `broadcast` | Send a message to all teammates (except self) |
-| `read` | Read unread messages, automatically marks them as read |
+**Sending a direct message** targets a specific teammate by agent key. The lead uses this to assign tasks by reference, redirect work, or ask clarifying questions. Members use it to report partial progress, flag blockers, or request context from the lead. Cross-coordination between members working on related tasks is also common.
 
-### Message Format
+**Broadcasting** delivers a message to all teammates except the sender. The lead uses broadcast to share context updates — new requirements, revised scope, or intermediate results — so all members can incorporate them without requiring the lead to message each one individually.
 
-When a team message is sent, it flows through the message bus with a `"teammate:"` prefix:
-
-```
-[Team message from {sender_key}]: {message text}
-```
-
-The receiving agent processes this as an inbound message, routed through the team scheduler lane. The response is published back to the originating channel so the user (and lead) can see it.
-
-### Use Cases
-
-- **Lead → Member**: "Please claim a task from the board"
-- **Member → Lead**: "Task partially complete, need clarification on requirements"
-- **Member → Member**: Cross-coordination between teammates working on related tasks
-- **Broadcast**: Lead sharing context updates with all members simultaneously
+**Reading** fetches unread messages and automatically marks them as read. Agents check their mailbox as part of their normal turn execution, processing queued messages from peers before continuing with assigned work.
 
 ---
 
@@ -384,17 +367,7 @@ When a member writes a file during task execution, it's automatically:
 
 ### WorkspaceDir Context
 
-During task dispatch, the team workspace directory is injected into tool context:
-
-```go
-WithToolTeamWorkspace(ctx, "/path/to/teams/{teamID}/")
-WithToolTeamID(ctx, "{teamID}")
-WithTeamTaskID(ctx, "{taskID}")
-WithWorkspaceChannel(ctx, task.Channel)
-WithWorkspaceChatID(ctx, task.ChatID)
-```
-
-File tools use this context to resolve workspace paths and auto-link files to tasks.
+During task dispatch, tool context is injected with the team workspace path, team ID, active task ID, and the task's origin channel and chat ID. File tools use this context to resolve workspace paths and auto-link created files to the active task.
 
 ### Quota & Limits
 
