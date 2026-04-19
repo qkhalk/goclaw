@@ -1,4 +1,17 @@
-import { useEffect, useId, useState, useRef } from "react";
+/**
+ * VoicePicker — provider-aware voice selection component.
+ *
+ * Dispatch logic (Phase C):
+ *   - "" provider → disabled empty-state
+ *   - provider whose capabilities include voices_dynamic=true OR has no static voices
+ *     → DynamicVoicePicker (fetches /v1/voices)
+ *   - provider with static voices[] in capabilities → StaticVoicePicker
+ *   - MiniMax with voices_dynamic=true and first-fetch failure → FreeTextPicker fallback
+ *
+ * useTtsCapabilities() drives the dispatch; falls back to ElevenLabs-dynamic behavior
+ * when capabilities are not yet loaded (avoids flash of wrong picker).
+ */
+import { useId, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { RefreshCwIcon, ChevronDownIcon } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -15,10 +28,9 @@ import {
 import { cn } from "@/lib/utils";
 import { useVoices, useRefreshVoices, type Voice } from "@/api/voices";
 import { VoicePreviewButton } from "@/components/voice-preview-button";
-import {
-  getProviderDefinition,
-  type TtsProviderId,
-} from "@/data/tts-providers";
+import { useTtsCapabilities } from "@/api/tts-capabilities";
+import type { TtsProviderId } from "@/data/tts-providers";
+import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
 
 interface Props {
   value?: string;
@@ -26,9 +38,9 @@ interface Props {
   disabled?: boolean;
   /**
    * Controls picker mode:
-   *   - undefined / "elevenlabs" → dynamic fetch from /v1/voices (legacy behavior).
-   *   - "openai" | "edge" | "minimax" → hardcoded list from catalog.
-   *   - "" (empty string) → disabled; shows "Configure TTS provider first".
+   *   - "" → disabled empty-state
+   *   - TtsProviderId → capabilities-driven dispatch
+   *   - undefined → DynamicVoicePicker (ElevenLabs legacy)
    */
   provider?: TtsProviderId | "";
   placeholder?: string;
@@ -65,33 +77,54 @@ function VoiceRow({ voice, selected, onSelect }: { voice: Voice; selected: boole
   );
 }
 
-/**
- * Top-level picker. Dispatches to one of three sub-components based on `provider`:
- *   - "" → disabled empty-state
- *   - non-dynamic provider (openai/edge/minimax) → <Select> from catalog
- *   - undefined | "elevenlabs" → <DynamicVoicePicker> that fetches /v1/voices
- */
+/** Top-level dispatcher — capabilities-aware routing. */
 export function VoicePicker({ value, onChange, disabled, provider, placeholder }: Props) {
+  const { data: caps = [] } = useTtsCapabilities();
+
   if (provider === "") {
     return <EmptyStatePicker placeholder={placeholder} />;
   }
-  const def = provider ? getProviderDefinition(provider) : null;
-  if (def && !def.dynamic) {
+
+  // Find capabilities for the current provider
+  const providerCaps = provider ? caps.find((c) => c.provider === provider) : null;
+
+  // voices_dynamic=true in custom_features → use dynamic fetch
+  const voicesDynamic = providerCaps?.custom_features?.["voices_dynamic"] === true;
+  // Static voices available in capabilities
+  const staticVoices = providerCaps?.voices ?? [];
+
+  if (providerCaps && !voicesDynamic && staticVoices.length > 0) {
+    // Static catalog available from capabilities
     return (
       <StaticVoicePicker
         value={value}
         onChange={onChange}
         disabled={disabled}
-        voices={def.voices}
+        voices={staticVoices.map((v) => ({ value: v.voice_id, label: v.name }))}
         placeholder={placeholder}
       />
     );
   }
+
+  if (provider === "minimax" || voicesDynamic) {
+    // MiniMax and any voices_dynamic provider: use dynamic picker with free-text fallback
+    return (
+      <DynamicVoicePicker
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        allowFreeText={provider === "minimax"}
+      />
+    );
+  }
+
+  // Default: ElevenLabs and other dynamic providers
   return (
     <DynamicVoicePicker
       value={value}
       onChange={onChange}
       disabled={disabled}
+      allowFreeText={false}
     />
   );
 }
@@ -146,7 +179,7 @@ function StaticVoicePicker({
   );
 }
 
-function DynamicVoicePicker({
+function FreeTextVoicePicker({
   value,
   onChange,
   disabled,
@@ -156,14 +189,44 @@ function DynamicVoicePicker({
   disabled?: boolean;
 }) {
   const { t } = useTranslation("tts");
+  return (
+    <input
+      type="text"
+      className="border-input dark:bg-input/30 flex h-9 w-full rounded-md border bg-transparent px-3 py-2 text-base md:text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      placeholder={t("voice_picker.enter_voice_id", "Enter voice_id manually")}
+      aria-label={t("voice_label")}
+    />
+  );
+}
+
+function DynamicVoicePicker({
+  value,
+  onChange,
+  disabled,
+  allowFreeText,
+}: {
+  value?: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+  allowFreeText: boolean;
+}) {
+  const { t } = useTranslation("tts");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
 
-  const { data: voices = [], isLoading } = useVoices();
+  const { data: voices = [], isLoading, isError } = useVoices();
   const { mutate: refresh, isPending: refreshing } = useRefreshVoices();
+
+  // Fall back to free-text input when MiniMax voices fetch failed and list is empty
+  if (allowFreeText && isError && voices.length === 0) {
+    return <FreeTextVoicePicker value={value} onChange={onChange} disabled={disabled} />;
+  }
 
   const selected = voices.find((v) => v.voice_id === value);
 
@@ -191,46 +254,11 @@ function DynamicVoicePicker({
     refresh();
   };
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target) {
-        return;
-      }
-
-      if (triggerRef.current?.contains(target) || dropdownRef.current?.contains(target)) {
-        return;
-      }
-
-      setOpen(false);
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    // Close on scroll/resize — position:fixed dropdown does not reflow with
-    // the viewport, so leaving it open in the wrong place is worse than closing.
-    const handleReposition = () => setOpen(false);
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    window.addEventListener("scroll", handleReposition, true);
-    window.addEventListener("resize", handleReposition);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-      window.removeEventListener("scroll", handleReposition, true);
-      window.removeEventListener("resize", handleReposition);
-    };
-  }, [open]);
+  usePortalDropdownClose({
+    open,
+    onClose: () => setOpen(false),
+    ignore: [triggerRef, dropdownRef],
+  });
 
   const dropdownContent = open && (
     <div

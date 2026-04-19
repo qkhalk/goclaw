@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/stores/use-toast-store";
 import { VoicePicker } from "@/components/voice-picker";
-import { getProviderDefinition } from "@/data/tts-providers";
+import { PROVIDER_MODEL_CATALOG } from "@/data/tts-providers";
 import type { TtsProviderId } from "@/data/tts-providers";
 import type { SynthesizeParams } from "@/pages/tts/hooks/use-tts-config";
 
@@ -45,9 +45,8 @@ export function TtsOverrideBlock({
   const { t } = useTranslation("tts");
   const [testing, setTesting] = useState(false);
 
-  const def = getProviderDefinition(globalProvider);
   const providerLabel = globalProvider.charAt(0).toUpperCase() + globalProvider.slice(1);
-  const models = def?.models ?? [];
+  const models = PROVIDER_MODEL_CATALOG[globalProvider as TtsProviderId] ?? [];
   const hasModels = models.length > 0;
 
   const canTest = overrideEnabled && !!voiceId && (hasModels ? !!modelId : true) && !!globalProvider;
@@ -88,8 +87,8 @@ export function TtsOverrideBlock({
       <p className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 inline-block">
         {t("override.inherits", {
           provider: providerLabel,
-          voice: globalProvider === "elevenlabs" ? t("voice_label") : (def?.defaultVoice ?? "–"),
-          model: def?.defaultModel ?? "–",
+          voice: globalProvider === "elevenlabs" ? t("voice_label") : "–",
+          model: models[0]?.value ?? "–",
         })}
       </p>
 

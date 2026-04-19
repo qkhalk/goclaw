@@ -9,8 +9,7 @@ import { PromptModeCards, type PromptMode } from "../../prompt-mode-cards";
 import { useTtsConfig } from "@/pages/tts/hooks/use-tts-config";
 import { TtsEmptyState } from "./tts-empty-state";
 import { TtsOverrideBlock } from "./tts-override-block";
-import { getProviderDefinition, type TtsProviderId } from "@/data/tts-providers";
-import type { TtsModelOption } from "@/data/tts-providers";
+import { PROVIDER_MODEL_CATALOG, type TtsProviderId, type TtsModelOption } from "@/data/tts-providers";
 
 /**
  * Pure helper — exported for unit testing.
@@ -22,11 +21,11 @@ export function shouldRenderTTSSection(globalTts: { provider?: string }): boolea
 
 /**
  * Pure helper — exported for unit testing.
- * Returns model options for a given provider id from the catalog.
+ * Returns model options for a given provider id from the static catalog fallback.
+ * Source of truth is GET /v1/tts/capabilities; this fallback covers non-React contexts.
  */
 export function getModelOptions(providerId: string): TtsModelOption[] {
-  const def = getProviderDefinition(providerId as TtsProviderId);
-  return def?.models ?? [];
+  return PROVIDER_MODEL_CATALOG[providerId as TtsProviderId] ?? [];
 }
 
 interface Props {

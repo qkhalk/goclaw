@@ -1,12 +1,19 @@
+/**
+ * Desktop VoicePicker — capabilities-driven dispatch (Phase C mirror).
+ * Mirrors web voice-picker.tsx dispatch logic with desktop-native UI.
+ *
+ *   - "" provider → disabled empty-state
+ *   - voices_dynamic=true in custom_features → DynamicVoicePicker
+ *   - static voices[] in capabilities → StaticVoicePicker (Combobox)
+ *   - MiniMax first-fetch failure → FreeTextPicker fallback
+ */
 import { useTranslation } from 'react-i18next'
 import { useVoices, useRefreshVoices } from '../../hooks/use-voices'
+import { useTtsCapabilities } from '../../hooks/use-tts-capabilities'
 import { VoicePreviewButton } from './voice-preview-button'
 import { Combobox } from '../common/Combobox'
 import type { Voice } from '../../services/voices'
-import {
-  getProviderDefinition,
-  type TtsProviderId,
-} from '@/data/tts-providers'
+import type { TtsProviderId } from '@/data/tts-providers'
 
 interface Props {
   value: string | null
@@ -34,25 +41,44 @@ function VoiceOption({ voice, selected }: { voice: Voice; selected: boolean }) {
 }
 
 export function VoicePicker({ value, onChange, disabled, provider }: Props) {
+  const { data: caps = [] } = useTtsCapabilities()
+
   if (provider === '') {
     return <EmptyStatePicker />
   }
-  const def = provider ? getProviderDefinition(provider) : null
-  if (def && !def.dynamic) {
+
+  const providerCaps = provider ? caps.find((c) => c.provider === provider) : null
+  const voicesDynamic = providerCaps?.custom_features?.['voices_dynamic'] === true
+  const staticVoices = providerCaps?.voices ?? []
+
+  if (providerCaps && !voicesDynamic && staticVoices.length > 0) {
     return (
       <StaticVoicePicker
         value={value}
         onChange={onChange}
         disabled={disabled}
-        voices={def.voices}
+        voices={staticVoices.map((v) => ({ value: v.voice_id, label: v.name }))}
       />
     )
   }
+
+  if (provider === 'minimax' || voicesDynamic) {
+    return (
+      <DynamicVoicePicker
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        allowFreeText={provider === 'minimax'}
+      />
+    )
+  }
+
   return (
     <DynamicVoicePicker
       value={value}
       onChange={onChange}
       disabled={disabled}
+      allowFreeText={false}
     />
   )
 }
@@ -91,18 +117,47 @@ function StaticVoicePicker({
   )
 }
 
-function DynamicVoicePicker({
+function FreeTextVoicePicker({
   value,
   onChange,
   disabled,
 }: {
   value: string | null
-  onChange: (voiceId: string) => void
+  onChange: (id: string) => void
   disabled?: boolean
 }) {
   const { t } = useTranslation('tts')
-  const { data: voices, isLoading } = useVoices()
+  return (
+    <input
+      type="text"
+      className="flex h-8 w-full rounded border border-border bg-surface-secondary px-2 text-xs text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      placeholder={t('voice_picker.enter_voice_id', 'Enter voice_id manually')}
+    />
+  )
+}
+
+function DynamicVoicePicker({
+  value,
+  onChange,
+  disabled,
+  allowFreeText,
+}: {
+  value: string | null
+  onChange: (voiceId: string) => void
+  disabled?: boolean
+  allowFreeText: boolean
+}) {
+  const { t } = useTranslation('tts')
+  const { data: voices = [], isLoading, error } = useVoices()
   const { mutate: refresh, isPending: refreshing } = useRefreshVoices()
+
+  // Fall back to free-text when first fetch fails and list is empty
+  if (allowFreeText && error && voices.length === 0) {
+    return <FreeTextVoicePicker value={value} onChange={onChange} disabled={disabled} />
+  }
 
   const options = voices.map((v) => ({ value: v.voice_id, label: v.name }))
 

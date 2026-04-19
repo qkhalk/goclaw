@@ -7,9 +7,8 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { getProviderDefinition } from "@/data/tts-providers";
 
-const PROVIDER_VALUES = ["", "openai", "elevenlabs", "edge", "minimax"] as const;
+const PROVIDER_VALUES = ["", "openai", "elevenlabs", "edge", "minimax", "gemini"] as const;
 
 interface Props {
   provider: string;
@@ -19,13 +18,8 @@ interface Props {
 export function ProviderSetup({ provider, onChange }: Props) {
   const { t } = useTranslation("tts");
 
-  const hint = (() => {
-    if (!provider) return null;
-    if (provider === "edge") return t("edge.hint");
-    const def = getProviderDefinition(provider);
-    if (def && !def.requiresApiKey) return t("edge.hint");
-    return null;
-  })();
+  // Edge is the only provider that requires no API key
+  const hint = provider === "edge" ? t("edge.hint") : null;
 
   return (
     <Card>

@@ -156,6 +156,24 @@ func (m *Manager) AutoMode() AutoMode { return m.auto }
 // HasProviders reports whether any TTS provider is registered.
 func (m *Manager) HasProviders() bool { return len(m.ttsProviders) > 0 }
 
+// ListCapabilities iterates all registered TTS providers and returns their
+// capability schemas. Providers implementing DescribableProvider contribute
+// their full schema; others contribute a minimal stub {Provider, DisplayName}.
+func (m *Manager) ListCapabilities() []ProviderCapabilities {
+	out := make([]ProviderCapabilities, 0, len(m.ttsProviders))
+	for _, p := range m.ttsProviders {
+		if dp, ok := p.(DescribableProvider); ok {
+			out = append(out, dp.Capabilities())
+		} else {
+			out = append(out, ProviderCapabilities{
+				Provider:    p.Name(),
+				DisplayName: p.Name(),
+			})
+		}
+	}
+	return out
+}
+
 // ---- TTS dispatch ----
 
 // Synthesize uses the primary provider.
