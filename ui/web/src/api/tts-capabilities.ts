@@ -36,6 +36,12 @@ export interface ParamSchema {
   depends_on?: Dependency[];
   /** "advanced" → Advanced section; absent/undefined → Basic section (forward-compat: unknown values → Basic). */
   group?: string;
+  /**
+   * When true this param can be stored as a per-agent override in
+   * agents.other_config.tts_params. The UI shows only agent_overridable=true
+   * params in the fine-tune section (Finding #9: single source of truth).
+   */
+  agent_overridable?: boolean;
 }
 
 export interface VoiceOption {

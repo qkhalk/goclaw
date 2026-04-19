@@ -32,14 +32,15 @@ var (
 //   - all others = "" (basic)
 var minimaxParams = []audio.ParamSchema{
 	{
-		Key:         "speed",
-		Type:        audio.ParamTypeRange,
-		Label:       "Speed",
-		Description: "Speech speed multiplier (0.5 = slowest, 2.0 = fastest).",
-		Default:     1.0,
-		Min:         &mmSpeedMin,
-		Max:         &mmSpeedMax,
-		Step:        &mmSpeedStep,
+		Key:              "speed",
+		Type:             audio.ParamTypeRange,
+		Label:            "Speed",
+		Description:      "Speech speed multiplier (0.5 = slowest, 2.0 = fastest).",
+		Default:          1.0,
+		Min:              &mmSpeedMin,
+		Max:              &mmSpeedMax,
+		Step:             &mmSpeedStep,
+		AgentOverridable: true,
 	},
 	{
 		Key:         "vol",
@@ -62,10 +63,11 @@ var minimaxParams = []audio.ParamSchema{
 		Step:        &mmPitchStep,
 	},
 	{
-		Key:   "emotion",
-		Type:  audio.ParamTypeEnum,
-		Label: "Emotion",
-		Default: "",
+		Key:              "emotion",
+		Type:             audio.ParamTypeEnum,
+		Label:            "Emotion",
+		AgentOverridable: true,
+		Default:          "",
 		Enum: []audio.EnumOption{
 			{Value: "", Label: "None (default)"},
 			{Value: "happy", Label: "Happy"},

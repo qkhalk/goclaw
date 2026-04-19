@@ -62,6 +62,11 @@ type ParamSchema struct {
 	// Group categorises the param for collapsible UI sections.
 	// "" (empty) = basic (always visible); "advanced" = collapsed by default.
 	Group string `json:"group,omitempty"`
+	// AgentOverridable when true means this param can be stored in
+	// agents.other_config.tts_params and will be applied per-agent via
+	// AdaptAgentParams. Frontend filters to agent_overridable===true params only
+	// so it never shows non-overridable knobs in the agent override UI.
+	AgentOverridable bool `json:"agent_overridable,omitempty"`
 }
 
 // ProviderCapabilities is the catalog entry for a single TTS provider.

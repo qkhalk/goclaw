@@ -232,7 +232,10 @@
   },
   "override": {
     "label": "Ghi đè giọng đọc cho agent này",
-    "inherits": "Kế thừa: {{provider}} · {{voice}} · {{model}}"
+    "inherits": "Kế thừa: {{provider}} · {{voice}} · {{model}}",
+    "params": {
+      "title": "Tinh chỉnh"
+    }
   },
   "test": {
     "button": "Thử giọng đọc",

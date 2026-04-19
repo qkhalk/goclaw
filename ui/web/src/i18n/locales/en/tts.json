@@ -232,7 +232,10 @@
   },
   "override": {
     "label": "Override voice for this agent",
-    "inherits": "Inherits: {{provider}} · {{voice}} · {{model}}"
+    "inherits": "Inherits: {{provider}} · {{voice}} · {{model}}",
+    "params": {
+      "title": "Fine-tune"
+    }
   },
   "test": {
     "button": "Test this voice",

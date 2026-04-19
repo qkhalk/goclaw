@@ -232,7 +232,10 @@
   },
   "override": {
     "label": "为此 Agent 覆盖语音",
-    "inherits": "继承: {{provider}} · {{voice}} · {{model}}"
+    "inherits": "继承: {{provider}} · {{voice}} · {{model}}",
+    "params": {
+      "title": "精细调整"
+    }
   },
   "test": {
     "button": "测试语音",

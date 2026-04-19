@@ -12,6 +12,9 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/stores/use-toast-store";
 import { VoicePicker } from "@/components/voice-picker";
+import { DynamicParamForm } from "@/components/dynamic-param-form";
+import type { ParamValue } from "@/components/dynamic-param-form";
+import { useTtsCapabilities } from "@/api/tts-capabilities";
 import { PROVIDER_MODEL_CATALOG } from "@/data/tts-providers";
 import type { TtsProviderId } from "@/data/tts-providers";
 import type { SynthesizeParams } from "@/pages/tts/hooks/use-tts-config";
@@ -26,11 +29,87 @@ interface Props {
   overrideEnabled: boolean;
   onOverrideChange: (v: boolean) => void;
   synthesize: (params: SynthesizeParams) => Promise<Blob>;
+  /** Generic tts_params stored in agents.other_config.tts_params (e.g. {speed:1.2}) */
+  ttsParams: Record<string, ParamValue>;
+  onTtsParamsChange: (params: Record<string, ParamValue>) => void;
+}
+
+/**
+ * Adapter table: maps generic agent override key → provider-native capability key.
+ * Must mirror internal/audio/agent_params_adapter.go AdaptAgentParams switch.
+ * Used for bidirectional conversion at the UI boundary (generic↔native).
+ *
+ * Finding #9: This mirrors the Go adapter but is NOT the source of truth for
+ * which params are shown — that comes from agent_overridable===true in
+ * capabilities. This table is only used to convert stored generic keys to
+ * native keys for form state, and back on save.
+ */
+const GENERIC_TO_NATIVE: Record<string, Record<string, string>> = {
+  openai: { speed: "speed" },
+  elevenlabs: { speed: "voice_settings.speed", style: "voice_settings.style" },
+  edge: {},
+  minimax: { speed: "speed", emotion: "emotion" },
+  gemini: {},
+};
+
+/** Invert the generic→native table to native→generic for a given provider. */
+function buildNativeToGeneric(provider: string): Record<string, string> {
+  const map = GENERIC_TO_NATIVE[provider] ?? {};
+  const inv: Record<string, string> = {};
+  for (const [generic, native] of Object.entries(map)) {
+    inv[native] = generic;
+  }
+  return inv;
+}
+
+/**
+ * Convert stored generic params (e.g. {speed: 1.2}) to capability-native form
+ * state (e.g. {voice_settings.speed: 1.2} for ElevenLabs).
+ * Called at load time.
+ */
+export function genericToNativeFormState(
+  genericParams: Record<string, ParamValue>,
+  provider: string,
+): Record<string, ParamValue> {
+  const map = GENERIC_TO_NATIVE[provider] ?? {};
+  const out: Record<string, ParamValue> = {};
+  for (const [generic, val] of Object.entries(genericParams)) {
+    const native = map[generic];
+    if (native !== undefined) {
+      out[native] = val;
+    }
+  }
+  return out;
+}
+
+/**
+ * Convert capability-native form state back to generic keys for storage.
+ * Called at save time (inside handleSave in prompt-settings-section.tsx).
+ */
+export function nativeFormStateToGeneric(
+  nativeState: Record<string, ParamValue>,
+  provider: string,
+): Record<string, ParamValue> {
+  const nativeToGeneric = buildNativeToGeneric(provider);
+  const out: Record<string, ParamValue> = {};
+  for (const [native, val] of Object.entries(nativeState)) {
+    const generic = nativeToGeneric[native];
+    if (generic !== undefined) {
+      out[generic] = val;
+    }
+  }
+  return out;
 }
 
 /**
  * Rendered inside the TTS subsection of PromptSettingsSection when global TTS is configured.
  * Manages: inheritance chip, override checkbox, VoicePicker, model Select, inline test button.
+ * Also renders the fine-tune (tts_params) section — filtered to agent_overridable params only
+ * (Finding #9: single source of truth from capabilities API).
+ *
+ * Key design: agent storage uses GENERIC keys (speed, emotion, style). The DynamicParamForm
+ * uses CAPABILITY-NATIVE keys (voice_settings.speed for ElevenLabs). A bidirectional adapter
+ * converts at load (generic→native) and save (native→generic) boundaries.
  */
 export function TtsOverrideBlock({
   globalProvider,
@@ -41,9 +120,30 @@ export function TtsOverrideBlock({
   overrideEnabled,
   onOverrideChange,
   synthesize,
+  ttsParams,
+  onTtsParamsChange,
 }: Props) {
   const { t } = useTranslation("tts");
   const [testing, setTesting] = useState(false);
+
+  // Fetch capabilities for the current provider to find agent_overridable params.
+  const { data: allCaps } = useTtsCapabilities();
+  const providerCaps = allCaps?.find((c) => c.provider === globalProvider);
+  const overridableParams = (providerCaps?.params ?? []).filter(
+    (p) => p.agent_overridable === true,
+  );
+
+  // Form state uses CAPABILITY-NATIVE keys. Convert from stored generic keys on each render.
+  // This is a pure derivation — form state is owned by this component transiently,
+  // and serialised back to generic keys via nativeFormStateToGeneric on change.
+  const nativeFormState = genericToNativeFormState(ttsParams, globalProvider);
+
+  const handleParamChange = (nativeKey: string, val: ParamValue) => {
+    const updated = { ...nativeFormState, [nativeKey]: val };
+    // Convert native form state → generic keys for parent storage.
+    const generic = nativeFormStateToGeneric(updated, globalProvider);
+    onTtsParamsChange(generic);
+  };
 
   const providerLabel = globalProvider.charAt(0).toUpperCase() + globalProvider.slice(1);
   const models = PROVIDER_MODEL_CATALOG[globalProvider as TtsProviderId] ?? [];
@@ -78,6 +178,7 @@ export function TtsOverrideBlock({
     if (!checked) {
       onVoiceChange("");
       onModelChange("");
+      onTtsParamsChange({});
     }
   };
 
@@ -131,6 +232,21 @@ export function TtsOverrideBlock({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* Fine-tune section — agent_overridable params only (Finding #9).
+              Hidden entirely for providers with no overridable params (edge, gemini). */}
+          {overridableParams.length > 0 && (
+            <div className="space-y-2 border-t pt-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {t("override.params.title")}
+              </p>
+              <DynamicParamForm
+                schema={overridableParams}
+                value={nativeFormState}
+                onChange={handleParamChange}
+              />
             </div>
           )}
 

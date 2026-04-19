@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"log/slog"
 	"regexp"
 )
@@ -25,6 +26,28 @@ func filterAllowedKeys(updates map[string]any, allowed map[string]bool) map[stri
 		}
 	}
 	return filtered
+}
+
+// agentTTSParamsAllowedKeys is the allow-list for keys in
+// agents.other_config.tts_params. Any key outside this set is rejected at
+// write time (Finding #5). AdaptAgentParams provides defense-in-depth at
+// read time, but this gate ensures the DB never accumulates stale bad keys.
+var agentTTSParamsAllowedKeys = map[string]bool{
+	"speed":   true,
+	"emotion": true,
+	"style":   true,
+}
+
+// validateAgentTTSParams returns an error if ttsParams contains any key
+// not in the allow-list. Values are not type-checked here — providers handle
+// coercion at synthesis time.
+func validateAgentTTSParams(ttsParams map[string]any) error {
+	for k := range ttsParams {
+		if !agentTTSParamsAllowedKeys[k] {
+			return fmt.Errorf("tts_params key %q is not allowed; valid keys: speed, emotion, style", k)
+		}
+	}
+	return nil
 }
 
 // --- Field allowlists for update endpoints ---

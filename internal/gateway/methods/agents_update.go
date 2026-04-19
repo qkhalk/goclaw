@@ -133,6 +133,18 @@ func (m *AgentsMethods) handleUpdate(ctx context.Context, client *gateway.Client
 					client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, err.Error()))
 					return
 				}
+				// Finding #5: validate tts_params allow-list (speed, emotion, style only).
+				if tp, ok := otherMap["tts_params"]; ok && tp != nil {
+					if tpMap, ok := tp.(map[string]any); ok {
+						for k := range tpMap {
+							if k != "speed" && k != "emotion" && k != "style" {
+								client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest,
+									fmt.Sprintf("tts_params key %q is not allowed; valid keys: speed, emotion, style", k)))
+								return
+							}
+						}
+					}
+				}
 			}
 			updates["other_config"] = []byte(params.OtherConfig)
 		}
