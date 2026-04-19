@@ -680,30 +680,14 @@ Teams emit events for real-time UI updates and observability.
 
 ## File Reference
 
-| File | Purpose |
-|------|---------|
-| `internal/gateway/methods/teams_crud.go` | Team CRUD RPC: Get, Delete, Update settings, TaskList, KnownUsers, Scopes, Events |
-| `internal/gateway/methods/teams_tasks.go` | Task board RPC: Get, Create, Assign, Comment, Comments, Events, Approve, Reject, Delete, TaskDispatch |
-| `internal/gateway/methods/teams_workspace.go` | Workspace RPC: List, Read, Delete (with shared/isolated mode logic) |
-| `internal/tools/team_tool_manager.go` | Shared backend for team tools, team cache (5-min TTL), team resolution |
-| `internal/tools/team_tasks_tool.go` | Task board tool: list, get, create, claim, complete, cancel, search, approve, reject, comment, progress, attach, ask_user, update |
-| `internal/tools/team_message_tool.go` | Mailbox tool: send, broadcast, read, message routing via bus |
-| `internal/tools/team_access_policy.go` | Access control: checkTeamAccess validates user/channel against settings |
-| `internal/tools/subagent_spawn_tool.go` | Subagent spawning: sync/async delegation, team task enforcement |
-| `internal/tools/subagent_exec.go` | Delegation execution, artifact accumulation, session cleanup |
-| `internal/tools/subagent_config.go` | Delegation configuration and concurrency control |
-| `internal/tools/subagent_tracing.go` | Delegation tracing and event broadcasting |
-| `internal/store/agent_link_store.go` | AgentLinkStore interface: CRUD for delegation links |
-| `internal/store/pg/agent_links.go` | PostgreSQL agent link persistence and querying |
-| `internal/gateway/methods/agent_links.go` | agent_links.* RPC handlers (v3 delegation graph management) |
-| `internal/tools/workspace_dir.go` | WorkspaceDir helper, shared/isolated mode detection, file limits |
-| `internal/tools/context_keys.go` | Tool context injection: team_id, team_workspace, team_task_id, workspace channel/chatid |
-| `internal/agent/resolver.go` | TEAM.md generation (buildTeamMD), injection during agent resolution |
-| `internal/agent/systemprompt_sections.go` | TEAM.md rendering in system prompt as `<system_context>` |
-| `internal/store/team_store.go` | TeamStore interface (~40 methods), data types: TeamData, TeamTaskData, TeamMessageData, TeamTaskCommentData, etc. |
-| `internal/store/pg/teams.go` | PostgreSQL implementation: teams CRUD, members, tasks, messages, events, attachments |
-| `cmd/gateway_managed.go` | Team tool wiring, cache invalidation subscription |
-| `cmd/gateway_consumer.go` | Message routing for teammate/delegate (legacy) prefixes, task dispatch to agents |
+| Module | Path | Purpose |
+|---|---|---|
+| Gateway RPC methods | `internal/gateway/methods/teams_*.go`, `internal/gateway/methods/agent_links.go` | Team CRUD, task board, workspace, agent links RPC handlers |
+| Team tools | `internal/tools/team_*.go`, `internal/tools/subagent_*.go`, `internal/tools/workspace_dir.go`, `internal/tools/context_keys.go` | Task board tool, mailbox, access policy, delegation execution, workspace helpers |
+| Store layer | `internal/store/team_store.go`, `internal/store/pg/teams.go`, `internal/store/agent_link_store.go`, `internal/store/pg/agent_links.go` | Team/task/message persistence, agent link persistence |
+| Agent integration | `internal/agent/resolver.go`, `internal/agent/systemprompt_sections.go`, `cmd/gateway_managed.go`, `cmd/gateway_consumer.go` | TEAM.md generation, system prompt injection, message routing |
+
+Use `grep` or your editor's symbol search for specific files.
 
 ---
 

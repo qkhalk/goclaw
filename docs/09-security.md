@@ -460,29 +460,14 @@ When concurrency limits are hit, the error message is written for LLM reasoning:
 
 ## File Reference
 
-| File | Description |
-|------|-------------|
-| `internal/agent/input_guard.go` | Injection pattern detection (6 patterns) |
-| `internal/tools/scrub.go` | Credential scrubbing (regex-based redaction), dynamic scrub values |
-| `internal/tools/shell.go` | Shell deny patterns, command validation |
-| `internal/tools/web_fetch.go` | Web content wrapping, SSRF protection |
-| `internal/permissions/policy.go` | RBAC (3 roles, scope-based access), method routing |
-| `internal/gateway/ratelimit.go` | Gateway-level token bucket rate limiter (per user/IP) |
-| `internal/sandbox/sandbox.go` | Docker sandbox configuration and modes |
-| `internal/sandbox/docker.go` | Docker sandbox creation, execution, pruning |
-| `internal/sandbox/fsbridge.go` | File operations in sandbox (read/write/list) |
-| `internal/crypto/aes.go` | AES-256-GCM encrypt/decrypt |
-| `internal/crypto/apikey.go` | API key generation (format, hash, display prefix) |
-| `internal/tools/types.go` | PathDenyable interface definition |
-| `internal/tools/filesystem.go` | Denied path checking (`checkDeniedPath` helper) |
-| `internal/tools/filesystem_list.go` | Denied path support + directory filtering |
-| `internal/gateway/methods/pairing.go` | Pairing RPC methods (request, approve, deny, list, revoke) |
-| `internal/store/pg/pairing.go` | Pairing store implementation (code generation, TTLs) |
-| `internal/store/pairing_store.go` | Pairing store interface definition |
-| `cmd/pkg-helper/main.go` | Root-privileged helper for apk add/del via Unix socket |
-| `internal/http/packages.go` | HTTP handlers for package management endpoints |
-| `internal/skills/package_lister.go` | Query installed packages from apk/pip3/npm |
-| `docker-entrypoint.sh` | Container initialization: setup runtime dirs, start pkg-helper, drop privileges |
+| Module | Path | Purpose |
+|---|---|---|
+| Input & output protection | `internal/agent/input_guard.go`, `internal/tools/scrub.go`, `internal/tools/shell.go`, `internal/tools/web_fetch.go` | Injection detection, credential scrubbing, shell deny patterns, SSRF protection |
+| Crypto, RBAC & rate limiting | `internal/crypto/`, `internal/permissions/policy.go`, `internal/gateway/ratelimit.go` | AES-256-GCM, API key generation, 3-role RBAC, token bucket |
+| Sandbox & filesystem isolation | `internal/sandbox/`, `internal/tools/filesystem*.go`, `internal/tools/types.go` | Docker sandbox lifecycle, FsBridge, PathDenyable interface |
+| Pairing, packages & container init | `internal/gateway/methods/pairing.go`, `internal/store/pg/pairing.go`, `cmd/pkg-helper/`, `docker-entrypoint.sh` | Browser pairing, pkg-helper Unix socket, container privilege drop |
+
+Use `grep` or your editor's symbol search for specific files.
 
 ---
 

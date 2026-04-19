@@ -723,70 +723,11 @@ Enabled via the `GOCLAW_TRACE_VERBOSE=1` environment variable.
 
 ## 14. File Reference
 
-### Agent Loop (V2 & V3)
+| Module | Path | Purpose |
+|---|---|---|
+| Agent loop & pipeline | `internal/agent/` | V2 runLoop, V3 pipeline adapter, system prompt, resolver, input guard, sanitize, compaction, tracing, orchestration mode, suggestion engine |
+| V3 pipeline stages | `internal/pipeline/` | 8-stage pipeline (context→think→prune→tool→observe→checkpoint→finalize→memory flush), RunState, MessageBuffer |
+| Memory consolidation & vault | `internal/consolidation/`, `internal/vault/` | Episodic/semantic/dreaming workers, vault retriever, L0 auto-injector, wikilinks, FS sync |
+| Infrastructure | `internal/eventbus/`, `internal/tokencount/`, `internal/workspace/`, `internal/bootstrap/` | DomainEventBus, tiktoken counter, WorkspaceContext resolver, bootstrap file loading |
 
-| File | Responsibility |
-|------|---------------|
-| `internal/agent/loop_run.go` | Run() entry point: dual-mode gate (v2 vs v3), trace creation, span management |
-| `internal/agent/loop_pipeline_adapter.go` | Bridge v2 Loop to v3 Pipeline: state conversion, dependency injection, callback wiring |
-| `internal/agent/loop.go` | runLoop() core loop: LLM iteration, tool execution, message buffering (v2 path) |
-| `internal/agent/loop_history.go` | History pipeline: limitHistoryTurns, sanitizeHistory, summary injection |
-| `internal/agent/pruning.go` | Context pruning: 2-pass soft trim and hard clear algorithm (opt-in via PruneStage) |
-| `internal/agent/loop_compact.go` | Mid-loop compaction: in-memory message summarization during iterations |
-| `internal/agent/systemprompt.go` | System prompt assembly (19+ sections), PromptFull and PromptMinimal modes |
-| `internal/agent/systemprompt_sections.go` | Individual section builders (tooling, workspace, sandbox, skills, MCP, etc.) |
-| `internal/agent/resolver.go` | ManagedResolver: lazy Loop creation from PostgreSQL, provider resolution, bootstrap loading |
-| `internal/agent/loop_tracing.go` | Trace and span creation, verbose mode input capture, span finalization |
-| `internal/agent/input_guard.go` | Input Guard: 6 regex patterns, 4 action modes, security logging |
-| `internal/agent/sanitize.go` | 7-step output sanitization pipeline |
-| `internal/agent/memoryflush.go` | Pre-compaction memory flush: embedded agent turn with write_file tool |
-| `internal/agent/toolloop.go` | Tool execution and loop detection (no-progress warnings) |
-| `internal/agent/orchestration_mode.go` | OrchestrationMode enum: spawn/delegate/team, mode resolution logic, prompt section data |
-| `internal/agent/suggestion_engine.go` | SuggestionEngine: metrics analysis, rule evaluation, evolution suggestion generation |
-| `internal/agent/evolution_guardrails.go` | AdaptationGuardrails: safety checks for auto-adaptation, delta constraints, rollback logic |
-| `internal/bootstrap/files.go` | Bootstrap file loading and context file preparation |
-
-### V3 Pipeline
-
-| File | Responsibility |
-|------|---------------|
-| `internal/pipeline/pipeline.go` | Pipeline orchestrator: setup → iteration → finalize stage execution |
-| `internal/pipeline/stage.go` | Stage interface: Execute(ctx, state), StageResult (Continue/BreakLoop/AbortRun) |
-| `internal/pipeline/context_stage.go` | ContextStage: context injection, workspace resolution, per-user file setup |
-| `internal/pipeline/think_stage.go` | ThinkStage: system prompt building, tool filtering, LLM call |
-| `internal/pipeline/prune_stage.go` | PruneStage: context pruning (2-pass), memory flush trigger |
-| `internal/pipeline/tool_stage.go` | ToolStage: tool execution (serial/parallel), result processing |
-| `internal/pipeline/observe_stage.go` | ObserveStage: tool result stream handling, NO_REPLY detection |
-| `internal/pipeline/checkpoint_stage.go` | CheckpointStage: iteration tracking, exit conditions |
-| `internal/pipeline/finalize_stage.go` | FinalizeStage: output sanitization, message flush, metadata update |
-| `internal/pipeline/memory_flush_stage.go` | MemoryFlushStage: pre-compaction memory persistence |
-| `internal/pipeline/run_state.go` | RunState: mutable pipeline state, iteration tracking, exit codes |
-| `internal/pipeline/substates.go` | Sub-state structures (messages, tool results, context) |
-| `internal/pipeline/message_buffer.go` | MessageBuffer: deferred message persistence |
-
-### V3 Memory & Knowledge
-
-| File | Responsibility |
-|------|---------------|
-| `internal/consolidation/episodic_worker.go` | Episodic memory: extract facts from runs, cluster by topic, embed |
-| `internal/consolidation/semantic_worker.go` | Semantic memory: reprocess episodic clusters, generate abstractions |
-| `internal/consolidation/dreaming_worker.go` | Dreaming worker: synthesize insights, cross-link memories, drive evolution |
-| `internal/consolidation/dedup_worker.go` | Dedup worker: prevent duplicate entries, maintain consistency |
-| `internal/consolidation/workers.go` | Worker pool startup and lifecycle |
-| `internal/vault/retriever_impl.go` | Vault retrieval: hybrid search (BM25+vector), RRF ranking |
-| `internal/vault/auto_injector_impl.go` | L0 auto-injection: top-K vault entries into system prompt |
-| `internal/vault/links.go` | Wikilink parsing and semantic mesh construction |
-| `internal/vault/sync_worker.go` | Filesystem sync: vault → .md files, .md → vault re-import |
-
-### V3 Infrastructure
-
-| File | Responsibility |
-|------|---------------|
-| `internal/eventbus/domain_event_bus.go` | DomainEventBus interface: Publish, Subscribe, Start, Drain |
-| `internal/eventbus/bus_impl.go` | BusImpl: worker pool, event dedup, retry with backoff |
-| `internal/eventbus/event_types.go` | DomainEvent type definitions, EventType enums |
-| `internal/tokencount/tiktoken_counter.go` | Tiktoken BPE token counter (cl100k_base for OpenAI models) |
-| `internal/tokencount/token_counter.go` | TokenCounter interface and factory |
-| `internal/tokencount/fallback_counter.go` | Fallback counter (linear estimation) if tiktoken unavailable |
-| `internal/workspace/resolver_impl.go` | WorkspaceContext resolver: 6 scenarios, context variables |
-| `internal/workspace/workspace_context.go` | WorkspaceContext data structure and context injection |
+Use `grep` or your editor's symbol search for specific files.
