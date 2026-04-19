@@ -206,6 +206,8 @@ func init() {
 		MsgTtsGeminiInvalidModel:  "无效的 Gemini TTS 模型：%s",
 		MsgTtsParamOutOfRange:     "TTS 参数 %q 的值 %v 超出范围 [%v, %v]",
 		MsgTtsParamDependsOn:      "TTS 参数 %q 需要将 %q 设置为 %q",
+		MsgTtsParamInvalidJSON:    "TTS 参数 %q 包含无效的 JSON（长度 %d）",
+		MsgTtsParamUnknownKey:     "TTS 参数 %q 不受此提供商支持",
 		MsgTtsMiniMaxVoicesFailed: "获取 MiniMax 声音列表失败：%s",
 
 		// STT

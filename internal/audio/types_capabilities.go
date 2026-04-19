@@ -3,6 +3,7 @@ package audio
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -58,6 +59,9 @@ type ParamSchema struct {
 	Step        *float64     `json:"step,omitempty"` // for range
 	Enum        []EnumOption `json:"enum,omitempty"`
 	DependsOn   []Dependency `json:"depends_on,omitempty"`
+	// Group categorises the param for collapsible UI sections.
+	// "" (empty) = basic (always visible); "advanced" = collapsed by default.
+	Group string `json:"group,omitempty"`
 }
 
 // ProviderCapabilities is the catalog entry for a single TTS provider.
@@ -109,10 +113,8 @@ func parseKeyPath(key string) ([]string, error) {
 		return nil, errors.New("key path must not be empty")
 	}
 	parts := strings.Split(key, ".")
-	for _, p := range parts {
-		if p == "" {
-			return nil, errors.New("key path must not contain empty segments: " + key)
-		}
+	if slices.Contains(parts, "") {
+		return nil, errors.New("key path must not contain empty segments: " + key)
 	}
 	return parts, nil
 }

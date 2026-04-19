@@ -9,11 +9,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 )
+
+// pronunciationDictMaxBytes is the maximum accepted byte length for the
+// pronunciation_dict param value. Finding #6: cap at 8 KB to prevent DoS.
+const pronunciationDictMaxBytes = 8 * 1024
 
 // Config configures the MiniMax TTS provider.
 type Config struct {
@@ -67,15 +72,18 @@ func (p *Provider) Name() string { return "minimax" }
 // audio in response.data.audio — we decode before returning.
 //
 // opts.Params keys (nested dot-path):
-//   - "speed"              float64  (0.5–2.0, default 1.0)
-//   - "vol"                float64  (0.01–10.0, default 1.0; omitted from body at default)
-//   - "pitch"              int      (-12..12, default 0)
-//   - "emotion"            string   (optional)
-//   - "text_normalization" bool     (optional)
-//   - "audio.format"       string   (mp3/pcm/flac/wav, default "mp3")
-//   - "audio.sample_rate"  string   (optional)
-//   - "audio.bitrate"      string   (optional, mp3 only)
-//   - "audio.channel"      string   (optional)
+//   - "speed"               float64  (0.5–2.0, default 1.0)
+//   - "vol"                 float64  (0.01–10.0, default 1.0; omitted from body at default)
+//   - "pitch"               int      (-12..12, default 0)
+//   - "emotion"             string   (optional)
+//   - "text_normalization"  bool     (optional)
+//   - "audio.format"        string   (mp3/pcm/flac/wav, default "mp3")
+//   - "audio.sample_rate"   string   (optional)
+//   - "audio.bitrate"       string   (optional, mp3 only)
+//   - "audio.channel"       string   (optional)
+//   - "language_boost"      string   (optional, e.g. "Chinese", "English")
+//   - "subtitle_enable"     bool     (optional)
+//   - "pronunciation_dict"  string   (optional JSON array, max 8 KB; Finding #6)
 //
 // MUST NOT mutate opts.Params — reads only.
 func (p *Provider) Synthesize(ctx context.Context, text string, opts audio.TTSOptions) (*audio.SynthResult, error) {
@@ -152,6 +160,33 @@ func (p *Provider) Synthesize(ctx context.Context, text string, opts audio.TTSOp
 	// text_normalization only when explicitly set.
 	if tn, ok := resolveMiniMaxBoolExplicit(opts.Params, "text_normalization"); ok {
 		body["text_normalization"] = tn
+	}
+
+	// language_boost: top-level string hint (omit when empty).
+	if lb := resolveMiniMaxString(opts.Params, "language_boost", ""); lb != "" {
+		body["language_boost"] = lb
+	}
+
+	// subtitle_enable: only when explicitly set.
+	if se, ok := resolveMiniMaxBoolExplicit(opts.Params, "subtitle_enable"); ok {
+		body["subtitle_enable"] = se
+	}
+
+	// pronunciation_dict: parse user-pasted JSON array, wrap in {"tone":[...]}.
+	// Finding #6: cap at 8 KB; never log raw value on parse failure — log length only.
+	if pdRaw := resolveMiniMaxString(opts.Params, "pronunciation_dict", ""); pdRaw != "" {
+		if len(pdRaw) > pronunciationDictMaxBytes {
+			slog.Warn("minimax: pronunciation_dict exceeds 8 KB limit, omitting",
+				"length", len(pdRaw))
+		} else {
+			var rules []string
+			if err := json.Unmarshal([]byte(pdRaw), &rules); err != nil {
+				slog.Warn("minimax: invalid pronunciation_dict JSON, omitting",
+					"length", len(pdRaw))
+			} else if len(rules) > 0 {
+				body["pronunciation_dict"] = map[string]any{"tone": rules}
+			}
+		}
 	}
 
 	bodyJSON, err := json.Marshal(body)

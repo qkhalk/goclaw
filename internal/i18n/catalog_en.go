@@ -206,6 +206,8 @@ func init() {
 		MsgTtsGeminiInvalidModel:  "invalid Gemini TTS model: %s",
 		MsgTtsParamOutOfRange:     "TTS param %q value %v is out of range [%v, %v]",
 		MsgTtsParamDependsOn:      "TTS param %q requires %q to be %q",
+		MsgTtsParamInvalidJSON:    "TTS param %q contains invalid JSON (length %d)",
+		MsgTtsParamUnknownKey:     "TTS param %q is not supported by this provider",
 		MsgTtsMiniMaxVoicesFailed: "failed to fetch MiniMax voices: %s",
 
 		// STT

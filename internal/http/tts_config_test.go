@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -50,9 +51,7 @@ func (s *validationSystemConfigStore) List(ctx context.Context) (map[string]stri
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make(map[string]string, len(s.data))
-	for k, v := range s.data {
-		out[k] = v
-	}
+	maps.Copy(out, s.data)
 	return out, nil
 }
 
@@ -88,9 +87,7 @@ func (s *validationSecretsStore) GetAll(ctx context.Context) (map[string]string,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make(map[string]string, len(s.data))
-	for k, v := range s.data {
-		out[k] = v
-	}
+	maps.Copy(out, s.data)
 	return out, nil
 }
 

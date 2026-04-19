@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"regexp"
+	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 )
@@ -27,6 +30,40 @@ func NewTTSProvider(cfg Config) *TTSProvider {
 // Name returns the stable provider identifier used by the Manager.
 func (p *TTSProvider) Name() string { return "elevenlabs" }
 
+// reOutputFormat validates output_format query param: lowercase alphanumeric + underscore only.
+// Finding #4: prevents HTTP Parameter Pollution / injection via user-controlled format string.
+var reOutputFormat = regexp.MustCompile(`^[a-z0-9_]+$`)
+
+// reLanguageCode validates language_code: BCP-47 subset (2–3 letter lang + optional region).
+// Finding #4: prevents injection via user-controlled language code.
+var reLanguageCode = regexp.MustCompile(`^[a-z]{2,3}(-[A-Z]{2})?$`)
+
+// FormatMeta maps an ElevenLabs output_format string to the file extension and
+// MIME type to use in SynthResult. All pcm_* variants use audio/pcm (single MIME
+// per Finding #7 — no per-rate variants). Exported for white-box tests.
+//
+// Telegram opus contract (Finding #11): this function is NOT called when
+// opts.Format=="opus"; that path hardcodes ext=ogg / mime=audio/ogg; codecs=opus.
+func FormatMeta(format string) (ext, mime string) {
+	switch {
+	case strings.HasPrefix(format, "mp3_"):
+		return "mp3", "audio/mpeg"
+	case strings.HasPrefix(format, "opus_"):
+		return "opus", "audio/opus"
+	case strings.HasPrefix(format, "pcm_"):
+		return "pcm", "audio/pcm"
+	case strings.HasPrefix(format, "wav_"):
+		return "wav", "audio/wav"
+	case format == "ulaw_8000":
+		return "ulaw", "audio/basic"
+	case format == "alaw_8000":
+		return "alaw", "audio/x-alaw"
+	default:
+		// Unknown format: fall back to mp3 so callers get a usable MIME type.
+		return "mp3", "audio/mpeg"
+	}
+}
+
 // Synthesize converts text to audio. Opts.Voice/Opts.Model override the
 // configured defaults; Opts.Format="opus" switches to Ogg Opus output.
 // opts.Params keys (nested dot-path):
@@ -39,6 +76,7 @@ func (p *TTSProvider) Name() string { return "elevenlabs" }
 //   - "seed"                            int      (default 0 = omitted)
 //   - "optimize_streaming_latency"      int      (query param, default 0 = omitted)
 //   - "language_code"                   string   (query param, default "" = omitted)
+//   - "output_format"                   string   (query param, default "mp3_44100_128")
 //
 // MUST NOT mutate opts.Params — reads only.
 func (p *TTSProvider) Synthesize(ctx context.Context, text string, opts audio.TTSOptions) (*audio.SynthResult, error) {
@@ -54,15 +92,30 @@ func (p *TTSProvider) Synthesize(ctx context.Context, text string, opts audio.TT
 		return nil, err
 	}
 
-	// Output format: MP3 128kbps default, Opus 64kbps for Telegram voice.
-	outputFormat, ext, mime := "mp3_44100_128", "mp3", "audio/mpeg"
+	// Telegram opus contract (Finding #11): when opts.Format=="opus", force
+	// ogg/Opus MIME regardless of any user-set output_format param. This
+	// preserves Telegram voice-bubble compatibility — Telegram rejects audio/opus
+	// MIME; user param affects upstream codec selection only.
+	var ext, mime string
+	var outputFormat string
 	if opts.Format == "opus" {
-		outputFormat, ext, mime = "opus_48000_64", "ogg", "audio/ogg"
-	}
+		outputFormat = "opus_48000_64"
+		ext = "ogg"
+		mime = "audio/ogg; codecs=opus"
+	} else {
+		// Default output format; may be overridden by opts.Params below.
+		outputFormat = "mp3_44100_128"
+		ext = "mp3"
+		mime = "audio/mpeg"
 
-	// Override output format from params if provided (27 codecs supported).
-	if pf := resolveELString(opts.Params, "output_format", ""); pf != "" {
-		outputFormat = pf
+		// Honor user-set output_format (Finding #4: validate before use).
+		if pf := resolveELString(opts.Params, "output_format", ""); pf != "" {
+			if !reOutputFormat.MatchString(pf) {
+				return nil, fmt.Errorf("elevenlabs: invalid output_format %q (must match ^[a-z0-9_]+$)", pf)
+			}
+			outputFormat = pf
+			ext, mime = FormatMeta(outputFormat)
+		}
 	}
 
 	// Build voice_settings from params, falling back to hardcoded defaults.
@@ -94,14 +147,21 @@ func (p *TTSProvider) Synthesize(ctx context.Context, text string, opts audio.TT
 		return nil, fmt.Errorf("marshal elevenlabs tts request: %w", err)
 	}
 
-	// Build path with query params.
-	path := fmt.Sprintf("/v1/text-to-speech/%s?output_format=%s", voiceID, outputFormat)
+	// Build URL path with query params using url.Values to prevent injection
+	// (Finding #4: no more raw fmt.Sprintf concatenation).
+	q := url.Values{}
+	q.Set("output_format", outputFormat)
 	if latency := resolveELInt(opts.Params, "optimize_streaming_latency", -1); latency > 0 {
-		path += fmt.Sprintf("&optimize_streaming_latency=%d", latency)
+		q.Set("optimize_streaming_latency", fmt.Sprintf("%d", latency))
 	}
 	if lang := resolveELString(opts.Params, "language_code", ""); lang != "" {
-		path += "&language_code=" + lang
+		// Finding #4: validate language_code before appending to URL.
+		if !reLanguageCode.MatchString(lang) {
+			return nil, fmt.Errorf("elevenlabs: invalid language_code %q (must match ^[a-z]{2,3}(-[A-Z]{2})?$)", lang)
+		}
+		q.Set("language_code", lang)
 	}
+	path := "/v1/text-to-speech/" + voiceID + "?" + q.Encode()
 
 	audioBytes, err := p.c.postJSON(ctx, path, bodyJSON, 0)
 	if err != nil {

@@ -76,6 +76,90 @@ func TestSynthesize_AppliesParams_OmitsEmpty_NilParams(t *testing.T) {
 	if _, ok := vs["emotion"]; ok {
 		t.Error("emotion must not appear for nil params")
 	}
+	// New params must also be absent for nil params.
+	if _, ok := body["language_boost"]; ok {
+		t.Error("language_boost must not appear for nil params")
+	}
+	if _, ok := body["subtitle_enable"]; ok {
+		t.Error("subtitle_enable must not appear for nil params")
+	}
+	if _, ok := body["pronunciation_dict"]; ok {
+		t.Error("pronunciation_dict must not appear for nil params")
+	}
+}
+
+// TestSynthesize_AppliesParams_LanguageBoost verifies language_boost top-level field.
+func TestSynthesize_AppliesParams_LanguageBoost(t *testing.T) {
+	cfg := minimax.Config{APIKey: "k", GroupID: "g"}
+	body, _ := captureMiniMaxBody(t, cfg, audio.TTSOptions{
+		Params: map[string]any{"language_boost": "Chinese"},
+	})
+	if lb, _ := body["language_boost"].(string); lb != "Chinese" {
+		t.Errorf("language_boost: got %q, want Chinese", body["language_boost"])
+	}
+}
+
+// TestSynthesize_AppliesParams_SubtitleEnable verifies subtitle_enable top-level field.
+func TestSynthesize_AppliesParams_SubtitleEnable(t *testing.T) {
+	cfg := minimax.Config{APIKey: "k", GroupID: "g"}
+	body, _ := captureMiniMaxBody(t, cfg, audio.TTSOptions{
+		Params: map[string]any{"subtitle_enable": true},
+	})
+	if se, _ := body["subtitle_enable"].(bool); !se {
+		t.Errorf("subtitle_enable: got %v, want true", body["subtitle_enable"])
+	}
+}
+
+// TestSynthesize_AppliesParams_PronunciationDict verifies that a valid JSON array
+// is wrapped in {"tone":[...]} in the request body.
+func TestSynthesize_AppliesParams_PronunciationDict(t *testing.T) {
+	cfg := minimax.Config{APIKey: "k", GroupID: "g"}
+	body, _ := captureMiniMaxBody(t, cfg, audio.TTSOptions{
+		Params: map[string]any{"pronunciation_dict": `["omg/Oh my god"]`},
+	})
+	pd, ok := body["pronunciation_dict"].(map[string]any)
+	if !ok {
+		t.Fatalf("pronunciation_dict: expected object, got %T (%v)", body["pronunciation_dict"], body["pronunciation_dict"])
+	}
+	tone, ok := pd["tone"].([]any)
+	if !ok {
+		t.Fatalf("pronunciation_dict.tone: expected array, got %T", pd["tone"])
+	}
+	if len(tone) != 1 {
+		t.Fatalf("pronunciation_dict.tone: want 1 entry, got %d", len(tone))
+	}
+	if tone[0] != "omg/Oh my god" {
+		t.Errorf("pronunciation_dict.tone[0]: got %q, want omg/Oh my god", tone[0])
+	}
+}
+
+// TestSynthesize_PronunciationDict_InvalidJSON verifies that malformed JSON is
+// silently omitted (synth continues) and the field is absent from the body.
+func TestSynthesize_PronunciationDict_InvalidJSON(t *testing.T) {
+	cfg := minimax.Config{APIKey: "k", GroupID: "g"}
+	body, _ := captureMiniMaxBody(t, cfg, audio.TTSOptions{
+		Params: map[string]any{"pronunciation_dict": `not valid json`},
+	})
+	if _, ok := body["pronunciation_dict"]; ok {
+		t.Error("pronunciation_dict: must be omitted when JSON is invalid")
+	}
+}
+
+// TestSynthesize_PronunciationDict_ExceedsLimit verifies that a value exceeding
+// 8 KB is silently omitted (Finding #6).
+func TestSynthesize_PronunciationDict_ExceedsLimit(t *testing.T) {
+	cfg := minimax.Config{APIKey: "k", GroupID: "g"}
+	// Build a string > 8192 bytes.
+	large := make([]byte, 9000)
+	for i := range large {
+		large[i] = 'a'
+	}
+	body, _ := captureMiniMaxBody(t, cfg, audio.TTSOptions{
+		Params: map[string]any{"pronunciation_dict": string(large)},
+	})
+	if _, ok := body["pronunciation_dict"]; ok {
+		t.Error("pronunciation_dict: must be omitted when value exceeds 8 KB limit")
+	}
 }
 
 func TestSynthesize_DoesNotMutateCallerParams(t *testing.T) {

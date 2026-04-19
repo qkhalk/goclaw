@@ -24,9 +24,12 @@ var (
 
 // minimaxParams is the enriched param schema for MiniMax TTS.
 // Defaults MUST match the hardcoded body in tts.go (characterization fixture):
-//   speed=1.0, vol=1.0 (omitted from original = 1.0 default), pitch=0.
-// Note: "vol" key is not in the original body; adding it with default 1.0
-// is safe because server default is also 1.0.
+//
+//	speed=1.0, vol=1.0 (omitted from original = 1.0 default), pitch=0.
+//
+// Group tagging (§Requirements #7):
+//   - audio.bitrate, audio.sample_rate, audio.channel, pronunciation_dict = "advanced"
+//   - all others = "" (basic)
 var minimaxParams = []audio.ParamSchema{
 	{
 		Key:         "speed",
@@ -99,6 +102,7 @@ var minimaxParams = []audio.ParamSchema{
 		Type:    audio.ParamTypeEnum,
 		Label:   "Sample Rate",
 		Default: "",
+		Group:   "advanced",
 		Enum: []audio.EnumOption{
 			{Value: "", Label: "Default"},
 			{Value: "8000", Label: "8 kHz"},
@@ -114,6 +118,7 @@ var minimaxParams = []audio.ParamSchema{
 		Type:    audio.ParamTypeEnum,
 		Label:   "Bitrate (MP3 only)",
 		Default: "",
+		Group:   "advanced",
 		Enum: []audio.EnumOption{
 			{Value: "", Label: "Default"},
 			{Value: "32000", Label: "32 kbps"},
@@ -130,11 +135,62 @@ var minimaxParams = []audio.ParamSchema{
 		Type:    audio.ParamTypeEnum,
 		Label:   "Channels",
 		Default: "",
+		Group:   "advanced",
 		Enum: []audio.EnumOption{
 			{Value: "", Label: "Default"},
 			{Value: "1", Label: "Mono"},
 			{Value: "2", Label: "Stereo"},
 		},
+	},
+	// language_boost: top-level hint for language/accent recognition.
+	{
+		Key:   "language_boost",
+		Type:  audio.ParamTypeEnum,
+		Label: "Language Boost",
+		Description: "Accent/language recognition boost. Helps the model produce more natural " +
+			"pronunciation for the selected language.",
+		Default: "",
+		Enum: []audio.EnumOption{
+			{Value: "", Label: "Auto (default)"},
+			{Value: "Chinese,Yue", Label: "Cantonese"},
+			{Value: "Chinese", Label: "Mandarin"},
+			{Value: "English", Label: "English"},
+			{Value: "Arabic", Label: "Arabic"},
+			{Value: "Russian", Label: "Russian"},
+			{Value: "Spanish", Label: "Spanish"},
+			{Value: "French", Label: "French"},
+			{Value: "Portuguese", Label: "Portuguese"},
+			{Value: "German", Label: "German"},
+			{Value: "Turkish", Label: "Turkish"},
+			{Value: "Dutch", Label: "Dutch"},
+			{Value: "Ukrainian", Label: "Ukrainian"},
+			{Value: "Vietnamese", Label: "Vietnamese"},
+			{Value: "Indonesian", Label: "Indonesian"},
+			{Value: "Italian", Label: "Italian"},
+			{Value: "Korean", Label: "Korean"},
+			{Value: "Japanese", Label: "Japanese"},
+			{Value: "Hindi", Label: "Hindi"},
+		},
+	},
+	// subtitle_enable: whether to return subtitle timing data alongside audio.
+	{
+		Key:         "subtitle_enable",
+		Type:        audio.ParamTypeBoolean,
+		Label:       "Subtitle Enable",
+		Description: "When enabled, the API returns word-level subtitle timing in the response.",
+		Default:     nil, // omit when not explicitly set
+	},
+	// pronunciation_dict: JSON array of "word/pinyin" rule strings for custom pronunciation.
+	// Capped at 8KB pre-accept (Finding #6). On parse failure: log + omit, synth continues.
+	{
+		Key:  "pronunciation_dict",
+		Type: audio.ParamTypeText,
+		Label: "Pronunciation Dictionary",
+		Description: `Custom pronunciation rules as a JSON array of "word/pinyin" strings, ` +
+			`e.g. ["omg/Oh my god", "CEO/Chief Executive Officer"]. ` +
+			`Maximum 8 KB. Advanced.`,
+		Default: nil,
+		Group:   "advanced",
 	},
 }
 

@@ -65,8 +65,9 @@ var openAIParams = []audio.ParamSchema{
 		Key:         "instructions",
 		Type:        audio.ParamTypeText,
 		Label:       "Instructions",
-		Description: "System-level style prompt (gpt-4o-mini-tts only).",
+		Description: "System-level style prompt (gpt-4o-mini-tts only). Advanced.",
 		Default:     "",
+		Group:       "advanced",
 		DependsOn: []audio.Dependency{
 			{Field: "model", Op: "eq", Value: "gpt-4o-mini-tts"},
 		},

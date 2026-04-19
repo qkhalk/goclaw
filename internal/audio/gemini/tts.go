@@ -105,14 +105,30 @@ func (p *Provider) Synthesize(ctx context.Context, text string, opts audio.TTSOp
 	// Per Gemini generateContent spec, speechConfig is NESTED under
 	// generationConfig — not a top-level field. Sending it at root returns
 	// 400 "Unknown name 'speechConfig': Cannot find field."
+	generationConfig := map[string]any{
+		"responseModalities": []string{"AUDIO"},
+		"speechConfig":       speechConfig,
+	}
+	// Merge optional params into generationConfig — only when explicitly present
+	// in opts.Params (nil default = omit from body, preserving characterization).
+	if temp, ok := resolveGeminiFloatExplicit(opts.Params, "temperature"); ok {
+		generationConfig["temperature"] = temp
+	}
+	if seed, ok := resolveGeminiIntExplicit(opts.Params, "seed"); ok {
+		generationConfig["seed"] = seed
+	}
+	if pp, ok := resolveGeminiFloatExplicit(opts.Params, "presencePenalty"); ok {
+		generationConfig["presencePenalty"] = pp
+	}
+	if fp, ok := resolveGeminiFloatExplicit(opts.Params, "frequencyPenalty"); ok {
+		generationConfig["frequencyPenalty"] = fp
+	}
+
 	reqBody := map[string]any{
 		"contents": []map[string]any{
 			{"parts": []map[string]any{{"text": text}}},
 		},
-		"generationConfig": map[string]any{
-			"responseModalities": []string{"AUDIO"},
-			"speechConfig":       speechConfig,
-		},
+		"generationConfig": generationConfig,
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -235,6 +251,49 @@ func (p *Provider) requestAudio(ctx context.Context, model string, bodyBytes []b
 		Extension: "wav",
 		MimeType:  "audio/wav",
 	}, nil
+}
+
+// resolveGeminiFloatExplicit returns (value, true) only when the key is explicitly
+// present in opts.Params, so callers can omit the generationConfig field entirely
+// when not set. Mirrors resolveMiniMaxBoolExplicit in minimax/tts.go.
+func resolveGeminiFloatExplicit(params map[string]any, key string) (float64, bool) {
+	if params == nil {
+		return 0, false
+	}
+	v, ok := audio.GetNested(params, key)
+	if !ok {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	}
+	return 0, false
+}
+
+// resolveGeminiIntExplicit returns (value, true) only when the key is explicitly
+// present in opts.Params as an integer-compatible type.
+func resolveGeminiIntExplicit(params map[string]any, key string) (int, bool) {
+	if params == nil {
+		return 0, false
+	}
+	v, ok := audio.GetNested(params, key)
+	if !ok {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	}
+	return 0, false
 }
 
 // isTransientFinishReason reports whether a Gemini finishReason represents a

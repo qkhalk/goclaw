@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -236,6 +238,8 @@ func (h *TTSConfigHandler) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	locale := store.LocaleFromContext(ctx)
+
 	var req ttsConfigSaveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"invalid json: %s"}`, err.Error()), http.StatusBadRequest)
@@ -322,29 +326,30 @@ func (h *TTSConfigHandler) handleSave(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		// Dual-write: save params blobs alongside legacy flat keys for rollback safety.
+		// Dual-write: validate then save params blobs alongside legacy flat keys.
+		// Finding #3: ValidateParams enforces Min/Max/Enum + rejects unknown keys.
 		if req.OpenAI != nil && req.OpenAI.Params != nil {
-			if !saveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.openai.params", req.OpenAI.Params) {
+			if !validateAndSaveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.openai.params", "openai", req.OpenAI.Params, locale) {
 				return
 			}
 		}
 		if req.ElevenLabs != nil && req.ElevenLabs.Params != nil {
-			if !saveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.elevenlabs.params", req.ElevenLabs.Params) {
+			if !validateAndSaveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.elevenlabs.params", "elevenlabs", req.ElevenLabs.Params, locale) {
 				return
 			}
 		}
 		if req.Edge != nil && req.Edge.Params != nil {
-			if !saveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.edge.params", req.Edge.Params) {
+			if !validateAndSaveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.edge.params", "edge", req.Edge.Params, locale) {
 				return
 			}
 		}
 		if req.MiniMax != nil && req.MiniMax.Params != nil {
-			if !saveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.minimax.params", req.MiniMax.Params) {
+			if !validateAndSaveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.minimax.params", "minimax", req.MiniMax.Params, locale) {
 				return
 			}
 		}
 		if req.Gemini != nil && req.Gemini.Params != nil {
-			if !saveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.gemini.params", req.Gemini.Params) {
+			if !validateAndSaveParamsBlob(w, ctx, h.systemConfigs.Set, "tts.gemini.params", "gemini", req.Gemini.Params, locale) {
 				return
 			}
 		}
@@ -522,4 +527,36 @@ func saveParamsBlob(w http.ResponseWriter, ctx context.Context, setFn func(conte
 		return false
 	}
 	return saveOrFail(w, ctx, setFn, key, string(blob), key)
+}
+
+// validateAndSaveParamsBlob validates params against the named provider's capability
+// schema (Finding #3) then persists via saveParamsBlob. Returns false and writes
+// 422 on validation failure, 500 on marshal/store error.
+func validateAndSaveParamsBlob(w http.ResponseWriter, ctx context.Context, setFn func(context.Context, string, string) error, key, providerName string, params map[string]any, locale string) bool {
+	// Look up schema from builtin capabilities catalog.
+	var schema []audio.ParamSchema
+	for _, cap := range builtinTTSCapabilities() {
+		if cap.Provider == providerName {
+			schema = cap.Params
+			break
+		}
+	}
+
+	if err := audio.ValidateParams(schema, params); err != nil {
+		slog.Warn("tts.config: invalid params", "provider", providerName, "error", err)
+		var ukErr audio.ErrTTSParamUnknownKey
+		var orErr audio.ErrTTSParamOutOfRange
+		var msg string
+		switch {
+		case errors.As(err, &ukErr):
+			msg = i18n.T(locale, i18n.MsgTtsParamUnknownKey, ukErr.Key)
+		case errors.As(err, &orErr):
+			msg = i18n.T(locale, i18n.MsgTtsParamOutOfRange, orErr.Key, orErr.Val, orErr.Min, orErr.Max)
+		default:
+			msg = err.Error()
+		}
+		http.Error(w, fmt.Sprintf(`{"error":%q}`, msg), http.StatusUnprocessableEntity)
+		return false
+	}
+	return saveParamsBlob(w, ctx, setFn, key, params)
 }

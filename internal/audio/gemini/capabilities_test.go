@@ -40,10 +40,11 @@ func TestCapabilities_RequiresAPIKey(t *testing.T) {
 	}
 }
 
-func TestCapabilities_ParamsEmpty(t *testing.T) {
+func TestCapabilities_ParamsPopulated(t *testing.T) {
 	p := NewProvider(Config{APIKey: "k"})
 	caps := p.Capabilities()
-	if caps.Params != nil {
-		t.Errorf("want Params nil (no speed/pitch), got %v", caps.Params)
+	// Phase 1: Gemini now exposes 4 params (temperature + seed + presencePenalty + frequencyPenalty).
+	if len(caps.Params) != 4 {
+		t.Errorf("want 4 params, got %d", len(caps.Params))
 	}
 }

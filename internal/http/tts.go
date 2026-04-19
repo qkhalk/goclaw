@@ -145,6 +145,30 @@ func (h *TTSHandler) handleSynthesize(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Validate tenant params against the provider's capability schema (Finding #3).
+	// Rejects unknown keys and out-of-range values before forwarding to the provider.
+	if len(tenantParams) > 0 {
+		if dp, ok := p.(audio.DescribableProvider); ok {
+			caps := dp.Capabilities()
+			if err := audio.ValidateParams(caps.Params, tenantParams); err != nil {
+				slog.Warn("tts.synthesize.invalid-params", "provider", name, "error", err)
+				var ukErr audio.ErrTTSParamUnknownKey
+				var orErr audio.ErrTTSParamOutOfRange
+				switch {
+				case errors.As(err, &ukErr):
+					msg := i18n.T(locale, i18n.MsgTtsParamUnknownKey, ukErr.Key)
+					http.Error(w, fmt.Sprintf(`{"error":%q}`, msg), http.StatusUnprocessableEntity)
+				case errors.As(err, &orErr):
+					msg := i18n.T(locale, i18n.MsgTtsParamOutOfRange, orErr.Key, orErr.Val, orErr.Min, orErr.Max)
+					http.Error(w, fmt.Sprintf(`{"error":%q}`, msg), http.StatusUnprocessableEntity)
+				default:
+					http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusUnprocessableEntity)
+				}
+				return
+			}
+		}
+	}
+
 	// Synthesize with a 15-second deadline.
 	synthCtx, cancel := context.WithTimeout(ctx, synthesizeTimeout)
 	defer cancel()
@@ -284,16 +308,25 @@ func (h *TTSHandler) resolveTenantProvider(ctx context.Context, explicitProvider
 	return provider, providerName, req.Params, nil
 }
 
+// paramsMaxBytes is the maximum byte length accepted for a stored params blob.
+// Finding #6: cap at 16 KB to prevent oversized JSON DoS.
+const paramsMaxBytes = 16 * 1024
+
 // loadParamsBlob reads a JSON blob from system_configs and returns it as map[string]any.
-// Returns nil when the key is absent or the value is not valid JSON.
+// Returns nil when the key is absent, the value exceeds 16 KB, or the value is not valid JSON.
+// Never logs the raw value — logs length only on parse failure (Finding #6).
 func loadParamsBlob(ctx context.Context, sc store.SystemConfigStore, key string) map[string]any {
 	raw, err := sc.Get(ctx, key)
 	if err != nil || raw == "" {
 		return nil
 	}
+	if len(raw) > paramsMaxBytes {
+		slog.Warn("tts: params blob exceeds 16 KB limit, ignoring", "key", key, "length", len(raw))
+		return nil
+	}
 	var m map[string]any
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
-		slog.Warn("tts: invalid params blob", "key", key, "error", err)
+		slog.Warn("tts: invalid params blob", "key", key, "length", len(raw))
 		return nil
 	}
 	return m
