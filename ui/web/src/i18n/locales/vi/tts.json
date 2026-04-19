@@ -255,6 +255,8 @@
     "requiresProvider": "Chọn provider ở trên để bật phát thử."
   },
   "advanced": {
-    "title": "Cài đặt nâng cao"
+    "title": "Cài đặt nâng cao",
+    "count": "{{count}} cài đặt nâng cao",
+    "count_one": "{{count}} cài đặt nâng cao"
   }
 }

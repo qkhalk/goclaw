@@ -255,6 +255,8 @@
     "requiresProvider": "Select a provider above to enable test playback."
   },
   "advanced": {
-    "title": "Advanced settings"
+    "title": "Advanced settings",
+    "count": "{{count}} advanced settings",
+    "count_one": "{{count}} advanced setting"
   }
 }

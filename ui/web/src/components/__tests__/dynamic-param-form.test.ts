@@ -1,10 +1,11 @@
 /**
  * Pure-logic tests for DynamicParamForm utilities.
  * NO @testing-library/react — tests isolate state-shape transforms only.
- * Covers: evaluateDependsOn, initializeDefaults, applyNestedChange, rendererDispatch, edge cases.
+ * Covers: evaluateDependsOn, initializeDefaults, applyNestedChange, rendererDispatch,
+ *         partitionSchema, advanced toggle count badge, cross-group DependsOn, edge cases.
  */
 import { describe, it, expect, vi } from "vitest";
-import { evaluateDependsOn } from "../dynamic-param-form";
+import { evaluateDependsOn, partitionSchema } from "../dynamic-param-form";
 import {
   initializeDefaults,
   applyNestedChange,
@@ -178,5 +179,129 @@ describe("empty enum handling", () => {
     // Logic-level: verify defaults apply correctly
     const defaults = initializeDefaults([schema]);
     expect(defaults["format"]).toBe("");
+  });
+});
+
+// ---- partitionSchema ----
+
+describe("partitionSchema", () => {
+  it("puts group='advanced' params into advanced bucket", () => {
+    const schema: ParamSchema[] = [
+      { key: "speed", type: "range", label: "Speed" },
+      { key: "instructions", type: "text", label: "Instructions", group: "advanced" },
+    ];
+    const { basic, advanced } = partitionSchema(schema);
+    expect(basic.map((p) => p.key)).toEqual(["speed"]);
+    expect(advanced.map((p) => p.key)).toEqual(["instructions"]);
+  });
+
+  it("puts params without group into basic bucket", () => {
+    const schema: ParamSchema[] = [
+      { key: "speed", type: "range", label: "Speed" },
+      { key: "format", type: "enum", label: "Format" },
+    ];
+    const { basic, advanced } = partitionSchema(schema);
+    expect(basic).toHaveLength(2);
+    expect(advanced).toHaveLength(0);
+  });
+
+  it("preserves source order within each bucket", () => {
+    const schema: ParamSchema[] = [
+      { key: "a", type: "range", label: "A" },
+      { key: "b", type: "range", label: "B", group: "advanced" },
+      { key: "c", type: "range", label: "C" },
+      { key: "d", type: "range", label: "D", group: "advanced" },
+    ];
+    const { basic, advanced } = partitionSchema(schema);
+    expect(basic.map((p) => p.key)).toEqual(["a", "c"]);
+    expect(advanced.map((p) => p.key)).toEqual(["b", "d"]);
+  });
+
+  it("unknown group value (forward-compat) falls into basic bucket", () => {
+    // Future group values like "expert" should default to basic, not crash.
+    const schema: ParamSchema[] = [
+      { key: "future_param", type: "string", label: "Future", group: "expert" },
+    ];
+    const { basic, advanced } = partitionSchema(schema);
+    expect(basic.map((p) => p.key)).toEqual(["future_param"]);
+    expect(advanced).toHaveLength(0);
+  });
+
+  it("returns empty buckets for empty schema", () => {
+    const { basic, advanced } = partitionSchema([]);
+    expect(basic).toHaveLength(0);
+    expect(advanced).toHaveLength(0);
+  });
+});
+
+// ---- visibleAdvancedCount (count badge logic) ----
+
+describe("visibleAdvancedCount — count badge respects DependsOn", () => {
+  it("counts all advanced params when no DependsOn constraints", () => {
+    const advanced: ParamSchema[] = [
+      { key: "seed", type: "integer", label: "Seed", group: "advanced" },
+      { key: "latency", type: "integer", label: "Latency", group: "advanced" },
+    ];
+    const value = {};
+    const count = advanced.filter((p) => evaluateDependsOn(p.depends_on, value)).length;
+    expect(count).toBe(2);
+  });
+
+  it("excludes advanced param when DependsOn is not satisfied (cross-group)", () => {
+    // MiniMax-like case: audio.bitrate is advanced, depends on basic audio.format == "mp3"
+    const advanced: ParamSchema[] = [
+      {
+        key: "audio.bitrate",
+        type: "integer",
+        label: "Bitrate",
+        group: "advanced",
+        depends_on: [{ field: "audio.format", op: "eq", value: "mp3" }],
+      },
+    ];
+    const valueWav = { "audio.format": "wav" };
+    const countWav = advanced.filter((p) => evaluateDependsOn(p.depends_on, valueWav)).length;
+    expect(countWav).toBe(0);
+
+    const valueMp3 = { "audio.format": "mp3" };
+    const countMp3 = advanced.filter((p) => evaluateDependsOn(p.depends_on, valueMp3)).length;
+    expect(countMp3).toBe(1);
+  });
+
+  it("returns 0 when advanced bucket is empty (Edge provider — no advanced toggle)", () => {
+    const advanced: ParamSchema[] = [];
+    const count = advanced.filter((p) => evaluateDependsOn(p.depends_on, {})).length;
+    expect(count).toBe(0);
+  });
+});
+
+// ---- cross-group DependsOn (MiniMax bitrate scenario) ----
+
+describe("cross-group DependsOn — evaluateDependsOn uses shared value state", () => {
+  it("advanced param with depends_on basic field: visible when basic field matches", () => {
+    const advancedParam: ParamSchema = {
+      key: "audio.bitrate",
+      type: "integer",
+      label: "Bitrate (MP3 only)",
+      group: "advanced",
+      depends_on: [{ field: "audio.format", op: "eq", value: "mp3" }],
+    };
+    // shared state includes basic field value
+    expect(evaluateDependsOn(advancedParam.depends_on, { "audio.format": "mp3" })).toBe(true);
+    expect(evaluateDependsOn(advancedParam.depends_on, { "audio.format": "wav" })).toBe(false);
+    expect(evaluateDependsOn(advancedParam.depends_on, {})).toBe(false);
+  });
+});
+
+// ---- partitionSchema does not mutate source array ----
+
+describe("partitionSchema immutability", () => {
+  it("does not mutate source schema array", () => {
+    const schema: ParamSchema[] = [
+      { key: "speed", type: "range", label: "Speed" },
+      { key: "seed", type: "integer", label: "Seed", group: "advanced" },
+    ];
+    const original = [...schema];
+    partitionSchema(schema);
+    expect(schema).toEqual(original);
   });
 });

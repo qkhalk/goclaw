@@ -34,6 +34,8 @@ export interface ParamSchema {
   step?: number;
   enum?: EnumOption[];
   depends_on?: Dependency[];
+  /** "advanced" → Advanced section; absent/undefined → Basic section (forward-compat: unknown values → Basic). */
+  group?: string;
 }
 
 export interface VoiceOption {

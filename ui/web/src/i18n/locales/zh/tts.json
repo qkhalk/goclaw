@@ -255,6 +255,8 @@
     "requiresProvider": "请先选择 Provider 以启用试听。"
   },
   "advanced": {
-    "title": "高级设置"
+    "title": "高级设置",
+    "count": "{{count}} 项高级设置",
+    "count_one": "{{count}} 项高级设置"
   }
 }
