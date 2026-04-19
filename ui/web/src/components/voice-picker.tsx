@@ -1,12 +1,12 @@
 /**
  * VoicePicker — provider-aware voice selection component.
  *
- * Dispatch logic (Phase C):
+ * Dispatch logic (Phase 2):
  *   - "" provider → disabled empty-state
- *   - provider whose capabilities include voices_dynamic=true OR has no static voices
- *     → DynamicVoicePicker (fetches /v1/voices)
- *   - provider with static voices[] in capabilities → StaticVoicePicker
- *   - MiniMax with voices_dynamic=true and first-fetch failure → FreeTextPicker fallback
+ *   - gemini + static voices → PortalVoicePicker (search + row UI)
+ *   - other provider with static voices[] + !voicesDynamic → StaticVoicePicker (Radix)
+ *   - voices_dynamic=true OR minimax → DynamicVoicePicker → PortalVoicePicker
+ *   - MiniMax first-fetch failure → FreeTextPicker fallback
  *
  * useTtsCapabilities() drives the dispatch; falls back to ElevenLabs-dynamic behavior
  * when capabilities are not yet loaded (avoids flash of wrong picker).
@@ -26,9 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useVoices, useRefreshVoices, type Voice } from "@/api/voices";
+import { useVoices, useRefreshVoices } from "@/api/voices";
 import { VoicePreviewButton } from "@/components/voice-preview-button";
-import { useTtsCapabilities } from "@/api/tts-capabilities";
+import { useTtsCapabilities, type VoiceOption } from "@/api/tts-capabilities";
 import type { TtsProviderId } from "@/data/tts-providers";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
 
@@ -48,7 +48,23 @@ interface Props {
 
 const LABEL_KEYS = ["gender", "accent", "age", "use_case"] as const;
 
-function VoiceRow({ voice, selected, onSelect }: { voice: Voice; selected: boolean; onSelect: () => void }) {
+/**
+ * Unified voice shape for PortalVoicePicker.
+ * Static callers (Gemini) populate only voice_id + name; labels/preview_url optional.
+ */
+export interface PortalVoice {
+  voice_id: string;
+  name: string;
+  labels?: Record<string, string>;
+  preview_url?: string;
+}
+
+/** Maps a capability VoiceOption to PortalVoice (labels/preview absent for Gemini). */
+function mapCapVoiceToPortal(v: VoiceOption): PortalVoice {
+  return { voice_id: v.voice_id, name: v.name };
+}
+
+function VoiceRow({ voice, selected, onSelect }: { voice: PortalVoice; selected: boolean; onSelect: () => void }) {
   const labelEntries = LABEL_KEYS
     .filter((k) => voice.labels?.[k])
     .map((k) => voice.labels![k]);
@@ -93,8 +109,21 @@ export function VoicePicker({ value, onChange, disabled, provider, placeholder }
   // Static voices available in capabilities
   const staticVoices = providerCaps?.voices ?? [];
 
+  // Gemini: static voices rendered through portal picker (search + row UI)
+  if (provider === "gemini" && staticVoices.length > 0) {
+    return (
+      <PortalVoicePicker
+        voices={staticVoices.map(mapCapVoiceToPortal)}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        placeholder={placeholder}
+      />
+    );
+  }
+
   if (providerCaps && !voicesDynamic && staticVoices.length > 0) {
-    // Static catalog available from capabilities
+    // Static catalog available from capabilities (OpenAI path → Radix Select)
     return (
       <StaticVoicePicker
         value={value}
@@ -202,16 +231,33 @@ function FreeTextVoicePicker({
   );
 }
 
-function DynamicVoicePicker({
+/**
+ * PortalVoicePicker — search + scrollable VoiceRow list rendered via portal.
+ *
+ * Used by:
+ *   - DynamicVoicePicker (ElevenLabs, MiniMax) — passes voices from useVoices()
+ *   - VoicePicker dispatcher for Gemini — passes capability static voices
+ *
+ * Owns: open/search state, triggerRef/dropdownRef, usePortalDropdownClose, createPortal.
+ */
+export function PortalVoicePicker({
+  voices,
   value,
   onChange,
   disabled,
-  allowFreeText,
+  isLoading,
+  onRefresh,
+  allowFreeText: _allowFreeText,
+  placeholder,
 }: {
+  voices: PortalVoice[];
   value?: string;
-  onChange: (id: string) => void;
+  onChange: (voice_id: string) => void;
   disabled?: boolean;
-  allowFreeText: boolean;
+  isLoading?: boolean;
+  onRefresh?: () => void;
+  allowFreeText?: boolean;
+  placeholder?: string;
 }) {
   const { t } = useTranslation("tts");
   const [open, setOpen] = useState(false);
@@ -219,14 +265,6 @@ function DynamicVoicePicker({
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
-
-  const { data: voices = [], isLoading, isError } = useVoices();
-  const { mutate: refresh, isPending: refreshing } = useRefreshVoices();
-
-  // Fall back to free-text input when MiniMax voices fetch failed and list is empty
-  if (allowFreeText && isError && voices.length === 0) {
-    return <FreeTextVoicePicker value={value} onChange={onChange} disabled={disabled} />;
-  }
 
   const selected = voices.find((v) => v.voice_id === value);
 
@@ -243,7 +281,7 @@ function DynamicVoicePicker({
     });
   };
 
-  const handleSelect = (voice: Voice) => {
+  const handleSelect = (voice: PortalVoice) => {
     onChange(voice.voice_id);
     setOpen(false);
     setSearch("");
@@ -251,7 +289,7 @@ function DynamicVoicePicker({
 
   const handleRefresh = (e: React.MouseEvent) => {
     e.stopPropagation();
-    refresh();
+    onRefresh?.();
   };
 
   usePortalDropdownClose({
@@ -265,7 +303,7 @@ function DynamicVoicePicker({
       ref={dropdownRef}
       id={listboxId}
       role="listbox"
-      aria-label={t("voice_placeholder")}
+      aria-label={placeholder ?? t("voice_placeholder")}
       className="pointer-events-auto z-50 min-w-[280px] rounded-md border bg-popover text-popover-foreground shadow-md"
       style={(() => {
         if (!triggerRef.current) return {};
@@ -283,20 +321,22 @@ function DynamicVoicePicker({
           autoFocus
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("voice_placeholder")}
+          placeholder={placeholder ?? t("voice_placeholder")}
           className="flex-1 bg-transparent text-base md:text-sm outline-none placeholder:text-muted-foreground"
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          title={t("voice_refresh")}
-          disabled={refreshing}
-          onClick={handleRefresh}
-          className="shrink-0"
-        >
-          <RefreshCwIcon className={cn("size-4", refreshing && "animate-spin")} />
-        </Button>
+        {onRefresh && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title={t("voice_refresh")}
+            disabled={isLoading}
+            onClick={handleRefresh}
+            className="shrink-0"
+          >
+            <RefreshCwIcon className={cn("size-4", isLoading && "animate-spin")} />
+          </Button>
+        )}
       </div>
 
       <div className="max-h-60 overflow-y-auto p-1">
@@ -309,7 +349,7 @@ function DynamicVoicePicker({
         ) : filtered.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             {voices.length === 0 ? t("voice_save_config_first") : search ? t("voice_no_voices") : t("voice_loading")}
-          </p>
+        </p>
         ) : (
           filtered.map((voice) => (
             <VoiceRow
@@ -341,12 +381,48 @@ function DynamicVoicePicker({
         )}
       >
         <span className="truncate">
-          {isLoading ? t("voice_loading") : selected?.name ?? t("voice_placeholder")}
+          {isLoading ? t("voice_loading") : selected?.name ?? (placeholder ?? t("voice_placeholder"))}
         </span>
         <ChevronDownIcon className="size-4 shrink-0 opacity-50" />
       </button>
 
       {open && createPortal(dropdownContent, document.body)}
     </div>
+  );
+}
+
+/**
+ * DynamicVoicePicker — thin wrapper that fetches voices and delegates to PortalVoicePicker.
+ * Handles free-text fallback for MiniMax on fetch error.
+ */
+function DynamicVoicePicker({
+  value,
+  onChange,
+  disabled,
+  allowFreeText,
+}: {
+  value?: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+  allowFreeText: boolean;
+}) {
+  const { data: voices = [], isLoading, isError } = useVoices();
+  const { mutate: refresh, isPending: refreshing } = useRefreshVoices();
+
+  // Fall back to free-text input when MiniMax voices fetch failed and list is empty
+  if (allowFreeText && isError && voices.length === 0) {
+    return <FreeTextVoicePicker value={value} onChange={onChange} disabled={disabled} />;
+  }
+
+  return (
+    <PortalVoicePicker
+      voices={voices}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      isLoading={isLoading || refreshing}
+      onRefresh={() => refresh()}
+      allowFreeText={allowFreeText}
+    />
   );
 }
