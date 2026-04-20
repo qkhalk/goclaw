@@ -22,8 +22,8 @@ export function ProviderSetup({ provider, onChange }: Props) {
   const hint = provider === "edge" ? t("edge.hint") : null;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="gap-3">
+      <CardHeader>
         <CardTitle className="text-base">
           1. {t("general.primaryProvider")}
         </CardTitle>

@@ -117,8 +117,8 @@ export function TestPlayground({ provider, voiceId, modelId, synthesize, showAud
   const canPlayNow = canPlay({ text, provider }) && !loading;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="gap-3">
+      <CardHeader>
         <CardTitle className="text-base">4. {t("playground.title", "Test Playground")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

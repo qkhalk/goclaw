@@ -60,8 +60,8 @@ export function CredentialsSection({ provider, draft, onUpdate, testConnection, 
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="gap-3">
+      <CardHeader>
         <CardTitle className="text-base">
           2. {t("providerSettings", { provider: t(`providers.${provider}`) })}
         </CardTitle>

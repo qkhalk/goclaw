@@ -200,8 +200,8 @@ export function TtsPage() {
       )}
 
       {draft.provider && isCredentialsSaved(draft.provider, tts) && (
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="gap-3">
+          <CardHeader>
             <CardTitle className="text-base">3. {t("voice_label")} &amp; {t("general.title", "Settings")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
