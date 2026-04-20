@@ -37,13 +37,13 @@ export interface PortalVoice {
   preview_url?: string
 }
 
-/** Maps a capability VoiceOption to PortalVoice (no labels/preview for Gemini). */
+/** Maps a capability VoiceOption to PortalVoice. Labels passed through (e.g. Gemini style). */
 function mapCapVoiceToPortal(v: VoiceOption): PortalVoice {
-  return { voice_id: v.voice_id, name: v.name }
+  return { voice_id: v.voice_id, name: v.name, labels: v.labels }
 }
 
 function VoiceOption({ voice, selected }: { voice: PortalVoice; selected: boolean }) {
-  const labelEntries = ['gender', 'accent', 'age', 'use_case']
+  const labelEntries = ['gender', 'accent', 'age', 'use_case', 'style']
     .filter((k) => voice.labels?.[k])
     .map((k) => voice.labels![k])
 

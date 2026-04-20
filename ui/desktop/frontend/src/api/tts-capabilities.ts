@@ -50,6 +50,8 @@ export interface VoiceOption {
   name: string;
   language?: string;
   gender?: string;
+  /** Provider-specific descriptors (e.g. {style: "Bright"} for Gemini). */
+  labels?: Record<string, string>;
 }
 
 export interface ProviderCapabilities {

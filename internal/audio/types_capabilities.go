@@ -38,11 +38,16 @@ type Dependency struct {
 }
 
 // VoiceOption is a static voice entry exposed in ProviderCapabilities.
+//
+// Labels carries provider-specific descriptors (e.g. {"style": "Bright"} for
+// Gemini, {"gender": "female", "accent": "american"} for ElevenLabs). Frontend
+// renders the first 1–2 entries as badges next to the voice name.
 type VoiceOption struct {
-	VoiceID  string `json:"voice_id"`
-	Name     string `json:"name"`
-	Language string `json:"language,omitempty"`
-	Gender   string `json:"gender,omitempty"`
+	VoiceID  string            `json:"voice_id"`
+	Name     string            `json:"name"`
+	Language string            `json:"language,omitempty"`
+	Gender   string            `json:"gender,omitempty"`
+	Labels   map[string]string `json:"labels,omitempty"`
 }
 
 // ParamSchema describes a single configurable parameter for a TTS provider.
