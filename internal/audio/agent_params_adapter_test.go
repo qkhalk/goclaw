@@ -88,13 +88,17 @@ func TestAdaptAgentParams_TableDriven(t *testing.T) {
 
 // TestAdaptAgentParams_Finding9_CrossCheck verifies that every provider with
 // at least one AdaptAgentParams mapping also has at least one ParamSchema with
-// AgentOverridable=true in its capabilities, AND vice versa.
+// non-empty AgentOverridableAs in its capabilities, AND vice versa.
 // This is the compile-guard drift test mandated by red-team Finding #9.
+//
+// The new AgentOverridableAs field (string) replaces AgentOverridable (bool) to
+// encode the generic key alias directly in the capability schema — eliminating
+// the separate hard-coded genericToNative lookup tables in each UI.
 func TestAdaptAgentParams_Finding9_CrossCheck(t *testing.T) {
 	t.Parallel()
 
 	// Providers that the adapter switch handles (non-skip branches).
-	// Each must have ≥1 AgentOverridable param in capabilities.
+	// Each must have ≥1 ParamSchema with non-empty AgentOverridableAs in capabilities.
 	overridableProviders := map[string]struct {
 		caps       []audio.ParamSchema
 		adapterMap map[string]any // any non-nil output proves mapping exists
@@ -119,27 +123,43 @@ func TestAdaptAgentParams_Finding9_CrossCheck(t *testing.T) {
 			t.Errorf("provider %q: AdaptAgentParams returned empty map — adapter switch has no active branches", providerName)
 		}
 
-		// 2. Capabilities must have at least one AgentOverridable param.
+		// 2. Capabilities must have at least one param with non-empty AgentOverridableAs.
 		hasOverridable := false
 		for _, p := range info.caps {
-			if p.AgentOverridable {
+			if p.AgentOverridableAs != "" {
 				hasOverridable = true
 				break
 			}
 		}
 		if !hasOverridable {
-			t.Errorf("provider %q: no ParamSchema with AgentOverridable=true in capabilities", providerName)
+			t.Errorf("provider %q: no ParamSchema with non-empty AgentOverridableAs in capabilities", providerName)
 		}
 	}
 
-	// Providers that are skip-only (edge, gemini) must NOT have AgentOverridable params.
-	skipProviders := map[string][]audio.ParamSchema{
-		// Edge and Gemini capabilities are not imported here — check via adapter output only.
-		// The adapter returns nil for both, which is the contract.
+	// 3. Cross-check: every (nativeKey, genericAlias) pair in capabilities must
+	// be reflected in the adapter switch. AdaptAgentParams(generic=genericAlias)
+	// for this provider must map to nativeKey in the output.
+	for providerName, info := range overridableProviders {
+		for _, p := range info.caps {
+			if p.AgentOverridableAs == "" {
+				continue
+			}
+			genericKey := p.AgentOverridableAs
+			nativeKey := p.Key
+			result := audio.AdaptAgentParams(map[string]any{genericKey: "sentinel"}, providerName)
+			if result == nil {
+				t.Errorf("provider %q param %q (generic %q): AdaptAgentParams returned nil — adapter switch missing branch",
+					providerName, nativeKey, genericKey)
+				continue
+			}
+			if _, ok := result[nativeKey]; !ok {
+				t.Errorf("provider %q param %q (generic %q): adapter output %v does not contain expected native key",
+					providerName, nativeKey, genericKey, result)
+			}
+		}
 	}
-	_ = skipProviders // nothing to assert for now; gap noted in phase doc
 
-	// Also verify skip providers return nil from adapter.
+	// Providers that are skip-only (edge, gemini) must return nil from adapter.
 	for _, skipProvider := range []string{"edge", "gemini"} {
 		out := audio.AdaptAgentParams(map[string]any{"speed": 1.0, "emotion": "happy", "style": 0.5}, skipProvider)
 		if len(out) > 0 {

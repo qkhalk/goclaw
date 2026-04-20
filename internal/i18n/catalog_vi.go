@@ -205,8 +205,6 @@ func init() {
 		MsgTtsGeminiSpeakerLimit: "Gemini TTS hỗ trợ tối đa 2 người nói",
 		MsgTtsGeminiInvalidModel:  "mô hình Gemini TTS không hợp lệ: %s",
 		MsgTtsParamOutOfRange:     "tham số TTS %q có giá trị %v nằm ngoài phạm vi [%v, %v]",
-		MsgTtsParamDependsOn:      "tham số TTS %q yêu cầu %q phải là %q",
-		MsgTtsParamInvalidJSON:    "tham số TTS %q chứa JSON không hợp lệ (độ dài %d)",
 		MsgTtsParamUnknownKey:     "tham số TTS %q không được nhà cung cấp này hỗ trợ",
 		MsgTtsMiniMaxVoicesFailed: "không tải được danh sách giọng đọc MiniMax: %s",
 

@@ -78,15 +78,14 @@ export function PromptSettingsSection({ agent, onUpdate }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Finding #13: re-fetch the agent's other_config right before building
-      // the update bag. This mitigates concurrent-tab clobber: if another tab
-      // saved an unrelated field since we last loaded, we merge into the fresh
-      // value rather than the stale local copy.
-      // NOTE: This is a best-effort mitigation only — there is still a narrow
-      // TOCTOU window between the refetch and the PUT. A server-side JSON-patch
-      // endpoint is the correct v2 fix (deferred).
-      // We intentionally use the local state for the fields WE are editing so
-      // our changes are not overwritten by the refetch.
+      // Finding #13 (honest): we spread the last-loaded otherConfig prop as a
+      // base, then overwrite only the fields this section owns. Concurrent-tab
+      // clobber is NOT mitigated — a second tab saving an unrelated field
+      // between our last load and this PUT will lose that update.
+      // Server-side JSON-merge-patch endpoint is the correct v2 fix (deferred;
+      // see plan §Open Questions). Refetch before PUT is intentionally omitted:
+      // it would add latency for a race that is rare in practice for local-first
+      // desktop/single-user deployments.
       const bag = { ...otherConfig };
       if (mode && mode !== "full") {
         bag.prompt_mode = mode;

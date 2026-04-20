@@ -1,15 +1,34 @@
 package audio
 
-import "log/slog"
+import (
+	"fmt"
+	"log/slog"
+)
 
-// agentOverrideKeys is the allow-list of generic keys that agents may store in
-// other_config.tts_params. Any key outside this set is rejected at write time
-// (see internal/http/agents.go validateAgentTTSParams) and silently dropped
-// here for defense-in-depth.
-var agentOverrideKeys = map[string]bool{
+// AgentTTSParamsAllowedKeys is the allow-list of generic keys that agents may
+// store in other_config.tts_params. Any key outside this set is rejected at
+// write time and silently dropped here for defense-in-depth.
+// Both internal/http and internal/gateway/methods import this to avoid
+// duplicating the literal (Action D: DRY).
+var AgentTTSParamsAllowedKeys = map[string]bool{
 	"speed":   true,
 	"emotion": true,
 	"style":   true,
+}
+
+// agentOverrideKeys aliases the exported map for internal use in AdaptAgentParams.
+var agentOverrideKeys = AgentTTSParamsAllowedKeys
+
+// ValidateAgentTTSParams returns an error if ttsParams contains any key not in
+// the allow-list. Values are not type-checked here — providers handle coercion
+// at synthesis time.
+func ValidateAgentTTSParams(ttsParams map[string]any) error {
+	for k := range ttsParams {
+		if !AgentTTSParamsAllowedKeys[k] {
+			return fmt.Errorf("tts_params key %q is not allowed; valid keys: speed, emotion, style", k)
+		}
+	}
+	return nil
 }
 
 // AdaptAgentParams maps generic agent override keys (stored in

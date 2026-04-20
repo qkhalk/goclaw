@@ -35,46 +35,41 @@ interface Props {
 }
 
 /**
- * Adapter table: maps generic agent override key → provider-native capability key.
- * Must mirror internal/audio/agent_params_adapter.go AdaptAgentParams switch.
- * Used for bidirectional conversion at the UI boundary (generic↔native).
- *
- * Finding #9: This mirrors the Go adapter but is NOT the source of truth for
- * which params are shown — that comes from agent_overridable===true in
- * capabilities. This table is only used to convert stored generic keys to
- * native keys for form state, and back on save.
+ * Build generic→native and native→generic mappings from the overridable params
+ * slice. Each param carries its own native key (param.key) and generic alias
+ * (param.agent_overridable_as), so no separate hard-coded table is needed.
+ * Finding #9: single source of truth is the capabilities API response.
  */
-const GENERIC_TO_NATIVE: Record<string, Record<string, string>> = {
-  openai: { speed: "speed" },
-  elevenlabs: { speed: "voice_settings.speed", style: "voice_settings.style" },
-  edge: {},
-  minimax: { speed: "speed", emotion: "emotion" },
-  gemini: {},
-};
-
-/** Invert the generic→native table to native→generic for a given provider. */
-function buildNativeToGeneric(provider: string): Record<string, string> {
-  const map = GENERIC_TO_NATIVE[provider] ?? {};
-  const inv: Record<string, string> = {};
-  for (const [generic, native] of Object.entries(map)) {
-    inv[native] = generic;
+export function buildAdapterMaps(
+  overridableParams: Array<{ key: string; agent_overridable_as?: string }>,
+): {
+  genericToNative: Record<string, string>;
+  nativeToGeneric: Record<string, string>;
+} {
+  const genericToNative: Record<string, string> = {};
+  const nativeToGeneric: Record<string, string> = {};
+  for (const p of overridableParams) {
+    if (p.agent_overridable_as) {
+      genericToNative[p.agent_overridable_as] = p.key;
+      nativeToGeneric[p.key] = p.agent_overridable_as;
+    }
   }
-  return inv;
+  return { genericToNative, nativeToGeneric };
 }
 
 /**
  * Convert stored generic params (e.g. {speed: 1.2}) to capability-native form
  * state (e.g. {voice_settings.speed: 1.2} for ElevenLabs).
- * Called at load time.
+ * Called at load time. Mapping derived from capabilities, not a hard-coded table.
  */
 export function genericToNativeFormState(
   genericParams: Record<string, ParamValue>,
-  provider: string,
+  overridableParams: Array<{ key: string; agent_overridable_as?: string }>,
 ): Record<string, ParamValue> {
-  const map = GENERIC_TO_NATIVE[provider] ?? {};
+  const { genericToNative } = buildAdapterMaps(overridableParams);
   const out: Record<string, ParamValue> = {};
   for (const [generic, val] of Object.entries(genericParams)) {
-    const native = map[generic];
+    const native = genericToNative[generic];
     if (native !== undefined) {
       out[native] = val;
     }
@@ -88,9 +83,9 @@ export function genericToNativeFormState(
  */
 export function nativeFormStateToGeneric(
   nativeState: Record<string, ParamValue>,
-  provider: string,
+  overridableParams: Array<{ key: string; agent_overridable_as?: string }>,
 ): Record<string, ParamValue> {
-  const nativeToGeneric = buildNativeToGeneric(provider);
+  const { nativeToGeneric } = buildAdapterMaps(overridableParams);
   const out: Record<string, ParamValue> = {};
   for (const [native, val] of Object.entries(nativeState)) {
     const generic = nativeToGeneric[native];
@@ -126,22 +121,24 @@ export function TtsOverrideBlock({
   const { t } = useTranslation("tts");
   const [testing, setTesting] = useState(false);
 
-  // Fetch capabilities for the current provider to find agent_overridable params.
+  // Fetch capabilities for the current provider to find agent-overridable params.
+  // Finding #9: capabilities API is the single source of truth — agent_overridable_as
+  // encodes both the overridability flag and the generic key alias, so no separate
+  // hard-coded lookup table is needed in the UI.
   const { data: allCaps } = useTtsCapabilities();
   const providerCaps = allCaps?.find((c) => c.provider === globalProvider);
   const overridableParams = (providerCaps?.params ?? []).filter(
-    (p) => p.agent_overridable === true,
+    (p) => (p.agent_overridable_as ?? "") !== "",
   );
 
   // Form state uses CAPABILITY-NATIVE keys. Convert from stored generic keys on each render.
-  // This is a pure derivation — form state is owned by this component transiently,
-  // and serialised back to generic keys via nativeFormStateToGeneric on change.
-  const nativeFormState = genericToNativeFormState(ttsParams, globalProvider);
+  // Mapping is derived from overridableParams (no hard-coded lookup table).
+  const nativeFormState = genericToNativeFormState(ttsParams, overridableParams);
 
   const handleParamChange = (nativeKey: string, val: ParamValue) => {
     const updated = { ...nativeFormState, [nativeKey]: val };
     // Convert native form state → generic keys for parent storage.
-    const generic = nativeFormStateToGeneric(updated, globalProvider);
+    const generic = nativeFormStateToGeneric(updated, overridableParams);
     onTtsParamsChange(generic);
   };
 

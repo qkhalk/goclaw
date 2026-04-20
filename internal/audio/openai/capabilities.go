@@ -46,7 +46,7 @@ var openAIParams = []audio.ParamSchema{
 		Min:              &speedMin,
 		Max:              &speedMax,
 		Step:             &speedStep,
-		AgentOverridable: true,
+		AgentOverridableAs: "speed",
 	},
 	{
 		Key:     "response_format",

@@ -37,10 +37,12 @@ export interface ParamSchema {
   /** "advanced" → Advanced section; absent/undefined → Basic section (forward-compat: unknown values → Basic). */
   group?: string;
   /**
-   * When true this param can be stored as a per-agent override in
-   * agents.other_config.tts_params (Finding #9: single source of truth).
+   * When non-empty, this param is agent-overridable and the value is the
+   * generic key alias stored in agents.other_config.tts_params (e.g. "speed",
+   * "emotion", "style"). Empty / absent = not overridable.
+   * Single source of truth for generic↔native key mapping (Finding #9).
    */
-  agent_overridable?: boolean;
+  agent_overridable_as?: string;
 }
 
 export interface VoiceOption {
