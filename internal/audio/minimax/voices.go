@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -136,6 +137,7 @@ func (vl *VoiceLister) fetchVoices(ctx context.Context) ([]audio.Voice, error) {
 			ID:       v.VoiceID,
 			Name:     v.VoiceName,
 			Category: "system",
+			Labels:   parseMinimaxLabels(v.VoiceID, v.VoiceName),
 		})
 	}
 	for _, v := range result.VoiceCloning {
@@ -153,4 +155,50 @@ func (vl *VoiceLister) fetchVoices(ctx context.Context) ([]audio.Voice, error) {
 		})
 	}
 	return voices, nil
+}
+
+// parseMinimaxLabels extracts gender + language hints from MiniMax system voice
+// IDs and names. MiniMax API does not return these fields explicitly, but the
+// naming convention exposes them:
+//   - voice_id prefix `male-*` / `female-*` (legacy Chinese voices)
+//   - voice_name suffix `*_Man` / `*_Boy` / `*_Lord` → male
+//   - voice_name suffix `*_Lady` / `*_Girl` / `*_Belle` / `*_Lass` → female
+//   - voice_name prefix `English_*` / `Chinese_*` / `Japanese_*` / `Korean_*` →
+//     language. Returns nil when nothing parseable, so the picker shows no
+//     badge instead of an empty one.
+func parseMinimaxLabels(voiceID, voiceName string) map[string]string {
+	out := map[string]string{}
+	idLower := strings.ToLower(voiceID)
+	nameLower := strings.ToLower(voiceName)
+
+	switch {
+	case strings.HasPrefix(idLower, "male-") ||
+		hasAnySuffix(nameLower, "_man", "_boy", "_lord", "_speaker", "_uncle"):
+		out["gender"] = "male"
+	case strings.HasPrefix(idLower, "female-") ||
+		hasAnySuffix(nameLower, "_lady", "_girl", "_belle", "_lass", "_woman", "_aunt"):
+		out["gender"] = "female"
+	}
+
+	for _, lang := range []string{"english", "chinese", "japanese", "korean", "french", "spanish", "german", "italian", "portuguese"} {
+		if strings.HasPrefix(nameLower, lang+"_") {
+			// Capitalize first rune; lang labels are ASCII so no need for x/text/cases.
+			out["language"] = strings.ToUpper(lang[:1]) + lang[1:]
+			break
+		}
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func hasAnySuffix(s string, suffixes ...string) bool {
+	for _, suf := range suffixes {
+		if strings.HasSuffix(s, suf) {
+			return true
+		}
+	}
+	return false
 }
