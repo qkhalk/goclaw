@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 30
+const SchemaVersion = 33
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -467,7 +467,7 @@ WHERE context_pruning IS NOT NULL
 	21: `SELECT 1;`,
 	22: `SELECT 1;`,
 
-	// Version 27 → 28: webhooks + webhook_calls tables (mirrors PG migration 000059, renumbered from 000056 during merge train).
+	// Version 27 → 28: webhooks + webhook_calls tables (mirrors PG migration 000059).
 	// scopes/ip_allowlist stored as JSON TEXT; bool columns as INTEGER (0/1).
 	// webhook_calls.request_payload + response are TEXT (canonical JSON) from the start —
 	// upstream history had an interim BLOB form, but dev never shipped it.
@@ -526,13 +526,72 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_webhook_calls_idempotency
     WHERE idempotency_key IS NOT NULL;`,
 
 	// Version 28 → 29: add lease_token to webhook_calls for optimistic-concurrency CAS.
-	// Mirrors PG migration 000060. ClaimNext sets lease_token = UUID; UpdateStatusCAS
-	// guards with AND lease_token = ?; ReclaimStale clears lease_token to NULL.
+	// Mirrors PG migration 000060.
 	28: `ALTER TABLE webhook_calls ADD COLUMN lease_token TEXT;`,
 
 	// Version 29 → 30: add encrypted_secret to webhooks (AES-256-GCM of raw secret).
-	// Mirrors PG migration 000061. Existing rows with encrypted_secret = '' require rotation.
+	// Mirrors PG migration 000061.
 	29: `ALTER TABLE webhooks ADD COLUMN encrypted_secret TEXT NOT NULL DEFAULT '';`,
+
+	// Version 30 → 31: workstations + agent_workstation_links tables. Mirrors PG migration 000062.
+	30: `CREATE TABLE IF NOT EXISTS workstations (
+    id              TEXT PRIMARY KEY,
+    workstation_key VARCHAR(100) NOT NULL,
+    tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name            VARCHAR(255) NOT NULL,
+    backend_type    VARCHAR(20) NOT NULL CHECK (backend_type IN ('ssh','docker')),
+    metadata        BLOB NOT NULL,
+    default_cwd     VARCHAR(500) NOT NULL DEFAULT '',
+    default_env     BLOB NOT NULL,
+    active          INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    created_by      VARCHAR(255) NOT NULL DEFAULT '',
+    UNIQUE (tenant_id, workstation_key)
+);
+CREATE INDEX IF NOT EXISTS idx_workstations_tenant_active
+    ON workstations(tenant_id, active) WHERE active = 1;
+CREATE TABLE IF NOT EXISTS agent_workstation_links (
+    agent_id        TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    workstation_id  TEXT NOT NULL REFERENCES workstations(id) ON DELETE CASCADE,
+    tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    is_default      INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (agent_id, workstation_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_workstation_tenant ON agent_workstation_links(tenant_id);`,
+
+	// Version 31 → 32: workstation_permissions allowlist table. Mirrors PG migration 000063.
+	31: `CREATE TABLE IF NOT EXISTS workstation_permissions (
+    id              TEXT PRIMARY KEY,
+    workstation_id  TEXT NOT NULL REFERENCES workstations(id) ON DELETE CASCADE,
+    tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    pattern         VARCHAR(500) NOT NULL,
+    enabled         INTEGER NOT NULL DEFAULT 1,
+    created_by      VARCHAR(255) NOT NULL DEFAULT '',
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (workstation_id, pattern)
+);
+CREATE INDEX IF NOT EXISTS idx_workstation_perms_ws ON workstation_permissions(workstation_id) WHERE enabled = 1;
+CREATE INDEX IF NOT EXISTS idx_workstation_perms_tenant ON workstation_permissions(tenant_id);`,
+
+	// Version 32 → 33: workstation_activity audit log table. Mirrors PG migration 000064.
+	32: `CREATE TABLE IF NOT EXISTS workstation_activity (
+    id              TEXT PRIMARY KEY,
+    tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    workstation_id  TEXT NOT NULL REFERENCES workstations(id) ON DELETE CASCADE,
+    agent_id        VARCHAR(255) NOT NULL DEFAULT '',
+    action          VARCHAR(20)  NOT NULL,
+    cmd_hash        VARCHAR(64)  NOT NULL DEFAULT '',
+    cmd_preview     VARCHAR(200) NOT NULL DEFAULT '',
+    exit_code       INTEGER,
+    duration_ms     INTEGER,
+    deny_reason     VARCHAR(200) NOT NULL DEFAULT '',
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ws_activity_ws_time     ON workstation_activity(workstation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ws_activity_tenant_time ON workstation_activity(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ws_activity_retention   ON workstation_activity(created_at);`,
 
 	// Version 23 → 24: vault_documents scope/ownership consistency triggers.
 	// Mirrors PG migration 000055 CHECK constraint; SQLite cannot add CHECK via
