@@ -288,5 +288,22 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Đã forward sang %s theo yêu cầu: %q",
+
+		// Package update source labels
+		MsgPackagesUpdatesSourceGithub: "GitHub",
+		MsgPackagesUpdatesSourcePip:    "pip",
+		MsgPackagesUpdatesSourceNpm:    "npm",
+
+		// Package update availability messages
+		MsgPackagesUpdatesUnavailablePip: "pip chưa cài trên hệ thống",
+		MsgPackagesUpdatesUnavailableNpm: "npm chưa cài trên hệ thống",
+
+		// Package update failure reasons
+		MsgPackagesUpdatesReasonDependencyConflict: "Xung đột phụ thuộc",
+		MsgPackagesUpdatesReasonPermission:         "Bị từ chối quyền",
+		MsgPackagesUpdatesReasonNetwork:            "Lỗi mạng",
+		MsgPackagesUpdatesReasonNotFound:           "Không tìm thấy gói",
+		MsgPackagesUpdatesReasonTargetMissing:      "Phiên bản không tồn tại",
+		MsgPackagesUpdatesReasonExternallyManaged:  "Môi trường được quản lý bên ngoài",
 	})
 }

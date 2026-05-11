@@ -288,5 +288,22 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Forwarded to %s as requested: %q",
+
+		// Package update source labels
+		MsgPackagesUpdatesSourceGithub: "GitHub",
+		MsgPackagesUpdatesSourcePip:    "pip",
+		MsgPackagesUpdatesSourceNpm:    "npm",
+
+		// Package update availability messages
+		MsgPackagesUpdatesUnavailablePip: "pip not installed on this system",
+		MsgPackagesUpdatesUnavailableNpm: "npm not installed on this system",
+
+		// Package update failure reasons
+		MsgPackagesUpdatesReasonDependencyConflict: "Dependency conflict",
+		MsgPackagesUpdatesReasonPermission:         "Permission denied",
+		MsgPackagesUpdatesReasonNetwork:            "Network error",
+		MsgPackagesUpdatesReasonNotFound:           "Package not found",
+		MsgPackagesUpdatesReasonTargetMissing:      "Version not available",
+		MsgPackagesUpdatesReasonExternallyManaged:  "Environment externally managed",
 	})
 }

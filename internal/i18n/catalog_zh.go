@@ -288,5 +288,22 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 已按请求转发至 %s:%q",
+
+		// Package update source labels
+		MsgPackagesUpdatesSourceGithub: "GitHub",
+		MsgPackagesUpdatesSourcePip:    "pip",
+		MsgPackagesUpdatesSourceNpm:    "npm",
+
+		// Package update availability messages
+		MsgPackagesUpdatesUnavailablePip: "系统中未安装 pip",
+		MsgPackagesUpdatesUnavailableNpm: "系统中未安装 npm",
+
+		// Package update failure reasons
+		MsgPackagesUpdatesReasonDependencyConflict: "依赖冲突",
+		MsgPackagesUpdatesReasonPermission:         "权限被拒绝",
+		MsgPackagesUpdatesReasonNetwork:            "网络错误",
+		MsgPackagesUpdatesReasonNotFound:           "未找到软件包",
+		MsgPackagesUpdatesReasonTargetMissing:      "版本不可用",
+		MsgPackagesUpdatesReasonExternallyManaged:  "环境由外部管理",
 	})
 }

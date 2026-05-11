@@ -10,6 +10,8 @@ import { useAuthStore } from "@/stores/use-auth-store";
 import { usePackages } from "./hooks/use-packages";
 import { usePackageRuntimes } from "./hooks/use-package-runtimes";
 import { RuntimesStickyHeader } from "./runtimes-sticky-header";
+import { useUpdates } from "./hooks/use-updates";
+import { UpdatesList } from "./components/updates-list";
 
 // --- Lazy tab bodies (each is a separate chunk) ---
 const SystemPackagesTab = lazy(() =>
@@ -56,7 +58,9 @@ export function PackagesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { refresh } = usePackages();
   const { refresh: refreshRuntimes } = usePackageRuntimes();
+  const { updates, availability, loading: updatesLoading, updatePackage } = useUpdates();
   const role = useAuthStore((s) => s.role);
+  const isMaster = useAuthStore((s) => s.isMasterScope);
   const isAdmin = hasMinRole(role, "admin");
 
   // Validate tab param — fall back to "system" for unknown values
@@ -97,6 +101,15 @@ export function PackagesPage() {
 
       {/* Runtimes always-visible strip */}
       <RuntimesStickyHeader />
+
+      {/* Unified updates list — all sources (github / pip / npm) */}
+      <UpdatesList
+        updates={updates}
+        availability={availability}
+        loading={updatesLoading}
+        isMaster={isMaster}
+        onUpdate={(spec) => updatePackage(spec)}
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
