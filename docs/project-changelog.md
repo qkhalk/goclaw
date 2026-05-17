@@ -6,6 +6,16 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-17
 
+### CI/CD: dev branch beta automation
+
+**Features**
+
+- Added a `Dev CI and Beta Release` GitHub Actions workflow for `dev` pushes that runs Go and Web UI checks before publishing a beta prerelease.
+- Added semantic-release-style beta version calculation from Conventional Commits, creating `vX.Y.Z-beta.N` tags and prereleases automatically after tests pass.
+- Beta automation uploads Linux binaries and publishes `beta` Docker image tags for the same release version.
+
+---
+
 ### Agent Permissions: channel and workspace matrix
 
 **Features**
