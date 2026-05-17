@@ -34,6 +34,10 @@ Significant changes, features, and fixes in reverse chronological order.
 - Removed the duplicate standalone `CLI Credentials` item from the left sidebar.
 - Added focused coverage for grant env payload semantics and routing contracts.
 
+**Fixes**
+
+- Made agent-grant environment variable controls easier to find by labeling the row action and adding a visible Environment Variables header inside the grant form.
+
 **Security**
 
 - Nested agent-grant get/update/delete/reveal routes now verify the grant belongs to the binary ID in the URL.
