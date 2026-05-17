@@ -14,6 +14,10 @@ Significant changes, features, and fixes in reverse chronological order.
 - Added semantic-release-style beta version calculation from Conventional Commits, creating `vX.Y.Z-beta.N` tags and prereleases automatically after tests pass.
 - Beta automation uploads Linux binaries and publishes `beta` Docker image tags for the same release version, with Docker Hub publishing enabled when credentials are configured.
 
+**Fixes**
+
+- Made beta prerelease publishing independent of a local checkout by passing the repository explicitly to GitHub CLI release commands.
+
 ---
 
 ### Agent Permissions: channel and workspace matrix
