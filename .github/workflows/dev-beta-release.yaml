@@ -76,21 +76,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm build
 
-  release_preflight:
-    needs: [go, web]
-    if: github.ref == 'refs/heads/dev'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate release secrets
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          test -n "$DOCKERHUB_USERNAME" || { echo "::error::Missing DOCKERHUB_USERNAME secret"; exit 1; }
-          test -n "$DOCKERHUB_TOKEN" || { echo "::error::Missing DOCKERHUB_TOKEN secret"; exit 1; }
-
   beta_version:
-    needs: [go, web, release_preflight]
+    needs: [go, web]
     if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     permissions:
@@ -222,6 +209,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -255,20 +245,29 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ env.GHCR_IMAGE }}
-            ${{ env.DOCKERHUB_IMAGE }}
-          tags: |
-            type=raw,value=${{ needs.beta_version.outputs.tag }},suffix=${{ matrix.suffix }}
+      - name: Resolve Docker tags
+        id: docker_tags
+        env:
+          TAG: ${{ needs.beta_version.outputs.tag }}
+          SUFFIX: ${{ matrix.suffix }}
+        run: |
+          {
+            echo "tags<<EOF"
+            echo "${GHCR_IMAGE}:${TAG}${SUFFIX}"
+            if [[ -n "$DOCKERHUB_USERNAME" && -n "$DOCKERHUB_TOKEN" ]]; then
+              echo "${DOCKERHUB_IMAGE}:${TAG}${SUFFIX}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          if [[ -z "$DOCKERHUB_USERNAME" || -z "$DOCKERHUB_TOKEN" ]]; then
+            echo "::notice::Docker Hub secrets not configured; publishing GHCR only."
+          fi
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -276,8 +275,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.docker_tags.outputs.tags }}
           build-args: |
             ENABLE_OTEL=${{ matrix.enable_otel }}
             ENABLE_EMBEDUI=${{ matrix.enable_embedui }}
@@ -294,6 +292,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: docker/setup-buildx-action@v3
 
@@ -305,10 +306,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
 
       - name: Promote beta aliases
         env:
@@ -316,5 +318,9 @@ jobs:
         run: |
           docker buildx imagetools create -t "${GHCR_IMAGE}:beta" "${GHCR_IMAGE}:${TAG}"
           docker buildx imagetools create -t "${GHCR_IMAGE}:beta-full" "${GHCR_IMAGE}:${TAG}-full"
-          docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:beta" "${DOCKERHUB_IMAGE}:${TAG}"
-          docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:beta-full" "${DOCKERHUB_IMAGE}:${TAG}-full"
+          if [[ -n "$DOCKERHUB_USERNAME" && -n "$DOCKERHUB_TOKEN" ]]; then
+            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:beta" "${DOCKERHUB_IMAGE}:${TAG}"
+            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:beta-full" "${DOCKERHUB_IMAGE}:${TAG}-full"
+          else
+            echo "::notice::Docker Hub secrets not configured; promoted GHCR beta aliases only."
+          fi
