@@ -75,8 +75,17 @@ func installNpmPackageWithWorkspaceRewrite(ctx context.Context, target string) (
 		return packOut, errors.New("npm workspace fallback found no workspace dependencies to rewrite")
 	}
 
-	installOut, err := runNpmInstall(ctx, packageDir)
-	return appendNpmFallbackOutput(packOut, installOut), err
+	repackDir := filepath.Join(tmpDir, "repack")
+	if err := os.MkdirAll(repackDir, 0o750); err != nil {
+		return packOut, fmt.Errorf("npm workspace fallback repack dir: %w", err)
+	}
+	sanitizedTarball, repackOut, err := npmPackTarball(ctx, packageDir, repackDir)
+	if err != nil {
+		return appendNpmFallbackOutput(packOut, repackOut), err
+	}
+
+	installOut, err := runNpmInstall(ctx, sanitizedTarball)
+	return appendNpmFallbackOutput(packOut, repackOut, installOut), err
 }
 
 func npmPackTarball(ctx context.Context, target, destination string) (string, []byte, error) {
