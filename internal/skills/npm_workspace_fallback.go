@@ -1,11 +1,15 @@
 package skills
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -79,13 +83,13 @@ func installNpmPackageWithWorkspaceRewrite(ctx context.Context, target string) (
 	if err := os.MkdirAll(repackDir, 0o750); err != nil {
 		return packOut, fmt.Errorf("npm workspace fallback repack dir: %w", err)
 	}
-	sanitizedTarball, repackOut, err := npmPackTarball(ctx, packageDir, repackDir)
+	sanitizedTarball, err := packNpmPackageDir(packageDir, repackDir)
 	if err != nil {
-		return appendNpmFallbackOutput(packOut, repackOut), err
+		return packOut, err
 	}
 
 	installOut, err := runNpmInstall(ctx, sanitizedTarball)
-	return appendNpmFallbackOutput(packOut, repackOut, installOut), err
+	return appendNpmFallbackOutput(packOut, installOut), err
 }
 
 func npmPackTarball(ctx context.Context, target, destination string) (string, []byte, error) {
@@ -198,6 +202,123 @@ func npmViewPackageVersion(ctx context.Context, name string) (string, error) {
 		return "", fmt.Errorf("npm view %s version returned empty version", name)
 	}
 	return version, nil
+}
+
+func packNpmPackageDir(packageDir, destination string) (string, error) {
+	raw, err := os.ReadFile(filepath.Join(packageDir, "package.json"))
+	if err != nil {
+		return "", fmt.Errorf("read package.json for repack: %w", err)
+	}
+	var pkg struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(raw, &pkg); err != nil {
+		return "", fmt.Errorf("parse package.json for repack: %w", err)
+	}
+	filename := npmTarballFilename(pkg.Name, pkg.Version)
+	if filename == "" {
+		return "", errors.New("npm workspace fallback cannot derive tarball filename")
+	}
+
+	tarball := filepath.Join(destination, filename)
+	out, err := os.OpenFile(tarball, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return "", fmt.Errorf("create sanitized npm tarball: %w", err)
+	}
+	defer out.Close()
+
+	gz := gzip.NewWriter(out)
+	tw := tar.NewWriter(gz)
+	walkErr := filepath.WalkDir(packageDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("npm workspace fallback unsupported package entry: %s", path)
+		}
+		rel, err := filepath.Rel(packageDir, path)
+		if err != nil {
+			return err
+		}
+		hdr, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		hdr.Name = filepath.ToSlash(filepath.Join("package", rel))
+		hdr.Mode = int64(info.Mode().Perm())
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(tw, in)
+		closeErr := in.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	})
+	closeTarErr := tw.Close()
+	closeGzipErr := gz.Close()
+	if walkErr != nil {
+		return "", fmt.Errorf("pack sanitized npm tarball: %w", walkErr)
+	}
+	if closeTarErr != nil {
+		return "", fmt.Errorf("close sanitized npm tarball: %w", closeTarErr)
+	}
+	if closeGzipErr != nil {
+		return "", fmt.Errorf("close sanitized npm gzip: %w", closeGzipErr)
+	}
+	return tarball, nil
+}
+
+func npmTarballFilename(name, version string) string {
+	name = strings.TrimSpace(name)
+	version = strings.TrimSpace(version)
+	if name == "" || version == "" {
+		return ""
+	}
+	name = strings.TrimPrefix(name, "@")
+	name = strings.ReplaceAll(name, "/", "-")
+	name = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r
+		case r >= '0' && r <= '9':
+			return r
+		case r == '.' || r == '_' || r == '-':
+			return r
+		default:
+			return '-'
+		}
+	}, name)
+	version = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r
+		case r >= '0' && r <= '9':
+			return r
+		case r == '.' || r == '_' || r == '-':
+			return r
+		default:
+			return '-'
+		}
+	}, version)
+	return name + "-" + version + ".tgz"
 }
 
 func extractNpmTarballToDir(tarball, destination string) error {

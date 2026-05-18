@@ -106,3 +106,47 @@ func TestRewriteWorkspacePackageJSON(t *testing.T) {
 		t.Fatalf("ws = %q, want unchanged", got)
 	}
 }
+
+func TestPackNpmPackageDirDoesNotNeedNpmScripts(t *testing.T) {
+	dir := t.TempDir()
+	packageDir := filepath.Join(dir, "package")
+	if err := os.MkdirAll(packageDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	raw := []byte(`{
+  "name": "@agenttasks/cli",
+  "version": "0.1.0",
+  "scripts": {
+    "prepack": "exit 127"
+  }
+}`)
+	if err := os.WriteFile(filepath.Join(packageDir, "package.json"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(packageDir, "index.js"), []byte("console.log('ok')\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tarball, err := packNpmPackageDir(packageDir, dir)
+	if err != nil {
+		t.Fatalf("packNpmPackageDir error: %v", err)
+	}
+	if filepath.Base(tarball) != "agenttasks-cli-0.1.0.tgz" {
+		t.Fatalf("tarball name = %q", filepath.Base(tarball))
+	}
+
+	files, err := ExtractArchiveAs(tarball, filepath.Base(tarball), 1024*1024)
+	if err != nil {
+		t.Fatalf("extract sanitized tarball: %v", err)
+	}
+	seenPackageJSON := false
+	for _, file := range files {
+		if file.Name == "package/package.json" {
+			seenPackageJSON = true
+			break
+		}
+	}
+	if !seenPackageJSON {
+		t.Fatal("sanitized tarball missing package/package.json")
+	}
+}
