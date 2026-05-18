@@ -4,6 +4,21 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-18
+
+### Packages: npm workspace protocol fallback
+
+**Fixes**
+
+- Fixed Node package installs for registry packages published with `workspace:` dependency ranges, such as `@agenttasks/cli`.
+- GoClaw now retries npm `EUNSUPPORTEDPROTOCOL workspace:` failures by packing the registry tarball, rewriting workspace dependency ranges to published package versions, and installing the sanitized package folder.
+
+**Tests**
+
+- Added focused coverage for workspace protocol detection and package.json dependency rewrite behavior.
+
+---
+
 ## 2026-05-17
 
 ### Agents: provider switch save fix

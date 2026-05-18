@@ -119,13 +119,7 @@ func InstallSingleDep(ctx context.Context, dep string) (bool, string) {
 			}
 			defer release()
 		}
-		if err := os.MkdirAll(npmGlobalPrefix(), 0o750); err != nil {
-			return false, fmt.Sprintf("npm prefix setup: %v", err)
-		}
-		ensureNpmGlobalEnv()
-		cmd := exec.CommandContext(ctx, npmBinary, "install", "-g", pkg)
-		cmd.Env = npmCommandEnv()
-		out, err := cmd.CombinedOutput()
+		out, err := installNpmPackage(ctx, pkg)
 		if err != nil {
 			msg := fmt.Sprintf("%s: %v", strings.TrimSpace(string(out)), err)
 			slog.Error("skills: dep install failed", "dep", dep, "error", msg)
@@ -207,9 +201,7 @@ func InstallDeps(ctx context.Context, manifest *SkillManifest, missing []string)
 		ensureNpmGlobalEnv()
 		var successful []string
 		for _, pkg := range npmPkgs {
-			cmd := exec.CommandContext(ctx, npmBinary, "install", "-g", pkg)
-			cmd.Env = npmCommandEnv()
-			if out, err := cmd.CombinedOutput(); err != nil {
+			if out, err := installNpmPackage(ctx, pkg); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("npm %s: %s (%v)", pkg, strings.TrimSpace(string(out)), err))
 			} else {
 				successful = append(successful, pkg)
