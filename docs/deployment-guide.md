@@ -79,7 +79,7 @@ Completed on 2026-05-17:
 
 - Installed Docker, Docker Compose v2, Nginx, Certbot, Node.js 22, Codex CLI.
 - Added the operator workstation SSH public key to the deployment user.
-- Installed Codex CLI. User still needs to run `codex --login` interactively.
+- Installed Codex CLI. For agent-controlled `codex exec`, authenticate the Linux service user that runs GoClaw (`goclaw`), not only the SSH operator user.
 - Restored the latest private PostgreSQL backup into Docker Postgres.
 - Upgraded restored schema from `57` to `65`.
 - Started the initial GoClaw release by `systemd`.
@@ -97,6 +97,37 @@ docker=goclaw-postgres pgvector/pgvector:pg18 healthy
 schema=65
 codex=codex-cli 0.130.0
 ```
+
+## Codex CLI Auth For Agents
+
+The gateway runs under the `goclaw` Linux user. Codex auth is stored under the
+effective home directory, so an SSH-session login such as `codex login
+--device-auth` under an operator user only writes that user's `~/.codex/auth.json`.
+Agents invoking `codex` through the exec tool use the service user's home:
+
+```text
+/var/lib/goclaw/.codex/auth.json
+```
+
+Verify both contexts when debugging auth:
+
+```bash
+codex login status
+sudo -u goclaw -H codex login status
+```
+
+If the operator user is logged in but `goclaw` is not, either run device auth as
+the service user or copy the operator auth file with strict ownership:
+
+```bash
+sudo install -d -o goclaw -g goclaw -m 700 /var/lib/goclaw/.codex
+sudo install -o goclaw -g goclaw -m 600 ~/.codex/auth.json /var/lib/goclaw/.codex/auth.json
+sudo -u goclaw -H codex login status
+sudo -u goclaw -H sh -lc 'mkdir -p /var/lib/goclaw/codex-smoke && cd /var/lib/goclaw/codex-smoke && codex exec --skip-git-repo-check --sandbox read-only "Reply with exactly: CODEX_AUTH_OK"'
+```
+
+Do not store Codex auth material in repository docs. Treat `auth.json` as a
+credential.
 
 ## DNS And SSL
 
