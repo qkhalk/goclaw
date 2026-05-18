@@ -4,6 +4,21 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-18
+
+### Packages: npm workspace protocol fallback
+
+**Fixes**
+
+- Fixed Node package installs for registry packages published with `workspace:` dependency ranges, such as `@agenttasks/cli`.
+- GoClaw now retries npm `EUNSUPPORTEDPROTOCOL workspace:` failures by packing the registry tarball, rewriting workspace dependency ranges to published package versions, and installing the sanitized package folder.
+
+**Tests**
+
+- Added focused coverage for workspace protocol detection and package.json dependency rewrite behavior.
+
+---
+
 ## 2026-05-17
 
 ### Skills: agent manage grants
@@ -46,6 +61,11 @@ Significant changes, features, and fixes in reverse chronological order.
 - Configured Cloudflare-proxied deployment domain and issued SSL through Certbot/Nginx.
 - Added `goclaw-backup-r2.timer` to dump PostgreSQL every 6 hours, upload to private Cloudflare R2 storage, and retain the latest 20 backups.
 - Added deployment runbook in `docs/deployment-guide.md`.
+
+**Features**
+
+- Added a protected gateway upgrade HTTP API that triggers the fixed host-local upgrade script asynchronously.
+- Added `scripts/goclaw-upgrade-release.sh` and installed the VPS copy at `/usr/local/bin/goclaw-upgrade-release`; dry-run verifies the latest stable server release asset and checksum before deploy.
 
 ---
 

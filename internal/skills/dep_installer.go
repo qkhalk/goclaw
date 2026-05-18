@@ -119,17 +119,14 @@ func InstallSingleDep(ctx context.Context, dep string) (bool, string) {
 			}
 			defer release()
 		}
-		cmd := exec.CommandContext(ctx, "npm", "install", "-g", pkg)
-		out, err := cmd.CombinedOutput()
+		out, err := installNpmPackage(ctx, pkg)
 		if err != nil {
 			msg := fmt.Sprintf("%s: %v", strings.TrimSpace(string(out)), err)
 			slog.Error("skills: dep install failed", "dep", dep, "error", msg)
 			return false, msg
 		}
 	default:
-		// System package via pkg-helper (root-privileged Unix socket).
-		// pkg-helper handles persist to apk-packages file.
-		ok, errMsg := apkViaHelper(ctx, "install", dep)
+		ok, errMsg := installSystemPackage(ctx, dep)
 		if !ok {
 			return false, errMsg
 		}
@@ -165,9 +162,9 @@ func InstallDeps(ctx context.Context, manifest *SkillManifest, missing []string)
 		slog.Info("skills: installing system packages", "pkgs", sysPkgs)
 		var successful []string
 		for _, pkg := range sysPkgs {
-			ok, errMsg := apkViaHelper(ctx, "install", pkg)
+			ok, errMsg := installSystemPackage(ctx, pkg)
 			if !ok {
-				result.Errors = append(result.Errors, fmt.Sprintf("apk %s: %s", pkg, errMsg))
+				result.Errors = append(result.Errors, fmt.Sprintf("system %s: %s", pkg, errMsg))
 			} else {
 				successful = append(successful, pkg)
 			}
@@ -196,10 +193,15 @@ func InstallDeps(ctx context.Context, manifest *SkillManifest, missing []string)
 	// Npm packages: install one by one for partial-success resilience.
 	if len(npmPkgs) > 0 {
 		slog.Info("skills: installing npm packages", "pkgs", npmPkgs)
+		if err := os.MkdirAll(npmGlobalPrefix(), 0o750); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("npm prefix setup: %v", err))
+			cleanCaches(ctx)
+			return result, nil
+		}
+		ensureNpmGlobalEnv()
 		var successful []string
 		for _, pkg := range npmPkgs {
-			cmd := exec.CommandContext(ctx, "npm", "install", "-g", pkg)
-			if out, err := cmd.CombinedOutput(); err != nil {
+			if out, err := installNpmPackage(ctx, pkg); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("npm %s: %s (%v)", pkg, strings.TrimSpace(string(out)), err))
 			} else {
 				successful = append(successful, pkg)
@@ -266,7 +268,9 @@ func UninstallPackage(ctx context.Context, dep string) (bool, string) {
 		}
 	case strings.HasPrefix(dep, "npm:"):
 		pkg := strings.TrimPrefix(dep, "npm:")
-		cmd := exec.CommandContext(ctx, "npm", "uninstall", "-g", pkg)
+		ensureNpmGlobalEnv()
+		cmd := exec.CommandContext(ctx, npmBinary, "uninstall", "-g", pkg)
+		cmd.Env = npmCommandEnv()
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			msg := fmt.Sprintf("%s: %v", strings.TrimSpace(string(out)), err)
@@ -274,8 +278,7 @@ func UninstallPackage(ctx context.Context, dep string) (bool, string) {
 			return false, msg
 		}
 	default:
-		// System package via pkg-helper. Helper handles persist file removal.
-		ok, errMsg := apkViaHelper(ctx, "uninstall", dep)
+		ok, errMsg := uninstallSystemPackage(ctx, dep)
 		if !ok {
 			return false, errMsg
 		}

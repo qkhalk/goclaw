@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -31,6 +32,9 @@ func useFixtureNpm(t *testing.T) {
 	t.Helper()
 	restoreNpmBinary(t)
 	restoreNpmLookPath(t)
+	if os.Getenv("RUNTIME_DIR") == "" && os.Getenv("NPM_CONFIG_PREFIX") == "" {
+		t.Setenv("RUNTIME_DIR", t.TempDir())
+	}
 	npmBinary = filepath.Join("testdata", "npm", "bin", "npm")
 	if runtime.GOOS == "windows" {
 		npmBinary += ".cmd"
