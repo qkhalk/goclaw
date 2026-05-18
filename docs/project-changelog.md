@@ -6,6 +6,18 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-18
 
+### Providers: ChatGPT OAuth GPT-5.5 default
+
+**Changed**
+
+- Updated ChatGPT Subscription (OAuth) default model, provider model catalog, reasoning metadata, and docs examples to prefer `gpt-5.5`.
+
+**Tests**
+
+- Updated focused provider/model catalog, reasoning, registry, and token-window coverage for `gpt-5.5`.
+
+---
+
 ### Deployment: Codex CLI service-user auth
 
 **Fixes**

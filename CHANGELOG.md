@@ -23,6 +23,12 @@ All notable changes to GoClaw are documented here. For full documentation, see [
   with downgrade protection. WebSocket events `package.update.*` for owner
   clients. See `docs/packages-github.md` § "Updating Installed Packages".
 
+### Changed
+
+- **ChatGPT Subscription (OAuth)** — default model and backend-owned model catalog
+  now prefer `gpt-5.5`, with reasoning metadata and context-window defaults updated
+  for provider-first model selection.
+
 ### Breaking Changes
 
 - **Context pruning now opt-in.** Previously tool-result trimming ran by default

@@ -148,7 +148,7 @@ can override or inherit routing behavior while keeping the main `provider` field
 ```json
 {
   "provider": "openai-codex",
-  "model": "gpt-5.4",
+  "model": "gpt-5.5",
   "chatgpt_oauth_routing": {
     "override_mode": "custom",
     "strategy": "round_robin"
@@ -214,7 +214,7 @@ Agents can now store capability-aware GPT-5/Codex reasoning intent under top-lev
 ```json
 {
   "provider": "openai-codex",
-  "model": "gpt-5.4",
+  "model": "gpt-5.5",
   "reasoning_config": {
     "override_mode": "inherit"
   }
@@ -364,11 +364,11 @@ Example response:
 {
   "models": [
     {
-      "id": "gpt-5.4",
-      "name": "GPT-5.4",
+      "id": "gpt-5.5",
+      "name": "GPT-5.5",
       "reasoning": {
         "levels": ["none", "low", "medium", "high", "xhigh"],
-        "default_effort": "none"
+        "default_effort": "medium"
       }
     },
     {
