@@ -140,6 +140,43 @@ func TestSQLiteSkillStore_RevokeFromAgentDoesNotDemoteCrossTenantSkill(t *testin
 	}
 }
 
+func TestSQLiteSkillStore_ListWithGrantStatusIgnoresForeignTenantGrant(t *testing.T) {
+	_, skillStore, db := newTestSQLiteSkillStoreWithDB(t)
+	tenantA, _ := seedSQLiteTenantAgent(t, db)
+	tenantB, agentB := seedSQLiteTenantAgent(t, db)
+	ctxA := store.WithTenantID(context.Background(), tenantA)
+
+	skillID := uuid.New()
+	if _, err := db.Exec(
+		`INSERT INTO skills (id, name, slug, owner_id, visibility, version, status, file_path, is_system, tenant_id)
+		 VALUES (?, 'System Skill', ?, 'system', 'internal', 1, 'active', ?, 1, ?)`,
+		skillID.String(), "system-grant-status-"+skillID.String()[:8], filepath.Join(t.TempDir(), "system-skill", "1"), store.MasterTenantID.String(),
+	); err != nil {
+		t.Fatalf("insert system skill: %v", err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO skill_agent_grants (id, skill_id, agent_id, pinned_version, granted_by, can_manage, tenant_id)
+		 VALUES (?, ?, ?, 1, 'tenant-b-admin', 1, ?)`,
+		uuid.New().String(), skillID.String(), agentB.String(), tenantB.String(),
+	); err != nil {
+		t.Fatalf("insert foreign tenant grant: %v", err)
+	}
+
+	skills, err := skillStore.ListWithGrantStatus(ctxA, agentB)
+	if err != nil {
+		t.Fatalf("ListWithGrantStatus error: %v", err)
+	}
+	for _, skill := range skills {
+		if skill.ID == skillID {
+			if skill.Granted || skill.CanManage {
+				t.Fatalf("foreign tenant grant leaked into tenant A status: granted=%v canManage=%v", skill.Granted, skill.CanManage)
+			}
+			return
+		}
+	}
+	t.Fatalf("system skill %s not returned for tenant A", skillID)
+}
+
 func newTestSQLiteSkillStore(t *testing.T) (context.Context, *SQLiteSkillStore) {
 	ctx, skillStore, _ := newTestSQLiteSkillStoreWithDB(t)
 	return ctx, skillStore

@@ -310,13 +310,16 @@ func (s *SQLiteSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid
 		return nil, err
 	}
 	tenantCond := ""
+	grantTenantCond := ""
 	if len(tArgs) > 0 {
 		tenantCond = " AND (s.is_system = 1 OR s.tenant_id = ?)"
+		grantTenantCond = " AND sag.tenant_id = ?"
 	}
 	_ = tClause
 
 	queryArgs := []any{agentID}
 	if len(tArgs) > 0 {
+		queryArgs = append(queryArgs, tArgs...)
 		queryArgs = append(queryArgs, tArgs...)
 	}
 
@@ -327,7 +330,7 @@ func (s *SQLiteSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid
 		        sag.pinned_version,
 		        s.is_system
 		 FROM skills s
-		 LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = ?
+		 LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = ?`+grantTenantCond+`
 		 WHERE s.status = 'active'`+tenantCond+`
 		 ORDER BY s.name`, queryArgs...)
 	if err != nil {

@@ -297,8 +297,10 @@ func (s *PGSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid.UUI
 		return nil, err
 	}
 	tenantCond := ""
+	grantTenantCond := ""
 	if tc != "" {
 		tenantCond = fmt.Sprintf(" AND (s.is_system = true OR s.tenant_id = $%d)", 2)
+		grantTenantCond = fmt.Sprintf(" AND sag.tenant_id = $%d", 2)
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT s.id, s.name, s.slug, COALESCE(s.description, ''), s.visibility, s.version,
@@ -307,7 +309,7 @@ func (s *PGSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid.UUI
 		        sag.pinned_version,
 		        s.is_system
 		 FROM skills s
-		 LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = $1
+		 LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = $1`+grantTenantCond+`
 		 WHERE s.status = 'active'`+tenantCond+`
 		 ORDER BY s.name`, append([]any{agentID}, tcArgs...)...)
 	if err != nil {
