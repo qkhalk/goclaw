@@ -1,4 +1,4 @@
-﻿package config
+package config
 
 // PendingCompactionConfig configures LLM-based compaction of pending group messages.
 // When a group accumulates more than Threshold pending messages, older messages are
