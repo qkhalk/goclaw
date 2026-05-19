@@ -125,7 +125,7 @@ export function SkillAgentGrantsDialog({
                 {grants.map((grant) => (
                   <div key={grant.agent_id} className="flex items-center justify-between gap-3 px-3 py-2.5">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{agentNames.get(grant.agent_id) || grant.agent_id}</p>
+                      <p className="truncate text-sm font-medium">{grant.display_name || grant.agent_key || agentNames.get(grant.agent_id) || grant.agent_id}</p>
                       <div className="mt-1 flex items-center gap-1.5">
                         <Badge variant="secondary" className="text-2xs">v{grant.pinned_version}</Badge>
                         {grant.can_manage && (

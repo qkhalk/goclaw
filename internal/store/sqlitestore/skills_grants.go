@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -170,7 +171,12 @@ func (s *SQLiteSkillStore) ListAgentGrantsForSkill(ctx context.Context, skillID 
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT agent_id, pinned_version, granted_by, can_manage FROM skill_agent_grants WHERE skill_id = ?"+tClause+" ORDER BY created_at DESC",
+		`SELECT sag.agent_id, COALESCE(a.agent_key, ''), COALESCE(a.display_name, ''),
+		        sag.pinned_version, sag.granted_by, sag.can_manage
+		   FROM skill_agent_grants sag
+		   LEFT JOIN agents a ON a.id = sag.agent_id
+		  WHERE sag.skill_id = ?`+strings.ReplaceAll(tClause, "tenant_id", "sag.tenant_id")+`
+		  ORDER BY sag.created_at DESC`,
 		append([]any{skillID}, tArgs...)...)
 	if err != nil {
 		return nil, err
@@ -180,13 +186,157 @@ func (s *SQLiteSkillStore) ListAgentGrantsForSkill(ctx context.Context, skillID 
 	var result []store.SkillAgentGrantInfo
 	for rows.Next() {
 		var g store.SkillAgentGrantInfo
-		if err := rows.Scan(&g.AgentID, &g.PinnedVersion, &g.GrantedBy, &g.CanManage); err != nil {
+		if err := rows.Scan(&g.AgentID, &g.AgentKey, &g.DisplayName, &g.PinnedVersion, &g.GrantedBy, &g.CanManage); err != nil {
 			slog.Warn("skill_grants: scan error in ListAgentGrantsForSkill", "error", err)
 			continue
 		}
 		result = append(result, g)
 	}
 	return result, rows.Err()
+}
+
+func (s *SQLiteSkillStore) attachSkillAgentMetadata(ctx context.Context, skills []store.SkillInfo) {
+	if len(skills) == 0 {
+		return
+	}
+	ids := make([]uuid.UUID, 0, len(skills))
+	byID := make(map[uuid.UUID]int, len(skills))
+	creatorIDs := make([]uuid.UUID, 0)
+	creatorByID := make(map[uuid.UUID][]int)
+	creatorKeys := make([]string, 0)
+	creatorByKey := make(map[string][]int)
+	for i := range skills {
+		id, err := uuid.Parse(skills[i].ID)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
+		byID[id] = i
+		if ref := skills[i].CreatorAgent; ref != nil {
+			skills[i].CreatorAgent = nil
+			if ref.ID != "" {
+				if agentID, err := uuid.Parse(ref.ID); err == nil {
+					if _, exists := creatorByID[agentID]; !exists {
+						creatorIDs = append(creatorIDs, agentID)
+					}
+					creatorByID[agentID] = append(creatorByID[agentID], i)
+				}
+			}
+			if ref.AgentKey != "" {
+				if _, exists := creatorByKey[ref.AgentKey]; !exists {
+					creatorKeys = append(creatorKeys, ref.AgentKey)
+				}
+				creatorByKey[ref.AgentKey] = append(creatorByKey[ref.AgentKey], i)
+			}
+		}
+	}
+	s.attachVerifiedCreatorAgents(ctx, skills, creatorIDs, creatorByID, creatorKeys, creatorByKey)
+	if len(ids) == 0 {
+		return
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, 0, len(ids)+1)
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	tClause, tArgs, err := scopeClause(ctx)
+	if err != nil {
+		return
+	}
+	args = append(args, tArgs...)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT sag.skill_id, sag.agent_id, COALESCE(a.agent_key, ''), COALESCE(a.display_name, '')
+		   FROM skill_agent_grants sag
+		   LEFT JOIN agents a ON a.id = sag.agent_id
+		  WHERE sag.skill_id IN (`+strings.Join(placeholders, ",")+`) AND sag.can_manage = 1`+strings.ReplaceAll(tClause, "tenant_id", "sag.tenant_id")+`
+		  ORDER BY sag.created_at DESC`,
+		args...)
+	if err != nil {
+		slog.Warn("skill_grants: failed to attach manager agents", "error", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var skillID, agentID uuid.UUID
+		var agentKey, displayName string
+		if err := rows.Scan(&skillID, &agentID, &agentKey, &displayName); err != nil {
+			continue
+		}
+		i, ok := byID[skillID]
+		if !ok {
+			continue
+		}
+		skills[i].ManagerAgents = append(skills[i].ManagerAgents, store.SkillAgentRef{
+			ID:          agentID.String(),
+			AgentKey:    agentKey,
+			DisplayName: displayName,
+		})
+	}
+}
+
+func (s *SQLiteSkillStore) attachVerifiedCreatorAgents(
+	ctx context.Context,
+	skills []store.SkillInfo,
+	creatorIDs []uuid.UUID,
+	creatorByID map[uuid.UUID][]int,
+	creatorKeys []string,
+	creatorByKey map[string][]int,
+) {
+	if len(creatorIDs) == 0 && len(creatorKeys) == 0 {
+		return
+	}
+	clauses := make([]string, 0, 2)
+	args := make([]any, 0, len(creatorIDs)+len(creatorKeys)+1)
+	if len(creatorIDs) > 0 {
+		placeholders := make([]string, len(creatorIDs))
+		for i, id := range creatorIDs {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		clauses = append(clauses, "a.id IN ("+strings.Join(placeholders, ",")+")")
+	}
+	if len(creatorKeys) > 0 {
+		placeholders := make([]string, len(creatorKeys))
+		for i, key := range creatorKeys {
+			placeholders[i] = "?"
+			args = append(args, key)
+		}
+		clauses = append(clauses, "a.agent_key IN ("+strings.Join(placeholders, ",")+")")
+	}
+	tClause, tArgs, err := scopeClause(ctx)
+	if err != nil {
+		return
+	}
+	args = append(args, tArgs...)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT a.id, COALESCE(a.agent_key, ''), COALESCE(a.display_name, '')
+		   FROM agents a
+		  WHERE a.deleted_at IS NULL AND (`+strings.Join(clauses, " OR ")+`)`+strings.ReplaceAll(tClause, "tenant_id", "a.tenant_id"),
+		args...)
+	if err != nil {
+		slog.Warn("skill_grants: failed to resolve creator agents", "error", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var agentID uuid.UUID
+		var agentKey, displayName string
+		if err := rows.Scan(&agentID, &agentKey, &displayName); err != nil {
+			continue
+		}
+		ref := store.SkillAgentRef{
+			ID:          agentID.String(),
+			AgentKey:    agentKey,
+			DisplayName: displayName,
+		}
+		for _, i := range creatorByID[agentID] {
+			skills[i].CreatorAgent = &ref
+		}
+		for _, i := range creatorByKey[agentKey] {
+			skills[i].CreatorAgent = &ref
+		}
+	}
 }
 
 // AgentCanManageSkill reports whether an agent has explicit edit/delete rights for a skill.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -152,18 +153,141 @@ func (s *PGSkillStore) ListAgentGrantsForSkill(ctx context.Context, skillID uuid
 	if err := s.verifySkillInGrantScope(ctx, skillID, tenantIDForInsert(ctx)); err != nil {
 		return nil, err
 	}
-	tClause, tArgs, _, err := scopeClause(ctx, 2)
+	tClause, tArgs, _, err := scopeClauseAlias(ctx, 2, "sag")
 	if err != nil {
 		return nil, err
 	}
 	var result []store.SkillAgentGrantInfo
 	err = pkgSqlxDB.SelectContext(ctx, &result,
-		"SELECT agent_id, pinned_version, granted_by, can_manage FROM skill_agent_grants WHERE skill_id = $1"+tClause+" ORDER BY created_at DESC",
+		`SELECT sag.agent_id, COALESCE(a.agent_key, '') AS agent_key, COALESCE(a.display_name, '') AS display_name,
+		        sag.pinned_version, sag.granted_by, sag.can_manage
+		   FROM skill_agent_grants sag
+		   LEFT JOIN agents a ON a.id = sag.agent_id
+		  WHERE sag.skill_id = $1`+tClause+`
+		  ORDER BY sag.created_at DESC`,
 		append([]any{skillID}, tArgs...)...)
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+func (s *PGSkillStore) attachSkillAgentMetadata(ctx context.Context, skills []store.SkillInfo) {
+	if len(skills) == 0 {
+		return
+	}
+	ids := make([]uuid.UUID, 0, len(skills))
+	byID := make(map[uuid.UUID]int, len(skills))
+	creatorIDs := make([]uuid.UUID, 0)
+	creatorByID := make(map[uuid.UUID][]int)
+	creatorKeys := make([]string, 0)
+	creatorByKey := make(map[string][]int)
+	for i := range skills {
+		id, err := uuid.Parse(skills[i].ID)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
+		byID[id] = i
+		if ref := skills[i].CreatorAgent; ref != nil {
+			skills[i].CreatorAgent = nil
+			if ref.ID != "" {
+				if agentID, err := uuid.Parse(ref.ID); err == nil {
+					if _, exists := creatorByID[agentID]; !exists {
+						creatorIDs = append(creatorIDs, agentID)
+					}
+					creatorByID[agentID] = append(creatorByID[agentID], i)
+				}
+			}
+			if ref.AgentKey != "" {
+				if _, exists := creatorByKey[ref.AgentKey]; !exists {
+					creatorKeys = append(creatorKeys, ref.AgentKey)
+				}
+				creatorByKey[ref.AgentKey] = append(creatorByKey[ref.AgentKey], i)
+			}
+		}
+	}
+	s.attachVerifiedCreatorAgents(ctx, skills, creatorIDs, creatorByID, creatorKeys, creatorByKey)
+	if len(ids) == 0 {
+		return
+	}
+	tClause, tArgs, _, err := scopeClauseAlias(ctx, 2, "sag")
+	if err != nil {
+		return
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT sag.skill_id, sag.agent_id, COALESCE(a.agent_key, ''), COALESCE(a.display_name, '')
+		   FROM skill_agent_grants sag
+		   LEFT JOIN agents a ON a.id = sag.agent_id
+		  WHERE sag.skill_id = ANY($1) AND sag.can_manage = true`+tClause+`
+		  ORDER BY sag.created_at DESC`,
+		append([]any{pq.Array(ids)}, tArgs...)...)
+	if err != nil {
+		slog.Warn("skill_grants: failed to attach manager agents", "error", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var skillID, agentID uuid.UUID
+		var agentKey, displayName string
+		if err := rows.Scan(&skillID, &agentID, &agentKey, &displayName); err != nil {
+			continue
+		}
+		i, ok := byID[skillID]
+		if !ok {
+			continue
+		}
+		skills[i].ManagerAgents = append(skills[i].ManagerAgents, store.SkillAgentRef{
+			ID:          agentID.String(),
+			AgentKey:    agentKey,
+			DisplayName: displayName,
+		})
+	}
+}
+
+func (s *PGSkillStore) attachVerifiedCreatorAgents(
+	ctx context.Context,
+	skills []store.SkillInfo,
+	creatorIDs []uuid.UUID,
+	creatorByID map[uuid.UUID][]int,
+	creatorKeys []string,
+	creatorByKey map[string][]int,
+) {
+	if len(creatorIDs) == 0 && len(creatorKeys) == 0 {
+		return
+	}
+	tClause, tArgs, _, err := scopeClauseAlias(ctx, 3, "a")
+	if err != nil {
+		return
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT a.id, COALESCE(a.agent_key, ''), COALESCE(a.display_name, '')
+		   FROM agents a
+		  WHERE a.deleted_at IS NULL AND (a.id = ANY($1) OR a.agent_key = ANY($2))`+tClause,
+		append([]any{pq.Array(creatorIDs), pq.Array(creatorKeys)}, tArgs...)...)
+	if err != nil {
+		slog.Warn("skill_grants: failed to resolve creator agents", "error", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var agentID uuid.UUID
+		var agentKey, displayName string
+		if err := rows.Scan(&agentID, &agentKey, &displayName); err != nil {
+			continue
+		}
+		ref := store.SkillAgentRef{
+			ID:          agentID.String(),
+			AgentKey:    agentKey,
+			DisplayName: displayName,
+		}
+		for _, i := range creatorByID[agentID] {
+			skills[i].CreatorAgent = &ref
+		}
+		for _, i := range creatorByKey[agentKey] {
+			skills[i].CreatorAgent = &ref
+		}
+	}
 }
 
 // AgentCanManageSkill reports whether an agent has explicit edit/delete rights for a skill.

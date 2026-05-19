@@ -70,6 +70,82 @@ func TestSQLiteSkillStore_CreateSkillManaged_PersistsArchivedDependencyState(t *
 	}
 }
 
+func TestSQLiteSkillStore_GetSkill_UUIDCanReadArchivedSlugStaysActiveOnly(t *testing.T) {
+	ctx, skillStore := newTestSQLiteSkillStore(t)
+	skillID, err := skillStore.CreateSkillManaged(ctx, store.SkillCreateParams{
+		Name:       "Archived Detail",
+		Slug:       "archived-detail",
+		OwnerID:    "user-1",
+		Visibility: "private",
+		Status:     "archived",
+		FilePath:   filepath.Join(t.TempDir(), "archived-detail", "1"),
+	})
+	if err != nil {
+		t.Fatalf("CreateSkillManaged error: %v", err)
+	}
+
+	if _, ok := skillStore.GetSkill(ctx, "archived-detail"); ok {
+		t.Fatal("GetSkill by slug returned archived skill; want active-only slug lookup")
+	}
+	info, ok := skillStore.GetSkill(ctx, skillID.String())
+	if !ok {
+		t.Fatal("GetSkill by UUID returned !ok for archived skill")
+	}
+	if info.Status != "archived" {
+		t.Fatalf("Status = %q, want archived", info.Status)
+	}
+}
+
+func TestSQLiteSkillStore_ListSkills_ResolvesCreatorAgentWithinTenant(t *testing.T) {
+	_, skillStore, db := newTestSQLiteSkillStoreWithDB(t)
+	tenantID, agentID := seedSQLiteTenantAgent(t, db)
+	if _, err := db.Exec(`UPDATE agents SET display_name = ? WHERE id = ?`, "Creator Agent", agentID.String()); err != nil {
+		t.Fatalf("update agent display_name: %v", err)
+	}
+	ctx := store.WithTenantID(context.Background(), tenantID)
+	if _, err := skillStore.CreateSkillManaged(ctx, store.SkillCreateParams{
+		Name:       "Verified Creator",
+		Slug:       "verified-creator",
+		OwnerID:    "user-1",
+		Visibility: "private",
+		FilePath:   filepath.Join(t.TempDir(), "verified-creator", "1"),
+		Frontmatter: map[string]string{
+			"created_by_agent_id": agentID.String(),
+			"created_by_agent":    "Spoofed Name",
+		},
+	}); err != nil {
+		t.Fatalf("CreateSkillManaged error: %v", err)
+	}
+	if _, err := skillStore.CreateSkillManaged(ctx, store.SkillCreateParams{
+		Name:       "Spoofed Creator",
+		Slug:       "spoofed-creator",
+		OwnerID:    "user-1",
+		Visibility: "private",
+		FilePath:   filepath.Join(t.TempDir(), "spoofed-creator", "1"),
+		Frontmatter: map[string]string{
+			"created_by_agent": "Only A String",
+		},
+	}); err != nil {
+		t.Fatalf("CreateSkillManaged error: %v", err)
+	}
+
+	list := skillStore.ListSkills(ctx)
+	bySlug := map[string]store.SkillInfo{}
+	for _, info := range list {
+		bySlug[info.Slug] = info
+	}
+	verified := bySlug["verified-creator"].CreatorAgent
+	if verified == nil {
+		t.Fatal("CreatorAgent = nil, want verified creator")
+	}
+	if verified.ID != agentID.String() || verified.DisplayName != "Creator Agent" {
+		t.Fatalf("CreatorAgent = %+v, want resolved DB agent", verified)
+	}
+	if got := bySlug["spoofed-creator"].CreatorAgent; got != nil {
+		t.Fatalf("CreatorAgent = %+v, want nil for display-only spoof", got)
+	}
+}
+
 func TestSQLiteSkillStore_GrantToAgentRejectsCrossTenantSkill(t *testing.T) {
 	_, skillStore, db := newTestSQLiteSkillStoreWithDB(t)
 	tenantA, agentA := seedSQLiteTenantAgent(t, db)

@@ -8,22 +8,32 @@ import (
 
 // SkillInfo describes a discovered skill.
 type SkillInfo struct {
-	ID          string   `json:"id,omitempty" db:"id"` // DB UUID
-	Name        string   `json:"name" db:"name"`
-	Slug        string   `json:"slug" db:"slug"`
-	Path        string   `json:"path" db:"path"`
-	BaseDir     string   `json:"baseDir" db:"-"`
-	Source      string   `json:"source" db:"-"`
-	Description string   `json:"description" db:"description"`
-	Visibility  string   `json:"visibility,omitempty" db:"visibility"`
-	OwnerID     string   `json:"-" db:"owner_id"`
-	Tags        []string `json:"tags,omitempty" db:"tags"`
-	Version     int      `json:"version,omitempty" db:"version"`
-	IsSystem    bool     `json:"is_system,omitempty" db:"is_system"`
-	Status      string   `json:"status,omitempty" db:"status"`
-	Enabled     bool     `json:"enabled" db:"enabled"`
-	Author      string   `json:"author,omitempty" db:"author"`
-	MissingDeps []string `json:"missing_deps,omitempty" db:"missing_deps"`
+	ID            string          `json:"id,omitempty" db:"id"` // DB UUID
+	TenantID      string          `json:"-" db:"tenant_id"`
+	Name          string          `json:"name" db:"name"`
+	Slug          string          `json:"slug" db:"slug"`
+	Path          string          `json:"path" db:"path"`
+	BaseDir       string          `json:"baseDir" db:"-"`
+	Source        string          `json:"source" db:"-"`
+	Description   string          `json:"description" db:"description"`
+	Visibility    string          `json:"visibility,omitempty" db:"visibility"`
+	OwnerID       string          `json:"-" db:"owner_id"`
+	Tags          []string        `json:"tags,omitempty" db:"tags"`
+	Version       int             `json:"version,omitempty" db:"version"`
+	IsSystem      bool            `json:"is_system,omitempty" db:"is_system"`
+	Status        string          `json:"status,omitempty" db:"status"`
+	Enabled       bool            `json:"enabled" db:"enabled"`
+	Author        string          `json:"author,omitempty" db:"author"`
+	CreatorAgent  *SkillAgentRef  `json:"creator_agent,omitempty" db:"-"`
+	ManagerAgents []SkillAgentRef `json:"manager_agents,omitempty" db:"-"`
+	MissingDeps   []string        `json:"missing_deps,omitempty" db:"missing_deps"`
+}
+
+// SkillAgentRef is a small UI/API-safe agent reference for skill metadata.
+type SkillAgentRef struct {
+	ID          string `json:"id,omitempty" db:"id"`
+	AgentKey    string `json:"agent_key,omitempty" db:"agent_key"`
+	DisplayName string `json:"display_name,omitempty" db:"display_name"`
 }
 
 // SkillSearchResult is a scored skill returned from embedding search.
@@ -97,6 +107,8 @@ type SkillWithGrantStatus struct {
 // SkillAgentGrantInfo is a grant row for one skill across agents.
 type SkillAgentGrantInfo struct {
 	AgentID       uuid.UUID `json:"agent_id" db:"agent_id"`
+	AgentKey      string    `json:"agent_key,omitempty" db:"agent_key"`
+	DisplayName   string    `json:"display_name,omitempty" db:"display_name"`
 	PinnedVersion int       `json:"pinned_version" db:"pinned_version"`
 	GrantedBy     string    `json:"granted_by" db:"granted_by"`
 	CanManage     bool      `json:"can_manage" db:"can_manage"`
