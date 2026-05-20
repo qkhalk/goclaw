@@ -4,6 +4,22 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-20
+
+### HTTP API contract hardening
+
+**Fixes**
+
+- Fixed memory API `{agentID}` handling so agent keys are resolved before storage access and invalid IDs return structured client errors instead of leaking UUID parse failures as HTTP 500.
+- Allowed system/admin API-key automation to list agents and sessions without an extra `X-GoClaw-User-Id` header while preserving user filtering for non-admin callers.
+- Added structured `/v1/*` not-found responses and a read-only `GET /v1/sessions` compatibility endpoint for automation clients.
+
+**Tests**
+
+- Added regression coverage for memory agent-key resolution, invalid memory IDs, session list auth behavior, and structured API 404s.
+
+---
+
 ## 2026-05-18
 
 ### Packages: GitHub installer runtime path

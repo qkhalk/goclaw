@@ -226,7 +226,7 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 
 	// Memory management API
 	if d.pgStores != nil && d.pgStores.Memory != nil {
-		d.server.SetMemoryHandler(httpapi.NewMemoryHandler(d.pgStores.Memory))
+		d.server.SetMemoryHandler(httpapi.NewMemoryHandler(d.pgStores.Memory, d.pgStores.Agents))
 	}
 
 	// Knowledge graph API

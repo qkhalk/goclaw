@@ -165,6 +165,8 @@ On successful API key authentication, `last_used_at` is updated asynchronously (
 - **Tenant scope**: `X-GoClaw-Tenant-Id: <tenant-uuid-or-slug>` — owner/system-key scope narrowing; non-owner gateway token and browser-pairing callers must already belong to the requested tenant
 - **Locale**: `Accept-Language` — user's preferred language (en, vi, zh; default: en)
 
+User context is still required for user-scoped read paths. Admin API keys without an `owner_id` can call tenant-scoped admin list endpoints such as `GET /v1/agents` and `GET /v1/sessions` without `X-GoClaw-User-Id`; non-admin keys without an effective user receive a structured `INVALID_REQUEST`. User-bound API keys always force the stored `owner_id` and ignore spoofed user headers.
+
 ### Tenant Scope Rules
 
 - **Gateway token + owner user ID**: may narrow to any tenant via `X-GoClaw-Tenant-Id`

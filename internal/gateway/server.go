@@ -170,12 +170,19 @@ func (s *Server) BuildMux() *http.ServeMux {
 		mux.Handle("/v1/tools/invoke", toolsHandler)
 	}
 
+	// Read-only HTTP compatibility for automation clients.
+	if s.sessions != nil {
+		httpapi.NewSessionsHandler(s.sessions, s.cfg.Gateway.OwnerIDs).RegisterRoutes(mux)
+	}
+
 	// Register all HTTP API handlers (agents, skills, teams, storage, etc.)
 	for _, h := range s.handlers {
 		if h != nil {
 			h.RegisterRoutes(mux)
 		}
 	}
+
+	httpapi.RegisterAPINotFoundRoute(mux)
 
 	// MCP bridge: expose GoClaw tools to Claude CLI via streamable-http.
 	// Only listens on localhost (CLI runs on the same machine).

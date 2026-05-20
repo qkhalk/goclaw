@@ -537,9 +537,23 @@ Per-agent vector memory using pgvector.
 
 Optional query parameter `?user_id=` for per-user scoping.
 
+`{agentID}` accepts either the agent UUID or `agent_key`; invalid IDs return a structured `INVALID_REQUEST`/`NOT_FOUND` response instead of surfacing storage parse errors.
+
 ---
 
-## 11. Episodic Memory
+## 11. Sessions
+
+Read-only session listing is available over HTTP for automation clients.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/sessions` | List sessions with `agentId`/`agent_id`, `channel`, `limit`, and `offset` filters |
+
+Admins and system-level admin API keys can list all sessions within the resolved tenant. Non-admin callers must have an effective `X-GoClaw-User-Id` context and are filtered to their own sessions.
+
+---
+
+## 12. Episodic Memory
 
 Episodic memory captures conversation summaries per user session for long-term context continuity.
 
@@ -1496,7 +1510,7 @@ Error messages are localized based on the `Accept-Language` header. HTTP status 
 
 The following operations are **only available via WebSocket RPC**, not HTTP:
 
-- **Sessions:** List, preview, patch, delete, reset (use WebSocket method `sessions.*`)
+- **Sessions:** Preview, patch, delete, reset (use WebSocket method `sessions.*`; HTTP supports read-only list)
 - **Cron jobs:** List, create, update, delete, logs (use WebSocket method `cron.*`)
 - **Send messages:** Send to channels (use WebSocket method `send.*`)
 - **Config management:** Get, apply, patch (use WebSocket method `config.*`)
