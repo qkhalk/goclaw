@@ -35,6 +35,10 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Fixed
 
+- **Upstream critical security remediation** — hardens gateway no-token fallback,
+  Feishu/Lark and Pancake webhooks, sandbox path/write handling, tenant-admin
+  checks for mutable HTTP surfaces, and Lite hook schema migration verification.
+
 - **SecureCLI runtime npm binaries** — binary discovery and credentialed exec now
   resolve tools installed under the GoClaw runtime directories, including
   `{runtimeDir}/npm-global/bin`, and support single-binary npm package aliases

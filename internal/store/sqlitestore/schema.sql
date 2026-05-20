@@ -1774,6 +1774,8 @@ CREATE TABLE IF NOT EXISTS agent_workstation_links (
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (agent_id, workstation_id)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_workstation_default
+    ON agent_workstation_links(agent_id) WHERE is_default = 1;
 CREATE INDEX IF NOT EXISTS idx_agent_workstation_tenant ON agent_workstation_links(tenant_id);
 
 -- ============================================================

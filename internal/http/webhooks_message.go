@@ -105,7 +105,7 @@ type webhookMessageReq struct {
 // webhookMessageResp is the success response envelope.
 type webhookMessageResp struct {
 	CallID      string `json:"call_id"`
-	Status      string `json:"status"`            // always "sent"
+	Status      string `json:"status"` // always "sent"
 	ChannelName string `json:"channel_name"`
 	ChatID      string `json:"chat_id"`
 	Warning     string `json:"warning,omitempty"` // set when media was dropped on fallback
@@ -163,9 +163,13 @@ func (h *WebhookMessageHandler) handle(w http.ResponseWriter, r *http.Request) {
 	deliveryID := store.GenNewID()
 	now := time.Now()
 	callRecord := h.newCallRecord(r, webhook, callID, deliveryID, now, channelName, req)
+	callReserved, handled := reserveIdempotentCall(w, r, h.callStore, callRecord)
+	if handled {
+		return
+	}
 
 	// Dispatch — media or text-only path.
-	warning, sendErr := h.dispatch(ctx, w, r, webhook, req, channelName, callRecord, locale)
+	warning, sendErr := h.dispatch(ctx, w, r, webhook, req, channelName, callRecord, callReserved, locale)
 	if sendErr != nil {
 		return // error response already written by dispatch
 	}
@@ -186,13 +190,7 @@ func (h *WebhookMessageHandler) handle(w http.ResponseWriter, r *http.Request) {
 	respBytes, _ := json.Marshal(respBody)
 	callRecord.Response = respBytes
 
-	if err := h.callStore.Create(ctx, callRecord); err != nil {
-		// Non-fatal: audit failure must not fail a delivered message.
-		slog.Warn("webhook.message.audit_write_failed",
-			"error", err,
-			"call_id", callID,
-		)
-	}
+	persistWebhookCall(ctx, h.callStore, callRecord, callReserved, "webhook.message.audit_write_failed")
 
 	slog.Info("webhook.message.delivered",
 		"tenant_id", webhook.TenantID,
@@ -215,12 +213,13 @@ func (h *WebhookMessageHandler) dispatch(
 	req webhookMessageReq,
 	channelName string,
 	callRecord *store.WebhookCallData,
+	callReserved bool,
 	locale string,
 ) (warning string, _ error) {
 	if req.MediaURL == "" {
 		// Text-only path.
 		if err := h.channelMgr.SendToChannel(ctx, channelName, req.ChatID, req.Content); err != nil {
-			h.failCall(ctx, callRecord, err.Error())
+			h.failCall(ctx, callRecord, callReserved, err.Error())
 			slog.Error("webhook.message.dispatch_failed",
 				"error", err,
 				"channel_name", channelName,
@@ -238,7 +237,7 @@ func (h *WebhookMessageHandler) dispatch(
 	if probeErr != nil {
 		var mve *mediaValidateError
 		if errors.As(probeErr, &mve) {
-			h.failCall(ctx, callRecord, mve.message)
+			h.failCall(ctx, callRecord, callReserved, mve.message)
 			switch mve.code {
 			case "ssrf":
 				slog.Warn("security.webhook.ssrf_blocked",
@@ -258,7 +257,7 @@ func (h *WebhookMessageHandler) dispatch(
 					i18n.T(locale, i18n.MsgWebhookMediaSSRFBlocked))
 			}
 		} else {
-			h.failCall(ctx, callRecord, probeErr.Error())
+			h.failCall(ctx, callRecord, callReserved, probeErr.Error())
 			writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest,
 				i18n.T(locale, i18n.MsgWebhookMediaSSRFBlocked))
 		}
@@ -274,7 +273,7 @@ func (h *WebhookMessageHandler) dispatch(
 			Caption:     req.MediaCaption,
 		}}
 		if err := h.channelMgr.SendMediaToChannel(ctx, channelName, req.ChatID, req.Content, media); err != nil {
-			h.failCall(ctx, callRecord, err.Error())
+			h.failCall(ctx, callRecord, callReserved, err.Error())
 			slog.Error("webhook.message.dispatch_failed",
 				"error", err,
 				"channel_name", channelName,
@@ -295,7 +294,7 @@ func (h *WebhookMessageHandler) dispatch(
 			"webhook_id", webhook.ID,
 		)
 		if err := h.channelMgr.SendToChannel(ctx, channelName, req.ChatID, req.Content); err != nil {
-			h.failCall(ctx, callRecord, err.Error())
+			h.failCall(ctx, callRecord, callReserved, err.Error())
 			slog.Error("webhook.message.dispatch_failed",
 				"error", err,
 				"channel_name", channelName,
@@ -310,7 +309,7 @@ func (h *WebhookMessageHandler) dispatch(
 
 	// Media unsupported + no fallback → 501.
 	const reason = "channel does not support media and fallback_to_text is false"
-	h.failCall(ctx, callRecord, reason)
+	h.failCall(ctx, callRecord, callReserved, reason)
 	writeError(w, http.StatusNotImplemented, protocol.ErrInvalidRequest,
 		i18n.T(locale, i18n.MsgWebhookMediaChannelUnsupported))
 	return "", errors.New(reason)
@@ -385,7 +384,10 @@ func (h *WebhookMessageHandler) newCallRecord(
 ) *store.WebhookCallData {
 	// Encode canonical audit payload: {"body_hash": "<sha256>", "meta": {...}}.
 	// PG jsonb rejects non-JSON bytes; this shape is valid JSON on both PG and SQLite.
-	bodyBytes, _ := json.Marshal(req)
+	bodyBytes := WebhookRawBodyFromContext(r.Context())
+	if bodyBytes == nil {
+		bodyBytes, _ = json.Marshal(req)
+	}
 	requestPayload, _ := buildAuditPayload(bodyBytes, map[string]any{
 		"channel_name": channelName,
 		"chat_id":      req.ChatID,
@@ -413,15 +415,13 @@ func (h *WebhookMessageHandler) newCallRecord(
 }
 
 // failCall mutates call to status=failed and records it in the store. Best-effort.
-func (h *WebhookMessageHandler) failCall(ctx context.Context, call *store.WebhookCallData, reason string) {
+func (h *WebhookMessageHandler) failCall(ctx context.Context, call *store.WebhookCallData, reserved bool, reason string) {
 	now := time.Now()
 	call.Status = "failed"
 	call.CompletedAt = &now
 	call.LastError = &reason
 	call.Attempts = 1
-	if err := h.callStore.Create(ctx, call); err != nil {
-		slog.Warn("webhook.message.audit_write_failed", "error", err, "call_id", call.ID)
-	}
+	persistWebhookCall(ctx, h.callStore, call, reserved, "webhook.message.audit_write_failed")
 }
 
 // redactedHost extracts the hostname from a URL string for safe (no-path) log output.

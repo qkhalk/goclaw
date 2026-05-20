@@ -73,6 +73,22 @@ type asyncPayload struct {
 	Metadata    json.RawMessage `json:"metadata,omitempty"`
 }
 
+func decodeAsyncPayload(payload []byte) (asyncPayload, error) {
+	var envelope struct {
+		BodyHash string          `json:"body_hash"`
+		Meta     json.RawMessage `json:"meta"`
+	}
+	if err := json.Unmarshal(payload, &envelope); err == nil && envelope.BodyHash != "" && len(envelope.Meta) > 0 {
+		payload = envelope.Meta
+	}
+
+	var req asyncPayload
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return asyncPayload{}, err
+	}
+	return req, nil
+}
+
 // callbackPayload is the JSON body POSTed to the receiver's callback_url.
 type callbackPayload struct {
 	CallID     string          `json:"call_id"`
@@ -300,8 +316,8 @@ func (w *WebhookWorker) execute(ctx context.Context, call *store.WebhookCallData
 	}()
 
 	// Decode stored request payload.
-	var req asyncPayload
-	if err := json.Unmarshal(call.RequestPayload, &req); err != nil {
+	req, err := decodeAsyncPayload(call.RequestPayload)
+	if err != nil {
 		slog.Error("webhook.worker.payload_decode_failed",
 			"call_id", call.ID,
 			"error", err,

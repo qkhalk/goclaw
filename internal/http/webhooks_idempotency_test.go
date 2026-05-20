@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -141,6 +142,54 @@ func TestCheckIdempotency_malformedStoredHash(t *testing.T) {
 	}
 	if rec.Code != http.StatusConflict {
 		t.Errorf("expected 409 Conflict, got %d", rec.Code)
+	}
+}
+
+func TestCheckIdempotency_StaleSyncReservationExpires(t *testing.T) {
+	webhookID := uuid.New()
+	body := []byte(`{"input":"hello"}`)
+	payload, err := buildAuditPayload(body, map[string]string{"input": "hello"})
+	if err != nil {
+		t.Fatalf("buildAuditPayload: %v", err)
+	}
+
+	key := "idem-stale-sync"
+	startedAt := time.Now().Add(-(webhookSyncReservationTTL + time.Second))
+	existing := &store.WebhookCallData{
+		ID:             uuid.New(),
+		WebhookID:      webhookID,
+		IdempotencyKey: &key,
+		Mode:           "sync",
+		Status:         "running",
+		RequestPayload: payload,
+		StartedAt:      &startedAt,
+		CreatedAt:      startedAt,
+	}
+	calls := newStubCallStore(existing)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/webhooks/llm", strings.NewReader(string(body)))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+
+	proceed, err := checkIdempotency(rec, req, body, webhookID, calls)
+
+	if proceed {
+		t.Fatal("expected stale idempotency row to be handled, got proceed=true")
+	}
+	if err != nil {
+		t.Fatalf("expected nil error for expired replay response, got %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 replay for expired row, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Idempotency-Replayed") != "true" {
+		t.Fatal("expected X-Idempotency-Replayed header")
+	}
+	if existing.Status != "failed" {
+		t.Fatalf("expected stale row status failed, got %q", existing.Status)
+	}
+	if len(existing.Response) == 0 || !strings.Contains(string(existing.Response), "sync idempotency reservation expired") {
+		t.Fatalf("expected stored expiry response, got %s", string(existing.Response))
 	}
 }
 

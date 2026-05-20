@@ -112,6 +112,10 @@ func (c *AllowlistChecker) Check(
 		c.auditDeny(ws, cmd, "empty_binary_name")
 		return errors.New(i18n.T(locale, i18n.MsgWorkstationCmdDenied, "empty binary name"))
 	}
+	if reason := validateLauncherArgs(binaryName, args); reason != "" {
+		c.auditDeny(ws, cmd, reason)
+		return errors.New(i18n.T(locale, i18n.MsgWorkstationCmdDenied, reason))
+	}
 
 	patterns, err := c.loadAllowlist(ctx, ws.ID)
 	if err != nil {
@@ -184,6 +188,16 @@ func isBlockedEnvKey(k string) bool {
 	}
 	// Block all GOCLAW_* keys to prevent leaking gateway internals.
 	return strings.HasPrefix(k, "GOCLAW_")
+}
+
+func validateLauncherArgs(binaryName string, args []string) string {
+	switch binaryName {
+	case "env", "nohup", "setsid", "timeout", "nice", "stdbuf", "xargs":
+		if len(args) > 0 {
+			return "launcher command with arguments denied: " + binaryName
+		}
+	}
+	return ""
 }
 
 // loadAllowlist returns the enabled binary name patterns for workstationID.

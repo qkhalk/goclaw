@@ -41,7 +41,7 @@ const (
 
 // WebhookAuthMiddleware is the composed middleware chain for all /v1/webhooks/*
 // runtime endpoints. Order: body cap → bearer/HMAC auth → localhost gate →
-// IP allowlist → rate limit → idempotency guard → inject context → next.
+// IP allowlist → rate limit → inject context → idempotency guard → next.
 //
 // Parameters:
 //   - ws:      WebhookStore for secret + row lookup.
@@ -185,25 +185,28 @@ func WebhookAuthMiddleware(
 				return
 			}
 
-			// 7. Idempotency check.
-			proceed, _ := checkIdempotency(w, r, body, webhook.ID, calls)
-			if !proceed {
-				return
-			}
-
-			// 8. Inject webhook + tenant into context; propagate to stores.
+			// 7. Inject webhook + tenant into context; propagate to stores.
 			//    K1: tenant injected HERE so all store calls below are tenant-scoped.
 			ctx = WithWebhookData(ctx, webhook)
+			ctx = WithWebhookRawBody(ctx, body)
 			ctx = store.WithTenantID(ctx, webhook.TenantID)
 			if webhook.AgentID != nil {
 				ctx = store.WithAgentID(ctx, *webhook.AgentID)
 			}
+			scopedReq := r.WithContext(ctx)
+
+			// 8. Idempotency check. This must run after tenant injection because
+			// WebhookCallStore lookups are tenant scoped.
+			proceed, _ := checkIdempotency(w, scopedReq, body, webhook.ID, calls)
+			if !proceed {
+				return
+			}
 
 			// Best-effort touch — don't block on failure. Use WithoutCancel so
 			// the DB write is not cancelled when the HTTP response completes.
-			go func() { _ = ws.TouchLastUsed(context.WithoutCancel(r.Context()), webhook.ID) }()
+			go func() { _ = ws.TouchLastUsed(context.WithoutCancel(scopedReq.Context()), webhook.ID) }()
 
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, scopedReq)
 		})
 	}
 }

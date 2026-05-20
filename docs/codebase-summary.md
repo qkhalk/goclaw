@@ -119,7 +119,6 @@ Parity enforced by `ui/web/src/__tests__/i18n-tts-key-parity.test.ts` (vitest).
 
 ---
 
-<<<<<<< HEAD
 ## Image Generation
 
 Native `image_generation` support in the Codex provider (`POST /codex/responses`) + passthrough in the OpenAI-compat path.
@@ -138,7 +137,7 @@ Native `image_generation` support in the Codex provider (`POST /codex/responses`
 **Persistence:** `internal/agent/media.go persistAssistantImages()` writes final images to `{workspace}/media/{sha256}.{ext}`, returns `MediaRef` entries, clears inline `Images[]`. Idempotent on hash. Invoked from `pipeline.FinalizeStage` via `Deps.PersistAssistantImages` callback.
 
 **Web UI:** Download filename resolver (`imageGenDownloadName`) in `ui/web/src/components/chat/media-gallery.tsx`. Image generation works automatically when the agent has the `create_image` tool — no user-facing toggle.
-=======
+
 ## Webhook Subsystem
 
 External systems invoke agents or send channel messages via webhooks without gateway tokens.
@@ -188,7 +187,6 @@ Raw webhook secret encrypted at rest via AES-256-GCM using `GOCLAW_ENCRYPTION_KE
 
 All webhook calls logged with canonical `{"body_hash":"<sha256-hex>","meta":{...}}` shape in `webhook_calls.request_payload` (JSON).
 Used by idempotency checker to detect body mismatches on replay.
->>>>>>> a83f4090 (fix(webhooks): address post-review findings (K1-K10))
 
 ---
 

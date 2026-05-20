@@ -56,11 +56,13 @@ func (s *PGWebhookCallStore) Create(ctx context.Context, call *store.WebhookCall
 		`INSERT INTO webhook_calls
 		 (id, tenant_id, webhook_id, agent_id, delivery_id,
 		  idempotency_key, mode, status, callback_url, attempts,
-		  next_attempt_at, request_payload, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+		  next_attempt_at, started_at, request_payload, response, last_error,
+		  created_at, completed_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 		call.ID, call.TenantID, call.WebhookID, nilUUID(call.AgentID), call.DeliveryID,
 		call.IdempotencyKey, call.Mode, call.Status, call.CallbackURL, call.Attempts,
-		call.NextAttemptAt, call.RequestPayload, call.CreatedAt,
+		call.NextAttemptAt, call.StartedAt, call.RequestPayload, call.Response, call.LastError,
+		call.CreatedAt, call.CompletedAt,
 	)
 	if err != nil {
 		// Map partial unique index violation (webhook_id, idempotency_key) → typed sentinel.
@@ -141,6 +143,7 @@ func (s *PGWebhookCallStore) ClaimNext(ctx context.Context, tenantID uuid.UUID, 
 	err = tx.QueryRowContext(ctx,
 		`SELECT id FROM webhook_calls
 		 WHERE tenant_id = $1
+		   AND mode = 'async'
 		   AND status = 'queued'
 		   AND (next_attempt_at IS NULL OR next_attempt_at <= $2)
 		 ORDER BY next_attempt_at ASC NULLS FIRST
@@ -251,7 +254,7 @@ func (s *PGWebhookCallStore) ReclaimStale(ctx context.Context, staleThreshold ti
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE webhook_calls
 		 SET status = 'queued', started_at = NULL, lease_token = NULL
-		 WHERE status = 'running' AND started_at < $1`,
+		 WHERE mode = 'async' AND status = 'running' AND started_at < $1`,
 		staleThreshold,
 	)
 	if err != nil {

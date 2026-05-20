@@ -15,6 +15,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/crypto"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
+	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
@@ -60,12 +61,28 @@ func (h *WebhooksAdminHandler) SetEncKey(encKey string) {
 // Runtime routes (/v1/webhooks/message, /v1/webhooks/llm) are mounted by phases 05/06
 // conditionally: message-kind only if edition.Current().AllowsChannels().
 func (h *WebhooksAdminHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /v1/webhooks", h.handleCreate)
-	mux.HandleFunc("GET /v1/webhooks", h.handleList)
-	mux.HandleFunc("GET /v1/webhooks/{id}", h.handleGet)
-	mux.HandleFunc("PATCH /v1/webhooks/{id}", h.handleUpdate)
-	mux.HandleFunc("POST /v1/webhooks/{id}/rotate", h.handleRotate)
-	mux.HandleFunc("DELETE /v1/webhooks/{id}", h.handleRevoke)
+	mux.HandleFunc("POST /v1/webhooks", h.requireAdmin(h.handleCreate))
+	mux.HandleFunc("GET /v1/webhooks", h.requireAdmin(h.handleList))
+	mux.HandleFunc("GET /v1/webhooks/{id}", h.requireAdmin(h.handleGet))
+	mux.HandleFunc("PATCH /v1/webhooks/{id}", h.requireAdmin(h.handleUpdate))
+	mux.HandleFunc("POST /v1/webhooks/{id}/rotate", h.requireAdmin(h.handleRotate))
+	mux.HandleFunc("DELETE /v1/webhooks/{id}", h.requireAdmin(h.handleRevoke))
+}
+
+func (h *WebhooksAdminHandler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if role := permissions.Role(store.RoleFromContext(r.Context())); role != "" {
+			if !permissions.HasMinRole(role, permissions.RoleAdmin) {
+				writeJSON(w, http.StatusForbidden, map[string]string{
+					"error": i18n.T(store.LocaleFromContext(r.Context()), i18n.MsgPermissionDenied, r.URL.Path+" requires "+string(permissions.RoleAdmin)+" role"),
+				})
+				return
+			}
+			next(w, r)
+			return
+		}
+		requireAuth(permissions.RoleAdmin, next)(w, r)
+	}
 }
 
 // --- Create ---
@@ -87,21 +104,21 @@ type createWebhookReq struct {
 // hmac_signing_key = raw secret itself — callers sign HMAC requests using raw secret bytes.
 // The raw secret is encrypted at rest; secret_hash is kept only for bearer-token lookup.
 type webhookCreateResp struct {
-	ID             uuid.UUID  `json:"id"`
-	TenantID       uuid.UUID  `json:"tenant_id"`
-	AgentID        *uuid.UUID `json:"agent_id,omitempty"`
-	Name           string     `json:"name"`
-	Kind           string     `json:"kind"`
-	SecretPrefix   string     `json:"secret_prefix"`
-	Secret         string     `json:"secret"`           // raw secret — shown ONCE; use this as HMAC key
-	HMACSigningKey string     `json:"hmac_signing_key"` // same as Secret — raw bytes for X-GoClaw-Signature
-	Scopes         []string   `json:"scopes"`
-	ChannelID      *uuid.UUID `json:"channel_id,omitempty"`
-	RateLimitPerMin int       `json:"rate_limit_per_min"`
-	IPAllowlist    []string   `json:"ip_allowlist"`
-	RequireHMAC    bool       `json:"require_hmac"`
-	LocalhostOnly  bool       `json:"localhost_only"`
-	CreatedAt      time.Time  `json:"created_at"`
+	ID              uuid.UUID  `json:"id"`
+	TenantID        uuid.UUID  `json:"tenant_id"`
+	AgentID         *uuid.UUID `json:"agent_id,omitempty"`
+	Name            string     `json:"name"`
+	Kind            string     `json:"kind"`
+	SecretPrefix    string     `json:"secret_prefix"`
+	Secret          string     `json:"secret"`           // raw secret — shown ONCE; use this as HMAC key
+	HMACSigningKey  string     `json:"hmac_signing_key"` // same as Secret — raw bytes for X-GoClaw-Signature
+	Scopes          []string   `json:"scopes"`
+	ChannelID       *uuid.UUID `json:"channel_id,omitempty"`
+	RateLimitPerMin int        `json:"rate_limit_per_min"`
+	IPAllowlist     []string   `json:"ip_allowlist"`
+	RequireHMAC     bool       `json:"require_hmac"`
+	LocalhostOnly   bool       `json:"localhost_only"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 func (h *WebhooksAdminHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -465,8 +482,8 @@ func (h *WebhooksAdminHandler) handleRotate(w http.ResponseWriter, r *http.Reque
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":               id,
-		"secret":           raw,    // new raw secret — shown ONCE; use as HMAC key
-		"hmac_signing_key": raw,    // same as secret; raw bytes are HMAC key (encrypted at rest)
+		"secret":           raw, // new raw secret — shown ONCE; use as HMAC key
+		"hmac_signing_key": raw, // same as secret; raw bytes are HMAC key (encrypted at rest)
 		"secret_prefix":    newPrefix,
 	})
 }

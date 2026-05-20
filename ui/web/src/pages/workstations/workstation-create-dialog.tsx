@@ -154,8 +154,8 @@ export function WorkstationCreateDialog({
 
             {backend === "ssh" && (
               <>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2 space-y-1.5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5 sm:col-span-2">
                     <Label htmlFor="ws-host">{t("createDialog.hostLabel")}</Label>
                     <Input
                       id="ws-host"

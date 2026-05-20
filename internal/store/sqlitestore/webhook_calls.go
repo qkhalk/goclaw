@@ -70,11 +70,13 @@ func (s *SQLiteWebhookCallStore) Create(ctx context.Context, call *store.Webhook
 		`INSERT INTO webhook_calls
 		 (id, tenant_id, webhook_id, agent_id, delivery_id,
 		  idempotency_key, mode, status, callback_url, attempts,
-		  next_attempt_at, request_payload, created_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		  next_attempt_at, started_at, request_payload, response, last_error,
+		  created_at, completed_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		call.ID, call.TenantID, call.WebhookID, nilUUID(call.AgentID), call.DeliveryID,
 		call.IdempotencyKey, call.Mode, call.Status, call.CallbackURL, call.Attempts,
-		call.NextAttemptAt, call.RequestPayload, call.CreatedAt,
+		call.NextAttemptAt, call.StartedAt, call.RequestPayload, call.Response, call.LastError,
+		call.CreatedAt, call.CompletedAt,
 	)
 	if err != nil {
 		// Map partial unique index violation (webhook_id, idempotency_key) → typed sentinel.
@@ -154,6 +156,7 @@ func (s *SQLiteWebhookCallStore) ClaimNext(ctx context.Context, tenantID uuid.UU
 	err = tx.QueryRowContext(ctx,
 		`SELECT id FROM webhook_calls
 		 WHERE tenant_id = ?
+		   AND mode = 'async'
 		   AND status = 'queued'
 		   AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
 		 ORDER BY next_attempt_at ASC
@@ -265,7 +268,7 @@ func (s *SQLiteWebhookCallStore) ReclaimStale(ctx context.Context, staleThreshol
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE webhook_calls
 		 SET status = 'queued', started_at = NULL, lease_token = NULL
-		 WHERE status = 'running' AND started_at < ?`,
+		 WHERE mode = 'async' AND status = 'running' AND started_at < ?`,
 		staleThreshold,
 	)
 	if err != nil {

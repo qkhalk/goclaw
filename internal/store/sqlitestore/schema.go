@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 36
+const SchemaVersion = 37
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -559,6 +559,8 @@ CREATE TABLE IF NOT EXISTS agent_workstation_links (
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (agent_id, workstation_id)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_workstation_default
+    ON agent_workstation_links(agent_id) WHERE is_default = 1;
 CREATE INDEX IF NOT EXISTS idx_agent_workstation_tenant ON agent_workstation_links(tenant_id);`,
 
 	// Version 31 → 32: workstation_permissions allowlist table. Mirrors PG migration 000063.
@@ -609,6 +611,11 @@ WHERE id IN (
     WHERE sag.tenant_id <> a.tenant_id
        OR (s.is_system = 0 AND sag.tenant_id <> s.tenant_id)
 );`,
+
+	// Version 36 → 37: enforce one default workstation link per agent.
+	// Mirrors PG migration 000062 partial unique index.
+	36: `CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_workstation_default
+    ON agent_workstation_links(agent_id) WHERE is_default = 1;`,
 
 	// Version 23 → 24: vault_documents scope/ownership consistency triggers.
 	// Mirrors PG migration 000055 CHECK constraint; SQLite cannot add CHECK via

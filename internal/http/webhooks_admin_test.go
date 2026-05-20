@@ -206,6 +206,15 @@ func webhookTenantAdminCtx(tenantID uuid.UUID, userID string) context.Context {
 	ctx := context.Background()
 	ctx = store.WithTenantID(ctx, tenantID)
 	ctx = store.WithUserID(ctx, userID)
+	ctx = store.WithRole(ctx, "admin")
+	return ctx
+}
+
+func webhookTenantCtxWithRole(tenantID uuid.UUID, userID, role string) context.Context {
+	ctx := context.Background()
+	ctx = store.WithTenantID(ctx, tenantID)
+	ctx = store.WithUserID(ctx, userID)
+	ctx = store.WithRole(ctx, role)
 	return ctx
 }
 
@@ -238,6 +247,28 @@ func doRequest(t *testing.T, h *WebhooksAdminHandler, method, path string, body 
 }
 
 // ---- tests ----
+
+func TestWebhookAdmin_RouteRequiresHTTPAuth(t *testing.T) {
+	oldToken := pkgGatewayToken
+	oldFallback := pkgNoAuthFallbackAllowed
+	InitGatewayToken("required-token")
+	InitGatewayNoAuthFallbackAllowed(false)
+	defer func() {
+		InitGatewayToken(oldToken)
+		InitGatewayNoAuthFallbackAllowed(oldFallback)
+	}()
+
+	h := newAdminHandler(newAdminWebhookStore(), &adminTenantStore{})
+	r := httptest.NewRequest(http.MethodGet, "/v1/webhooks", nil)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.ServeHTTP(w, r)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauthenticated admin route, got %d", w.Code)
+	}
+}
 
 // TestWebhookAdmin_Create_HappyPath verifies POST /v1/webhooks returns secret once.
 func TestWebhookAdmin_Create_HappyPath(t *testing.T) {
@@ -300,6 +331,29 @@ func TestWebhookAdmin_Create_NonAdmin_403(t *testing.T) {
 	h := newAdminHandler(ws, ts)
 
 	ctx := webhookTenantAdminCtx(tenantID, userID)
+	w := doRequest(t, h, http.MethodPost, "/v1/webhooks", map[string]any{
+		"name": "x",
+		"kind": "llm",
+	}, ctx)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestWebhookAdmin_Create_ContextOperatorRoleDeniedBeforeTenantAdmin(t *testing.T) {
+	tenantID := uuid.New()
+	userID := "operator-context"
+
+	ts := &adminTenantStore{
+		roles: map[string]string{
+			tenantID.String() + ":" + userID: store.TenantRoleAdmin,
+		},
+	}
+	ws := newAdminWebhookStore()
+	h := newAdminHandler(ws, ts)
+
+	ctx := webhookTenantCtxWithRole(tenantID, userID, "operator")
 	w := doRequest(t, h, http.MethodPost, "/v1/webhooks", map[string]any{
 		"name": "x",
 		"kind": "llm",

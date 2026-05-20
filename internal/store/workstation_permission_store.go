@@ -50,6 +50,6 @@ type WorkstationPermissionStore interface {
 // NOTE: shells (bash, sh, zsh) are intentionally excluded — adding a shell binary
 // bypasses all protection by allowing arbitrary commands as arguments.
 var DefaultAllowedBinaries = []string{
-	"echo", "pwd", "ls", "cat", "git", "env",
+	"echo", "pwd", "ls", "cat", "git",
 	"whoami", "hostname", "date", "uname", "claude",
 }

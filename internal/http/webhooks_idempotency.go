@@ -1,17 +1,25 @@
 package http
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
+
+// webhookSyncReservationTTL must exceed the longest legitimate sync webhook path.
+// Telegram media sends can run for 3 minutes on slow uploads; keep enough margin
+// so a duplicate idempotency request cannot mark an active send as expired.
+const webhookSyncReservationTTL = 10 * time.Minute
 
 // checkIdempotency inspects the Idempotency-Key header and resolves prior calls.
 //
@@ -66,6 +74,8 @@ func checkIdempotency(
 		return false, errors.New("idempotency conflict")
 	}
 
+	expireStaleSyncReservation(ctx, calls, existing, time.Now())
+
 	// Same key + matching body → replay last stored response.
 	if len(existing.Response) > 0 {
 		w.Header().Set("Content-Type", "application/json")
@@ -115,4 +125,155 @@ func extractBodyHash(payload []byte) string {
 		}
 	}
 	return p.BodyHash
+}
+
+func optionalIdempotencyKey(r *http.Request) *string {
+	if key := r.Header.Get("Idempotency-Key"); key != "" {
+		return &key
+	}
+	return nil
+}
+
+func reserveIdempotentCall(
+	w http.ResponseWriter,
+	r *http.Request,
+	calls store.WebhookCallStore,
+	call *store.WebhookCallData,
+) (reserved bool, handled bool) {
+	if call.IdempotencyKey == nil {
+		return false, false
+	}
+	if err := calls.Create(r.Context(), call); err != nil {
+		if errors.Is(err, store.ErrIdempotencyConflict) {
+			if replayStoredIdempotencyFromPayload(w, r, calls, call.WebhookID, *call.IdempotencyKey, call.RequestPayload) {
+				return false, true
+			}
+		}
+		slog.Error("webhook.idempotency_reserve_failed", "error", err, "call_id", call.ID)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
+			"error": i18n.T(store.LocaleFromContext(r.Context()), i18n.MsgInternalError, "failed to reserve idempotency key"),
+		})
+		return false, true
+	}
+	return true, false
+}
+
+func persistWebhookCall(
+	ctx context.Context,
+	calls store.WebhookCallStore,
+	call *store.WebhookCallData,
+	reserved bool,
+	logName string,
+) {
+	ctx = context.WithoutCancel(ctx)
+	var err error
+	if reserved {
+		updates := map[string]any{
+			"status":       call.Status,
+			"attempts":     call.Attempts,
+			"response":     call.Response,
+			"last_error":   call.LastError,
+			"completed_at": call.CompletedAt,
+		}
+		err = calls.UpdateStatus(ctx, call.ID, updates)
+	} else {
+		err = calls.Create(ctx, call)
+	}
+	if err != nil {
+		slog.Warn(logName, "error", err, "call_id", call.ID)
+	}
+}
+
+func replayStoredIdempotencyFromPayload(
+	w http.ResponseWriter,
+	r *http.Request,
+	calls store.WebhookCallStore,
+	webhookID uuid.UUID,
+	key string,
+	requestPayload []byte,
+) bool {
+	existing, err := calls.GetByIdempotency(r.Context(), webhookID, key)
+	if err != nil {
+		return false
+	}
+	locale := store.LocaleFromContext(r.Context())
+	if extractBodyHash(existing.RequestPayload) != extractBodyHash(requestPayload) {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": i18n.T(locale, i18n.MsgWebhookIdempotencyConflict),
+		})
+		return true
+	}
+	expireStaleSyncReservation(r.Context(), calls, existing, time.Now())
+	if len(existing.Response) > 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Idempotency-Replayed", "true")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(existing.Response)
+		return true
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status":  existing.Status,
+		"call_id": existing.ID.String(),
+	})
+	return true
+}
+
+func expireStaleSyncReservation(
+	ctx context.Context,
+	calls store.WebhookCallStore,
+	existing *store.WebhookCallData,
+	now time.Time,
+) bool {
+	if !isStaleSyncReservation(existing, now) {
+		return false
+	}
+
+	reason := "sync idempotency reservation expired"
+	resp, err := json.Marshal(map[string]string{
+		"call_id": existing.ID.String(),
+		"status":  "failed",
+		"error":   reason,
+	})
+	if err != nil {
+		slog.Warn("webhook.idempotency_expire_response_failed", "error", err, "call_id", existing.ID)
+		return false
+	}
+
+	completedAt := now
+	attempts := existing.Attempts
+	if attempts == 0 {
+		attempts = 1
+	}
+	updates := map[string]any{
+		"status":       "failed",
+		"attempts":     attempts,
+		"response":     resp,
+		"last_error":   reason,
+		"completed_at": completedAt,
+	}
+	if err := calls.UpdateStatus(context.WithoutCancel(ctx), existing.ID, updates); err != nil {
+		slog.Warn("webhook.idempotency_expire_failed", "error", err, "call_id", existing.ID)
+		return false
+	}
+
+	existing.Status = "failed"
+	existing.Attempts = attempts
+	existing.Response = resp
+	existing.LastError = &reason
+	existing.CompletedAt = &completedAt
+	return true
+}
+
+func isStaleSyncReservation(existing *store.WebhookCallData, now time.Time) bool {
+	if existing == nil || existing.Mode != "sync" || existing.Status != "running" {
+		return false
+	}
+	startedAt := existing.CreatedAt
+	if existing.StartedAt != nil {
+		startedAt = *existing.StartedAt
+	}
+	if startedAt.IsZero() {
+		return false
+	}
+	return now.Sub(startedAt) > webhookSyncReservationTTL
 }

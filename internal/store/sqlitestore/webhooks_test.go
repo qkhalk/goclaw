@@ -160,6 +160,25 @@ func TestWebhookCallClaimNextSkipsRunningAndDone(t *testing.T) {
 		t.Errorf("expected ErrNoRows when no queued rows, got: %v", err)
 	}
 
+	// A queued sync audit row is not worker-owned and must not be claimed.
+	syncQueued := &store.WebhookCallData{
+		ID:         uuid.New(),
+		TenantID:   tenantID,
+		WebhookID:  wh.ID,
+		DeliveryID: uuid.New(),
+		Mode:       "sync",
+		Status:     "queued",
+		Attempts:   0,
+		CreatedAt:  now,
+	}
+	if err := cs.Create(ctx, syncQueued); err != nil {
+		t.Fatalf("Create queued sync call: %v", err)
+	}
+	_, err = cs.ClaimNext(ctx, tenantID, now)
+	if err != sql.ErrNoRows {
+		t.Errorf("expected ErrNoRows for queued sync row, got: %v", err)
+	}
+
 	// Insert a queued call due now.
 	queued := &store.WebhookCallData{
 		ID:         uuid.New(),
@@ -191,6 +210,65 @@ func TestWebhookCallClaimNextSkipsRunningAndDone(t *testing.T) {
 	}
 	if claimed.StartedAt == nil {
 		t.Error("ClaimNext must set started_at")
+	}
+}
+
+func TestWebhookCallReclaimStaleOnlyAsync(t *testing.T) {
+	db := openTestWebhookDB(t)
+	ws := NewSQLiteWebhookStore(db)
+	cs := NewSQLiteWebhookCallStore(db)
+
+	tenantID := uuid.New()
+	ctx := testTenantCtx(tenantID)
+	wh := &store.WebhookData{
+		ID: uuid.New(), TenantID: tenantID, Name: "wh-reclaim", Kind: "llm",
+		SecretHash: "h-reclaim", Scopes: []string{}, IPAllowlist: []string{},
+		RateLimitPerMin: 60, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}
+	if err := ws.Create(ctx, wh); err != nil {
+		t.Fatalf("Create webhook: %v", err)
+	}
+
+	stale := time.Now().UTC().Add(-time.Hour)
+	rows := []struct {
+		mode string
+		id   uuid.UUID
+	}{
+		{mode: "sync", id: uuid.New()},
+		{mode: "async", id: uuid.New()},
+	}
+	for _, row := range rows {
+		_, err := db.ExecContext(ctx,
+			`INSERT INTO webhook_calls (id,tenant_id,webhook_id,delivery_id,mode,status,attempts,created_at,started_at)
+			 VALUES (?,?,?,?,?,?,?,?,?)`,
+			row.id, tenantID, wh.ID, uuid.New(), row.mode, "running", 0, stale, stale,
+		)
+		if err != nil {
+			t.Fatalf("insert %s row: %v", row.mode, err)
+		}
+	}
+
+	n, err := cs.ReclaimStale(ctx, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("ReclaimStale: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("reclaimed %d rows, want 1", n)
+	}
+
+	var syncStatus string
+	if err := db.QueryRowContext(ctx, `SELECT status FROM webhook_calls WHERE id = ?`, rows[0].id).Scan(&syncStatus); err != nil {
+		t.Fatalf("select sync row: %v", err)
+	}
+	if syncStatus != "running" {
+		t.Fatalf("sync row status = %q, want running", syncStatus)
+	}
+	var asyncStatus string
+	if err := db.QueryRowContext(ctx, `SELECT status FROM webhook_calls WHERE id = ?`, rows[1].id).Scan(&asyncStatus); err != nil {
+		t.Fatalf("select async row: %v", err)
+	}
+	if asyncStatus != "queued" {
+		t.Fatalf("async row status = %q, want queued", asyncStatus)
 	}
 }
 

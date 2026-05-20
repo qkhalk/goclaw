@@ -233,19 +233,23 @@ func (h *WebhookLLMHandler) handle(w http.ResponseWriter, r *http.Request) {
 	deliveryID := store.GenNewID()
 	now := time.Now()
 
-	// Capture raw body bytes for body_hash computation.
-	// req was decoded from the HTTP body; re-marshal to get canonical bytes.
+	// Capture raw body bytes for body_hash computation when middleware supplied them.
+	// Direct handler tests fall back to canonical JSON bytes from the decoded request.
 	// The audit payload uses the canonical JSON shape {"body_hash":"...","meta":{...}}
 	// so PG jsonb insert never triggers error 22P02.
-	reqBytes, _ := json.Marshal(req)
+	reqBytes := WebhookRawBodyFromContext(ctx)
+	if reqBytes == nil {
+		reqBytes, _ = json.Marshal(req)
+	}
 	requestPayload, _ := buildAuditPayload(reqBytes, req)
+	idempotencyKey := optionalIdempotencyKey(r)
 
 	// Dispatch based on mode.
 	switch mode {
 	case "async":
-		h.handleAsync(w, r, ctx, locale, webhook, ag, agentID, req, callID, deliveryID, now, requestPayload, userMessage, extraSystemPrompt)
+		h.handleAsync(w, r, ctx, locale, webhook, ag, agentID, req, callID, deliveryID, now, requestPayload, idempotencyKey, userMessage, extraSystemPrompt)
 	default: // "sync"
-		h.handleSync(w, r, ctx, locale, webhook, ag, agentID, req, callID, deliveryID, now, requestPayload, userMessage, extraSystemPrompt)
+		h.handleSync(w, r, ctx, locale, webhook, ag, agentID, req, callID, deliveryID, now, requestPayload, idempotencyKey, userMessage, extraSystemPrompt)
 	}
 }
 
@@ -262,10 +266,29 @@ func (h *WebhookLLMHandler) handleSync(
 	callID, deliveryID uuid.UUID,
 	now time.Time,
 	requestPayload []byte,
+	idempotencyKey *string,
 	userMessage, extraSystemPrompt string,
 ) {
 	runID := uuid.NewString()
 	sessionKey := resolveWebhookSessionKey(req.SessionKey, agentID, webhook.ID, runID)
+	callRecord := &store.WebhookCallData{
+		ID:             callID,
+		TenantID:       webhook.TenantID,
+		WebhookID:      webhook.ID,
+		AgentID:        webhook.AgentID,
+		DeliveryID:     deliveryID,
+		IdempotencyKey: idempotencyKey,
+		Mode:           "sync",
+		Status:         "running",
+		Attempts:       0,
+		RequestPayload: requestPayload,
+		CreatedAt:      now,
+		StartedAt:      &now,
+	}
+	callReserved, handled := reserveIdempotentCall(w, r, h.callStore, callRecord)
+	if handled {
+		return
+	}
 
 	rr := agent.RunRequest{
 		SessionKey:        sessionKey,
@@ -318,6 +341,13 @@ func (h *WebhookLLMHandler) handleSync(
 	})
 
 	if submitErr != nil {
+		completedAt := time.Now()
+		errMsg := submitErr.Error()
+		callRecord.Status = "failed"
+		callRecord.Attempts = 1
+		callRecord.CompletedAt = &completedAt
+		callRecord.LastError = &errMsg
+		persistWebhookCall(ctx, h.callStore, callRecord, callReserved, "webhook.llm.audit_write_failed")
 		// Lane at capacity or ctx cancelled before slot acquired.
 		slog.Warn("webhook.lane_saturated",
 			"webhook_id", webhook.ID,
@@ -345,21 +375,11 @@ func (h *WebhookLLMHandler) handleSync(
 		if errors.Is(out.err, context.DeadlineExceeded) {
 			// Write audit row as failed/timeout.
 			errMsg := "context deadline exceeded"
-			h.writeCallRecord(ctx, &store.WebhookCallData{
-				ID:             callID,
-				TenantID:       webhook.TenantID,
-				WebhookID:      webhook.ID,
-				AgentID:        webhook.AgentID,
-				DeliveryID:     deliveryID,
-				Mode:           "sync",
-				Status:         "failed",
-				Attempts:       1,
-				RequestPayload: requestPayload,
-				LastError:      &errMsg,
-				CreatedAt:      now,
-				CompletedAt:    &completedAt,
-				StartedAt:      &now,
-			})
+			callRecord.Status = "failed"
+			callRecord.Attempts = 1
+			callRecord.LastError = &errMsg
+			callRecord.CompletedAt = &completedAt
+			persistWebhookCall(ctx, h.callStore, callRecord, callReserved, "webhook.llm.audit_write_failed")
 			writeError(w, http.StatusGatewayTimeout, protocol.ErrInternal,
 				i18n.T(locale, i18n.MsgWebhookLLMTimeout))
 			return
@@ -367,21 +387,11 @@ func (h *WebhookLLMHandler) handleSync(
 
 		// Other error.
 		errMsg := out.err.Error()
-		h.writeCallRecord(ctx, &store.WebhookCallData{
-			ID:             callID,
-			TenantID:       webhook.TenantID,
-			WebhookID:      webhook.ID,
-			AgentID:        webhook.AgentID,
-			DeliveryID:     deliveryID,
-			Mode:           "sync",
-			Status:         "failed",
-			Attempts:       1,
-			RequestPayload: requestPayload,
-			LastError:      &errMsg,
-			CreatedAt:      now,
-			CompletedAt:    &completedAt,
-			StartedAt:      &now,
-		})
+		callRecord.Status = "failed"
+		callRecord.Attempts = 1
+		callRecord.LastError = &errMsg
+		callRecord.CompletedAt = &completedAt
+		persistWebhookCall(ctx, h.callStore, callRecord, callReserved, "webhook.llm.audit_write_failed")
 		writeError(w, http.StatusInternalServerError, protocol.ErrInternal,
 			i18n.T(locale, i18n.MsgInternalError, out.err.Error()))
 		return
@@ -409,21 +419,11 @@ func (h *WebhookLLMHandler) handleSync(
 	}
 
 	completedAt := time.Now()
-	h.writeCallRecord(ctx, &store.WebhookCallData{
-		ID:             callID,
-		TenantID:       webhook.TenantID,
-		WebhookID:      webhook.ID,
-		AgentID:        webhook.AgentID,
-		DeliveryID:     deliveryID,
-		Mode:           "sync",
-		Status:         "done",
-		Attempts:       1,
-		RequestPayload: requestPayload,
-		Response:       respBytes,
-		CreatedAt:      now,
-		CompletedAt:    &completedAt,
-		StartedAt:      &now,
-	})
+	callRecord.Status = "done"
+	callRecord.Attempts = 1
+	callRecord.Response = respBytes
+	callRecord.CompletedAt = &completedAt
+	persistWebhookCall(ctx, h.callStore, callRecord, callReserved, "webhook.llm.audit_write_failed")
 
 	slog.Info("webhook.llm.sync",
 		"call_id", callID,
@@ -438,7 +438,7 @@ func (h *WebhookLLMHandler) handleSync(
 // handleAsync enqueues a webhook_calls row and returns 202 immediately.
 func (h *WebhookLLMHandler) handleAsync(
 	w http.ResponseWriter,
-	_ *http.Request,
+	r *http.Request,
 	ctx context.Context,
 	locale string,
 	webhook *store.WebhookData,
@@ -448,6 +448,7 @@ func (h *WebhookLLMHandler) handleAsync(
 	callID, deliveryID uuid.UUID,
 	now time.Time,
 	requestPayload []byte,
+	idempotencyKey *string,
 	_, _ string, // userMessage, extraSystemPrompt — stored in requestPayload, not used here
 ) {
 	// SSRF validation on callback_url — defense against DNS rebinding.
@@ -471,6 +472,7 @@ func (h *WebhookLLMHandler) handleAsync(
 		WebhookID:      webhook.ID,
 		AgentID:        webhook.AgentID,
 		DeliveryID:     deliveryID,
+		IdempotencyKey: idempotencyKey,
 		Mode:           "async",
 		Status:         "queued",
 		CallbackURL:    &cbURL,
@@ -481,6 +483,11 @@ func (h *WebhookLLMHandler) handleAsync(
 	}
 
 	if err := h.callStore.Create(ctx, call); err != nil {
+		if idempotencyKey != nil && errors.Is(err, store.ErrIdempotencyConflict) {
+			if replayStoredIdempotencyFromPayload(w, r, h.callStore, webhook.ID, *idempotencyKey, requestPayload) {
+				return
+			}
+		}
 		slog.Error("webhook.llm.async_enqueue_failed",
 			"error", err,
 			"call_id", callID,
@@ -502,16 +509,6 @@ func (h *WebhookLLMHandler) handleAsync(
 		CallID: callID.String(),
 		Status: "queued",
 	})
-}
-
-// writeCallRecord persists an audit call record. Best-effort — failures are logged but not fatal.
-func (h *WebhookLLMHandler) writeCallRecord(ctx context.Context, call *store.WebhookCallData) {
-	if err := h.callStore.Create(ctx, call); err != nil {
-		slog.Warn("webhook.llm.audit_write_failed",
-			"error", err,
-			"call_id", call.ID,
-		)
-	}
 }
 
 // buildInput parses the raw JSON input into a user message and optional extra system prompt.
@@ -561,4 +558,3 @@ func resolveWebhookSessionKey(reqSessionKey, agentID string, webhookID uuid.UUID
 	}
 	return fmt.Sprintf("webhook:%s:%s:%s", agentID, webhookID.String(), runID[:8])
 }
-

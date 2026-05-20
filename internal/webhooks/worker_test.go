@@ -169,6 +169,35 @@ func newTestCall(callbackURL string, agentID *uuid.UUID) *store.WebhookCallData 
 	return call
 }
 
+func TestDecodeAsyncPayload_UnwrapsAuditEnvelope(t *testing.T) {
+	meta := asyncPayload{
+		Input:       json.RawMessage(`"hello"`),
+		CallbackURL: "https://example.com/callback",
+	}
+	metaBytes, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatalf("marshal meta: %v", err)
+	}
+	envelope, err := json.Marshal(map[string]any{
+		"body_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		"meta":      json.RawMessage(metaBytes),
+	})
+	if err != nil {
+		t.Fatalf("marshal envelope: %v", err)
+	}
+
+	got, err := decodeAsyncPayload(envelope)
+	if err != nil {
+		t.Fatalf("decodeAsyncPayload: %v", err)
+	}
+	if string(got.Input) != `"hello"` {
+		t.Fatalf("input = %s, want %s", got.Input, `"hello"`)
+	}
+	if got.CallbackURL != meta.CallbackURL {
+		t.Fatalf("callback_url = %q, want %q", got.CallbackURL, meta.CallbackURL)
+	}
+}
+
 // newTestWebhook creates a webhook with an encrypted raw secret.
 // Returns the webhook and the raw secret bytes for signature verification.
 // encKey is the AES-256-GCM key (same as testEncKey).

@@ -372,10 +372,26 @@ func (t *WorkstationExecTool) streamAndCollect(
 	wg.Add(2)
 	go readStream(stream.Stdout(), "stdout", &stdoutTail)
 	go readStream(stream.Stderr(), "stderr", &stderrTail)
+	readersDone := make(chan struct{})
+	var killOnce sync.Once
+	go func() {
+		select {
+		case <-ctx.Done():
+			killOnce.Do(func() { _ = stream.Kill() })
+		case <-readersDone:
+		}
+	}()
 	wg.Wait()
+	close(readersDone)
 
 	exitCode, waitErr := stream.Wait()
 	durationMs := time.Since(startTime).Milliseconds()
+	if ctx.Err() != nil {
+		killOnce.Do(func() { _ = stream.Kill() })
+		if waitErr == nil {
+			waitErr = ctx.Err()
+		}
+	}
 
 	// Emit done event.
 	if t.eventBus != nil {

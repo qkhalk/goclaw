@@ -286,7 +286,7 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 	d.server.SetFilesHandler(httpapi.NewFilesHandler(d.workspace, d.dataDir))
 
 	// Storage file management — browse/delete files under the resolved workspace directory.
-	d.server.SetStorageHandler(httpapi.NewStorageHandler(d.workspace))
+	d.server.SetStorageHandler(httpapi.NewStorageHandler(d.workspace, d.pgStores.Tenants))
 
 	// Media upload endpoint — accepts multipart file uploads, returns temp path + MIME type.
 	d.server.SetMediaUploadHandler(httpapi.NewMediaUploadHandler())
@@ -336,7 +336,7 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 
 	// Per-tenant TTS config endpoint — allows tenant admins to configure TTS.
 	if d.pgStores.SystemConfigs != nil && d.pgStores.ConfigSecrets != nil {
-		d.server.SetTTSConfigHandler(httpapi.NewTTSConfigHandler(d.pgStores.SystemConfigs, d.pgStores.ConfigSecrets))
+		d.server.SetTTSConfigHandler(httpapi.NewTTSConfigHandler(d.pgStores.SystemConfigs, d.pgStores.ConfigSecrets, d.pgStores.Tenants))
 	}
 
 	// Workstations API — Standard edition only.

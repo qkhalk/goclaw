@@ -84,11 +84,12 @@ func (s *stubWebhookStore) Update(_ context.Context, _ uuid.UUID, _ map[string]a
 func (s *stubWebhookStore) RotateSecret(_ context.Context, _ uuid.UUID, _, _, _ string) error {
 	return nil
 }
-func (s *stubWebhookStore) Revoke(_ context.Context, _ uuid.UUID) error       { return nil }
+func (s *stubWebhookStore) Revoke(_ context.Context, _ uuid.UUID) error        { return nil }
 func (s *stubWebhookStore) TouchLastUsed(_ context.Context, _ uuid.UUID) error { return nil }
 
 type stubWebhookCallStore struct {
-	calls map[string]*store.WebhookCallData // key = idempotency_key
+	calls      map[string]*store.WebhookCallData // key = idempotency_key
+	lastTenant uuid.UUID
 }
 
 func newStubCallStore(calls ...*store.WebhookCallData) *stubWebhookCallStore {
@@ -101,7 +102,8 @@ func newStubCallStore(calls ...*store.WebhookCallData) *stubWebhookCallStore {
 	return s
 }
 
-func (s *stubWebhookCallStore) GetByIdempotency(_ context.Context, _ uuid.UUID, key string) (*store.WebhookCallData, error) {
+func (s *stubWebhookCallStore) GetByIdempotency(ctx context.Context, _ uuid.UUID, key string) (*store.WebhookCallData, error) {
+	s.lastTenant = store.TenantIDFromContext(ctx)
 	c, ok := s.calls[key]
 	if !ok {
 		return nil, sql.ErrNoRows
@@ -182,8 +184,8 @@ func makeWebhook(kind string, opts ...func(*store.WebhookData)) *store.WebhookDa
 	return w
 }
 
-func withRevoked(w *store.WebhookData) { w.Revoked = true }
-func withRequireHMAC(w *store.WebhookData) { w.RequireHMAC = true }
+func withRevoked(w *store.WebhookData)       { w.Revoked = true }
+func withRequireHMAC(w *store.WebhookData)   { w.RequireHMAC = true }
 func withLocalhostOnly(w *store.WebhookData) { w.LocalhostOnly = true }
 func withRPM(rpm int) func(*store.WebhookData) {
 	return func(w *store.WebhookData) { w.RateLimitPerMin = rpm }
@@ -480,6 +482,27 @@ func TestWebhookAuth_IdempotencyReplay(t *testing.T) {
 	}
 	if w.Header().Get("X-Idempotency-Replayed") != "true" {
 		t.Fatal("expected X-Idempotency-Replayed: true header")
+	}
+}
+
+func TestWebhookAuth_IdempotencyRunsWithTenantContext(t *testing.T) {
+	raw, hashHex := makeSecret()
+	wh := makeWebhook("llm")
+	wh.SecretHash = hashHex
+	ws := newStubWebhookStore(wh)
+	calls := newStubCallStore()
+
+	handler := makeMiddleware(ws, calls, "llm", WebhookMaxBodyLLM)
+	w := httptest.NewRecorder()
+	r := bearerReq(raw, `{"input":"hi"}`)
+	r.Header.Set("Idempotency-Key", "tenant-context-key")
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected middleware to proceed, got %d", w.Code)
+	}
+	if calls.lastTenant != wh.TenantID {
+		t.Fatalf("idempotency lookup tenant = %s, want %s", calls.lastTenant, wh.TenantID)
 	}
 }
 
