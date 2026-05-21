@@ -767,6 +767,7 @@ type skillManageStoreStub struct {
 	hashBySlug  map[string]string // slug -> SKILL.md content hash (most recent)
 	grantCalls  []skillGrantCall
 	grantErrors map[uuid.UUID]error
+	lastUpdates map[uuid.UUID]map[string]any
 }
 
 type skillGrantCall struct {
@@ -785,6 +786,7 @@ func newSkillManageStoreStub(baseDir string) *skillManageStoreStub {
 		systemDirs:  map[string]string{},
 		hashBySlug:  map[string]string{},
 		grantErrors: map[uuid.UUID]error{},
+		lastUpdates: map[uuid.UUID]map[string]any{},
 	}
 }
 
@@ -915,6 +917,10 @@ func (s *skillManageStoreStub) UpdateSkill(ctx context.Context, id uuid.UUID, up
 	if status, ok := updates["status"].(string); ok {
 		skill.Status = status
 	}
+	if visibility, ok := updates["visibility"].(string); ok {
+		skill.Visibility = visibility
+	}
+	s.lastUpdates[id] = maps.Clone(updates)
 	s.skills[id] = skill
 	return nil
 }

@@ -216,6 +216,19 @@ func (h *SkillsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	delete(updates, "is_system")
 	delete(updates, "enabled")
 
+	if v, ok := updates["visibility"]; ok {
+		vs, ok := v.(string)
+		if !ok {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidVisibility, "")})
+			return
+		}
+		if err := skills.ValidateVisibility(vs); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidVisibility, vs)})
+			return
+		}
+		updates["visibility"] = skills.NormalizeVisibility(vs)
+	}
+
 	if err := h.skills.UpdateSkill(r.Context(), id, updates); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
