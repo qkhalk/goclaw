@@ -382,6 +382,8 @@ Merged settings map:
 
 Merge is per-tool-name: tenant entry for `web_search` wins wholesale over global default — no deep field merge. Tools that do not read the settings map are unaffected.
 
+`exec` reads `settings.timeout_seconds` for host command execution. The REST API validates `exec` settings as a JSON object with optional integer `timeout_seconds` in the `1..3600` range. Missing or invalid runtime values fall back to 60 seconds, while values above the maximum are clamped to 3600 seconds for defense in depth. Docker sandbox tool calls still use `sandbox_config.timeout_sec`; this setting only controls the host `exec` built-in.
+
 **Secret vs non-secret split:**
 - Non-secret config (provider priorities, limits, domain policies) → `builtin_tool_tenant_configs.settings`
 - Secrets (API keys, tokens) → `config_secrets` table (AES-256-GCM encrypted, tenant-scoped)
@@ -390,11 +392,11 @@ Never put credentials in the settings JSON blob — backend does not validate th
 
 **Cache invalidation:** settings changes propagate via pub/sub (tenant-scoped). Next agent turn re-resolves automatically.
 
-**Tenant admin workflow:** Settings → Builtin Tools → gear icon → JSON editor → Save. Changes take effect on the next agent turn. "Reset to default" reverts to platform defaults.
+**Tenant admin workflow:** Settings → Builtin Tools → gear icon → typed form when available, otherwise JSON editor → Save. Changes take effect on the next agent turn. "Reset to default" reverts to platform defaults.
 
 **Master-scope guard:** Writes to global `builtin_tools` table require master tenant scope. Tenant admins use the `/tenant-config` endpoint. Same guard applies on the WS config methods.
 
-Current adopters: `web_search`, `web_fetch`, `tts`, `create_image`, `read_image`, `create_audio`, `read_audio`, `knowledge_graph_search`.
+Current adopters: `exec`, `web_search`, `web_fetch`, `tts`, `create_image`, `read_image`, `create_audio`, `read_audio`, `knowledge_graph_search`.
 
 ### Shell Deny-Groups (Runtime Config)
 

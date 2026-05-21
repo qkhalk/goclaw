@@ -4,6 +4,27 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-21
+
+### Tools: configurable exec timeout
+
+**Features**
+
+- Added `exec.settings.timeout_seconds` for configurable host command timeout through global and tenant built-in tool settings.
+- Added dashboard controls for the `exec` timeout, defaulting missing settings to 60 seconds.
+- Kept Docker sandbox execution on `sandbox_config.timeout_sec`; `exec.timeout_seconds` only affects the host built-in.
+
+**Fixes**
+
+- Added API validation for `exec` settings so invalid, zero, negative, fractional, or excessive timeout values are rejected before persistence.
+
+**Tests**
+
+- Added focused runtime and HTTP API regression coverage for configured `exec` timeouts and invalid settings.
+- Verified web dashboard build with the typed `exec` settings form.
+
+---
+
 ## 2026-05-20
 
 ### HTTP API contract hardening

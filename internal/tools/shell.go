@@ -3,6 +3,7 @@ package tools
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,6 +19,12 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"golang.org/x/text/unicode/norm"
+)
+
+const (
+	ExecDefaultTimeoutSeconds = 60
+	ExecMinTimeoutSeconds     = 1
+	ExecMaxTimeoutSeconds     = 3600
 )
 
 // Dangerous command patterns organized into configurable deny groups.
@@ -93,7 +100,7 @@ func (t *ExecTool) EffectiveDenyGroupsForTest(ctx context.Context) map[string]bo
 func NewExecTool(workspace string, restrict bool) *ExecTool {
 	return &ExecTool{
 		workspace: workspace,
-		timeout:   60 * time.Second,
+		timeout:   time.Duration(ExecDefaultTimeoutSeconds) * time.Second,
 		restrict:  restrict,
 	}
 }
@@ -405,6 +412,69 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *Result {
 	return t.executeOnHost(ctx, command, cwd)
 }
 
+type execSettings struct {
+	TimeoutSeconds *int `json:"timeout_seconds"`
+}
+
+// ValidateExecSettingsJSON validates the public settings contract for the exec
+// builtin. Other tools are ignored so their flexible JSON settings stay intact.
+func ValidateExecSettingsJSON(toolName string, raw json.RawMessage, allowNull bool) error {
+	if toolName != "exec" {
+		return nil
+	}
+	seconds, ok, err := parseExecTimeoutSeconds(raw, allowNull)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	if seconds > ExecMaxTimeoutSeconds {
+		return fmt.Errorf("timeout_seconds must be <= %d", ExecMaxTimeoutSeconds)
+	}
+	return nil
+}
+
+func parseExecTimeoutSeconds(raw json.RawMessage, allowNull bool) (int, bool, error) {
+	if len(raw) == 0 {
+		return 0, false, nil
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "null" {
+		if allowNull {
+			return 0, false, nil
+		}
+		return 0, false, errors.New("settings must be a JSON object")
+	}
+	var settings execSettings
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return 0, false, errors.New("settings must be a JSON object with numeric timeout_seconds")
+	}
+	if settings.TimeoutSeconds == nil {
+		return 0, false, nil
+	}
+	if *settings.TimeoutSeconds < ExecMinTimeoutSeconds {
+		return 0, true, fmt.Errorf("timeout_seconds must be >= %d", ExecMinTimeoutSeconds)
+	}
+	return *settings.TimeoutSeconds, true, nil
+}
+
+func (t *ExecTool) effectiveTimeout(ctx context.Context) time.Duration {
+	settings := BuiltinToolSettingsFromCtx(ctx)
+	if raw, ok := settings["exec"]; ok {
+		if seconds, hasValue, err := parseExecTimeoutSeconds(json.RawMessage(raw), false); err == nil && hasValue {
+			if seconds > ExecMaxTimeoutSeconds {
+				seconds = ExecMaxTimeoutSeconds
+			}
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	if t.timeout > 0 {
+		return t.timeout
+	}
+	return time.Duration(ExecDefaultTimeoutSeconds) * time.Second
+}
+
 // matchesAny checks if a command matches any pattern in the list.
 func matchesAny(command string, patterns []*regexp.Regexp) bool {
 	for _, p := range patterns {
@@ -428,7 +498,8 @@ func posixShellPath() (string, error) {
 // ctx cancellation (e.g. agent abort) triggers SIGTERM → 3s grace → SIGKILL on the
 // entire process group so forked children are also cleaned up (no orphans).
 func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Result {
-	ctx, cancel := context.WithTimeout(ctx, t.timeout)
+	timeout := t.effectiveTimeout(ctx)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Use plain exec.Command (not CommandContext) so we control the kill sequence.
@@ -477,7 +548,7 @@ func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Resu
 	select {
 	case err := <-done:
 		// Normal completion (success or non-zero exit).
-		return buildHostResult(err, stdout, stderr, ctx, t.timeout)
+		return buildHostResult(err, stdout, stderr, ctx, timeout)
 
 	case <-ctx.Done():
 		// Context cancelled or timed out — kill the process group gracefully then forcefully.
@@ -491,7 +562,7 @@ func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Resu
 			<-done
 		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return ErrorResult(fmt.Sprintf("command timed out after %s", t.timeout))
+			return ErrorResult(fmt.Sprintf("command timed out after %s", timeout))
 		}
 		return ErrorResult("command aborted")
 	}
