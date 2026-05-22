@@ -106,6 +106,54 @@
         }
       }
     },
+    "/v1/chat/sessions/{key}/branch": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Branch a chat session",
+        "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["up_to_index"],
+                "properties": {
+                  "new_session_key": { "type": "string" },
+                  "up_to_index": { "type": "integer", "minimum": 0 },
+                  "label": { "type": "string" },
+                  "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Session branched" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/v1/chat/sessions/{key}/history/follow": {
+      "get": {
+        "tags": ["Sessions"],
+        "summary": "Poll chat session history by index cursor",
+        "parameters": [
+          { "name": "key", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "cursor", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } }
+        ],
+        "responses": {
+          "200": { "description": "History page" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/v1/api-keys": {
       "get": {
         "tags": ["API Keys"],
@@ -791,6 +839,33 @@
         "responses": { "200": { "description": "Instance deleted" } }
       }
     },
+    "/v1/channels/instances/{id}/writers/test": {
+      "post": {
+        "tags": ["Channels"],
+        "summary": "Test channel group writer permission",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["group_id", "user_id"],
+                "properties": {
+                  "group_id": { "type": "string", "example": "group:telegram:-100123" },
+                  "user_id": { "type": "string", "example": "386246614" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Writer permission decision" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/v1/contacts": {
       "get": {
         "tags": ["Channels"],
@@ -888,6 +963,46 @@
           { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
         ],
         "responses": { "200": { "description": "Activity log entries" } }
+      }
+    },
+    "/v1/activity/aggregate": {
+      "get": {
+        "tags": ["Activity"],
+        "summary": "Aggregate audit activity logs",
+        "parameters": [
+          { "name": "group_by", "in": "query", "required": true, "schema": { "type": "string", "enum": ["action", "actor_type", "entity_type", "actor_id"] } },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "actor_type", "in": "query", "schema": { "type": "string" } },
+          { "name": "actor_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "action", "in": "query", "schema": { "type": "string" } },
+          { "name": "entity_type", "in": "query", "schema": { "type": "string" } },
+          { "name": "entity_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } }
+        ],
+        "responses": {
+          "200": { "description": "Activity aggregate buckets" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/v1/logs/runtime/aggregate": {
+      "get": {
+        "tags": ["Activity"],
+        "summary": "Aggregate recent runtime logs from the in-memory ring buffer",
+        "parameters": [
+          { "name": "group_by", "in": "query", "schema": { "type": "string", "enum": ["level", "source"], "default": "level" } },
+          { "name": "level", "in": "query", "schema": { "type": "string", "enum": ["debug", "info", "warn", "error"] } },
+          { "name": "source", "in": "query", "schema": { "type": "string" } },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": { "description": "Runtime log aggregate buckets" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "description": "Runtime log tee unavailable" }
+        }
       }
     },
     "/v1/delegations": {

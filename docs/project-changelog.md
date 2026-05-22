@@ -6,6 +6,18 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-22
 
+### CLI P6 backend API unblock
+
+**Features**
+
+- Added HTTP session branch and history follow endpoints for automation clients.
+- Added read-only channel writer permission testing.
+- Added split activity-log and runtime-log aggregate endpoints.
+
+**Tests**
+
+- Added focused HTTP, store, and runtime log coverage for branch/follow, writer test, activity aggregate, and LogTee ring aggregation.
+
 ### CI/CD: zuey beta deploy
 
 **Features**

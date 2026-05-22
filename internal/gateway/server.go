@@ -621,6 +621,11 @@ func (s *Server) SetActivityHandler(h *httpapi.ActivityHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
+// SetRuntimeLogsHandler sets the runtime log aggregate handler.
+func (s *Server) SetRuntimeLogsHandler(h *httpapi.RuntimeLogsHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetSystemConfigsHandler sets the system configs handler.
 func (s *Server) SetSystemConfigsHandler(h *httpapi.SystemConfigsHandler) {
 	s.handlers = append(s.handlers, h)

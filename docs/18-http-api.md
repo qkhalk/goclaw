@@ -568,8 +568,31 @@ Read-only session listing is available over HTTP for automation clients.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/sessions` | List sessions with `agentId`/`agent_id`, `channel`, `limit`, and `offset` filters |
+| `POST` | `/v1/chat/sessions/{key}/branch` | Branch an existing chat session at `up_to_index` |
+| `GET` | `/v1/chat/sessions/{key}/history/follow` | Poll session history after an index cursor |
 
 Admins and system-level admin API keys can list all sessions within the resolved tenant. Non-admin callers must have an effective `X-GoClaw-User-Id` context and are filtered to their own sessions.
+
+Session branch request:
+
+```json
+{
+  "new_session_key": "optional agent:{sameAgentKey}:...",
+  "up_to_index": 12,
+  "label": "optional label",
+  "metadata": {}
+}
+```
+
+If `new_session_key` is omitted, the server generates `agent:{agentKey}:branch:direct:{uuid}`. `up_to_index` copies `messages[0:up_to_index]`; invalid ranges are rejected and existing target keys are not overwritten.
+
+History follow uses `cursor` as the count of already consumed messages:
+
+```
+GET /v1/chat/sessions/{key}/history/follow?cursor=12&limit=50
+```
+
+If `cursor > total`, the response sets `reset: true` and `next_cursor` to the current total.
 
 ---
 
@@ -978,8 +1001,20 @@ Accepts partial updates. Flag keys are validated against recognized v3 flags.
 |--------|------|-------------|
 | `GET` | `/v1/channels/instances/{id}/writers/groups` | List group file writers |
 | `GET` | `/v1/channels/instances/{id}/writers` | List writers for group |
+| `POST` | `/v1/channels/instances/{id}/writers/test` | Test whether a user is a writer for a group |
 | `POST` | `/v1/channels/instances/{id}/writers` | Add writer to group |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` | Remove writer |
+
+Writer test request:
+
+```json
+{
+  "group_id": "group:telegram:-100123",
+  "user_id": "386246614"
+}
+```
+
+Response includes `allowed`, `reason`, `instance_id`, `agent_id`, `group_id`, `user_id`, and `writer_count`. Stable reasons: `writer`, `not_writer`, `no_writers_configured`, `invalid_group`.
 
 **Supported channels:** `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu`
 
@@ -1215,6 +1250,16 @@ Follow response:
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/activity` | List activity audit logs (filterable) |
+| `GET` | `/v1/activity/aggregate` | Aggregate activity logs by action, actor type, entity type, or admin-only actor ID |
+| `GET` | `/v1/logs/runtime/aggregate` | Aggregate recent in-memory runtime logs by level or source |
+
+Activity aggregate query parameters:
+- `group_by`: `action`, `actor_type`, `entity_type`, or `actor_id` (admin only)
+- `from`, `to`: optional RFC3339 range, `from` inclusive and `to` exclusive
+- `actor_type`, `actor_id`, `action`, `entity_type`, `entity_id`: optional filters; non-admin callers are always scoped to their resolved user ID and must have user context
+- `limit`: bucket cap, default 50, max 200
+
+Runtime log aggregate is admin-only and ring-buffer based. It returns `retention=ring_buffer`, `capacity`, and `sample_size`; it is not durable log storage.
 
 ---
 

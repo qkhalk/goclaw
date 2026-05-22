@@ -195,9 +195,12 @@ func (s *recordingSessionStore) SetLabel(context.Context, string, string)       
 func (s *recordingSessionStore) SetAgentInfo(context.Context, string, uuid.UUID, string) {}
 func (s *recordingSessionStore) TruncateHistory(context.Context, string, int)            {}
 func (s *recordingSessionStore) SetHistory(context.Context, string, []providers.Message) {}
-func (s *recordingSessionStore) Reset(context.Context, string)                           {}
-func (s *recordingSessionStore) Delete(context.Context, string) error                    { return nil }
-func (s *recordingSessionStore) Save(context.Context, string) error                      { return nil }
+func (s *recordingSessionStore) BranchSession(context.Context, string, store.SessionBranchOpts) (*store.SessionData, int, error) {
+	return nil, 0, store.ErrSessionNotFound
+}
+func (s *recordingSessionStore) Reset(context.Context, string)        {}
+func (s *recordingSessionStore) Delete(context.Context, string) error { return nil }
+func (s *recordingSessionStore) Save(context.Context, string) error   { return nil }
 func (s *recordingSessionStore) UpdateMetadata(context.Context, string, string, string, string) {
 }
 func (s *recordingSessionStore) AccumulateTokens(context.Context, string, int64, int64) {}
