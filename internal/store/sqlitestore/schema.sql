@@ -1668,6 +1668,29 @@ CREATE TABLE IF NOT EXISTS tenant_hook_budget (
 );
 
 -- ============================================================
+-- Table: bitrix_portals (migration 000068)
+-- Stores per-tenant OAuth credentials + refresh state for a Bitrix24 portal.
+-- credentials + state are AES-256-GCM ciphertext (internal/crypto/aes.go).
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS bitrix_portals (
+    id           TEXT NOT NULL PRIMARY KEY,
+    tenant_id    TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name         VARCHAR(100) NOT NULL,
+    domain       VARCHAR(255) NOT NULL,
+    credentials  BLOB,
+    state        BLOB,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bitrix_portals_tenant_name
+    ON bitrix_portals (tenant_id, name);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bitrix_portals_domain
+    ON bitrix_portals (LOWER(TRIM(domain)));
+
+-- ============================================================
 -- Table: webhooks  (registry, migrations 000059 + 000061)
 -- secret_hash stores SHA-256 hex; used only for bearer-token lookup.
 -- encrypted_secret stores AES-256-GCM(raw_secret, GOCLAW_ENCRYPTION_KEY); decrypted at HMAC sign time.

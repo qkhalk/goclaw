@@ -12,12 +12,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
 	"github.com/nextlevelbuilder/goclaw/internal/bgalert"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/cache"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/bitrix24"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/discord"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/facebook"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/feishu"
@@ -479,6 +482,10 @@ func runGateway() {
 	cfgPermsMethods.SetMemberResolver(channelMgr)
 	if channelInstancesH != nil {
 		channelInstancesH.SetMemberResolver(channelMgr)
+		// Setter (not constructor) because wireHTTP runs before channelMgr is
+		// created — required for handleDelete to invoke ChannelDestroyer on
+		// Bitrix24 channels (imbot.unregister bot cleanup).
+		channelInstancesH.SetChannelManager(channelMgr)
 	}
 
 	// Wire channel sender + tenant checker on message tool (now that channelMgr exists)
@@ -512,8 +519,51 @@ func runGateway() {
 		instanceLoader.RegisterFactory(channels.TypeSlack, slackchannel.FactoryWithPendingStore(pgStores.PendingMessages))
 		instanceLoader.RegisterFactory(channels.TypeFacebook, facebook.Factory)
 		instanceLoader.RegisterFactory(channels.TypePancake, pancake.Factory)
+		// Bitrix24: factory needs the portal store + encKey injected so each
+		// Channel can resolve its portal on Start(). The encKey here mirrors
+		// the one used by pg.NewPGStores → NewPGBitrixPortalStore.
+		bitrixEncKey := os.Getenv("GOCLAW_ENCRYPTION_KEY")
+		// Use the MCP-aware factory variant so channels that opt into
+		// lazy per-user credential provisioning (via mcp_server_name +
+		// mcp_base_url in their instance config) can reach the partner's
+		// MCPServerStore. The MCP server authenticates each onboard call
+		// via the caller-supplied Bitrix access_token (Path B) — no shared
+		// admin secret is required. Channels with none of those set operate
+		// identically to before — the MCPStore arg is nil-safe inside the
+		// factory.
+		instanceLoader.RegisterFactory(channels.TypeBitrix24, bitrix24.FactoryWithPortalStoreAndMCP(pgStores.BitrixPortals, pgStores.MCP, bitrixEncKey))
 		if err := instanceLoader.LoadAll(context.Background()); err != nil {
 			slog.Error("failed to load channel instances from DB", "error", err)
+		}
+
+		// Bitrix24 portal management RPC (self-service onboarding).
+		// Registers bitrix.portals.list/create/get_install_url/delete methods
+		// on the WS router; install URL is built from the gateway's observed
+		// public URL via Server.PublicURLSnapshot().
+		if pgStores.BitrixPortals != nil {
+			methods.NewBitrixPortalsMethods(
+				pgStores.BitrixPortals,
+				pgStores.ChannelInstances,
+				server.PublicURLSnapshot().Get,
+			).Register(server.Router())
+		}
+
+		// Warm the shared Bitrix24 router with every portal row so inbound
+		// webhooks land on the right *Portal even before a channel instance
+		// is loaded for that portal. Idempotent; no-op on sqlite-lite.
+		if pgStores.BitrixPortals != nil {
+			if err := bitrix24.BootstrapPortals(context.Background(), pgStores.BitrixPortals, bitrixEncKey); err != nil {
+				// Surface the missing-table case loudly so an operator notices
+				// without having to grep logs — bitrix24 channels silently
+				// no-op until `goclaw migrate up` runs migration 000058.
+				if strings.Contains(err.Error(), "bitrix_portals") &&
+					(strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "no such table")) {
+					slog.Warn("bitrix24 bootstrap skipped — bitrix_portals table missing; run `goclaw migrate up` (migration 000068) to enable Bitrix24 channels",
+						"err", err)
+				} else {
+					slog.Warn("bitrix24 bootstrap failed", "err", err)
+				}
+			}
 		}
 	}
 
@@ -521,7 +571,25 @@ func runGateway() {
 	registerConfigChannels(cfg, channelMgr, msgBus, pgStores, instanceLoader, audioMgr)
 
 	// Register channels/instances/links/teams RPC methods
-	wireChannelRPCMethods(server, pgStores, channelMgr, agentRouter, msgBus, workspace)
+	chInstancesM := wireChannelRPCMethods(server, pgStores, channelMgr, agentRouter, msgBus, workspace)
+
+	// Bitrix24 orphan-bot cleaner. Fires from channel_instances delete handler
+	// when the channel is no longer loaded in the Manager (typical scenario:
+	// admin disabled the channel earlier so InstanceLoader.Reload removed it).
+	// Without this, deleting a disabled Bitrix24 channel would orphan the bot
+	// on the portal.
+	if pgStores.BitrixPortals != nil {
+		bitrixEncKey := os.Getenv("GOCLAW_ENCRYPTION_KEY")
+		orphanCleaner := func(ctx context.Context, tenantID uuid.UUID, cfg []byte) error {
+			return bitrix24.DestroyOrphanBot(ctx, pgStores.BitrixPortals, bitrixEncKey, tenantID, cfg)
+		}
+		if channelInstancesH != nil {
+			channelInstancesH.RegisterOrphanCleaner(channels.TypeBitrix24, orphanCleaner)
+		}
+		if chInstancesM != nil {
+			chInstancesM.RegisterOrphanCleaner(channels.TypeBitrix24, orphanCleaner)
+		}
+	}
 
 	// Wire channel event subscribers (cache invalidation, pairing, cascade disable)
 	wireChannelEventSubscribers(msgBus, server, pgStores, channelMgr, instanceLoader, pairingMethods, cfg)
