@@ -23,6 +23,21 @@ Significant changes, features, and fixes in reverse chronological order.
 - Added pricing and cap service coverage.
 - Verified Go builds, SQLite build compatibility, full Go test suite, integration race suite, and Web UI production build.
 
+### Messaging debounce hardening
+
+**Features**
+
+- Added Web Chat debounce for rapid text-only `chat.send` calls using `gateway.inbound_debounce_ms`.
+- Clarified shared inbound debounce behavior in docs and Web UI config help text.
+
+**Fixes**
+
+- Fixed Slack `debounce_delay: 0` so it disables per-thread batching instead of falling back to the default.
+
+**Tests**
+
+- Added regression coverage for channel inbound debounce, Web Chat debounce, media/cancel bypass handling, and Slack debounce config defaults.
+
 ### CLI P6 backend API unblock
 
 **Features**
