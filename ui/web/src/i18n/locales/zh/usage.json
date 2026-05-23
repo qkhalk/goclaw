@@ -47,6 +47,8 @@
     "tenantScope": "租户上限",
     "tenantScoped": "租户范围",
     "agentScoped": "Agent范围",
+    "agentBudgetSource": "Agent预算",
+    "agentBudgetManaged": "请在 Agent 月度预算字段中清除此上限。",
     "enabled": "已启用",
     "disabled": "已禁用",
     "delete": "删除上限",

@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -108,6 +109,10 @@ func (h *UsageCapsHandler) handleUpdatePolicy(w http.ResponseWriter, r *http.Req
 	}
 	p, err := h.store.UpdateUsageCapPolicy(r.Context(), tenantIDOrMaster(r), id, patch)
 	if err != nil {
+		if errors.Is(err, store.ErrUsageCapPolicyManaged) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
 		slog.Warn("usage_caps.update_policy_failed", "error", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "usage cap policy validation failed"})
 		return
@@ -122,6 +127,10 @@ func (h *UsageCapsHandler) handleDeletePolicy(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if err := h.store.DeleteUsageCapPolicy(r.Context(), tenantIDOrMaster(r), id); err != nil {
+		if errors.Is(err, store.ErrUsageCapPolicyManaged) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
 		return
 	}

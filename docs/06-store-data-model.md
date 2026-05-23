@@ -93,7 +93,7 @@ Usage cap enforcement is Standard/PostgreSQL-only in round one. The `UsageCapSto
 Tables:
 - `usage_pricing_catalog`: OpenRouter model catalog prices, raw upstream model payload, sync time.
 - `usage_pricing_overrides`: tenant/provider/model override prices for custom billing assumptions.
-- `usage_cap_policies`: cap definitions scoped by tenant, agent, provider, provider type, model, and `window_key`.
+- `usage_cap_policies`: cap definitions scoped by tenant, agent, provider, provider type, model, `window_key`, and `source`.
 - `usage_cap_counters`: current window used and reserved token/cost counters.
 - `usage_cap_reservations`: preflight reservations keyed by LLM call attempt.
 - `usage_cap_events`: allow/block/reconcile/skip audit events.
@@ -104,9 +104,11 @@ Policy `agent_id` references must belong to the same tenant as the policy. Polic
 Catalog and override price fields are nullable decimal strings with non-negative validation in the store layer and database checks.
 Pricing resolution checks exact override/catalog model IDs first, then provider-derived OpenRouter aliases for native unprefixed model IDs.
 
+Agent `budget_monthly_cents` values are bridged into `usage_cap_policies` with `source = 'agent_budget_monthly_cents'`, an agent scope, `window_key = 'month'`, and `max_cost_micros = budget_monthly_cents * 10000`. Updating or clearing the agent budget keeps that generated policy in sync; manual cap policies continue to use `source = 'manual'`.
+
 Migration versions:
 
-- PostgreSQL: `000069_usage_caps_pricing`, `000070_usage_cap_policies`.
+- PostgreSQL: `000069_usage_caps_pricing`, `000070_usage_cap_policies`, `000071_agent_budget_usage_cap_bridge`.
 - SQLite: no schema change; feature is not active in Lite.
 
 ---

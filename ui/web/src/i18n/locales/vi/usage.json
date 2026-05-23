@@ -47,6 +47,8 @@
     "tenantScope": "Cap tenant",
     "tenantScoped": "Phạm vi tenant",
     "agentScoped": "Phạm vi agent",
+    "agentBudgetSource": "Ngân sách agent",
+    "agentBudgetManaged": "Xóa giới hạn này từ ô ngân sách hàng tháng của agent.",
     "enabled": "Đã bật",
     "disabled": "Đã tắt",
     "delete": "Xóa cap",

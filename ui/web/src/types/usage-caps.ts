@@ -19,6 +19,7 @@ export interface UsageCapPolicy {
   window: "hour" | "day" | "week" | "month";
   max_tokens?: number;
   max_cost_micros?: number;
+  source?: "manual" | "agent_budget_monthly_cents";
   enabled: boolean;
   priority: number;
   created_at: string;

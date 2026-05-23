@@ -1294,6 +1294,8 @@ Usage cap policy body:
 }
 ```
 
+Policy responses include read-only `source`. `source="agent_budget_monthly_cents"` means the policy is generated from the agent monthly budget field and must be changed there; direct policy updates/deletes return `409 Conflict`.
+
 ---
 
 ## 24. Activity & Audit

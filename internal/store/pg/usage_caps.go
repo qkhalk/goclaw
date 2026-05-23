@@ -20,16 +20,19 @@ func (s *PGUsageCapStore) CreateUsageCapPolicy(ctx context.Context, p *store.Usa
 	if err := s.validateUsageCapRefs(ctx, p.TenantID, p.AgentID, p.ProviderID); err != nil {
 		return err
 	}
+	if p.Source == "" {
+		p.Source = store.UsageCapSourceManual
+	}
 	const q = `
-INSERT INTO usage_cap_policies (
-	id, tenant_id, agent_id, provider_id, provider_type, model_id, window_key,
-	max_tokens, max_cost_micros, enabled, priority
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-RETURNING created_at, updated_at`
+	INSERT INTO usage_cap_policies (
+		id, tenant_id, agent_id, provider_id, provider_type, model_id, window_key,
+		max_tokens, max_cost_micros, source, enabled, priority
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+	RETURNING created_at, updated_at`
 	return s.db.QueryRowContext(ctx, q,
 		p.ID, p.TenantID, uuidPtrVal(p.AgentID), uuidPtrVal(p.ProviderID),
 		nullEmpty(p.ProviderType), nullEmpty(p.ModelID), p.Window,
-		intPtrVal(p.MaxTokens), intPtrVal(p.MaxCostMicros), p.Enabled, p.Priority,
+		intPtrVal(p.MaxTokens), intPtrVal(p.MaxCostMicros), p.Source, p.Enabled, p.Priority,
 	).Scan(&p.CreatedAt, &p.UpdatedAt)
 }
 
@@ -84,6 +87,9 @@ func (s *PGUsageCapStore) UpdateUsageCapPolicy(ctx context.Context, tenantID, id
 	if err != nil {
 		return nil, err
 	}
+	if p.Source == store.UsageCapSourceAgentBudget {
+		return nil, fmt.Errorf("%w: agent monthly budget", store.ErrUsageCapPolicyManaged)
+	}
 	if patch.AgentID != nil {
 		p.AgentID = *patch.AgentID
 	}
@@ -129,8 +135,20 @@ RETURNING updated_at`
 }
 
 func (s *PGUsageCapStore) DeleteUsageCapPolicy(ctx context.Context, tenantID, id uuid.UUID) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM usage_cap_policies WHERE tenant_id=$1 AND id=$2`, tenantID, id)
-	return err
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM usage_cap_policies
+		 WHERE tenant_id=$1 AND id=$2 AND COALESCE(source,'manual') <> $3`,
+		tenantID, id, store.UsageCapSourceAgentBudget)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := s.getPolicy(ctx, tenantID, id); err == nil {
+			return fmt.Errorf("%w: agent monthly budget", store.ErrUsageCapPolicyManaged)
+		}
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (s *PGUsageCapStore) ReserveUsage(ctx context.Context, req store.UsageReserveRequest, policies []store.UsageCapPolicy) (*store.UsageReservationResult, error) {
@@ -339,14 +357,14 @@ SELECT EXISTS (
 }
 
 const policySelectSQL = `SELECT id, tenant_id, agent_id, provider_id, COALESCE(provider_type,''), COALESCE(model_id,''),
-	window_key, max_tokens, max_cost_micros, enabled, priority, created_at, updated_at FROM usage_cap_policies`
+	window_key, max_tokens, max_cost_micros, COALESCE(source,'manual'), enabled, priority, created_at, updated_at FROM usage_cap_policies`
 
 func scanPolicy(row scanner) (store.UsageCapPolicy, error) {
 	var p store.UsageCapPolicy
 	var agentID, providerID uuid.NullUUID
 	var maxTokens, maxCost sql.NullInt64
 	err := row.Scan(&p.ID, &p.TenantID, &agentID, &providerID, &p.ProviderType, &p.ModelID,
-		&p.Window, &maxTokens, &maxCost, &p.Enabled, &p.Priority, &p.CreatedAt, &p.UpdatedAt)
+		&p.Window, &maxTokens, &maxCost, &p.Source, &p.Enabled, &p.Priority, &p.CreatedAt, &p.UpdatedAt)
 	if agentID.Valid {
 		p.AgentID = &agentID.UUID
 	}

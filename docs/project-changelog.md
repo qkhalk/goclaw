@@ -16,6 +16,7 @@ Significant changes, features, and fixes in reverse chronological order.
 - Enforced caps in agent, fallback model, subagent, memory flush, compaction, and media reading tools (`read_image`, `read_document`, `read_audio`, `read_video`) with preflight reservation and post-call reconciliation.
 - Added non-negative validation for catalog and override pricing fields.
 - Added OpenRouter alias resolution for native model IDs, cached-input accounting normalization, and partial-stream failure reconciliation.
+- Bridged legacy `budget_monthly_cents` into generated monthly agent USD cap policies, including migration backfill and save-time sync.
 - Added web dashboard controls on Usage and Provider detail pages.
 
 **Tests**

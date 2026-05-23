@@ -19,9 +19,15 @@ const (
 	UsageCapEventBlock     = "block"
 	UsageCapEventReconcile = "reconcile"
 	UsageCapEventSkip      = "skip"
+
+	UsageCapSourceManual      = "manual"
+	UsageCapSourceAgentBudget = "agent_budget_monthly_cents"
 )
 
-var ErrUsageCapExceeded = errors.New("usage cap exceeded")
+var (
+	ErrUsageCapExceeded      = errors.New("usage cap exceeded")
+	ErrUsageCapPolicyManaged = errors.New("usage cap policy is managed by another setting")
+)
 
 type UsageCapExceededError struct {
 	PolicyID uuid.UUID
@@ -101,6 +107,7 @@ type UsageCapPolicy struct {
 	Window        string     `json:"window" db:"window"`
 	MaxTokens     *int64     `json:"max_tokens,omitempty" db:"max_tokens"`
 	MaxCostMicros *int64     `json:"max_cost_micros,omitempty" db:"max_cost_micros"`
+	Source        string     `json:"source,omitempty" db:"source"`
 	Enabled       bool       `json:"enabled" db:"enabled"`
 	Priority      int        `json:"priority" db:"priority"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`

@@ -71,6 +71,8 @@ Runtime flow:
 
 Token-only policies do not require catalog pricing. Model fallback routes reserve against the actual candidate provider/model before each attempt. Cached input is separated from uncached input for OpenAI-compatible usage accounting. Partial stream failures keep the estimate, or actual provider usage when available, instead of clearing billed output to zero. Internal LLM calls for memory flush, compaction, media reading tools (`read_image`, `read_document`, `read_audio`, `read_video`), and subagents use the same preflight/reconcile path.
 
+The legacy agent-level `budget_monthly_cents` field is treated as a generated monthly agent USD cap. Existing values are backfilled during migration, and later agent budget edits update or remove the generated cap policy.
+
 Supported price units: input, output, cache read, cache write, reasoning, request, image, and web search.
 
 ---

@@ -47,6 +47,8 @@
     "tenantScope": "Tenant cap",
     "tenantScoped": "Tenant scoped",
     "agentScoped": "Agent scoped",
+    "agentBudgetSource": "Agent budget",
+    "agentBudgetManaged": "Clear this from the agent monthly budget field.",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "delete": "Delete cap",
