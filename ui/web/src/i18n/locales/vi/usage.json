@@ -40,6 +40,9 @@
     "maxTokens": "Token tối đa",
     "maxCost": "Chi phí tối đa USD",
     "create": "Tạo cap",
+    "edit": "Sửa cap",
+    "save": "Lưu cap",
+    "cancel": "Hủy sửa",
     "scope": "Phạm vi",
     "tokens": "Token",
     "cost": "Chi phí",
@@ -56,7 +59,9 @@
     "blocked": "Đã chặn",
     "toast": {
       "created": "Đã tạo usage cap",
+      "updated": "Đã cập nhật usage cap",
       "createFailed": "Không thể tạo usage cap",
+      "updateFailed": "Không thể cập nhật usage cap",
       "deleted": "Đã xóa usage cap",
       "deleteFailed": "Không thể xóa usage cap"
     }

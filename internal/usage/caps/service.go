@@ -50,17 +50,25 @@ type Reservation struct {
 	usage               pricing.BillableUsage
 	prices              store.UsagePricingFields
 	estimatedCostMicros int64
+	actualTokens        int64
+	actualCostMicros    int64
+	reconcileStatus     string
 	skipped             bool
+	decision            string
 	reason              string
+	blockedPolicyID     uuid.UUID
+	providerName        string
+	providerType        string
+	modelID             string
 }
 
 func (s *Service) Preflight(ctx context.Context, req Request) (*Reservation, error) {
 	if s == nil || s.store == nil {
-		return &Reservation{skipped: true, reason: "service_disabled"}, nil
+		return skippedReservation(req, "service_disabled"), nil
 	}
 	providerData, err := s.resolveProvider(ctx, req.TenantID, req.ProviderName)
 	if err != nil {
-		return &Reservation{skipped: true, reason: "provider_metadata_missing"}, nil
+		return skippedReservation(req, "provider_metadata_missing"), nil
 	}
 	scope := store.UsageCapScope{
 		TenantID: req.TenantID, AgentID: req.AgentID, ProviderID: providerData.ID,
@@ -71,14 +79,14 @@ func (s *Service) Preflight(ctx context.Context, req Request) (*Reservation, err
 			TenantID: req.TenantID, Decision: store.UsageCapEventSkip,
 			Reason: "provider_not_billable_api", Metadata: mustJSON(scope),
 		})
-		return &Reservation{skipped: true, reason: "provider_not_billable_api"}, nil
+		return skippedScopedReservation(req, scope, "provider_not_billable_api"), nil
 	}
 	policies, err := s.store.ListUsageCapPolicies(ctx, scope, false)
 	if err != nil {
 		return nil, err
 	}
 	if len(policies) == 0 {
-		return &Reservation{skipped: true, reason: "no_policy"}, nil
+		return skippedScopedReservation(req, scope, "no_policy"), nil
 	}
 	usage := pricing.BillableUsage{
 		InputTokens:  int64(EstimateInputTokens(req.Messages)),
@@ -88,6 +96,10 @@ func (s *Service) Preflight(ctx context.Context, req Request) (*Reservation, err
 	if usage.OutputTokens <= 0 {
 		usage.OutputTokens = 1
 	}
+	key := req.ReservationKey
+	if key == "" {
+		key = uuid.NewString()
+	}
 	metadata := map[string]any{"model_id": req.ModelID, "pricing_source": "token_only"}
 	var prices store.UsagePricingFields
 	var costMicros int64
@@ -95,7 +107,7 @@ func (s *Service) Preflight(ctx context.Context, req Request) (*Reservation, err
 		resolved, err := s.store.ResolvePricing(ctx, req.TenantID, providerData.ID, providerData.Name, providerData.ProviderType, req.ModelID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, fmt.Errorf("%w: %s", ErrPricingUnknown, req.ModelID)
+				return blockedReservation(req, scope, key, usage, 0, uuid.Nil, "pricing_unknown"), fmt.Errorf("%w: %s", ErrPricingUnknown, req.ModelID)
 			}
 			return nil, err
 		}
@@ -108,10 +120,6 @@ func (s *Service) Preflight(ctx context.Context, req Request) (*Reservation, err
 			return nil, err
 		}
 		metadata = map[string]any{"source": resolved.Source, "model_id": resolved.ModelID}
-	}
-	key := req.ReservationKey
-	if key == "" {
-		key = uuid.NewString()
 	}
 	result, err := s.store.ReserveUsage(ctx, store.UsageReserveRequest{
 		UsageCapScope: scope, ReservationKey: key,
@@ -136,11 +144,16 @@ func (s *Service) Preflight(ctx context.Context, req Request) (*Reservation, err
 				Metadata: mustJSON(map[string]any{"model_id": req.ModelID, "provider": req.ProviderName}),
 			})
 			slog.Warn("usage_caps.blocked", "tenant_id", req.TenantID, "policy_id", blockedPolicy, "reason", reason)
-			return nil, ErrCapExceeded
+			return blockedReservation(req, scope, key, usage, costMicros, blockedPolicy, reason), ErrCapExceeded
 		}
 		return nil, err
 	}
-	return &Reservation{key: key, result: result, svc: s, usage: usage, prices: prices, estimatedCostMicros: costMicros}, nil
+	return &Reservation{
+		key: key, result: result, svc: s, usage: usage, prices: prices,
+		estimatedCostMicros: costMicros, decision: store.UsageCapEventAllow,
+		reason: "reserved", providerName: req.ProviderName,
+		providerType: scope.ProviderType, modelID: scope.ModelID,
+	}, nil
 }
 
 func (r *Reservation) Reconcile(ctx context.Context, resp *providers.ChatResponse, callErr error) {
@@ -189,6 +202,9 @@ func (r *Reservation) reconcile(ctx context.Context, resp *providers.ChatRespons
 	if err != nil {
 		cost = r.estimatedCostMicros
 	}
+	r.actualTokens = actual.TotalTokens()
+	r.actualCostMicros = cost
+	r.reconcileStatus = status
 	reconcileCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := r.svc.store.ReconcileUsage(reconcileCtx, store.UsageReconcileRequest{

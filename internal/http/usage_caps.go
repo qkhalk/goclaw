@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -97,12 +99,12 @@ func (h *UsageCapsHandler) handleUpdatePolicy(w http.ResponseWriter, r *http.Req
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid policy id"})
 		return
 	}
-	var body policyBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	patch, err := body.toPatch()
+	patch, err := policyPatchFromBody(bodyBytes)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -323,6 +325,33 @@ func (b policyBody) toPatch() (store.UsageCapPolicyPatch, error) {
 	patch.Enabled = b.Enabled
 	patch.Priority = b.Priority
 	return patch, nil
+}
+
+func policyPatchFromBody(bodyBytes []byte) (store.UsageCapPolicyPatch, error) {
+	var body policyBody
+	if err := json.Unmarshal(bodyBytes, &body); err != nil {
+		return store.UsageCapPolicyPatch{}, err
+	}
+	patch, err := body.toPatch()
+	if err != nil {
+		return patch, err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(bodyBytes, &raw); err == nil {
+		if isJSONNull(raw["max_tokens"]) {
+			var v *int64
+			patch.MaxTokens = &v
+		}
+		if isJSONNull(raw["max_cost_micros"]) || isJSONNull(raw["max_cost_usd"]) {
+			var v *int64
+			patch.MaxCostMicros = &v
+		}
+	}
+	return patch, nil
+}
+
+func isJSONNull(raw json.RawMessage) bool {
+	return strings.TrimSpace(string(raw)) == "null"
 }
 
 func tenantIDOrMaster(r *http.Request) uuid.UUID {

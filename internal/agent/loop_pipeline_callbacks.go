@@ -295,6 +295,11 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 			opts = append(opts, withProvider(provider.Name()))
 		}
 		spanID := l.emitLLMSpanStart(ctx, start, state.Iteration+1, chatReq.Messages, opts...)
+		recordUsageCapAttempt := func(reservation *usagecaps.Reservation) {
+			if reservation != nil {
+				opts = append(opts, withUsageCapMetadata(reservation.TraceMetadata()))
+			}
+		}
 
 		emitChunk := func(chunk providers.StreamChunk) {
 			if chunk.Thinking != "" {
@@ -320,6 +325,7 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 					candidateAttempt := fmt.Sprintf("%s:%s:%s", attempt, entry.ProviderName, actualReq.Model)
 					reservation, reserveErr := l.reserveLLMUsageFor(callCtx, req, state.Iteration, actualReq, candidateAttempt, entry.ProviderName, actualReq.Model)
 					if reserveErr != nil {
+						recordUsageCapAttempt(reservation)
 						return nil, reserveErr
 					}
 					return func(callResp *providers.ChatResponse, callErr error, info providers.FallbackCallInfo) {
@@ -329,6 +335,7 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 							} else {
 								reservation.Reconcile(callCtx, callResp, callErr)
 							}
+							recordUsageCapAttempt(reservation)
 						}
 					}, nil
 				}
@@ -339,6 +346,7 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 			}
 			reservation, reserveErr := l.reserveLLMUsage(ctx, req, state, request, attempt)
 			if reserveErr != nil {
+				recordUsageCapAttempt(reservation)
 				return nil, reserveErr
 			}
 			var callResp *providers.ChatResponse
@@ -353,6 +361,7 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 				})
 				if reservation != nil {
 					reservation.ReconcileStream(ctx, callResp, callErr, streamed)
+					recordUsageCapAttempt(reservation)
 				}
 				return callResp, callErr
 			} else {
@@ -360,6 +369,7 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 			}
 			if reservation != nil {
 				reservation.Reconcile(ctx, callResp, callErr)
+				recordUsageCapAttempt(reservation)
 			}
 			return callResp, callErr
 		}

@@ -3,6 +3,8 @@ package caps
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -60,6 +62,13 @@ func TestPreflightTokenOnlyCapDoesNotRequirePricing(t *testing.T) {
 	}
 	if usageStore.reserved.EstimatedCostMicros != 0 {
 		t.Fatalf("EstimatedCostMicros = %d, want 0", usageStore.reserved.EstimatedCostMicros)
+	}
+	metadata := reservation.TraceMetadata()
+	if metadata.Decision != store.UsageCapEventAllow {
+		t.Fatalf("Decision = %q, want allow", metadata.Decision)
+	}
+	if metadata.PolicyCount != 1 {
+		t.Fatalf("PolicyCount = %d, want 1", metadata.PolicyCount)
 	}
 }
 
@@ -224,6 +233,76 @@ func TestReservationReconcileIgnoresUnpricedRequestCount(t *testing.T) {
 	if usageStore.reconciled.ActualCostMicros != 5 {
 		t.Fatalf("ActualCostMicros = %d, want 5", usageStore.reconciled.ActualCostMicros)
 	}
+	metadata := reservation.TraceMetadata()
+	if metadata.ActualTokens != 5 {
+		t.Fatalf("ActualTokens = %d, want 5", metadata.ActualTokens)
+	}
+	if metadata.ReconcileStatus != "reconciled" {
+		t.Fatalf("ReconcileStatus = %q, want reconciled", metadata.ReconcileStatus)
+	}
+}
+
+func TestPreflightTraceMetadataForCapExceeded(t *testing.T) {
+	policy := store.UsageCapPolicy{ID: uuid.New(), TenantID: uuid.New(), MaxTokens: int64Ptr(10), Enabled: true}
+	usageStore := &fakeUsageCapStore{
+		policies:   []store.UsageCapPolicy{policy},
+		reserveErr: &store.UsageCapExceededError{PolicyID: policy.ID, Reason: "token_cap_exceeded"},
+	}
+	providerStore := &fakeProviderStore{provider: &store.LLMProviderData{
+		BaseModel:    store.BaseModel{ID: uuid.New()},
+		Name:         "openrouter",
+		ProviderType: store.ProviderOpenRouter,
+		APIKey:       "sk-test",
+	}}
+	svc := NewService(usageStore, providerStore)
+
+	reservation, err := svc.Preflight(context.Background(), Request{
+		TenantID: policy.TenantID, ProviderName: "openrouter", ModelID: "token/model",
+		ReservationKey: "blocked", Messages: []providers.Message{{Role: "user", Content: "hello"}},
+		MaxOutputTokens: 10,
+	})
+	if !errors.Is(err, ErrCapExceeded) {
+		t.Fatalf("Preflight error = %v, want ErrCapExceeded", err)
+	}
+	metadata := reservation.TraceMetadata()
+	if metadata.Decision != store.UsageCapEventBlock {
+		t.Fatalf("Decision = %q, want block", metadata.Decision)
+	}
+	if metadata.Reason != "token_cap_exceeded" {
+		t.Fatalf("Reason = %q, want token_cap_exceeded", metadata.Reason)
+	}
+	if metadata.ReservationKey != "blocked" {
+		t.Fatalf("ReservationKey = %q, want blocked", metadata.ReservationKey)
+	}
+	if len(metadata.PolicyIDs) != 1 || metadata.PolicyIDs[0] != policy.ID.String() {
+		t.Fatalf("PolicyIDs = %v, want [%s]", metadata.PolicyIDs, policy.ID)
+	}
+}
+
+func TestMergeTraceMetadataPreservesExistingSections(t *testing.T) {
+	existing := json.RawMessage(`{"thinking":{"effort":"high"}}`)
+	merged := MergeTraceMetadata(existing, []TraceMetadata{{
+		Decision: store.UsageCapEventAllow,
+		Reason:   "reserved",
+		ModelID:  "openai/gpt-test",
+	}})
+
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(merged, &payload); err != nil {
+		t.Fatalf("Unmarshal merged metadata: %v", err)
+	}
+	if len(payload["thinking"]) == 0 {
+		t.Fatal("existing thinking metadata was removed")
+	}
+	var usagePayload struct {
+		Attempts []TraceMetadata `json:"attempts"`
+	}
+	if err := json.Unmarshal(payload[TraceMetadataKey], &usagePayload); err != nil {
+		t.Fatalf("Unmarshal usage caps metadata: %v", err)
+	}
+	if len(usagePayload.Attempts) != 1 || usagePayload.Attempts[0].Decision != store.UsageCapEventAllow {
+		t.Fatalf("usage cap attempts = %+v, want one allow attempt", usagePayload.Attempts)
+	}
 }
 
 func TestCountImagesOnlyCountsImageMIMEs(t *testing.T) {
@@ -245,6 +324,7 @@ type fakeUsageCapStore struct {
 	resolved             *store.ResolvedUsagePricing
 	resolveErr           error
 	resolveCalls         int
+	reserveErr           error
 	reserved             store.UsageReserveRequest
 	reconciled           store.UsageReconcileRequest
 	reconcileCalls       int
@@ -287,6 +367,9 @@ func (s *fakeUsageCapStore) DeleteUsageCapPolicy(context.Context, uuid.UUID, uui
 }
 func (s *fakeUsageCapStore) ReserveUsage(_ context.Context, req store.UsageReserveRequest, policies []store.UsageCapPolicy) (*store.UsageReservationResult, error) {
 	s.reserved = req
+	if s.reserveErr != nil {
+		return nil, s.reserveErr
+	}
 	return &store.UsageReservationResult{ReservationKey: req.ReservationKey, Policies: policies}, nil
 }
 func (s *fakeUsageCapStore) ReconcileUsage(ctx context.Context, req store.UsageReconcileRequest) error {

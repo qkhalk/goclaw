@@ -40,6 +40,9 @@
     "maxTokens": "最大令牌",
     "maxCost": "最大费用 USD",
     "create": "创建上限",
+    "edit": "编辑上限",
+    "save": "保存上限",
+    "cancel": "取消编辑",
     "scope": "范围",
     "tokens": "令牌",
     "cost": "费用",
@@ -56,7 +59,9 @@
     "blocked": "已拦截",
     "toast": {
       "created": "用量上限已创建",
+      "updated": "用量上限已更新",
       "createFailed": "无法创建用量上限",
+      "updateFailed": "无法更新用量上限",
       "deleted": "用量上限已删除",
       "deleteFailed": "无法删除用量上限"
     }

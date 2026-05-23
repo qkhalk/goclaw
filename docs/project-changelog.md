@@ -18,6 +18,8 @@ Significant changes, features, and fixes in reverse chronological order.
 - Added OpenRouter alias resolution for native model IDs, cached-input accounting normalization, and partial-stream failure reconciliation.
 - Bridged legacy `budget_monthly_cents` into generated monthly agent USD cap policies, including migration backfill and save-time sync.
 - Added web dashboard controls on Usage and Provider detail pages.
+- Added Usage page editing for manual cap policies, including enable/disable, scope clearing, and token/USD limit clearing while keeping generated agent-budget caps read-only.
+- Added usage-cap decision metadata to LLM spans, including allow/skip/block reason, policy IDs, estimates, actuals, and reconcile status.
 
 **Tests**
 

@@ -12,8 +12,8 @@ export interface UsageCapPolicyInput {
   provider_type?: string;
   model_id?: string;
   window: UsageCapPolicy["window"];
-  max_tokens?: number;
-  max_cost_usd?: number;
+  max_tokens?: number | null;
+  max_cost_usd?: number | null;
   enabled?: boolean;
 }
 
@@ -81,6 +81,20 @@ export function useUsageCaps() {
     [http, refresh],
   );
 
+  const updatePolicy = useCallback(
+    async (id: string, input: UsageCapPolicyInput) => {
+      try {
+        await http.patch<UsageCapPolicy>(`/v1/usage-caps/policies/${id}`, input);
+        await refresh();
+        toast.success(i18next.t("usage:caps.toast.updated"));
+      } catch (err) {
+        toast.error(i18next.t("usage:caps.toast.updateFailed"), err instanceof Error ? err.message : "");
+        throw err;
+      }
+    },
+    [http, refresh],
+  );
+
   return {
     policies: policiesQuery.data ?? [],
     utilization: utilizationQuery.data ?? [],
@@ -89,6 +103,7 @@ export function useUsageCaps() {
     refreshing: policiesQuery.isFetching || utilizationQuery.isFetching || eventsQuery.isFetching,
     refresh,
     createPolicy,
+    updatePolicy,
     deletePolicy,
   };
 }

@@ -40,6 +40,9 @@
     "maxTokens": "Max tokens",
     "maxCost": "Max cost USD",
     "create": "Create cap",
+    "edit": "Edit cap",
+    "save": "Save cap",
+    "cancel": "Cancel edit",
     "scope": "Scope",
     "tokens": "Tokens",
     "cost": "Cost",
@@ -56,7 +59,9 @@
     "blocked": "Blocked",
     "toast": {
       "created": "Usage cap created",
+      "updated": "Usage cap updated",
       "createFailed": "Could not create usage cap",
+      "updateFailed": "Could not update usage cap",
       "deleted": "Usage cap deleted",
       "deleteFailed": "Could not delete usage cap"
     }
