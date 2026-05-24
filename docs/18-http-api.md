@@ -321,7 +321,7 @@ Use `direct_selection_count` plus the `selected_provider` sequence to verify rea
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/skills` | List all skills |
-| `POST` | `/v1/skills/upload` | Upload ZIP with SKILL.md (20 MB limit) |
+| `POST` | `/v1/skills/upload` | Upload ZIP with SKILL.md (configurable 20 MB default, 1-500 MB range) |
 | `GET` | `/v1/skills/{id}` | Get skill details |
 | `PUT` | `/v1/skills/{id}` | Update skill metadata |
 | `DELETE` | `/v1/skills/{id}` | Delete skill (not system skills) |
@@ -330,6 +330,18 @@ Use `direct_selection_count` plus the `selected_provider` sequence to verify rea
 | `DELETE` | `/v1/skills/{id}/tenant-config` | Delete tenant-level skill config |
 
 ### Skill Grants
+
+Skill upload size is enforced per ZIP file. The effective limit resolves in this order:
+tenant `system_configs["skills.max_upload_size_mb"]`, then `SKILL.md` frontmatter
+`max_upload_size_mb`, then config/env `skills.max_upload_size_mb` /
+`GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB`, then the default 20 MB. Values are clamped
+to 1-500 MB.
+
+Skill slash-command behavior is configured through tenant `system_configs`:
+`skills.slash_commands.enabled`, `skills.slash_commands.suggest_not_found`,
+`skills.slash_commands.partial_matching`, and `skills.slash_commands.prefix`.
+The default prefix is `/`; supported prompt forms are `/<slug> prompt`,
+`/use <slug-or-name> prompt`, `/list-skills`, and `/help <slug-or-name>`.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -389,6 +401,36 @@ LLM provider management. API keys are encrypted with AES-256-GCM in the database
 | `GET` | `/v1/providers/{id}/codex-pool-activity` | Provider-level Codex pool activity |
 | `GET` | `/v1/embedding/status` | Check global embedding availability |
 | `GET` | `/v1/providers/claude-cli/auth-status` | Check Claude CLI login status |
+
+### Model Pricing
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/model-pricing/sync-openrouter` | Sync OpenRouter `/models` pricing catalog (master scope) |
+| `GET` | `/v1/model-pricing` | Search catalog models by `model` query |
+| `GET` | `/v1/model-pricing/overrides` | List tenant pricing overrides, optionally by `provider_id` |
+| `PUT` | `/v1/model-pricing/overrides` | Upsert provider/model custom pricing |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` | Delete pricing override |
+
+Override body:
+
+```json
+{
+  "provider_id": "0193a5b0-7000-7000-8000-000000000123",
+  "provider_type": "openrouter",
+  "model_id": "anthropic/claude-sonnet-4-5",
+  "pricing": {
+    "input": "0.000003",
+    "output": "0.000015",
+    "cache_read": "0.0000003",
+    "cache_write": "0.00000375",
+    "reasoning": "0.000015",
+    "request": "0",
+    "image": "0",
+    "web_search": "0"
+  }
+}
+```
 
 **Supported types:** `anthropic_native`, `openai_compat`, `chatgpt_oauth`, `gemini_native`, `dashscope`, `bailian`, `minimax`, `claude_cli`, `acp`
 
@@ -1271,10 +1313,33 @@ Follow response:
 | `GET` | `/v1/usage/timeseries` | Time-series usage points |
 | `GET` | `/v1/usage/breakdown` | Breakdown by provider/model/channel |
 | `GET` | `/v1/usage/summary` | Summary with period comparison |
+| `GET` | `/v1/usage-caps/policies` | List usage cap policies |
+| `POST` | `/v1/usage-caps/policies` | Create token/cost cap policy |
+| `PATCH` | `/v1/usage-caps/policies/{id}` | Update cap policy |
+| `DELETE` | `/v1/usage-caps/policies/{id}` | Delete cap policy |
+| `GET` | `/v1/usage-caps/utilization` | Current-window used and reserved counters |
+| `GET` | `/v1/usage-caps/events` | Recent allow/block/reconcile/skip events |
 
 **Query params:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
 
 **Periods:** `24h`, `today`, `7d`, `30d`
+
+Usage cap policy body:
+
+```json
+{
+  "agent_id": "optional-agent-uuid",
+  "provider_id": "optional-provider-uuid",
+  "provider_type": "openrouter",
+  "model_id": "anthropic/claude-sonnet-4-5",
+  "window": "day",
+  "max_tokens": 500000,
+  "max_cost_usd": 25,
+  "enabled": true
+}
+```
+
+Policy responses include read-only `source`. `source="agent_budget_monthly_cents"` means the policy is generated from the agent monthly budget field and must be changed there; direct policy updates/deletes return `409 Conflict`.
 
 ---
 

@@ -13,11 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { UserPickerCombobox } from "@/components/shared/user-picker-combobox";
-import { KeyValueEditor } from "@/components/shared/key-value-editor";
 import { toast } from "@/stores/use-toast-store";
 import { useHttp } from "@/hooks/use-ws";
 import i18next from "i18next";
+import { CliCredentialEnvVarsSection, type ManualEnvEntry } from "./cli-credential-env-vars-section";
 import type { SecureCLIBinary } from "./hooks/use-cli-credentials";
+import type { CLIEnvEntryResponse, CLIEnvPayload } from "@/types/cli-credential";
 
 interface UserCredEntry {
   id: string;
@@ -36,10 +37,25 @@ interface CLIUserCredentialsDialogProps {
   binary: SecureCLIBinary;
 }
 
-const SENSITIVE_ENV_RE = /^.*(key|secret|token|password|credential).*$/i;
-const isSensitiveEnv = (key: string) => SENSITIVE_ENV_RE.test(key.trim());
-
 type ViewState = "list" | "form";
+
+function entriesFromEnv(env: Record<string, CLIEnvEntryResponse> | null | undefined): ManualEnvEntry[] {
+  if (!env || Object.keys(env).length === 0) return [];
+  return Object.entries(env).map(([key, entry]) => ({
+    key,
+    value: entry.value ?? "",
+    kind: entry.kind ?? "sensitive",
+  }));
+}
+
+function envPayloadFromEntries(entries: ManualEnvEntry[]): CLIEnvPayload {
+  const env: CLIEnvPayload = {};
+  for (const entry of entries) {
+    const key = entry.key.trim();
+    if (key) env[key] = { kind: entry.kind, value: entry.value };
+  }
+  return env;
+}
 
 export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUserCredentialsDialogProps) {
   const { t } = useTranslation("cli-credentials");
@@ -54,7 +70,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
   const [userId, setUserId] = useState("");
   // Separate search text from selected value (onChange fires on every keystroke)
   const [userSearchText, setUserSearchText] = useState("");
-  const [env, setEnv] = useState<Record<string, string>>({});
+  const [envEntries, setEnvEntries] = useState<ManualEnvEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeletingId] = useState<string | null>(null);
 
@@ -80,7 +96,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
     setEditEntry(null);
     setUserId("");
     setUserSearchText("");
-    setEnv({});
+    setEnvEntries([]);
     loadList();
   }, [open, loadList]);
 
@@ -88,7 +104,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
     setEditEntry(null);
     setUserId("");
     setUserSearchText("");
-    setEnv({});
+    setEnvEntries([]);
     setView("form");
   };
 
@@ -96,14 +112,14 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
     setEditEntry(entry);
     setUserId(entry.user_id);
     setUserSearchText(entry.user_id);
-    setEnv({});
+    setEnvEntries([]);
     setView("form");
     // Load existing env for edit
     try {
-      const res = await http.get<{ user_id: string; env: Record<string, string> | null }>(
+      const res = await http.get<{ user_id: string; env: Record<string, CLIEnvEntryResponse> | null }>(
         `/v1/cli-credentials/${binary.id}/user-credentials/${entry.user_id}`,
       );
-      setEnv(res.env ?? {});
+      setEnvEntries(entriesFromEnv(res.env));
     } catch {
       // leave env empty — user can re-enter
     }
@@ -112,6 +128,7 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
   const handleSave = async () => {
     const uid = userId.trim();
     if (!uid) return;
+    const env = envPayloadFromEntries(envEntries);
     // New entry needs at least one variable; edits may clear all keys (empty object).
     if (!editEntry && Object.keys(env).length === 0) {
       toast.error(i18next.t("cli-credentials:userCredentials.envRequired"));
@@ -251,13 +268,13 @@ export function CLIUserCredentialsDialog({ open, onOpenChange, binary }: CLIUser
 
               <div className="flex flex-col gap-1.5">
                 <Label>{t("userCredentials.env")}</Label>
-                <KeyValueEditor
-                  value={env}
-                  onChange={setEnv}
-                  keyPlaceholder="ENV_KEY"
-                  valuePlaceholder="value"
-                  addLabel={t("userCredentials.addEnv")}
-                  maskValue={isSensitiveEnv}
+                <CliCredentialEnvVarsSection
+                  isManualMode
+                  activePreset={null}
+                  envValues={{}}
+                  setEnvValues={() => undefined}
+                  manualEnvEntries={envEntries}
+                  setManualEnvEntries={setEnvEntries}
                 />
               </div>
             </div>

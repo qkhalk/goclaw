@@ -18,6 +18,60 @@ Significant changes, features, and fixes in reverse chronological order.
 
 - Added runtime binary discovery, SecureCLI preset, deny-pattern, and Dockerfile contract coverage for Google Workspace CLI.
 
+### Slash skill commands
+
+**Features**
+
+- Added explicit slash skill activation for `/<slug>`, `/use <slug-or-name>`, `/list-skills`, and `/help <slug-or-name>`.
+- Added tenant settings for slash command enablement, similar-skill suggestions, partial matching, and custom prefix.
+
+**Tests**
+
+- Added backend coverage for parser false positives, exact/partial skill resolution, suggestions, help/list commands, and config overlays.
+
+### Configurable skill upload limits
+
+**Features**
+
+- Added configurable skill ZIP upload limits with config/env, SKILL.md frontmatter, and tenant system setting support.
+- Added dashboard settings and dynamic upload validation so the Web UI follows the tenant limit instead of hardcoding 20MB.
+
+**Tests**
+
+- Added backend coverage for limit precedence, clamping, oversized rejection, and frontend coverage for parameterized upload validation.
+
+### CLI environment variable visibility
+
+**Features**
+
+- Added `sensitive` and `value` kinds for secure CLI environment variables across binary defaults, agent grant overrides, and user overrides.
+- Plain value entries are visible to authorized admins for operational config review, while sensitive entries remain masked and replace-only.
+
+**Fixes**
+
+- Stopped per-user credential reads from returning legacy sensitive env values raw.
+- Kept legacy `{"KEY":"value"}` env blobs backward-compatible by treating them as sensitive.
+
+**Tests**
+
+- Added backend regression coverage for env kind parsing, sanitized API responses, runtime flattening, and invalid kind rejection.
+- Verified Web UI build after adding env-kind controls and warnings.
+
+### Command keyword allowlist
+
+**Features**
+
+- Added scoped credentialed CLI keyword allowlist config for content arguments and positional arguments, with runtime reload and web config editing.
+
+**Fixes**
+
+- Kept credentialed CLI `deny_args` active for command paths such as `gh secret set` while allowing approved GitHub issue/PR prose to mention security vocabulary.
+- Added security audit logging for real allowlisted pass-throughs without logging full argument values.
+
+**Tests**
+
+- Added regression coverage for scoped keyword masking, disabled rules, unsafe positional rules, config reload, and race-safe policy snapshots.
+
 ### Browser cookie sync and config UI
 
 **Features**
@@ -38,6 +92,26 @@ Significant changes, features, and fixes in reverse chronological order.
 ---
 
 ## 2026-05-22
+
+### Usage Cap budget controls
+
+**Features**
+
+- Added Standard/PostgreSQL usage caps for AI budget control by hour, day, week, or month.
+- Caps support token and USD cost ceilings at tenant, agent, provider, provider type, and model scopes.
+- Added OpenRouter catalog sync plus tenant/provider/model pricing overrides for input, output, cache read/write, reasoning, request, image, and web search units.
+- Enforced caps in agent, fallback model, subagent, memory flush, compaction, and media reading tools (`read_image`, `read_document`, `read_audio`, `read_video`) with preflight reservation and post-call reconciliation.
+- Added non-negative validation for catalog and override pricing fields.
+- Added OpenRouter alias resolution for native model IDs, cached-input accounting normalization, and partial-stream failure reconciliation.
+- Bridged legacy `budget_monthly_cents` into generated monthly agent USD cap policies, including migration backfill and save-time sync.
+- Added web dashboard controls on Usage and Provider detail pages.
+- Added Usage page editing for manual cap policies, including enable/disable, scope clearing, and token/USD limit clearing while keeping generated agent-budget caps read-only.
+- Added usage-cap decision metadata to LLM spans, including allow/skip/block reason, policy IDs, estimates, actuals, and reconcile status.
+
+**Tests**
+
+- Added pricing and cap service coverage.
+- Verified Go builds, SQLite build compatibility, full Go test suite, integration race suite, and Web UI production build.
 
 ### Messaging debounce hardening
 

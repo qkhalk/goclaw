@@ -208,6 +208,10 @@
   "tools.execAskMode": "询问模式",
   "tools.execAskModeTip": "在执行命令之前何时提示用户审批。",
   "tools.execAllowlistLabel": "允许的命令（每行一个模式）",
+  "tools.commandKeywordAllowlist": "命令关键词允许列表",
+  "tools.commandKeywordAllowlistTip": "JSON 规则只允许配置的关键词出现在指定的凭证 CLI 内容参数中。命令路径拒绝规则仍然生效。",
+  "tools.commandKeywordAllowlistJsonError": "JSON 无效。",
+  "tools.commandKeywordAllowlistArrayError": "请使用规则 JSON 数组。",
   "tools.scrubCredentials": "擦除凭证",
 
   "browser.title": "浏览器自动化",

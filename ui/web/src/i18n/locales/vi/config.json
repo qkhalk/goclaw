@@ -208,6 +208,10 @@
   "tools.execAskMode": "Chế độ hỏi",
   "tools.execAskModeTip": "Khi nào nhắc người dùng phê duyệt trước khi thực thi lệnh.",
   "tools.execAllowlistLabel": "Lệnh được phép (mỗi dòng một mẫu)",
+  "tools.commandKeywordAllowlist": "Allowlist từ khóa theo lệnh",
+  "tools.commandKeywordAllowlistTip": "Rule JSON cho phép từ khóa đã cấu hình chỉ trong argument nội dung của CLI có credential. Deny rule theo command path vẫn áp dụng.",
+  "tools.commandKeywordAllowlistJsonError": "JSON không hợp lệ.",
+  "tools.commandKeywordAllowlistArrayError": "Dùng mảng JSON các rule.",
   "tools.scrubCredentials": "Ẩn thông tin xác thực",
 
   "browser.title": "Tự động hóa trình duyệt",

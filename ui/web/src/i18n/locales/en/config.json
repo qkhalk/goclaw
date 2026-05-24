@@ -208,6 +208,10 @@
   "tools.execAskMode": "Ask Mode",
   "tools.execAskModeTip": "When to prompt the user for approval before executing a command.",
   "tools.execAllowlistLabel": "Allowed Commands (one pattern per line)",
+  "tools.commandKeywordAllowlist": "Command Keyword Allowlist",
+  "tools.commandKeywordAllowlistTip": "JSON rules that allow configured keywords only inside selected credentialed CLI content arguments. Command-path deny rules still apply.",
+  "tools.commandKeywordAllowlistJsonError": "Invalid JSON.",
+  "tools.commandKeywordAllowlistArrayError": "Use a JSON array of rules.",
   "tools.scrubCredentials": "Scrub Credentials",
 
   "browser.title": "Browser Automation",

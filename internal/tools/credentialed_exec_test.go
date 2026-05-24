@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 )
 
 func TestDetectShellOperators(t *testing.T) {
@@ -205,6 +207,113 @@ func TestMatchesBinaryDenyJoinedArgs(t *testing.T) {
 				t.Errorf("matchesBinaryDeny(%v) = %q, wantHit=%v", tt.args, got, tt.wantHit)
 			}
 		})
+	}
+}
+
+func TestApplyCommandKeywordAllowlistScopesContentArgs(t *testing.T) {
+	ghPatterns, _ := json.Marshal([]string{`auth\s+`, `repo\s+delete`, `secret\s+`, `token\s+`})
+	rules := []config.CommandKeywordAllowlistRule{
+		{
+			ID:           "github-content",
+			Command:      "gh",
+			Subcommands:  []string{"issue create", "pr create"},
+			Args:         []string{"--body", "--title"},
+			ArgPositions: []int{0},
+			Keywords:     []string{"secret", "token"},
+			Reason:       "GitHub issue and PR prose may discuss security terms.",
+		},
+	}
+
+	tests := []struct {
+		name      string
+		args      []string
+		wantHit   bool
+		wantAudit int
+	}{
+		{
+			name:      "issue body content allowed",
+			args:      []string{"issue", "create", "--body", "secret rotation details"},
+			wantHit:   false,
+			wantAudit: 1,
+		},
+		{
+			name:      "pr title content allowed",
+			args:      []string{"pr", "create", "--title=token handling notes"},
+			wantHit:   false,
+			wantAudit: 1,
+		},
+		{
+			name:      "positional content allowed",
+			args:      []string{"issue", "create", "token handling notes"},
+			wantHit:   false,
+			wantAudit: 1,
+		},
+		{
+			name:    "command path stays blocked",
+			args:    []string{"secret", "set", "TOKEN"},
+			wantHit: true,
+		},
+		{
+			name:    "non-allowlisted arg stays blocked",
+			args:    []string{"issue", "create", "--label", "secret incident"},
+			wantHit: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sanitized, audits := applyCommandKeywordAllowlist("gh", tt.args, rules)
+			got := matchesBinaryDeny(sanitized, ghPatterns)
+			if (got != "") != tt.wantHit {
+				t.Fatalf("matchesBinaryDeny(%v) after allowlist = %q, wantHit=%v", sanitized, got, tt.wantHit)
+			}
+			if len(audits) != tt.wantAudit {
+				t.Fatalf("audit count = %d, want %d", len(audits), tt.wantAudit)
+			}
+		})
+	}
+}
+
+func TestApplyCommandKeywordAllowlistIgnoresDisabledRules(t *testing.T) {
+	ghPatterns, _ := json.Marshal([]string{`secret\s+`})
+	enabled := false
+	rules := []config.CommandKeywordAllowlistRule{
+		{
+			ID:          "disabled-github-content",
+			Command:     "gh",
+			Subcommands: []string{"issue create"},
+			Args:        []string{"--body"},
+			Keywords:    []string{"secret"},
+			Enabled:     &enabled,
+		},
+	}
+
+	sanitized, audits := applyCommandKeywordAllowlist("gh", []string{"issue", "create", "--body", "secret notes"}, rules)
+	if got := matchesBinaryDeny(sanitized, ghPatterns); got == "" {
+		t.Fatalf("disabled rule bypassed deny_args; sanitized args = %v", sanitized)
+	}
+	if len(audits) != 0 {
+		t.Fatalf("disabled rule emitted audit records: %v", audits)
+	}
+}
+
+func TestApplyCommandKeywordAllowlistRequiresSubcommandForPositions(t *testing.T) {
+	ghPatterns, _ := json.Marshal([]string{`secret\s+`})
+	rules := []config.CommandKeywordAllowlistRule{
+		{
+			ID:           "unsafe-position",
+			Command:      "gh",
+			ArgPositions: []int{0},
+			Keywords:     []string{"secret"},
+		},
+	}
+
+	sanitized, audits := applyCommandKeywordAllowlist("gh", []string{"secret", "set", "TOKEN"}, rules)
+	if got := matchesBinaryDeny(sanitized, ghPatterns); got == "" {
+		t.Fatalf("position rule without subcommand bypassed command-path deny; sanitized args = %v", sanitized)
+	}
+	if len(audits) != 0 {
+		t.Fatalf("position rule without subcommand emitted audit records: %v", audits)
 	}
 }
 

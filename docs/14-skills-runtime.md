@@ -29,6 +29,11 @@ How skills access Python, Node.js, and system tools inside Docker containers and
 └─────────────────────────────────────────────────────────┘
 ```
 
+Explicit skill activation is handled before runtime execution. When a user starts
+their prompt with `/<skill-slug>` or `/use <skill name>`, the gateway resolves
+the skill, injects its `SKILL.md` into the current turn, and then normal runtime
+rules apply to any scripts or package dependencies that skill uses.
+
 ---
 
 ## 2. Pre-installed Packages (Option A)
@@ -139,7 +144,7 @@ To install additional packages: pip3 install <pkg> or npm install -g <pkg>
 
 - Run Python/Node scripts via exec tool
 - Install packages via `pip3 install` / `npm install -g`
-- Access files in `/app/workspace/` including `.media/` subdirectory
+- Access files in `/app/workspace/`, including `.uploads/` for current user uploads and `.media/` for legacy media refs
 - Read skill files from `.goclaw/skills-store/`
 
 ### What Agents CANNOT Do
@@ -156,16 +161,18 @@ To install additional packages: pip3 install <pkg> or npm install -g <pkg>
 Uploaded files (from web chat, Telegram, Discord, etc.) are persisted to:
 
 ```
-/app/workspace/.media/{sessionHash}/{uuid}.{ext}
+/app/workspace/.uploads/{safe-original-name}-{8hex}.{ext}
 ```
+
+Uploads without a usable original filename fall back to `{uuid}.{ext}`. Legacy media refs may still resolve from `.media/{sessionHash}/{uuid}.{ext}`.
 
 The `enrichDocumentPaths()` function injects the full path into `<media:document>` tags:
 
 ```
-<media:document name="report.pdf" path="/app/workspace/.media/abc123/uuid.pdf">
+<media:document name="report.pdf" path="/app/workspace/.uploads/report-a1b2c3d4.pdf">
 ```
 
-Agents can read these files directly via exec — no copy to `/tmp` needed.
+Agents can read these files directly via exec — no copy to `/tmp` needed. For archive uploads such as `.zip`, inspect or extract with commands like `unzip -l "<path>"` or `unzip -q "<path>" -d <output-dir>`.
 
 ---
 
