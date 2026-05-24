@@ -372,6 +372,13 @@ Custom tools are shell-based tools defined at runtime via the HTTP API — no re
 | `env` | no | Encrypted environment variables injected at runtime |
 | `enabled` | no | Toggle without deleting (default true) |
 
+Credentialed CLI env entries support two API/UI kinds:
+
+- `sensitive` (default): encrypted at rest, masked in normal API responses, replace-only in UI, and flattened only at credential injection time.
+- `value`: encrypted at rest but visible to authorized admins in API/UI for non-secret settings such as public URLs, domains, limits, regions, and feature flags.
+
+Legacy env JSON like `{"TOKEN":"..."}` is still accepted and treated as `sensitive`.
+
 **Execution:** Template placeholders are rendered with shell-escaped argument values, then run via `sh -c`. The same deny-pattern check as the `exec` tool applies — no reverse shells, no `curl | sh`, etc.
 
 **Scope:**

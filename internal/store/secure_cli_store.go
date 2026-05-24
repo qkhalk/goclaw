@@ -37,6 +37,8 @@ type SecureCLIBinary struct {
 	UserEnv        []byte          `json:"-" db:"-"` // per-user encrypted env (populated by LookupByBinary LEFT JOIN)
 	// EnvKeys is set by HTTP handlers only (names from decrypted env, no values); not a DB column.
 	EnvKeys []string `json:"env_keys,omitempty" db:"-"`
+	// Env is set by HTTP handlers only. Sensitive values are masked; value entries are visible.
+	Env map[string]SecureCLIEnvResponseEntry `json:"env,omitempty" db:"-"`
 	// AgentGrantsSummary is populated by List only — lightweight per-grant summary (no env bytes).
 	AgentGrantsSummary []AgentGrantSummary `json:"agent_grants_summary" db:"-"`
 }
@@ -92,6 +94,8 @@ type SecureCLIAgentGrant struct {
 	EncryptedEnv []byte `json:"-" db:"encrypted_env"`
 	// EnvKeys is populated by HTTP handlers only (sorted key names, no values). Not a DB column.
 	EnvKeys []string `json:"env_keys,omitempty" db:"-"`
+	// Env is populated by HTTP handlers only for sanitized responses.
+	Env map[string]SecureCLIEnvResponseEntry `json:"env,omitempty" db:"-"`
 	// EnvSet indicates whether this grant has an env override. Not a DB column.
 	EnvSet    bool      `json:"env_set" db:"-"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
