@@ -246,6 +246,32 @@ User-facing parameter schemas for the most commonly configured tools.
 ```
 Available presets: `gh`, `gcloud`, `aws`, `kubectl`, `terraform`.
 
+### Credentialed CLI keyword allowlist
+
+`config.tools.commandKeywordAllowlist` lets operators allow specific product or security vocabulary inside selected credentialed CLI content arguments without disabling `deny_args`.
+
+Example:
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "github-content",
+        "command": "gh",
+        "subcommands": ["issue create", "issue edit", "pr create", "pr comment"],
+        "args": ["--body", "--title"],
+        "argPositions": [],
+        "keywords": ["secret", "secrets", "token", "credential"],
+        "reason": "Allow security vocabulary in GitHub issue and PR prose"
+      }
+    ]
+  }
+}
+```
+
+The rule above allows `gh issue create --body "secret rotation notes"` but still blocks command paths like `gh secret set TOKEN`. `argPositions` are 0-based after the matched subcommand. The scanner evaluates command arguments only; it does not read the contents of files passed through arguments such as `--body-file`.
+
 ---
 
 ## 6. Interception Layer
@@ -406,7 +432,7 @@ Current adopters: `web_search`, `web_fetch`, `tts`, `create_image`, `read_image`
 - Per-key: agent value takes precedence over global value
 - Multi-tenant invariant: each tenant's config is isolated
 
-**Live reload:** Changes to `config.tools.shellDenyGroups` propagate via `bus.TopicConfigChanged` pub/sub. Next agent turn automatically applies new toggles.
+**Live reload:** Changes to `config.tools.shellDenyGroups` and `config.tools.commandKeywordAllowlist` propagate via `bus.TopicConfigChanged` pub/sub. Next agent turn automatically applies new toggles.
 
 **Deny-group classes** (from `internal/tools/shell_deny_groups.go` — all denied by default):
 

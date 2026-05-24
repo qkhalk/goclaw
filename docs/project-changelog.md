@@ -6,6 +6,21 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-24
 
+### Command keyword allowlist
+
+**Features**
+
+- Added scoped credentialed CLI keyword allowlist config for content arguments and positional arguments, with runtime reload and web config editing.
+
+**Fixes**
+
+- Kept credentialed CLI `deny_args` active for command paths such as `gh secret set` while allowing approved GitHub issue/PR prose to mention security vocabulary.
+- Added security audit logging for real allowlisted pass-throughs without logging full argument values.
+
+**Tests**
+
+- Added regression coverage for scoped keyword masking, disabled rules, unsafe positional rules, config reload, and race-safe policy snapshots.
+
 ### Browser cookie sync and config UI
 
 **Features**

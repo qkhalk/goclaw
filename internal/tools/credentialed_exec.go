@@ -381,13 +381,28 @@ func (t *ExecTool) executeCredentialed(ctx context.Context, cred *store.SecureCL
 	}
 
 	// Step 3: Per-binary deny check (deny_args)
-	if p := matchesBinaryDeny(args, cred.DenyArgs); p != "" {
+	denyArgs, allowAudits := applyCommandKeywordAllowlist(binary, args, t.commandKeywordAllowlistSnapshot())
+	if p := matchesBinaryDeny(denyArgs, cred.DenyArgs); p != "" {
 		return credentialedDenyError(binary, args, p)
 	}
 	// Per-binary verbose deny check (deny_verbose) — per-arg start-anchored match
 	// so `-v` blocks `-v`/`-vv`/`-v=1` but not `--version`.
 	if p := matchesBinaryVerbose(args, cred.DenyVerbose); p != "" {
 		return credentialedDenyError(binary, args, p)
+	}
+	for _, audit := range allowAudits {
+		slog.Info("security.command_keyword_allowlist",
+			"binary", audit.Command,
+			"subcommand", audit.Subcommand,
+			"arg", audit.Arg,
+			"keyword", audit.Keyword,
+			"rule_id", audit.RuleID,
+			"reason", audit.Reason,
+			"agent_id", store.AgentIDFromContext(ctx),
+			"user_id", store.UserIDFromContext(ctx),
+			"credential_user_id", store.CredentialUserIDFromContext(ctx),
+			"tenant_id", store.TenantIDFromContext(ctx),
+		)
 	}
 
 	// Step 4: Decrypt env vars from store (already decrypted by store layer).

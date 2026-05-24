@@ -13,8 +13,10 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"golang.org/x/text/unicode/norm"
@@ -35,20 +37,47 @@ func DefaultDenyPatterns() []*regexp.Regexp {
 
 // ExecTool executes shell commands, optionally inside a sandbox container.
 type ExecTool struct {
-	workspace        string
-	timeout          time.Duration
-	pathDenyPatterns []*regexp.Regexp // always-on path-based denials (DenyPaths)
-	pathDenyRoots    []string         // raw deny roots for nested workspace exemptions
-	denyExemptions   []string         // substrings that exempt a command from deny
-	restrict         bool
-	sandboxMgr       sandbox.Manager      // nil = no sandbox, execute on host
-	approvalMgr      *ExecApprovalManager // nil = no approval needed
-	agentID          string               // for approval request context
-	secureCLIStore   store.SecureCLIStore // nil = no credentialed exec
+	workspace               string
+	timeout                 time.Duration
+	pathDenyPatterns        []*regexp.Regexp // always-on path-based denials (DenyPaths)
+	pathDenyRoots           []string         // raw deny roots for nested workspace exemptions
+	denyExemptions          []string         // substrings that exempt a command from deny
+	restrict                bool
+	sandboxMgr              sandbox.Manager      // nil = no sandbox, execute on host
+	approvalMgr             *ExecApprovalManager // nil = no approval needed
+	agentID                 string               // for approval request context
+	secureCLIStore          store.SecureCLIStore // nil = no credentialed exec
+	policyMu                sync.RWMutex
+	commandKeywordAllowlist []config.CommandKeywordAllowlistRule
 	// globalDenyGroups holds global shell deny-group toggles from config.tools.
 	// Per-agent overrides from context (store.WithShellDenyGroups) win per-key.
 	// Updated at startup and via TopicConfigChanged pub/sub for runtime reload.
 	globalDenyGroups map[string]bool
+}
+
+// SetCommandKeywordAllowlist replaces the scoped credentialed CLI keyword
+// allowlist. The slice is defensively copied so config reload callers cannot
+// mutate the running tool policy after assignment.
+func (t *ExecTool) SetCommandKeywordAllowlist(rules []config.CommandKeywordAllowlistRule) {
+	t.policyMu.Lock()
+	defer t.policyMu.Unlock()
+	if len(rules) == 0 {
+		t.commandKeywordAllowlist = nil
+		return
+	}
+	t.commandKeywordAllowlist = slicesClone(rules)
+}
+
+// CommandKeywordAllowlistForTest exposes the effective global allowlist for
+// cross-package config reload tests. Not for production callers.
+func (t *ExecTool) CommandKeywordAllowlistForTest() []config.CommandKeywordAllowlistRule {
+	return t.commandKeywordAllowlistSnapshot()
+}
+
+func (t *ExecTool) commandKeywordAllowlistSnapshot() []config.CommandKeywordAllowlistRule {
+	t.policyMu.RLock()
+	defer t.policyMu.RUnlock()
+	return slicesClone(t.commandKeywordAllowlist)
 }
 
 // SetGlobalShellDenyGroups replaces the global shell deny-group toggles. The
@@ -56,6 +85,8 @@ type ExecTool struct {
 // tool's internal state. Passing nil or an empty map clears the global config
 // (per-agent context overrides, if any, still apply on their own).
 func (t *ExecTool) SetGlobalShellDenyGroups(groups map[string]bool) {
+	t.policyMu.Lock()
+	defer t.policyMu.Unlock()
 	if len(groups) == 0 {
 		t.globalDenyGroups = nil
 		return
@@ -70,14 +101,20 @@ func (t *ExecTool) SetGlobalShellDenyGroups(groups map[string]bool) {
 // empty, the other is returned directly (no allocation).
 func (t *ExecTool) effectiveDenyGroups(ctx context.Context) map[string]bool {
 	agent := store.ShellDenyGroupsFromContext(ctx)
-	if len(t.globalDenyGroups) == 0 {
+	t.policyMu.RLock()
+	global := t.globalDenyGroups
+	if len(global) > 0 {
+		global = maps.Clone(global)
+	}
+	t.policyMu.RUnlock()
+	if len(global) == 0 {
 		return agent
 	}
 	if len(agent) == 0 {
-		return t.globalDenyGroups
+		return global
 	}
-	merged := make(map[string]bool, len(t.globalDenyGroups)+len(agent))
-	maps.Copy(merged, t.globalDenyGroups)
+	merged := make(map[string]bool, len(global)+len(agent))
+	maps.Copy(merged, global)
 	// agent wins per-key
 	maps.Copy(merged, agent)
 	return merged
