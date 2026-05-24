@@ -6,6 +6,23 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-24
 
+### CLI environment variable visibility
+
+**Features**
+
+- Added `sensitive` and `value` kinds for secure CLI environment variables across binary defaults, agent grant overrides, and user overrides.
+- Plain value entries are visible to authorized admins for operational config review, while sensitive entries remain masked and replace-only.
+
+**Fixes**
+
+- Stopped per-user credential reads from returning legacy sensitive env values raw.
+- Kept legacy `{"KEY":"value"}` env blobs backward-compatible by treating them as sensitive.
+
+**Tests**
+
+- Added backend regression coverage for env kind parsing, sanitized API responses, runtime flattening, and invalid kind rejection.
+- Verified Web UI build after adding env-kind controls and warnings.
+
 ### Command keyword allowlist
 
 **Features**
