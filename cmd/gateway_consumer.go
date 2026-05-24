@@ -19,6 +19,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
+	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
@@ -26,7 +27,7 @@ import (
 // and routes them through the scheduler/agent loop, then publishes the response back.
 // Also handles subagent announcements: routes them through the parent agent's session
 // (matching TS subagent-announce.ts pattern) so the agent can reformulate for the user.
-func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents *agent.Router, cfg *config.Config, sched *scheduler.Scheduler, channelMgr *channels.Manager, teamStore store.TeamStore, quotaChecker *channels.QuotaChecker, sessStore store.SessionStore, agentStore store.AgentStore, contactCollector *store.ContactCollector, postTurn tools.PostTurnProcessor, subagentMgr *tools.SubagentManager) {
+func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents *agent.Router, cfg *config.Config, sched *scheduler.Scheduler, channelMgr *channels.Manager, teamStore store.TeamStore, quotaChecker *channels.QuotaChecker, sessStore store.SessionStore, agentStore store.AgentStore, contactCollector *store.ContactCollector, postTurn tools.PostTurnProcessor, subagentMgr *tools.SubagentManager, usageCapSvc *usagecaps.Service) {
 	slog.Info("inbound message consumer started")
 
 	// Inbound message deduplication (matching TS src/infra/dedupe.ts + inbound-dedupe.ts).
@@ -58,6 +59,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 		QuotaChecker:     quotaChecker,
 		ContactCollector: contactCollector,
 		SubagentMgr:      subagentMgr,
+		UsageCaps:        usageCapSvc,
 		GetAnnounceMu:    getAnnounceMu,
 	}
 
@@ -82,19 +84,17 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 
 	// Inbound debounce: merge rapid messages from the same sender before processing.
 	// Matching TS createInboundDebouncer from src/auto-reply/inbound-debounce.ts.
-	debounceMs := cfg.Gateway.InboundDebounceMs
-	if debounceMs == 0 {
-		debounceMs = 1000 // default: 1000ms
-	}
-	debouncer := bus.NewInboundDebouncer(
-		time.Duration(debounceMs)*time.Millisecond,
+	debouncer := bus.NewInboundDebouncerFunc(
+		func(msg bus.InboundMessage) time.Duration {
+			return resolveInboundDebounceDelay(ctx, msg, deps)
+		},
 		func(msg bus.InboundMessage) {
 			processNormalMessage(ctx, msg, deps)
 		},
 	)
 	defer debouncer.Stop()
 
-	slog.Info("inbound debounce configured", "debounce_ms", debounceMs)
+	slog.Info("inbound debounce configured", "global_debounce_ms", cfg.Gateway.InboundDebounceMs, "agent_override", true)
 
 	// Track background goroutines (subagent announces, teammate messages)
 	// so shutdown can wait for in-flight work to complete.
@@ -139,6 +139,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 		}
 
 		// --- Normal messages: route through debouncer ---
+		prepareInboundDebounceMessage(&msg, deps)
 		debouncer.Push(msg)
 	}
 }

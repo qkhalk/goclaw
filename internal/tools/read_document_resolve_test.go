@@ -66,7 +66,7 @@ func TestResolveDocumentFileMatchesUploadedFilenameAlias(t *testing.T) {
 	}
 }
 
-func TestResolveDocumentFileInvalidMediaIDFallsBackToMostRecent(t *testing.T) {
+func TestResolveDocumentFileInvalidMediaIDReturnsError(t *testing.T) {
 	refs := []providers.MediaRef{
 		{ID: uuid.NewString(), Kind: "document", Path: "/workspace/.uploads/old.pdf", MimeType: "application/pdf"},
 		{ID: uuid.NewString(), Kind: "document", Path: "/workspace/.uploads/latest.pdf", MimeType: "application/pdf"},
@@ -75,6 +75,23 @@ func TestResolveDocumentFileInvalidMediaIDFallsBackToMostRecent(t *testing.T) {
 	tool := NewReadDocumentTool(nil, nil)
 	ctx := WithMediaDocRefs(context.Background(), refs)
 	gotPath, _, err := tool.resolveDocumentFile(ctx, "not-a-real-media-id", "")
+	if err == nil {
+		t.Fatalf("resolveDocumentFile returned path %q, want explicit media_id error", gotPath)
+	}
+	if !strings.Contains(err.Error(), "not-a-real-media-id") {
+		t.Fatalf("error = %q, want requested media_id", err.Error())
+	}
+}
+
+func TestResolveDocumentFileOmittedMediaIDUsesLastRef(t *testing.T) {
+	refs := []providers.MediaRef{
+		{ID: uuid.NewString(), Kind: "document", Path: "/workspace/.uploads/old.pdf", MimeType: "application/pdf"},
+		{ID: uuid.NewString(), Kind: "document", Path: "/workspace/.uploads/latest.pdf", MimeType: "application/pdf"},
+	}
+
+	tool := NewReadDocumentTool(nil, nil)
+	ctx := WithMediaDocRefs(context.Background(), refs)
+	gotPath, _, err := tool.resolveDocumentFile(ctx, "", "")
 	if err != nil {
 		t.Fatalf("resolveDocumentFile returned error: %v", err)
 	}

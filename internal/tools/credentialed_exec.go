@@ -39,8 +39,8 @@ var wrapperBinaries = map[string]bool{
 
 // normalizeBinaryName returns the lowercased file base of a binary reference.
 // Examples: "/usr/bin/gh" → "gh", "./GH" → "gh", "  Gh  " → "gh".
-// Applied at BOTH the gate lookup and lookupCredentialedBinary so the two
-// layers agree on identity. (Red Team F5)
+// Applied at both the gate lookup and lookupCredentialedBinary so the two
+// layers agree on identity.
 func normalizeBinaryName(s string) string {
 	return filepath.Base(strings.TrimSpace(strings.ToLower(s)))
 }
@@ -381,13 +381,28 @@ func (t *ExecTool) executeCredentialed(ctx context.Context, cred *store.SecureCL
 	}
 
 	// Step 3: Per-binary deny check (deny_args)
-	if p := matchesBinaryDeny(args, cred.DenyArgs); p != "" {
+	denyArgs, allowAudits := applyCommandKeywordAllowlist(binary, args, t.commandKeywordAllowlistSnapshot())
+	if p := matchesBinaryDeny(denyArgs, cred.DenyArgs); p != "" {
 		return credentialedDenyError(binary, args, p)
 	}
 	// Per-binary verbose deny check (deny_verbose) — per-arg start-anchored match
 	// so `-v` blocks `-v`/`-vv`/`-v=1` but not `--version`.
 	if p := matchesBinaryVerbose(args, cred.DenyVerbose); p != "" {
 		return credentialedDenyError(binary, args, p)
+	}
+	for _, audit := range allowAudits {
+		slog.Info("security.command_keyword_allowlist",
+			"binary", audit.Command,
+			"subcommand", audit.Subcommand,
+			"arg", audit.Arg,
+			"keyword", audit.Keyword,
+			"rule_id", audit.RuleID,
+			"reason", audit.Reason,
+			"agent_id", store.AgentIDFromContext(ctx),
+			"user_id", store.UserIDFromContext(ctx),
+			"credential_user_id", store.CredentialUserIDFromContext(ctx),
+			"tenant_id", store.TenantIDFromContext(ctx),
+		)
 	}
 
 	// Step 4: Decrypt env vars from store (already decrypted by store layer).
@@ -421,13 +436,15 @@ func mergeCredentialedEnv(cred *store.SecureCLIBinary) (map[string]string, error
 		return envMap, nil
 	}
 	if len(cred.EncryptedEnv) > 0 {
-		if err := json.Unmarshal(cred.EncryptedEnv, &envMap); err != nil {
+		baseEnv, err := store.FlattenSecureCLIEnv(cred.EncryptedEnv)
+		if err != nil {
 			return nil, err
 		}
+		maps.Copy(envMap, baseEnv)
 	}
 	if len(cred.UserEnv) > 0 {
-		var userEnvMap map[string]string
-		if err := json.Unmarshal(cred.UserEnv, &userEnvMap); err != nil {
+		userEnvMap, err := store.FlattenSecureCLIEnv(cred.UserEnv)
+		if err != nil {
 			return nil, err
 		}
 		maps.Copy(envMap, userEnvMap)
@@ -613,7 +630,7 @@ func (t *ExecTool) lookupCredentialedBinary(ctx context.Context, command string)
 	}
 	// Normalize lookup key so path/case variants (/usr/bin/gh, ./gh, GH) all
 	// resolve to the same registry row. Same helper is used by the gate
-	// branch in Execute — identity must agree at both layers. (Red Team F5)
+	// branch in Execute because identity must agree at both layers.
 	normBinary := normalizeBinaryName(binary)
 	// Get agent ID from context for scoped lookup
 	agentID := store.AgentIDFromContext(ctx)

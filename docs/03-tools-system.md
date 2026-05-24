@@ -246,6 +246,32 @@ User-facing parameter schemas for the most commonly configured tools.
 ```
 Available presets: `gh`, `gcloud`, `aws`, `kubectl`, `terraform`.
 
+### Credentialed CLI keyword allowlist
+
+`config.tools.commandKeywordAllowlist` lets operators allow specific product or security vocabulary inside selected credentialed CLI content arguments without disabling `deny_args`.
+
+Example:
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "github-content",
+        "command": "gh",
+        "subcommands": ["issue create", "issue edit", "pr create", "pr comment"],
+        "args": ["--body", "--title"],
+        "argPositions": [],
+        "keywords": ["secret", "secrets", "token", "credential"],
+        "reason": "Allow security vocabulary in GitHub issue and PR prose"
+      }
+    ]
+  }
+}
+```
+
+The rule above allows `gh issue create --body "secret rotation notes"` but still blocks command paths like `gh secret set TOKEN`. `argPositions` are 0-based after the matched subcommand. The scanner evaluates command arguments only; it does not read the contents of files passed through arguments such as `--body-file`.
+
 ---
 
 ## 6. Interception Layer
@@ -346,6 +372,13 @@ Custom tools are shell-based tools defined at runtime via the HTTP API — no re
 | `env` | no | Encrypted environment variables injected at runtime |
 | `enabled` | no | Toggle without deleting (default true) |
 
+Credentialed CLI env entries support two API/UI kinds:
+
+- `sensitive` (default): encrypted at rest, masked in normal API responses, replace-only in UI, and flattened only at credential injection time.
+- `value`: encrypted at rest but visible to authorized admins in API/UI for non-secret settings such as public URLs, domains, limits, regions, and feature flags.
+
+Legacy env JSON like `{"TOKEN":"..."}` is still accepted and treated as `sensitive`.
+
 **Execution:** Template placeholders are rendered with shell-escaped argument values, then run via `sh -c`. The same deny-pattern check as the `exec` tool applies — no reverse shells, no `curl | sh`, etc.
 
 **Scope:**
@@ -408,7 +441,7 @@ Current adopters: `exec`, `web_search`, `web_fetch`, `tts`, `create_image`, `rea
 - Per-key: agent value takes precedence over global value
 - Multi-tenant invariant: each tenant's config is isolated
 
-**Live reload:** Changes to `config.tools.shellDenyGroups` propagate via `bus.TopicConfigChanged` pub/sub. Next agent turn automatically applies new toggles.
+**Live reload:** Changes to `config.tools.shellDenyGroups` and `config.tools.commandKeywordAllowlist` propagate via `bus.TopicConfigChanged` pub/sub. Next agent turn automatically applies new toggles.
 
 **Deny-group classes** (from `internal/tools/shell_deny_groups.go` — all denied by default):
 

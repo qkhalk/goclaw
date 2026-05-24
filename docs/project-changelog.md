@@ -4,6 +4,165 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-24
+
+### Google Workspace CLI runtime integration
+
+**Features**
+
+- Added `gws` as a preinstalled Google Workspace CLI in the full runtime image.
+- Added a SecureCLI `gws` preset with encrypted credential injection fields and guardrails for interactive auth/export commands.
+- Documented Drive, Gmail, and Calendar command patterns plus live credential smoke-test requirements.
+
+**Tests**
+
+- Added runtime binary discovery, SecureCLI preset, deny-pattern, and Dockerfile contract coverage for Google Workspace CLI.
+
+### Slash skill commands
+
+**Features**
+
+- Added explicit slash skill activation for `/<slug>`, `/use <slug-or-name>`, `/list-skills`, and `/help <slug-or-name>`.
+- Added tenant settings for slash command enablement, similar-skill suggestions, partial matching, and custom prefix.
+
+**Tests**
+
+- Added backend coverage for parser false positives, exact/partial skill resolution, suggestions, help/list commands, and config overlays.
+
+### Configurable skill upload limits
+
+**Features**
+
+- Added configurable skill ZIP upload limits with config/env, SKILL.md frontmatter, and tenant system setting support.
+- Added dashboard settings and dynamic upload validation so the Web UI follows the tenant limit instead of hardcoding 20MB.
+
+**Tests**
+
+- Added backend coverage for limit precedence, clamping, oversized rejection, and frontend coverage for parameterized upload validation.
+
+### CLI environment variable visibility
+
+**Features**
+
+- Added `sensitive` and `value` kinds for secure CLI environment variables across binary defaults, agent grant overrides, and user overrides.
+- Plain value entries are visible to authorized admins for operational config review, while sensitive entries remain masked and replace-only.
+
+**Fixes**
+
+- Stopped per-user credential reads from returning legacy sensitive env values raw.
+- Kept legacy `{"KEY":"value"}` env blobs backward-compatible by treating them as sensitive.
+
+**Tests**
+
+- Added backend regression coverage for env kind parsing, sanitized API responses, runtime flattening, and invalid kind rejection.
+- Verified Web UI build after adding env-kind controls and warnings.
+
+### Command keyword allowlist
+
+**Features**
+
+- Added scoped credentialed CLI keyword allowlist config for content arguments and positional arguments, with runtime reload and web config editing.
+
+**Fixes**
+
+- Kept credentialed CLI `deny_args` active for command paths such as `gh secret set` while allowing approved GitHub issue/PR prose to mention security vocabulary.
+- Added security audit logging for real allowlisted pass-throughs without logging full argument values.
+
+**Tests**
+
+- Added regression coverage for scoped keyword masking, disabled rules, unsafe positional rules, config reload, and race-safe policy snapshots.
+
+### Browser cookie sync and config UI
+
+**Features**
+
+- Added scoped browser cookie sync API, encrypted cookie store, browser runtime cookie application, dashboard browser settings, and a selected-cookie Chrome extension prototype.
+
+### Cron SecureCLI credential context
+
+**Fixes**
+
+- Fixed cron-triggered agent turns so credentialed CLI lookups preserve the explicit tenant user credential identity captured when the cron job is created.
+- Kept cron `user_id` ownership unchanged for group-scoped list/remove behavior while storing credential lookup identity separately in cron payload metadata.
+
+**Tests**
+
+- Added regression coverage for cron payload credential metadata, legacy payload compatibility, cron scheduler context injection, and SQLite cron persistence parity.
+
+---
+
+## 2026-05-22
+
+### Usage Cap budget controls
+
+**Features**
+
+- Added Standard/PostgreSQL usage caps for AI budget control by hour, day, week, or month.
+- Caps support token and USD cost ceilings at tenant, agent, provider, provider type, and model scopes.
+- Added OpenRouter catalog sync plus tenant/provider/model pricing overrides for input, output, cache read/write, reasoning, request, image, and web search units.
+- Enforced caps in agent, fallback model, subagent, memory flush, compaction, and media reading tools (`read_image`, `read_document`, `read_audio`, `read_video`) with preflight reservation and post-call reconciliation.
+- Added non-negative validation for catalog and override pricing fields.
+- Added OpenRouter alias resolution for native model IDs, cached-input accounting normalization, and partial-stream failure reconciliation.
+- Bridged legacy `budget_monthly_cents` into generated monthly agent USD cap policies, including migration backfill and save-time sync.
+- Added web dashboard controls on Usage and Provider detail pages.
+- Added Usage page editing for manual cap policies, including enable/disable, scope clearing, and token/USD limit clearing while keeping generated agent-budget caps read-only.
+- Added usage-cap decision metadata to LLM spans, including allow/skip/block reason, policy IDs, estimates, actuals, and reconcile status.
+
+**Tests**
+
+- Added pricing and cap service coverage.
+- Verified Go builds, SQLite build compatibility, full Go test suite, integration race suite, and Web UI production build.
+
+### Messaging debounce hardening
+
+**Features**
+
+- Added per-agent inbound debounce override via `other_config.inbound_debounce_ms`; unset inherits the global gateway setting.
+- Added Web Chat debounce for rapid text-only `chat.send` calls using `gateway.inbound_debounce_ms`.
+- Clarified shared inbound debounce behavior in docs and Web UI config help text.
+
+**Fixes**
+
+- Fixed inbound debounce semantics so `gateway.inbound_debounce_ms=0` means no debounce and positive values set the wait window.
+- Fixed Slack `debounce_delay: 0` so it disables per-thread batching instead of falling back to the default.
+
+**Tests**
+
+- Added regression coverage for channel inbound debounce, Web Chat debounce, media/cancel bypass handling, and Slack debounce config defaults.
+
+### CLI P6 backend API unblock
+
+**Features**
+
+- Added HTTP session branch and history follow endpoints for automation clients.
+- Added read-only channel writer permission testing.
+- Added split activity-log and runtime-log aggregate endpoints.
+
+**Tests**
+
+- Added focused HTTP, store, and runtime log coverage for branch/follow, writer test, activity aggregate, and LogTee ring aggregation.
+
+### CI/CD: zuey beta deploy
+
+**Features**
+
+- Added automatic zuey VPS deployment to the `Dev CI and Beta Release` workflow after beta prerelease assets are published.
+- The deploy job triggers the protected gateway upgrade endpoint with the generated `vX.Y.Z-beta.N` tag, waits for upgrade status, and verifies public `/health`.
+- Beta prereleases now upload `CHECKSUMS.sha256` alongside binary assets.
+
+**Fixes**
+
+- Updated the host release-upgrade script to support beta asset filenames with a leading `v`.
+- Added checksum fallback to GitHub release asset SHA256 digests when beta releases do not publish `CHECKSUMS.sha256`.
+- Detached gateway-triggered upgrades into a transient `systemd-run` unit so stopping `goclaw` during deploy no longer kills the upgrade job.
+- Allowed stale upgrade `running` status records to be superseded after timeout and made the zuey deploy wait loop tolerate transient 502s during restart.
+
+**Tests**
+
+- Added regression coverage for stale gateway upgrade status recovery.
+
+---
+
 ## 2026-05-21
 
 ### Tools: configurable exec timeout

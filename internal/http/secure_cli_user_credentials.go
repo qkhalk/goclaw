@@ -25,13 +25,14 @@ func (h *SecureCLIHandler) handleListUserCredentials(w http.ResponseWriter, r *h
 	}
 	// Return without env values for listing (names only + timestamps)
 	type entry struct {
-		ID        uuid.UUID `json:"id"`
-		BinaryID  uuid.UUID `json:"binary_id"`
-		UserID    string    `json:"user_id"`
-		HasEnv    bool      `json:"has_env"`
-		EnvKeys   []string  `json:"env_keys,omitempty"`
-		CreatedAt string    `json:"created_at"`
-		UpdatedAt string    `json:"updated_at"`
+		ID        uuid.UUID                                  `json:"id"`
+		BinaryID  uuid.UUID                                  `json:"binary_id"`
+		UserID    string                                     `json:"user_id"`
+		HasEnv    bool                                       `json:"has_env"`
+		EnvKeys   []string                                   `json:"env_keys,omitempty"`
+		Env       map[string]store.SecureCLIEnvResponseEntry `json:"env,omitempty"`
+		CreatedAt string                                     `json:"created_at"`
+		UpdatedAt string                                     `json:"updated_at"`
 	}
 	entries := make([]entry, 0, len(creds))
 	for _, c := range creds {
@@ -42,6 +43,7 @@ func (h *SecureCLIHandler) handleListUserCredentials(w http.ResponseWriter, r *h
 			UserID:    c.UserID,
 			HasEnv:    len(c.EncryptedEnv) > 0,
 			EnvKeys:   envKeys,
+			Env:       store.SanitizeSecureCLIEnvJSON(c.EncryptedEnv),
 			CreatedAt: c.CreatedAt,
 			UpdatedAt: c.UpdatedAt,
 		})
@@ -73,14 +75,9 @@ func (h *SecureCLIHandler) handleGetUserCredentials(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Return decrypted env as JSON object (admin-only endpoint)
-	var envObj any
-	if len(cred.EncryptedEnv) > 0 {
-		_ = json.Unmarshal(cred.EncryptedEnv, &envObj)
-	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user_id": cred.UserID,
-		"env":     envObj,
+		"env":     store.SanitizeSecureCLIEnvJSON(cred.EncryptedEnv),
 	})
 }
 
@@ -108,14 +105,23 @@ func (h *SecureCLIHandler) handleSetUserCredentials(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Validate env is a JSON object
-	var envCheck map[string]string
-	if err := json.Unmarshal(body.Env, &envCheck); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "env must be a JSON object with string values"})
+	existing, err := h.store.GetUserCredentials(r.Context(), binaryID, userID)
+	if err != nil {
+		locale := store.LocaleFromContext(r.Context())
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgInternalError, err.Error())})
+		return
+	}
+	var existingEnv []byte
+	if existing != nil {
+		existingEnv = existing.EncryptedEnv
+	}
+	envJSON, err := store.MergeSecureCLIEnv(existingEnv, body.Env)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgGrantEnvValueInvalid, err.Error())})
 		return
 	}
 
-	if err := h.store.SetUserCredentials(r.Context(), binaryID, userID, body.Env); err != nil {
+	if err := h.store.SetUserCredentials(r.Context(), binaryID, userID, envJSON); err != nil {
 		locale := store.LocaleFromContext(r.Context())
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgInternalError, err.Error())})
 		return

@@ -221,10 +221,13 @@ AES-256-GCM encryption for secrets stored in PostgreSQL. Key provided via `GOCLA
 | LLM provider API keys | `llm_providers` | `api_key` |
 | MCP server API keys | `mcp_servers` | `api_key` |
 | Custom tool env vars | `custom_tools` | `env` |
+| Credentialed CLI env vars | `secure_cli_binaries`, `secure_cli_agent_grants`, `secure_cli_user_credentials` | `encrypted_env` |
 
 **Format**: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`
 
 Backward compatible: values without the `aes-gcm:` prefix are returned as plaintext (for migration from unencrypted data).
+
+Credentialed CLI env entries have a separate visibility kind inside the encrypted JSON blob when `GOCLAW_ENCRYPTION_KEY` is configured. `sensitive` entries are masked in normal API/UI responses and never returned raw except through the explicit audited grant reveal flow. `value` entries use the same at-rest storage path but are returned to authorized admins for operational review.
 
 ---
 

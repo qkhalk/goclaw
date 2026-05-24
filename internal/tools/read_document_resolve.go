@@ -43,8 +43,7 @@ func (t *ReadDocumentTool) resolveDocumentFile(ctx context.Context, mediaID, doc
 			}
 		}
 		if ref == nil {
-			slog.Warn("read_document: media_id not found, falling back to most recent", "media_id", mediaID)
-			ref = &refs[len(refs)-1]
+			return "", "", fmt.Errorf("document media_id %q not found in this conversation", mediaID)
 		}
 	} else {
 		// Use the last (most recent) document ref.
@@ -152,7 +151,23 @@ func (t *ReadDocumentTool) callProvider(ctx context.Context, cp credentialProvid
 		slog.Info("read_document: using gemini native API",
 			"provider", providerName, "model", model,
 			"doc_size", len(data), "mime", mime)
+		chatReq := providers.ChatRequest{
+			Messages: []providers.Message{{
+				Role:    "user",
+				Content: prompt,
+				Images:  []providers.ImageContent{{MimeType: mime}},
+			}},
+			Model:   model,
+			Options: map[string]any{"max_tokens": 16384},
+		}
+		reservation, reserveErr := reserveToolLLMUsage(ctx, t.usageCaps, t.Name(), providerName, model, chatReq)
+		if reserveErr != nil {
+			return nil, nil, reserveErr
+		}
 		resp, err := geminiNativeDocumentCall(ctx, cp.APIKey(), model, prompt, data, mime)
+		if reservation != nil {
+			reservation.Reconcile(ctx, resp, err)
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("gemini native call: %w", err)
 		}
@@ -179,7 +194,7 @@ func (t *ReadDocumentTool) callProvider(ctx context.Context, cp credentialProvid
 		opts["disable_tools"] = true
 	}
 
-	resp, err := p.Chat(ctx, providers.ChatRequest{
+	chatReq := providers.ChatRequest{
 		Messages: []providers.Message{
 			{
 				Role:    "user",
@@ -189,7 +204,15 @@ func (t *ReadDocumentTool) callProvider(ctx context.Context, cp credentialProvid
 		},
 		Model:   model,
 		Options: opts,
-	})
+	}
+	reservation, reserveErr := reserveToolLLMUsage(ctx, t.usageCaps, t.Name(), providerName, model, chatReq)
+	if reserveErr != nil {
+		return nil, nil, reserveErr
+	}
+	resp, err := p.Chat(ctx, chatReq)
+	if reservation != nil {
+		reservation.Reconcile(ctx, resp, err)
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("chat call: %w", err)
 	}

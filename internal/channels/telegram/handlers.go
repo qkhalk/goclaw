@@ -513,14 +513,8 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 			// Resolve deferred media from history entries (lazy download).
 			if histRefs := c.GroupHistory().CollectMediaRefs(localKey); len(histRefs) > 0 {
 				histMedia, histErrors := c.resolveMediaRefs(ctx, histRefs)
-				for _, m := range histMedia {
-					mediaFiles = append(mediaFiles, bus.MediaFile{
-						Path:     m.FilePath,
-						MimeType: m.ContentType,
-						Filename: m.FileName,
-					})
-				}
 				if len(histMedia) > 0 {
+					mediaFiles = prependMediaInfoFiles(mediaFiles, histMedia)
 					histTags := buildMediaTags(histMedia)
 					annotated = "[Media from recent group messages — only analyze if user asks about them]\n" + histTags + "\n[/Media]\n\n" + annotated
 				}
@@ -577,12 +571,12 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 	// user sees typing indicator → first content appears directly.
 
 	metadata := map[string]string{
-		"message_id": fmt.Sprintf("%d", message.MessageID),
-		"user_id":    fmt.Sprintf("%d", user.ID),
+		"message_id":       fmt.Sprintf("%d", message.MessageID),
+		"user_id":          fmt.Sprintf("%d", user.ID),
 		tools.MetaUsername: user.Username,
-		"first_name": user.FirstName,
-		"is_group":   fmt.Sprintf("%t", isGroup),
-		"local_key":  localKey,
+		"first_name":       user.FirstName,
+		"is_group":         fmt.Sprintf("%t", isGroup),
+		"local_key":        localKey,
 	}
 	if message.Chat.Title != "" {
 		metadata[tools.MetaChatTitle] = message.Chat.Title

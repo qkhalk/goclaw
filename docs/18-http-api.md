@@ -38,6 +38,39 @@ API keys are hashed with SHA-256 before lookup — the raw key is never stored. 
 
 ---
 
+## Browser Cookie Sync
+
+Selected-cookie sync stores user-approved browser cookies for server-side browser automation. Endpoints require operator auth and `X-GoClaw-User-Id`; the request body cannot set `tenant_id` or `user_id`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/browser/cookies/sync` | Store selected cookies for one `agent_id` |
+| `GET` | `/v1/browser/cookies?agent_id=...` | List synced cookie metadata; values are redacted |
+| `DELETE` | `/v1/browser/cookies?agent_id=...&domain=...&name=...` | Delete scoped synced cookies |
+
+Example sync request:
+
+```json
+{
+  "agent_id": "default",
+  "source": "chrome-selected-cookie-sync",
+  "cookies": [{
+    "domain": ".example.com",
+    "name": "session",
+    "path": "/",
+    "value": "cookie-value",
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "lax",
+    "expirationDate": 1770000000
+  }]
+}
+```
+
+See [Browser Cookie Sync Threat Model](browser-cookie-sync-threat-model.md) for isolation and encryption details.
+
+---
+
 ## 2. Chat Completions
 
 OpenAI-compatible chat API for programmatic access to agents.
@@ -288,7 +321,7 @@ Use `direct_selection_count` plus the `selected_provider` sequence to verify rea
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/skills` | List all skills |
-| `POST` | `/v1/skills/upload` | Upload ZIP with SKILL.md (20 MB limit) |
+| `POST` | `/v1/skills/upload` | Upload ZIP with SKILL.md (configurable 20 MB default, 1-500 MB range) |
 | `GET` | `/v1/skills/{id}` | Get skill details |
 | `PUT` | `/v1/skills/{id}` | Update skill metadata |
 | `DELETE` | `/v1/skills/{id}` | Delete skill (not system skills) |
@@ -297,6 +330,18 @@ Use `direct_selection_count` plus the `selected_provider` sequence to verify rea
 | `DELETE` | `/v1/skills/{id}/tenant-config` | Delete tenant-level skill config |
 
 ### Skill Grants
+
+Skill upload size is enforced per ZIP file. The effective limit resolves in this order:
+tenant `system_configs["skills.max_upload_size_mb"]`, then `SKILL.md` frontmatter
+`max_upload_size_mb`, then config/env `skills.max_upload_size_mb` /
+`GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB`, then the default 20 MB. Values are clamped
+to 1-500 MB.
+
+Skill slash-command behavior is configured through tenant `system_configs`:
+`skills.slash_commands.enabled`, `skills.slash_commands.suggest_not_found`,
+`skills.slash_commands.partial_matching`, and `skills.slash_commands.prefix`.
+The default prefix is `/`; supported prompt forms are `/<slug> prompt`,
+`/use <slug-or-name> prompt`, `/list-skills`, and `/help <slug-or-name>`.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -356,6 +401,36 @@ LLM provider management. API keys are encrypted with AES-256-GCM in the database
 | `GET` | `/v1/providers/{id}/codex-pool-activity` | Provider-level Codex pool activity |
 | `GET` | `/v1/embedding/status` | Check global embedding availability |
 | `GET` | `/v1/providers/claude-cli/auth-status` | Check Claude CLI login status |
+
+### Model Pricing
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/model-pricing/sync-openrouter` | Sync OpenRouter `/models` pricing catalog (master scope) |
+| `GET` | `/v1/model-pricing` | Search catalog models by `model` query |
+| `GET` | `/v1/model-pricing/overrides` | List tenant pricing overrides, optionally by `provider_id` |
+| `PUT` | `/v1/model-pricing/overrides` | Upsert provider/model custom pricing |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` | Delete pricing override |
+
+Override body:
+
+```json
+{
+  "provider_id": "0193a5b0-7000-7000-8000-000000000123",
+  "provider_type": "openrouter",
+  "model_id": "anthropic/claude-sonnet-4-5",
+  "pricing": {
+    "input": "0.000003",
+    "output": "0.000015",
+    "cache_read": "0.0000003",
+    "cache_write": "0.00000375",
+    "reasoning": "0.000015",
+    "request": "0",
+    "image": "0",
+    "web_search": "0"
+  }
+}
+```
 
 **Supported types:** `anthropic_native`, `openai_compat`, `chatgpt_oauth`, `gemini_native`, `dashscope`, `bailian`, `minimax`, `claude_cli`, `acp`
 
@@ -568,8 +643,31 @@ Read-only session listing is available over HTTP for automation clients.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/sessions` | List sessions with `agentId`/`agent_id`, `channel`, `limit`, and `offset` filters |
+| `POST` | `/v1/chat/sessions/{key}/branch` | Branch an existing chat session at `up_to_index` |
+| `GET` | `/v1/chat/sessions/{key}/history/follow` | Poll session history after an index cursor |
 
 Admins and system-level admin API keys can list all sessions within the resolved tenant. Non-admin callers must have an effective `X-GoClaw-User-Id` context and are filtered to their own sessions.
+
+Session branch request:
+
+```json
+{
+  "new_session_key": "optional agent:{sameAgentKey}:...",
+  "up_to_index": 12,
+  "label": "optional label",
+  "metadata": {}
+}
+```
+
+If `new_session_key` is omitted, the server generates `agent:{agentKey}:branch:direct:{uuid}`. `up_to_index` copies `messages[0:up_to_index]`; invalid ranges are rejected and existing target keys are not overwritten.
+
+History follow uses `cursor` as the count of already consumed messages:
+
+```
+GET /v1/chat/sessions/{key}/history/follow?cursor=12&limit=50
+```
+
+If `cursor > total`, the response sets `reset: true` and `next_cursor` to the current total.
 
 ---
 
@@ -978,8 +1076,20 @@ Accepts partial updates. Flag keys are validated against recognized v3 flags.
 |--------|------|-------------|
 | `GET` | `/v1/channels/instances/{id}/writers/groups` | List group file writers |
 | `GET` | `/v1/channels/instances/{id}/writers` | List writers for group |
+| `POST` | `/v1/channels/instances/{id}/writers/test` | Test whether a user is a writer for a group |
 | `POST` | `/v1/channels/instances/{id}/writers` | Add writer to group |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` | Remove writer |
+
+Writer test request:
+
+```json
+{
+  "group_id": "group:telegram:-100123",
+  "user_id": "386246614"
+}
+```
+
+Response includes `allowed`, `reason`, `instance_id`, `agent_id`, `group_id`, `user_id`, and `writer_count`. Stable reasons: `writer`, `not_writer`, `no_writers_configured`, `invalid_group`.
 
 **Supported channels:** `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu`
 
@@ -1203,10 +1313,33 @@ Follow response:
 | `GET` | `/v1/usage/timeseries` | Time-series usage points |
 | `GET` | `/v1/usage/breakdown` | Breakdown by provider/model/channel |
 | `GET` | `/v1/usage/summary` | Summary with period comparison |
+| `GET` | `/v1/usage-caps/policies` | List usage cap policies |
+| `POST` | `/v1/usage-caps/policies` | Create token/cost cap policy |
+| `PATCH` | `/v1/usage-caps/policies/{id}` | Update cap policy |
+| `DELETE` | `/v1/usage-caps/policies/{id}` | Delete cap policy |
+| `GET` | `/v1/usage-caps/utilization` | Current-window used and reserved counters |
+| `GET` | `/v1/usage-caps/events` | Recent allow/block/reconcile/skip events |
 
 **Query params:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
 
 **Periods:** `24h`, `today`, `7d`, `30d`
+
+Usage cap policy body:
+
+```json
+{
+  "agent_id": "optional-agent-uuid",
+  "provider_id": "optional-provider-uuid",
+  "provider_type": "openrouter",
+  "model_id": "anthropic/claude-sonnet-4-5",
+  "window": "day",
+  "max_tokens": 500000,
+  "max_cost_usd": 25,
+  "enabled": true
+}
+```
+
+Policy responses include read-only `source`. `source="agent_budget_monthly_cents"` means the policy is generated from the agent monthly budget field and must be changed there; direct policy updates/deletes return `409 Conflict`.
 
 ---
 
@@ -1215,6 +1348,16 @@ Follow response:
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/activity` | List activity audit logs (filterable) |
+| `GET` | `/v1/activity/aggregate` | Aggregate activity logs by action, actor type, entity type, or admin-only actor ID |
+| `GET` | `/v1/logs/runtime/aggregate` | Aggregate recent in-memory runtime logs by level or source |
+
+Activity aggregate query parameters:
+- `group_by`: `action`, `actor_type`, `entity_type`, or `actor_id` (admin only)
+- `from`, `to`: optional RFC3339 range, `from` inclusive and `to` exclusive
+- `actor_type`, `actor_id`, `action`, `entity_type`, `entity_id`: optional filters; non-admin callers are always scoped to their resolved user ID and must have user context
+- `limit`: bucket cap, default 50, max 200
+
+Runtime log aggregate is admin-only and ring-buffer based. It returns `retention=ring_buffer`, `capacity`, and `sample_size`; it is not durable log storage.
 
 ---
 

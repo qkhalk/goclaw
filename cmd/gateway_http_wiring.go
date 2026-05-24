@@ -96,6 +96,9 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 	if h.secureCLIGrant != nil {
 		d.server.SetSecureCLIGrantHandler(h.secureCLIGrant)
 	}
+	if d.pgStores != nil && d.pgStores.BrowserCookies != nil {
+		d.server.SetBrowserCookiesHandler(httpapi.NewBrowserCookiesHandler(d.pgStores.BrowserCookies))
+	}
 
 	// Activity audit log API
 	if d.pgStores.Activity != nil {
@@ -133,6 +136,9 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 	// Usage analytics API
 	if d.pgStores.Snapshots != nil {
 		d.server.SetUsageHandler(httpapi.NewUsageHandler(d.pgStores.Snapshots, d.pgStores.DB))
+	}
+	if d.pgStores.UsageCaps != nil {
+		d.server.SetUsageCapsHandler(httpapi.NewUsageCapsHandler(d.pgStores.UsageCaps, d.pgStores.Tenants))
 	}
 
 	// Runtime package management (install/uninstall system/pip/npm/github packages)
@@ -231,7 +237,9 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 
 	// Knowledge graph API
 	if d.pgStores != nil && d.pgStores.KnowledgeGraph != nil {
-		d.server.SetKnowledgeGraphHandler(httpapi.NewKnowledgeGraphHandler(d.pgStores.KnowledgeGraph, d.providerRegistry))
+		kgHandler := httpapi.NewKnowledgeGraphHandler(d.pgStores.KnowledgeGraph, d.providerRegistry)
+		kgHandler.SetUsageCapService(d.usageCapSvc)
+		d.server.SetKnowledgeGraphHandler(kgHandler)
 	}
 
 	// V3: Evolution metrics + suggestions API
