@@ -108,7 +108,7 @@ Agent `budget_monthly_cents` values are bridged into `usage_cap_policies` with `
 
 Migration versions:
 
-- PostgreSQL: `000069_usage_caps_pricing`, `000070_usage_cap_policies`, `000071_agent_budget_usage_cap_bridge`.
+- PostgreSQL: `000070_usage_caps_pricing`, `000071_usage_cap_policies`, `000072_agent_budget_usage_cap_bridge`.
 - SQLite: no schema change; feature is not active in Lite.
 
 ---

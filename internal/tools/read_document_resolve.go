@@ -43,8 +43,7 @@ func (t *ReadDocumentTool) resolveDocumentFile(ctx context.Context, mediaID, doc
 			}
 		}
 		if ref == nil {
-			slog.Warn("read_document: media_id not found, falling back to most recent", "media_id", mediaID)
-			ref = &refs[len(refs)-1]
+			return "", "", fmt.Errorf("document media_id %q not found in this conversation", mediaID)
 		}
 	} else {
 		// Use the last (most recent) document ref.

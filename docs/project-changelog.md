@@ -4,6 +4,27 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-24
+
+### Browser cookie sync and config UI
+
+**Features**
+
+- Added scoped browser cookie sync API, encrypted cookie store, browser runtime cookie application, dashboard browser settings, and a selected-cookie Chrome extension prototype.
+
+### Cron SecureCLI credential context
+
+**Fixes**
+
+- Fixed cron-triggered agent turns so credentialed CLI lookups preserve the explicit tenant user credential identity captured when the cron job is created.
+- Kept cron `user_id` ownership unchanged for group-scoped list/remove behavior while storing credential lookup identity separately in cron payload metadata.
+
+**Tests**
+
+- Added regression coverage for cron payload credential metadata, legacy payload compatibility, cron scheduler context injection, and SQLite cron persistence parity.
+
+---
+
 ## 2026-05-22
 
 ### Usage Cap budget controls
@@ -30,11 +51,13 @@ Significant changes, features, and fixes in reverse chronological order.
 
 **Features**
 
+- Added per-agent inbound debounce override via `other_config.inbound_debounce_ms`; unset inherits the global gateway setting.
 - Added Web Chat debounce for rapid text-only `chat.send` calls using `gateway.inbound_debounce_ms`.
 - Clarified shared inbound debounce behavior in docs and Web UI config help text.
 
 **Fixes**
 
+- Fixed inbound debounce semantics so `gateway.inbound_debounce_ms=0` means no debounce and positive values set the wait window.
 - Fixed Slack `debounce_delay: 0` so it disables per-thread batching instead of falling back to the default.
 
 **Tests**
