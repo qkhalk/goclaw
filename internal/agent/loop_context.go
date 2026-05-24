@@ -45,7 +45,7 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	// Resolve merged tenant user identity for credential lookups.
 	// Keeps UserID unchanged (session/workspace scoping) but sets a separate
 	// CredentialUserID for SecureCLI, MCP, and other per-user features.
-	if l.userResolver != nil && req.UserID != "" {
+	if l.userResolver != nil && req.UserID != "" && store.ExplicitCredentialUserIDFromContext(ctx) == "" {
 		credUserID := l.resolveCredentialUserID(ctx, *req)
 		if credUserID != "" && credUserID != req.UserID {
 			ctx = store.WithCredentialUserID(ctx, credUserID)
@@ -354,7 +354,7 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		providerName = l.provider.Name()
 	}
 	// Extract resolved credential user ID (set earlier via WithCredentialUserID, empty if not resolved).
-	credUserID, _ := ctx.Value(store.CredentialUserIDKey).(string)
+	credUserID := store.ExplicitCredentialUserIDFromContext(ctx)
 	rc := &store.RunContext{
 		AgentID:             l.agentUUID,
 		AgentKey:            l.id,

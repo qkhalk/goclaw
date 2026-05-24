@@ -4,6 +4,21 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-24
+
+### Cron SecureCLI credential context
+
+**Fixes**
+
+- Fixed cron-triggered agent turns so credentialed CLI lookups preserve the explicit tenant user credential identity captured when the cron job is created.
+- Kept cron `user_id` ownership unchanged for group-scoped list/remove behavior while storing credential lookup identity separately in cron payload metadata.
+
+**Tests**
+
+- Added regression coverage for cron payload credential metadata, legacy payload compatibility, cron scheduler context injection, and SQLite cron persistence parity.
+
+---
+
 ## 2026-05-22
 
 ### Messaging debounce hardening
