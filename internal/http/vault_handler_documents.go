@@ -23,22 +23,52 @@ import (
 // pipeline (which reads files by path) can later compute summaries, embeddings
 // and links.
 func (h *VaultHandler) writeDocumentContent(workspace, relPath string, content []byte) (string, error) {
-	target := filepath.Join(workspace, filepath.Clean(relPath))
-	// Symlink/escape protection: the cleaned target must stay inside workspace.
-	absTarget, err := filepath.Abs(target)
+	// Resolve the workspace root through any symlinks so all containment checks
+	// compare canonical paths.
+	realWS, err := filepath.EvalSymlinks(workspace)
 	if err != nil {
 		return "", err
 	}
-	absWS, err := filepath.Abs(workspace)
-	if err != nil {
-		return "", err
-	}
-	if !strings.HasPrefix(absTarget, absWS+string(os.PathSeparator)) && absTarget != absWS {
+	target := filepath.Join(realWS, filepath.Clean(relPath))
+
+	// Lexical containment: blocks "../" and absolute-path escapes.
+	if target != realWS && !strings.HasPrefix(target, realWS+string(os.PathSeparator)) {
 		return "", os.ErrInvalid
 	}
+
+	// Symlink containment: a lexical prefix check is not enough — a symlink that
+	// lives *inside* the workspace but points outside it (e.g. workspace/link ->
+	// /etc) would otherwise let os.WriteFile follow it and clobber a file beyond
+	// the workspace. Resolve the deepest already-existing ancestor of the target
+	// and confirm it still canonicalises to a path inside the workspace, before
+	// any directory is created or byte written.
+	for ancestor := filepath.Dir(target); ; {
+		resolved, rerr := filepath.EvalSymlinks(ancestor)
+		if rerr == nil {
+			if resolved != realWS && !strings.HasPrefix(resolved, realWS+string(os.PathSeparator)) {
+				return "", os.ErrInvalid
+			}
+			break
+		}
+		if !os.IsNotExist(rerr) {
+			return "", rerr
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			break // walked to the filesystem root without an existing ancestor
+		}
+		ancestor = parent
+	}
+
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return "", err
 	}
+
+	// Refuse to follow a symlink planted at the final path component itself.
+	if fi, lerr := os.Lstat(target); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return "", os.ErrInvalid
+	}
+
 	if err := os.WriteFile(target, content, 0o644); err != nil {
 		return "", err
 	}
@@ -48,20 +78,27 @@ func (h *VaultHandler) writeDocumentContent(workspace, relPath string, content [
 // publishDocUpserted enqueues the standard EventVaultDocUpserted so the
 // enrichment worker re-runs summary/embedding/link extraction for this doc.
 // No-op when the event bus is not wired (some test setups).
-func (h *VaultHandler) publishDocUpserted(tenantID, agentID, docID, relPath, hash, workspace string) {
+func (h *VaultHandler) publishDocUpserted(tenantID uuid.UUID, agentID, docID, relPath, hash, workspace string) {
 	if h.eventBus == nil {
 		return
+	}
+	tenantIDStr := tenantID.String()
+	// Start enrichment progress before publishing so the worker pool can't drain
+	// the event and finish before the progress tracker registers it — same
+	// ordering handleUpload relies on to avoid that race.
+	if h.enrichProgress != nil {
+		h.enrichProgress.Start(1, tenantID)
 	}
 	h.eventBus.Publish(eventbus.DomainEvent{
 		ID:        uuid.Must(uuid.NewV7()).String(),
 		Type:      eventbus.EventVaultDocUpserted,
 		SourceID:  docID + ":" + hash,
-		TenantID:  tenantID,
+		TenantID:  tenantIDStr,
 		AgentID:   agentID,
 		Timestamp: time.Now(),
 		Payload: eventbus.VaultDocUpsertedPayload{
 			DocID:       docID,
-			TenantID:    tenantID,
+			TenantID:    tenantIDStr,
 			AgentID:     agentID,
 			Path:        relPath,
 			ContentHash: hash,
@@ -284,7 +321,7 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 		if doc.AgentID != nil {
 			evAgent = *doc.AgentID
 		}
-		h.publishDocUpserted(tenantID.String(), evAgent, doc.ID, body.Path, writtenHash, wsPath)
+		h.publishDocUpserted(tenantID, evAgent, doc.ID, body.Path, writtenHash, wsPath)
 	}
 
 	// Re-fetch by ID (set via RETURNING) — unambiguous even when same path exists across teams.
@@ -391,7 +428,7 @@ func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Reque
 		if existing.AgentID != nil {
 			evAgent = *existing.AgentID
 		}
-		h.publishDocUpserted(tenantID.String(), evAgent, existing.ID, existing.Path, writtenHash, wsPath)
+		h.publishDocUpserted(tenantID, evAgent, existing.ID, existing.Path, writtenHash, wsPath)
 	}
 
 	updated, _ := h.store.GetDocumentByID(r.Context(), tenantID.String(), docID)
