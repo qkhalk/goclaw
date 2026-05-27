@@ -452,6 +452,36 @@ func mergeCredentialedEnv(cred *store.SecureCLIBinary) (map[string]string, error
 	return envMap, nil
 }
 
+// validateExecCwd checks that cmd.Dir exists and is a directory before
+// cmd.Start(). Empty cwd is allowed (Go interprets as "inherit parent's dir").
+//
+// Why: on Linux, Go's syscall.forkAndExecInChild reports any child-side error
+// (chdir, execve, missing PT_INTERP, etc.) as `&PathError{Op: "fork/exec",
+// Path: argv0, Err: errno}`. The label `fork/exec PATH:` always names the
+// binary even when chdir was the actual failure. A stale stored workspace
+// (e.g. /app/workspace/clax persisted from a Docker-era deployment but used
+// on a bare-metal host) then surfaces as `fork/exec /usr/bin/gh: no such file
+// or directory` — sending operators down the wrong investigation path.
+//
+// Returns nil when cwd is empty, exists and is a directory; otherwise an
+// error naming the actual problem with the working directory.
+func validateExecCwd(cwd string) error {
+	if cwd == "" {
+		return nil
+	}
+	info, err := os.Stat(cwd)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("working directory does not exist: %q", cwd)
+		}
+		return fmt.Errorf("working directory inaccessible: %q: %w", cwd, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("working directory is not a directory: %q", cwd)
+	}
+	return nil
+}
+
 // executeCredentialedHost runs a credentialed command directly on the host.
 // Uses exec.Command (no shell) with credentials as env vars.
 // ctx cancellation triggers SIGTERM → 3s grace → SIGKILL via process-group helpers.
@@ -460,6 +490,14 @@ func (t *ExecTool) executeCredentialedHost(ctx context.Context, absPath string, 
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	// Pre-flight cmd.Dir validation. On Linux, Go's clone+chdir+execve failure
+	// path collapses every child-side error into "fork/exec PATH: <errno-string>"
+	// — so a missing cmd.Dir surfaces as if absPath itself were missing. Catch
+	// this case explicitly so the error names the real culprit.
+	if err := validateExecCwd(cwd); err != nil {
+		return ErrorResult(fmt.Sprintf("credentialed exec: %v (binary %s does exist)", err, absPath))
+	}
 
 	// Plain exec.Command (not CommandContext) so we own the kill sequence.
 	cmd := exec.Command(absPath, args...)

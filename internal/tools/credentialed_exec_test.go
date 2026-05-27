@@ -427,3 +427,64 @@ func TestResolveAndMatchBinaryFindsGoogleWorkspaceRuntimeBinary(t *testing.T) {
 		t.Fatalf("path = %q, want %q", got, binaryPath)
 	}
 }
+
+// TestValidateExecCwd guards against the misleading "fork/exec PATH: no such
+// file or directory" that Linux Go surfaces when cmd.Dir is the actual
+// culprit (chdir failure inside the cloned child). Pre-flighting cmd.Dir
+// surfaces the real cause so operators don't chase missing-binary ghosts.
+func TestValidateExecCwd(t *testing.T) {
+	t.Run("empty cwd is allowed", func(t *testing.T) {
+		if err := validateExecCwd(""); err != nil {
+			t.Fatalf("empty cwd: want nil, got %v", err)
+		}
+	})
+
+	t.Run("existing directory is allowed", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := validateExecCwd(dir); err != nil {
+			t.Fatalf("existing dir: want nil, got %v", err)
+		}
+	})
+
+	t.Run("missing directory names the cwd, not the binary", func(t *testing.T) {
+		missing := filepath.Join(t.TempDir(), "does-not-exist")
+		err := validateExecCwd(missing)
+		if err == nil {
+			t.Fatal("missing cwd: want error, got nil")
+		}
+		// The error must mention "working directory" — that's the whole point.
+		// Without this guard, exec would surface "fork/exec /usr/bin/gh: no such file or directory"
+		// even when the binary is fine.
+		if got := err.Error(); !contains(got, "working directory") || !contains(got, missing) {
+			t.Fatalf("missing cwd: error = %q, want it to mention %q and 'working directory'", got, missing)
+		}
+	})
+
+	t.Run("file instead of directory is rejected", func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "notadir")
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+		err = validateExecCwd(f.Name())
+		if err == nil {
+			t.Fatal("file as cwd: want error, got nil")
+		}
+		if got := err.Error(); !contains(got, "not a directory") {
+			t.Fatalf("file as cwd: error = %q, want 'not a directory'", got)
+		}
+	})
+}
+
+func contains(s, sub string) bool {
+	return len(sub) == 0 || (len(s) >= len(sub) && (s == sub || stringIndex(s, sub) >= 0))
+}
+
+func stringIndex(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
+}

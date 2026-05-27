@@ -539,6 +539,14 @@ func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Resu
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	// Pre-flight cmd.Dir validation. On Linux, Go's clone+chdir+execve failure
+	// path collapses every child-side error into "fork/exec PATH: <errno-string>"
+	// — so a missing cmd.Dir surfaces as if the shell binary itself were missing.
+	// Catch this case explicitly so the error names the real culprit.
+	if err := validateExecCwd(cwd); err != nil {
+		return ErrorResult(fmt.Sprintf("exec: %v", err))
+	}
+
 	// Use plain exec.Command (not CommandContext) so we control the kill sequence.
 	// CommandContext would SIGKILL only the direct child, leaving forked grandchildren alive.
 	// Route through the platform shell: cmd.exe on Windows, sh on POSIX.
