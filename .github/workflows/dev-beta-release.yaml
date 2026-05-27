@@ -362,12 +362,12 @@ jobs:
 
       - name: Sync zuey ops scripts to VPS
         env:
-          ZUEY_SSH_PRIVATE_KEY: ${{ secrets.ZUEY_SSH_PRIVATE_KEY }}
+          ZUEY_SSH_PRIVATE_KEY_B64: ${{ secrets.ZUEY_SSH_PRIVATE_KEY_B64 }}
           ZUEY_SUDO_PASS: ${{ secrets.ZUEY_SUDO_PASS }}
         run: |
           set -euo pipefail
-          if [[ -z "${ZUEY_SSH_PRIVATE_KEY:-}" || -z "${ZUEY_SUDO_PASS:-}" ]]; then
-            echo "::warning::ZUEY_SSH_PRIVATE_KEY or ZUEY_SUDO_PASS not configured; skipping VPS script sync. Configure both repository secrets to keep /usr/local/bin/goclaw-deploy and /usr/local/bin/goclaw-upgrade-release in sync with the repo on every beta deploy."
+          if [[ -z "${ZUEY_SSH_PRIVATE_KEY_B64:-}" || -z "${ZUEY_SUDO_PASS:-}" ]]; then
+            echo "::warning::ZUEY_SSH_PRIVATE_KEY_B64 or ZUEY_SUDO_PASS not configured; skipping VPS script sync. Store the private key as base64 (\`base64 -w0 < /path/to/key\`) in the ZUEY_SSH_PRIVATE_KEY_B64 secret to keep /usr/local/bin/goclaw-deploy and /usr/local/bin/goclaw-upgrade-release in sync with the repo on every beta deploy."
             exit 0
           fi
 
@@ -377,10 +377,22 @@ jobs:
             bash -n "$f" || { echo "::error::$f has syntax error"; exit 1; }
           done
 
-          # Stage SSH key (BatchMode + StrictHostKeyChecking against known_hosts)
+          # Stage SSH key: base64-decode, write with 0600, validate format.
+          # Why base64: GitHub Secrets storage round-trips can normalize/strip
+          # newlines in PEM blocks, producing `error in libcrypto` on load.
+          # Base64 is a single line, immune to whitespace mangling.
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$ZUEY_SSH_PRIVATE_KEY" > ~/.ssh/id_zuey
-          chmod 0600 ~/.ssh/id_zuey
+          # Create the key file with a tight umask so it is born at 0600 —
+          # avoids the brief 0644 window between `>` redirect and `chmod`.
+          if ! ( umask 077 && printf %s "$ZUEY_SSH_PRIVATE_KEY_B64" | base64 -d > ~/.ssh/id_zuey ) 2>/dev/null; then
+            echo "::error::ZUEY_SSH_PRIVATE_KEY_B64 is not valid base64. Regenerate with: base64 -w0 < /path/to/private_key"
+            exit 1
+          fi
+          if ! ssh-keygen -y -f ~/.ssh/id_zuey >/dev/null 2>&1; then
+            echo "::error::Decoded SSH key is not a valid OpenSSH/PEM private key. Verify the source file is a real private key and re-encode."
+            rm -f ~/.ssh/id_zuey
+            exit 1
+          fi
           ssh-keyscan -p "$ZUEY_SSH_PORT" -H "$ZUEY_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
           SSH_BASE=(-i ~/.ssh/id_zuey -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)

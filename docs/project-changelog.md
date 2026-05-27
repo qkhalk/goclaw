@@ -16,8 +16,12 @@ Significant changes, features, and fixes in reverse chronological order.
 
 - Moved `scripts/goclaw-upgrade-release.sh` → `scripts/zuey/goclaw-upgrade-release.sh`.
 - Added `scripts/zuey/goclaw-deploy.sh` (canonical source for the on-host `/usr/local/bin/goclaw-deploy`).
-- Wired `Sync zuey ops scripts to VPS` step in `.github/workflows/dev-beta-release.yaml` to `scp + sudo install` both scripts before triggering the gateway upgrade endpoint on every beta release. Requires new repository secrets `ZUEY_SSH_PRIVATE_KEY` and `ZUEY_SUDO_PASS`; step skips with a warning if either is unset.
+- Wired `Sync zuey ops scripts to VPS` step in `.github/workflows/dev-beta-release.yaml` to `scp + sudo install` both scripts before triggering the gateway upgrade endpoint on every beta release. Requires new repository secrets `ZUEY_SSH_PRIVATE_KEY_B64` (base64-encoded private key, single line) and `ZUEY_SUDO_PASS`; step skips with a warning if either is unset.
 - Updated `docs/deployment-guide.md` with the self-loop guard rationale, manual sync recipe, and required-secrets table.
+
+**Followup fix (run 26499549166)**
+
+- First real `deploy_zuey_beta` run on `dev` failed with `Load key: error in libcrypto` because GitHub Secrets storage normalized newlines inside the multi-line PEM block. Switched the secret to base64 (`ZUEY_SSH_PRIVATE_KEY_B64`) and added pre-flight validation (`ssh-keygen -y -f`) that fails fast with a remediation hint if the decoded key is malformed.
 
 ---
 

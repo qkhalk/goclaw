@@ -290,7 +290,7 @@ The `Sync zuey ops scripts to VPS` step in `dev-beta-release.yaml` runs `scp + s
 
 | Secret | Purpose |
 |---|---|
-| `ZUEY_SSH_PRIVATE_KEY` | CI-only ed25519/rsa key; its public key must be appended to `zuey@82.197.71.246:~/.ssh/authorized_keys`. **Do not reuse the operator's personal key.** |
+| `ZUEY_SSH_PRIVATE_KEY_B64` | CI-only ed25519/rsa key, **base64-encoded as a single line** (`base64 -w0 < /path/to/key`). Its public key must be appended to `zuey@82.197.71.246:~/.ssh/authorized_keys`. **Do not reuse the operator's personal key.** Base64 avoids the `error in libcrypto` failure caused by GitHub Secrets normalizing newlines inside multi-line PEM blocks. |
 | `ZUEY_SUDO_PASS` | Same value as `ZUEY_GOCLAW_SUDO_PASS` in the operator's local `.env`; used by `sudo -S` over the SSH session to install scripts. |
 
 Optional repository **variables** (override defaults if the VPS endpoint changes):
@@ -306,7 +306,10 @@ To rotate the CI SSH key:
 ```bash
 ssh-keygen -t ed25519 -f /tmp/ci-zuey-key -N '' -C 'gh-actions-deploy-zuey-beta'
 # add /tmp/ci-zuey-key.pub to zuey:~/.ssh/authorized_keys (consider restricting to scp+install via `command="..."` forced-command)
-# paste contents of /tmp/ci-zuey-key into the ZUEY_SSH_PRIVATE_KEY secret
+# base64-encode the private key on a single line, then paste into the
+# ZUEY_SSH_PRIVATE_KEY_B64 secret:
+base64 -w0 < /tmp/ci-zuey-key  # macOS: `base64 -i /tmp/ci-zuey-key | tr -d '\n'`
+# (copy the single-line output and paste it into the secret value)
 # then `shred -u /tmp/ci-zuey-key*` locally
 ```
 
