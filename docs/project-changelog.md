@@ -4,6 +4,23 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-27
+
+### zuey VPS ops scripts: repo-tracked + CI auto-sync
+
+**Fixes**
+
+- Patched `/usr/local/bin/goclaw-deploy` on zuey to survive a self-loop `/opt/goclaw/current` symlink (`readlink -f` now `2>/dev/null || true`, with a warning when `previous` is empty). Without this, `set -euo pipefail` aborted before `ln -sfn` could overwrite the symlink, silently failing every `deploy_zuey_beta` CI run.
+
+**Changes**
+
+- Moved `scripts/goclaw-upgrade-release.sh` → `scripts/zuey/goclaw-upgrade-release.sh`.
+- Added `scripts/zuey/goclaw-deploy.sh` (canonical source for the on-host `/usr/local/bin/goclaw-deploy`).
+- Wired `Sync zuey ops scripts to VPS` step in `.github/workflows/dev-beta-release.yaml` to `scp + sudo install` both scripts before triggering the gateway upgrade endpoint on every beta release. Requires new repository secrets `ZUEY_SSH_PRIVATE_KEY` and `ZUEY_SUDO_PASS`; step skips with a warning if either is unset.
+- Updated `docs/deployment-guide.md` with the self-loop guard rationale, manual sync recipe, and required-secrets table.
+
+---
+
 ## 2026-05-24
 
 ### Google Workspace CLI runtime integration

@@ -340,6 +340,9 @@ jobs:
       GOCLAW_UPGRADE_TOKEN: ${{ secrets.ZUEY_GOCLAW_UPGRADE_TOKEN }}
       GOCLAW_DEPLOY_USER_ID: ${{ vars.ZUEY_GOCLAW_USER_ID || 'system' }}
       TAG: ${{ needs.beta_version.outputs.tag }}
+      ZUEY_SSH_HOST: ${{ vars.ZUEY_SSH_HOST || '82.197.71.246' }}
+      ZUEY_SSH_PORT: ${{ vars.ZUEY_SSH_PORT || '2233' }}
+      ZUEY_SSH_USER: ${{ vars.ZUEY_SSH_USER || 'zuey' }}
     steps:
       - name: Validate deploy configuration
         run: |
@@ -351,6 +354,75 @@ jobs:
             fi
           done
           exit "$missing"
+
+      - name: Checkout repository (for VPS script sync)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.beta_version.outputs.tag }}
+
+      - name: Sync zuey ops scripts to VPS
+        env:
+          ZUEY_SSH_PRIVATE_KEY: ${{ secrets.ZUEY_SSH_PRIVATE_KEY }}
+          ZUEY_SUDO_PASS: ${{ secrets.ZUEY_SUDO_PASS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ZUEY_SSH_PRIVATE_KEY:-}" || -z "${ZUEY_SUDO_PASS:-}" ]]; then
+            echo "::warning::ZUEY_SSH_PRIVATE_KEY or ZUEY_SUDO_PASS not configured; skipping VPS script sync. Configure both repository secrets to keep /usr/local/bin/goclaw-deploy and /usr/local/bin/goclaw-upgrade-release in sync with the repo on every beta deploy."
+            exit 0
+          fi
+
+          # Verify the two scripts exist in the checked-out tag
+          for f in scripts/zuey/goclaw-deploy.sh scripts/zuey/goclaw-upgrade-release.sh; do
+            test -f "$f" || { echo "::error::$f missing in repo"; exit 1; }
+            bash -n "$f" || { echo "::error::$f has syntax error"; exit 1; }
+          done
+
+          # Stage SSH key (BatchMode + StrictHostKeyChecking against known_hosts)
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$ZUEY_SSH_PRIVATE_KEY" > ~/.ssh/id_zuey
+          chmod 0600 ~/.ssh/id_zuey
+          ssh-keyscan -p "$ZUEY_SSH_PORT" -H "$ZUEY_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          SSH_BASE=(-i ~/.ssh/id_zuey -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
+
+          # Upload (-O selects legacy scp protocol; OpenSSH 9.x defaults to sftp
+          # which is fine here, but -O is portable across runner image versions)
+          scp -O -P "$ZUEY_SSH_PORT" "${SSH_BASE[@]}" \
+            scripts/zuey/goclaw-deploy.sh \
+            scripts/zuey/goclaw-upgrade-release.sh \
+            "${ZUEY_SSH_USER}@${ZUEY_SSH_HOST}:/tmp/"
+
+          # Install on host: backup-if-changed → install (root:root 0755) →
+          # syntax check. The sudo password is shell-quoted via printf %q and
+          # interpolated into the remote command line; the SSH channel is
+          # encrypted and GitHub Actions auto-masks the secret in logs.
+          # sudo -S reads from stdin and does not echo the password.
+          quoted_pass=$(printf %q "$ZUEY_SUDO_PASS")
+          ssh -p "$ZUEY_SSH_PORT" "${SSH_BASE[@]}" "${ZUEY_SSH_USER}@${ZUEY_SSH_HOST}" \
+            "SUDOPASS=$quoted_pass bash -s" <<'REMOTE'
+          set -euo pipefail
+          ts=$(date +%Y%m%d-%H%M%S)
+          for name in goclaw-deploy goclaw-upgrade-release; do
+            src="/tmp/${name}.sh"
+            dst="/usr/local/bin/${name}"
+            if [ ! -f "$src" ]; then echo "::error::missing $src"; exit 1; fi
+            if [ -f "$dst" ] && cmp -s "$src" "$dst"; then
+              echo "no change: $name"
+              rm -f "$src"
+              continue
+            fi
+            if [ -f "$dst" ]; then
+              echo "$SUDOPASS" | sudo -S cp -p "$dst" "${dst}.bak-${ts}"
+            fi
+            echo "$SUDOPASS" | sudo -S install -o root -g root -m 0755 "$src" "$dst"
+            echo "$SUDOPASS" | sudo -S bash -n "$dst"
+            rm -f "$src"
+            echo "installed: $name"
+          done
+          REMOTE
+
+          # Clean up the private key from the runner FS
+          shred -u ~/.ssh/id_zuey 2>/dev/null || rm -f ~/.ssh/id_zuey
 
       - name: Trigger zuey gateway upgrade
         run: |
