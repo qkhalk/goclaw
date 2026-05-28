@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -89,6 +88,10 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 			return resolveInboundDebounceDelay(ctx, msg, deps)
 		},
 		func(msg bus.InboundMessage) {
+			// Seed dedup cache with all sibling message_ids from the merged flush
+			// so any platform retransmit of a sibling (webhook retry, album member
+			// redelivery) is short-circuited before re-entering the debouncer.
+			seedDedupFromMerged(dedupe, msg)
 			processNormalMessage(ctx, msg, deps)
 		},
 	)
@@ -112,7 +115,7 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 
 		// --- Dedup: skip duplicate inbound messages (matching TS shouldSkipDuplicateInbound) ---
 		if msgID := msg.Metadata["message_id"]; msgID != "" {
-			dedupeKey := fmt.Sprintf("%s|%s|%s|%s", msg.Channel, msg.SenderID, msg.ChatID, msgID)
+			dedupeKey := dedupKeyFor(msg.Channel, msg.SenderID, msg.ChatID, msgID)
 			if dedupe.IsDuplicate(dedupeKey) {
 				slog.Debug("dedup: skipping duplicate message", "key", dedupeKey)
 				continue

@@ -46,6 +46,37 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Fixed
 
+- **Multi-attachment messages no longer trigger N agent replies (#63).**
+  Three coalescing surfaces hardened so a single user action produces ONE
+  agent run regardless of how the platform delivers attachments:
+  1. **Bus debouncer** — removed the media-bypass shortcut that fired
+     immediately for any message with attachments; media now goes through
+     the same per-(channel, chatID, senderID, agentID) silence window as
+     text. Media-floor (`max(configured, mediaFloor)`) guarantees a
+     minimum window when attachments are present so multi-file uploads
+     coalesce. Dedup seed prevents the same `MessageID` from being
+     buffered twice on bursty arrivals.
+  2. **Web Chat debouncer** (`internal/gateway/methods/chat_debounce.go`) —
+     parallel structure for `/v1/chat/completions` streaming: per-session
+     buffer + media floor + Take/Discard semantics for flush/cancel
+     control. Merges queued payloads at flush time (latest params win;
+     text concatenated newline-separated).
+  3. **Telegram album aggregator** (`internal/channels/telegram/album_aggregator.go`) —
+     channel-layer coalescing for albums. Telegram delivers a media-group
+     (multiple photos/videos shared as one user action) as N separate
+     `Message` updates sharing a `MediaGroupID`. The aggregator buffers
+     by `(chatID, MediaGroupID)` after all access gates pass, pins the
+     sender on first arrival as a security tripwire, and dispatches ONE
+     `processResolvedMessage` call with all members on a 500ms silence
+     window. `Stop()` synchronously drains pending buffers before
+     `pollCancel` so in-flight albums always publish.
+
+  Cross-surface invariants (see CONTRIBUTING.md → "Multi-attachment
+  coalescing"): no media bypass, media floor on every surface,
+  drop-and-log dual caps, no `time.Timer.Reset` (use `AfterFunc` +
+  `Stop`), sender pin on first arrival, post-stop pushes rejected
+  with warn log.
+
 - **Upstream critical security remediation** — hardens gateway no-token fallback,
   Feishu/Lark and Pancake webhooks, sandbox path/write handling, tenant-admin
   checks for mutable HTTP surfaces, and Lite hook schema migration verification.

@@ -41,12 +41,14 @@ type Channel struct {
 	threadIDs         sync.Map                    // localKey string → messageThreadID int (for forum topic routing)
 	mentionMode       string                      // "strict" (default) or "yield"
 	botDisplayName    string                      // bot's first_name from GetMe (e.g. "ViệtBot"); captured once at Start
+	pollCtx           context.Context             // long-polling context (cancelled by pollCancel); promoted from Start-local so background helpers (e.g. albumAggregator) can derive from it
 	pollCancel        context.CancelFunc          // cancels the long polling context
 	pollDone          chan struct{}               // closed when polling goroutine exits
 	handlerWg         sync.WaitGroup              // tracks in-flight handler goroutines for graceful shutdown
 	handlerSem        chan struct{}               // bounded semaphore for concurrent handler goroutines
 	pendingDraftID    sync.Map                    // localKey string → int (draftID)
 	audioMgr          *audio.Manager              // unified STT via audio.Manager (nil = no STT)
+	albumAgg          *albumAggregator            // coalesces Telegram album members into a single dispatch; nil before Start
 	writerHealMu      sync.Mutex                  // guards writerHealLastTry for /writers self-heal
 	writerHealLastTry map[string]time.Time        // key "chatID|userID" → last attempt timestamp
 	// pairingService, approvedGroups, pairingDebounce, groupHistory, historyLimit, requireMention
@@ -206,9 +208,30 @@ func (c *Channel) Start(ctx context.Context) error {
 
 	// Create a cancellable context for the polling goroutine.
 	// Stop() cancels this context to cleanly shut down long polling.
-	pollCtx, cancel := context.WithCancel(ctx)
-	c.pollCancel = cancel
+	c.pollCtx, c.pollCancel = context.WithCancel(ctx)
+	pollCtx := c.pollCtx
+	cancel := c.pollCancel
 	c.pollDone = make(chan struct{})
+
+	// Album aggregator coalesces Telegram media-group updates into ONE dispatch.
+	// flushFn closure captures c.pollCtx so silence-window flushes have a valid
+	// context for downstream media resolution + bus publish. Stop() drains
+	// synchronously BEFORE pollCancel so flushes never race ctx cancellation.
+	// handlerWg participation is REQUIRED: AfterFunc-fired flushes run on a
+	// dedicated goroutine NOT tracked by the polling loop. Without explicit
+	// Add/Done the Stop() handlerWg.Wait() would race the timer-spawned
+	// dispatch, breaking the "always publish in-flight bursts" invariant
+	// documented in CHANGELOG/docs/05-channels-messaging.md.
+	c.albumAgg = newAlbumAggregator(
+		albumAggregatorWindow,
+		albumAggregatorMaxBuffered,
+		albumAggregatorMaxBuffers,
+		func(rctx resolvedMessageContext, members []*telego.Message) {
+			c.handlerWg.Add(1)
+			defer c.handlerWg.Done()
+			c.processResolvedMessage(c.pollCtx, rctx, members)
+		},
+	)
 
 	updates, err := c.bot.UpdatesViaLongPolling(pollCtx, &telego.GetUpdatesParams{
 		Timeout: 25, // Long-poll seconds; keep below HTTP client Timeout (#361)
@@ -377,6 +400,12 @@ func (c *Channel) Stop(_ context.Context) error {
 	c.MarkStopped("Stopped")
 	if gh := c.GroupHistory(); gh != nil {
 		gh.StopFlusher()
+	}
+
+	// Drain pending album buffers BEFORE cancelling pollCtx so any synchronous
+	// flushFn callbacks still see a valid context for downstream dispatch.
+	if c.albumAgg != nil {
+		c.albumAgg.Stop()
 	}
 
 	if c.pollCancel != nil {

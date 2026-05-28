@@ -72,21 +72,22 @@ func TestChatDebouncerDiscardDropsPendingBeforeCancel(t *testing.T) {
 }
 
 func TestChatDebounceDelayGlobalAndAgentOverride(t *testing.T) {
-	if got := chatDebounceDelay(&config.Config{}, nil); got != 0 {
+	// hasMedia=false: legacy behavior preserved (no floor applied).
+	if got := chatDebounceDelay(&config.Config{}, nil, false); got != 0 {
 		t.Fatalf("default debounce = %s, want disabled", got)
 	}
 	cfg := &config.Config{}
 	cfg.Gateway.InboundDebounceMs = 250
-	if got := chatDebounceDelay(cfg, nil); got != 250*time.Millisecond {
+	if got := chatDebounceDelay(cfg, nil, false); got != 250*time.Millisecond {
 		t.Fatalf("global debounce = %s, want 250ms", got)
 	}
-	if got := chatDebounceDelay(cfg, []byte(`{"inbound_debounce_ms":0}`)); got != 0 {
+	if got := chatDebounceDelay(cfg, []byte(`{"inbound_debounce_ms":0}`), false); got != 0 {
 		t.Fatalf("agent disabled debounce = %s, want disabled", got)
 	}
-	if got := chatDebounceDelay(cfg, []byte(`{"inbound_debounce_ms":500}`)); got != 500*time.Millisecond {
+	if got := chatDebounceDelay(cfg, []byte(`{"inbound_debounce_ms":500}`), false); got != 500*time.Millisecond {
 		t.Fatalf("agent custom debounce = %s, want 500ms", got)
 	}
-	if got := chatDebounceDelay(cfg, []byte(`{"other":true}`)); got != 250*time.Millisecond {
+	if got := chatDebounceDelay(cfg, []byte(`{"other":true}`), false); got != 250*time.Millisecond {
 		t.Fatalf("agent inherit debounce = %s, want 250ms", got)
 	}
 }

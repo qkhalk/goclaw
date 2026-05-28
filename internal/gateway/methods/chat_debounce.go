@@ -13,6 +13,12 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+// chatMediaDebounceFloorMs is the minimum debounce window applied to Web Chat
+// sends that carry media when the post-override delay would otherwise be 0.
+// Mirrors cmd/gateway_consumer_debounce.go mediaDebounceFloorMs (Phase 1) —
+// duplicated by value (1000ms) to keep gateway/methods decoupled from cmd.
+const chatMediaDebounceFloorMs = 1000
+
 type chatSendRequest struct {
 	ctx        context.Context
 	client     *gateway.Client
@@ -41,8 +47,31 @@ func newChatDebouncer(flushFn func([]chatSendRequest)) *chatDebouncer {
 	}
 }
 
+// Push appends an item to the per-key buffer.
+//
+// Behavior:
+//   - delay > 0: append + (re)set the silence timer (existing buffered path).
+//   - delay <= 0 AND a buffer already exists with items: append the incoming
+//     item to the buffer and flush immediately (merge-then-flush). Required so
+//     a no-media follow-up cannot bypass a buffered media chat-send and trigger
+//     a duplicate dispatch (Phase 1.5 Rule #4, mirrors bus debouncer Rule #1).
+//   - delay <= 0 AND no buffer exists: dispatch immediately (passthrough).
 func (d *chatDebouncer) Push(key string, delay time.Duration, item chatSendRequest) {
 	if delay <= 0 {
+		d.mu.Lock()
+		buf, exists := d.buffers[key]
+		if exists && len(buf.items) > 0 {
+			buf.items = append(buf.items, item)
+			if buf.timer != nil {
+				buf.timer.Stop()
+			}
+			items := buf.items
+			delete(d.buffers, key)
+			d.mu.Unlock()
+			d.flushFn(items)
+			return
+		}
+		d.mu.Unlock()
 		d.flushFn([]chatSendRequest{item})
 		return
 	}
@@ -129,13 +158,22 @@ func mergeChatSendRequests(items []chatSendRequest) chatSendParams {
 	return last
 }
 
-func chatDebounceDelay(cfg *config.Config, agentOtherConfig json.RawMessage) time.Duration {
+// chatDebounceDelay computes the per-send debounce window.
+//
+// Precedence: agent override (when set) overrides the global config. The media
+// floor fires ONLY when the post-override delay is exactly 0 AND the message
+// carries media — a non-zero agent override (even below the floor) is honored
+// verbatim. Mirrors Phase 1's resolveInboundDebounceDelay + applyMediaFloor.
+func chatDebounceDelay(cfg *config.Config, agentOtherConfig json.RawMessage, hasMedia bool) time.Duration {
 	debounceMs := 0
 	if cfg != nil {
 		debounceMs = cfg.Gateway.InboundDebounceMs
 	}
 	if overrideMs, ok := store.ParseInboundDebounceMsFromOtherConfig(agentOtherConfig); ok {
 		debounceMs = overrideMs
+	}
+	if debounceMs <= 0 && hasMedia {
+		debounceMs = chatMediaDebounceFloorMs
 	}
 	if debounceMs <= 0 {
 		return 0

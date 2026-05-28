@@ -218,16 +218,18 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		m.abortChatSession(req.ID, client, sessionKey)
 		return
 	}
-	if len(params.parseMedia()) > 0 {
-		pending := m.debouncer.Take(debounceKey)
-		m.dispatchChatSends(append(pending, item))
-		return
-	}
-	if delay := chatDebounceDelay(m.cfg, loop.OtherConfig()); delay > 0 {
+	// Media-bearing sends route through the same debouncer path as text.
+	// The media floor in chatDebounceDelay guarantees a non-zero window when
+	// the operator has disabled debouncing, so multi-attachment bursts coalesce
+	// into a single dispatch (issue #63).
+	hasMedia := len(params.parseMedia()) > 0
+	delay := chatDebounceDelay(m.cfg, loop.OtherConfig(), hasMedia)
+	if delay > 0 {
 		m.debouncer.Push(debounceKey, delay, item)
 		return
 	}
-	m.dispatchChatSends([]chatSendRequest{item})
+	// delay == 0: Push merges into existing buffer (if any) or dispatches.
+	m.debouncer.Push(debounceKey, 0, item)
 }
 
 func (m *ChatMethods) abortChatSession(reqID string, client *gateway.Client, sessionKey string) {
