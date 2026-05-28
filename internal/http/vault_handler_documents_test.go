@@ -442,12 +442,13 @@ func TestHandleCreateDocument_NonMasterTenantFirstContentWrite(t *testing.T) {
 	nonMaster := uuid.MustParse("01999999-1111-7000-8000-000000000abc")
 	ctx := store.WithTenantSlug(store.WithTenantID(context.Background(), nonMaster), "acme")
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/vault/documents", bytes.NewReader(mustJSON(t, map[string]any{
+	// newJSONRequest builds against masterCtx by default; WithContext swaps in
+	// the non-master tenant context for this single test.
+	req := newJSONRequest(t, http.MethodPost, "/v1/vault/documents", map[string]any{
 		"path":    "notes/first.md",
 		"title":   "First",
 		"content": "hello from acme",
-	}))).WithContext(ctx)
-	req.Header.Set("Content-Type", "application/json")
+	}).WithContext(ctx)
 	rr := httptest.NewRecorder()
 
 	h.handleCreateDocument(rr, req)
@@ -466,13 +467,4 @@ func TestHandleCreateDocument_NonMasterTenantFirstContentWrite(t *testing.T) {
 	if len(bus.published) != 1 {
 		t.Errorf("published %d events, want 1", len(bus.published))
 	}
-}
-
-func mustJSON(t *testing.T, v any) []byte {
-	t.Helper()
-	b, err := json.Marshal(v)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	return b
 }

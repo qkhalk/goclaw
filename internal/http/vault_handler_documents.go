@@ -44,7 +44,7 @@ func (h *VaultHandler) writeDocumentContent(workspace, relPath string, content [
 	// Lexical containment: blocks "../" and absolute-path escapes.
 	if target != realWS && !strings.HasPrefix(target, realWS+string(os.PathSeparator)) {
 		slog.Warn("security.vault_symlink_escape",
-			"site", "lexical", "attempted", target, "workspace", realWS)
+			"site", "path_traversal", "attempted", target, "workspace", realWS)
 		return "", os.ErrInvalid
 	}
 
@@ -100,9 +100,14 @@ func (h *VaultHandler) writeDocumentContent(workspace, relPath string, content [
 		}
 		return "", err
 	}
-	defer f.Close()
-	if _, err := f.Write(content); err != nil {
-		return "", err
+	if _, werr := f.Write(content); werr != nil {
+		_ = f.Close() // best-effort cleanup; the write error is the real one
+		return "", werr
+	}
+	// Explicit Close so a delayed FS error (e.g. disk-full at flush) surfaces
+	// instead of being silently swallowed by a deferred close.
+	if cerr := f.Close(); cerr != nil {
+		return "", cerr
 	}
 	return vault.ContentHash(content), nil
 }
