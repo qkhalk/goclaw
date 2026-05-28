@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -23,6 +24,15 @@ import (
 // pipeline (which reads files by path) can later compute summaries, embeddings
 // and links.
 func (h *VaultHandler) writeDocumentContent(workspace, relPath string, content []byte) (string, error) {
+	// Ensure the tenant workspace exists before resolving symlinks. Non-master
+	// tenants live under workspace/tenants/{slug}/ which handleUpload creates on
+	// demand (see vault_handler_upload.go) — without this, the very first JSON
+	// content write into a fresh tenant would fail EvalSymlinks with ErrNotExist
+	// and 500 the request.
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		return "", err
+	}
+
 	// Resolve the workspace root through any symlinks so all containment checks
 	// compare canonical paths.
 	realWS, err := filepath.EvalSymlinks(workspace)
@@ -33,12 +43,14 @@ func (h *VaultHandler) writeDocumentContent(workspace, relPath string, content [
 
 	// Lexical containment: blocks "../" and absolute-path escapes.
 	if target != realWS && !strings.HasPrefix(target, realWS+string(os.PathSeparator)) {
+		slog.Warn("security.vault_symlink_escape",
+			"site", "lexical", "attempted", target, "workspace", realWS)
 		return "", os.ErrInvalid
 	}
 
 	// Symlink containment: a lexical prefix check is not enough — a symlink that
 	// lives *inside* the workspace but points outside it (e.g. workspace/link ->
-	// /etc) would otherwise let os.WriteFile follow it and clobber a file beyond
+	// /etc) would otherwise let the write follow it and clobber a file beyond
 	// the workspace. Resolve the deepest already-existing ancestor of the target
 	// and confirm it still canonicalises to a path inside the workspace, before
 	// any directory is created or byte written.
@@ -46,6 +58,8 @@ func (h *VaultHandler) writeDocumentContent(workspace, relPath string, content [
 		resolved, rerr := filepath.EvalSymlinks(ancestor)
 		if rerr == nil {
 			if resolved != realWS && !strings.HasPrefix(resolved, realWS+string(os.PathSeparator)) {
+				slog.Warn("security.vault_symlink_escape",
+					"site", "ancestor", "resolved", resolved, "workspace", realWS)
 				return "", os.ErrInvalid
 			}
 			break
@@ -64,12 +78,30 @@ func (h *VaultHandler) writeDocumentContent(workspace, relPath string, content [
 		return "", err
 	}
 
-	// Refuse to follow a symlink planted at the final path component itself.
+	// Fast-fail when the final component is already a symlink — gives a clean
+	// rejection + security log without parsing OS-specific error codes. The
+	// O_NOFOLLOW open below closes the TOCTOU window this Lstat leaves open
+	// (an attacker could swap the file for a symlink between calls).
 	if fi, lerr := os.Lstat(target); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
+		slog.Warn("security.vault_symlink_escape",
+			"site", "final_lstat", "target", target, "workspace", realWS)
 		return "", os.ErrInvalid
 	}
 
-	if err := os.WriteFile(target, content, 0o644); err != nil {
+	// O_NOFOLLOW makes the kernel refuse to follow a symlink at the final
+	// component atomically with the open, removing the Lstat→Open race entirely
+	// on Unix. On Windows oNoFollow == 0 and the Lstat above is best-effort.
+	f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|oNoFollow, 0o644)
+	if err != nil {
+		if isSymlinkLoopErr(err) {
+			slog.Warn("security.vault_symlink_escape",
+				"site", "open_nofollow", "target", target, "workspace", realWS)
+			return "", os.ErrInvalid
+		}
+		return "", err
+	}
+	defer f.Close()
+	if _, err := f.Write(content); err != nil {
 		return "", err
 	}
 	return vault.ContentHash(content), nil
@@ -199,15 +231,15 @@ func (h *VaultHandler) handleGetDocument(w http.ResponseWriter, r *http.Request)
 
 // handleCreateDocument creates a new vault document.
 //
-// When `content` is supplied in the JSON body, the bytes are materialised on
-// disk at <tenant-workspace>/<path> and the SHA-256 hash is stored on the
-// document record. An EventVaultDocUpserted is then emitted so the enrichment
-// worker computes summary/embeddings/links — same code path the multipart
-// /v1/vault/upload endpoint and the filesystem rescan use.
-//
-// Omitting `content` preserves the historical behaviour of registering a
-// metadata-only stub (typically followed by a rescan that materialises the
-// file from disk).
+// `content` semantics — symmetric with handleUpdateDocument:
+//   - field omitted (nil pointer): metadata-only stub, no file write, no event
+//     (typically followed by a rescan that materialises the file from disk).
+//   - field present and non-empty: bytes materialised at <tenant-workspace>/<path>,
+//     SHA-256 hash stored on the row, EventVaultDocUpserted emitted so the
+//     enrichment worker computes summary/embeddings/links — same code path the
+//     multipart /v1/vault/upload endpoint and the filesystem rescan use.
+//   - field present and empty (""): a 0-byte file is written and the event still
+//     fires. Same behaviour as PUT — pick the right shape on the client side.
 func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 	locale := extractLocale(r)
 	tenantID := store.TenantIDFromContext(r.Context())
@@ -216,7 +248,7 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 	var body struct {
 		Path     string         `json:"path"`
 		Title    string         `json:"title"`
-		Content  string         `json:"content"` // optional; when set, written to disk
+		Content  *string        `json:"content"` // nil=no write; ""=write empty file; "data"=write bytes (mirrors PUT)
 		DocType  string         `json:"doc_type"`
 		Scope    string         `json:"scope"`
 		TeamID   string         `json:"team_id"`
@@ -249,8 +281,8 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 	}
 	// Validate extension upfront if caller wants to write content — matches the
 	// whitelist enforced by /v1/vault/upload so the two endpoints accept the
-	// same file types.
-	if body.Content != "" {
+	// same file types. nil pointer = "no content field", which skips the check.
+	if body.Content != nil {
 		ext := strings.ToLower(filepath.Ext(body.Path))
 		if !allowedUploadExts[ext] {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported file type: " + ext})
@@ -288,16 +320,16 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 		writtenHash   string
 		contentWasSet bool
 	)
-	if body.Content != "" {
+	if body.Content != nil {
 		wsPath = h.resolveTenantWorkspace(r.Context())
 		if wsPath == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "workspace not available"})
 			return
 		}
-		hash, werr := h.writeDocumentContent(wsPath, body.Path, []byte(body.Content))
+		hash, werr := h.writeDocumentContent(wsPath, body.Path, []byte(*body.Content))
 		if werr != nil {
 			slog.Warn("vault.create: write content failed", "path", body.Path, "error", werr)
-			if werr == os.ErrInvalid {
+			if errors.Is(werr, os.ErrInvalid) {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path escapes workspace"})
 				return
 			}
@@ -405,7 +437,7 @@ func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Reque
 		hash, werr := h.writeDocumentContent(wsPath, existing.Path, []byte(*body.Content))
 		if werr != nil {
 			slog.Warn("vault.update: write content failed", "path", existing.Path, "error", werr)
-			if werr == os.ErrInvalid {
+			if errors.Is(werr, os.ErrInvalid) {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path escapes workspace"})
 				return
 			}

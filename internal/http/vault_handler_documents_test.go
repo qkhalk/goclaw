@@ -339,3 +339,140 @@ func TestHandleUpdateDocument_EmptyContentClearsFile(t *testing.T) {
 		t.Errorf("published %d events, want 1", len(bus.published))
 	}
 }
+
+// Locks the "no change" contract on PUT: omitting `content` (nil pointer in
+// the body struct) must not touch the disk or fire an enrichment event, even
+// when other metadata fields are present.
+func TestHandleUpdateDocument_NilContentSkipsWriteAndEvent(t *testing.T) {
+	st := newFakeVaultStore()
+	st.docs["existing-2"] = &store.VaultDocument{
+		ID:          "existing-2",
+		TenantID:    masterTenant.String(),
+		Path:        "notes/keep.md",
+		Title:       "Old",
+		DocType:     "note",
+		Scope:       "shared",
+		ContentHash: "preexisting-hash",
+	}
+	bus := &fakeEventBus{store: st}
+	ws := t.TempDir()
+	h := &VaultHandler{store: st, eventBus: bus, workspace: ws}
+
+	// content field intentionally omitted → *string is nil → no write, no event.
+	req := newJSONRequest(t, http.MethodPut, "/v1/vault/documents/existing-2", map[string]any{
+		"title": "Renamed but content untouched",
+	})
+	req.SetPathValue("docID", "existing-2")
+	rr := httptest.NewRecorder()
+
+	h.handleUpdateDocument(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rr.Code, rr.Body.String())
+	}
+	if _, statErr := os.Stat(filepath.Join(ws, "notes", "keep.md")); statErr == nil {
+		t.Error("nil content must not materialise a file")
+	}
+	if st.docs["existing-2"].ContentHash != "preexisting-hash" {
+		t.Errorf("content_hash = %q, want unchanged 'preexisting-hash'", st.docs["existing-2"].ContentHash)
+	}
+	if len(bus.published) != 0 {
+		t.Errorf("nil-content PUT must not publish events, got %d", len(bus.published))
+	}
+}
+
+// Handler-level guard at vault_handler_documents.go path validation must reject
+// "..", short-circuiting before writeDocumentContent even runs.
+func TestHandleCreateDocument_RejectsParentTraversalPath(t *testing.T) {
+	h := &VaultHandler{} // path check runs before any store/workspace access
+	req := newJSONRequest(t, http.MethodPost, "/v1/vault/documents", map[string]any{
+		"path":    "../../etc/passwd.md",
+		"title":   "x",
+		"content": "evil",
+	})
+	rr := httptest.NewRecorder()
+
+	h.handleCreateDocument(rr, req)
+
+	assertBadRequest(t, rr, "invalid path")
+}
+
+// Mirrors PUT semantics on POST: `content: ""` writes a 0-byte file and
+// fires the enrichment event (the I4 fix that aligned POST/PUT).
+func TestHandleCreateDocument_EmptyContentWritesEmptyFile(t *testing.T) {
+	st := newFakeVaultStore()
+	bus := &fakeEventBus{store: st}
+	ws := t.TempDir()
+	h := &VaultHandler{store: st, eventBus: bus, workspace: ws}
+
+	req := newJSONRequest(t, http.MethodPost, "/v1/vault/documents", map[string]any{
+		"path":    "placeholder.md",
+		"title":   "Placeholder",
+		"content": "",
+	})
+	rr := httptest.NewRecorder()
+
+	h.handleCreateDocument(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 (body: %s)", rr.Code, rr.Body.String())
+	}
+	fi, err := os.Stat(filepath.Join(ws, "placeholder.md"))
+	if err != nil {
+		t.Fatalf("stat empty file: %v", err)
+	}
+	if fi.Size() != 0 {
+		t.Errorf("size = %d, want 0", fi.Size())
+	}
+	if len(bus.published) != 1 {
+		t.Errorf("published %d events, want 1", len(bus.published))
+	}
+}
+
+// B1 regression: non-master tenants resolve to workspace/tenants/{slug}/ which
+// is created on demand. The very first JSON content write into a fresh tenant
+// must NOT 500 because EvalSymlinks can't find that dir — writeDocumentContent
+// is responsible for creating it (mirrors what handleUpload does).
+func TestHandleCreateDocument_NonMasterTenantFirstContentWrite(t *testing.T) {
+	st := newFakeVaultStore()
+	bus := &fakeEventBus{store: st}
+	ws := t.TempDir()
+	h := &VaultHandler{store: st, eventBus: bus, workspace: ws}
+
+	nonMaster := uuid.MustParse("01999999-1111-7000-8000-000000000abc")
+	ctx := store.WithTenantSlug(store.WithTenantID(context.Background(), nonMaster), "acme")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/vault/documents", bytes.NewReader(mustJSON(t, map[string]any{
+		"path":    "notes/first.md",
+		"title":   "First",
+		"content": "hello from acme",
+	}))).WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.handleCreateDocument(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 (body: %s)", rr.Code, rr.Body.String())
+	}
+	tenantDir := filepath.Join(ws, "tenants", "acme")
+	got, err := os.ReadFile(filepath.Join(tenantDir, "notes", "first.md"))
+	if err != nil {
+		t.Fatalf("read non-master tenant doc: %v", err)
+	}
+	if string(got) != "hello from acme" {
+		t.Errorf("content = %q", got)
+	}
+	if len(bus.published) != 1 {
+		t.Errorf("published %d events, want 1", len(bus.published))
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
+}
