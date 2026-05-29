@@ -44,6 +44,7 @@ func (l *Loop) makeExecuteToolCall(req *RunRequest, bridgeRS *runState) func(ctx
 				OtherConfig: append([]byte(nil), l.agentOtherConfig...), // defensive copy at dispatch
 			})
 		}
+		ctx = store.WithChannelContextScope(ctx, channelContextScopeForRun(req))
 
 		// C2 fix: route through executeToolForActor so per-user MCP tools
 		// resolve to the calling user's BridgeTool (not the first user's
@@ -106,6 +107,7 @@ func (l *Loop) makeExecuteToolRaw(req *RunRequest) func(ctx context.Context, tc 
 				OtherConfig: append([]byte(nil), l.agentOtherConfig...), // defensive copy at dispatch
 			})
 		}
+		ctx = store.WithChannelContextScope(ctx, channelContextScopeForRun(req))
 
 		// C2 fix (parallel path): route through executeToolForActor for per-user
 		// MCP tool isolation. Same rationale as makeExecuteToolCall above.
@@ -125,6 +127,22 @@ func (l *Loop) makeExecuteToolRaw(req *RunRequest) func(ctx context.Context, tc 
 		}
 		return msg, &toolRawResult{result: result, duration: dur}, nil
 	}
+}
+
+func channelContextScopeForRun(req *RunRequest) store.ChannelContextScope {
+	if req == nil || req.Channel == "" {
+		return store.ChannelContextScope{}
+	}
+	scope := store.ChannelContextScope{
+		ChannelInstanceName: req.Channel,
+		ScopeType:           store.ChannelScopeTypeChannel,
+		ScopeKey:            req.Channel,
+	}
+	if req.PeerKind == "group" && req.ChatID != "" {
+		scope.ScopeType = store.ChannelScopeTypeGroup
+		scope.ScopeKey = req.ChatID
+	}
+	return scope
 }
 
 // makeProcessToolResult wraps post-execution bookkeeping (sequential, mutates bridgeRS).

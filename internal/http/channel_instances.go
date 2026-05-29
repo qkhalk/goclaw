@@ -39,6 +39,10 @@ type ChannelInstancesHandler struct {
 	msgBus          *bus.MessageBus
 	memberResolver  channels.MemberResolver // optional — enriches file_writer metadata on addwriter
 	channelMgr      *channels.Manager       // optional — enables ChannelDestroyer hook on delete
+	mcpStore        store.MCPServerStore
+	secureCLIStore  store.SecureCLIStore
+	mcpContextStore store.MCPContextAdminStore
+	cliContextStore store.SecureCLIContextAdminStore
 	// orphanCleaners is keyed by channel_type; called when channelMgr.GetChannel
 	// returns false. Keeps handler agnostic of per-channel packages.
 	orphanCleaners map[string]OrphanChannelCleaner
@@ -62,6 +66,19 @@ func (h *ChannelInstancesHandler) SetMemberResolver(r channels.MemberResolver) {
 // in cmd/gateway.go's startup ordering.
 func (h *ChannelInstancesHandler) SetChannelManager(mgr *channels.Manager) {
 	h.channelMgr = mgr
+}
+
+// SetCapabilityStores wires MCP and Secure CLI stores for channel-context
+// capability visibility. Kept as a setter to preserve startup ordering.
+func (h *ChannelInstancesHandler) SetCapabilityStores(mcpStore store.MCPServerStore, secureCLIStore store.SecureCLIStore) {
+	h.mcpStore = mcpStore
+	h.secureCLIStore = secureCLIStore
+	if contextStore, ok := mcpStore.(store.MCPContextAdminStore); ok {
+		h.mcpContextStore = contextStore
+	}
+	if contextStore, ok := secureCLIStore.(store.SecureCLIContextAdminStore); ok {
+		h.cliContextStore = contextStore
+	}
 }
 
 // RegisterOrphanCleaner registers a per-channel-type cleanup function that
@@ -109,6 +126,24 @@ func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
 		mux.HandleFunc("POST /v1/channels/instances/{id}/writers", h.adminAuth(h.handleAddWriter))
 		mux.HandleFunc("DELETE /v1/channels/instances/{id}/writers/{userId}", h.adminAuth(h.handleRemoveWriter))
 	}
+
+	if h.contactStore != nil {
+		mux.HandleFunc("GET /v1/channels/instances/{id}/contexts", h.auth(h.handleListContexts))
+		mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members", h.auth(h.handleListContextMembers))
+	}
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities", h.auth(h.handleListContextCapabilities))
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants", h.adminAuth(h.handleListContextMCPGrants))
+	mux.HandleFunc("PUT /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}", h.adminAuth(h.handleUpsertContextMCPGrant))
+	mux.HandleFunc("DELETE /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}", h.adminAuth(h.handleDeleteContextMCPGrant))
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials", h.adminAuth(h.handleListContextMCPCredentials))
+	mux.HandleFunc("PUT /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}", h.adminAuth(h.handleSetContextMCPCredentials))
+	mux.HandleFunc("DELETE /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}", h.adminAuth(h.handleDeleteContextMCPCredentials))
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants", h.adminAuth(h.handleListContextCLIGrants))
+	mux.HandleFunc("PUT /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}", h.adminAuth(h.handleUpsertContextCLIGrant))
+	mux.HandleFunc("DELETE /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}", h.adminAuth(h.handleDeleteContextCLIGrant))
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials", h.adminAuth(h.handleListContextCLICredentials))
+	mux.HandleFunc("PUT /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}", h.adminAuth(h.handleSetContextCLICredentials))
+	mux.HandleFunc("DELETE /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}", h.adminAuth(h.handleDeleteContextCLICredentials))
 }
 
 func (h *ChannelInstancesHandler) auth(next http.HandlerFunc) http.HandlerFunc {
@@ -630,6 +665,9 @@ func (h *ChannelInstancesHandler) handleListContacts(w http.ResponseWriter, r *h
 	}
 	if v := r.URL.Query().Get("channel_type"); v != "" {
 		opts.ChannelType = v
+	}
+	if v := r.URL.Query().Get("channel_instance"); v != "" {
+		opts.ChannelInstance = v
 	}
 	if v := r.URL.Query().Get("peer_kind"); v != "" {
 		opts.PeerKind = v
