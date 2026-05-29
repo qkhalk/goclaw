@@ -20,6 +20,7 @@ type Stores struct {
 	Teams                 TeamStore
 	BuiltinTools          BuiltinToolStore
 	PendingMessages       PendingMessageStore
+	ChannelMemory         ChannelMemoryExtractionStore
 	KnowledgeGraph        KnowledgeGraphStore
 	Contacts              ContactStore
 	Activity              ActivityStore
