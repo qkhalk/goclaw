@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Memory KG Review Queue Integration"
-status: pending
+status: complete
 priority: P1
 effort: "2d"
 dependencies: [2, 3]

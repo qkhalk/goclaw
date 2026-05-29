@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Channel Settings UI and Admin Controls"
-status: pending
+status: complete
 priority: P2
 effort: "2d"
 dependencies: [2, 3, 4]

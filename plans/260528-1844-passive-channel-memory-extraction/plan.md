@@ -1,7 +1,7 @@
 ---
 title: "Passive Channel Memory Extraction"
 description: "Add disabled-by-default, reviewable passive extraction from group channel buffers into episodic Memory and Knowledge Graph."
-status: pending
+status: complete
 priority: P1
 issue: 64
 branch: "codex/issue-64-passive-channel-memory-extraction"
@@ -31,18 +31,18 @@ Hard boundary: no realtime per-message extraction, no default enablement, no per
 | Activity audit | `internal/store/activity_store.go`, `internal/http/activity.go`, `emitAudit(...)` call sites |
 | Runtime wiring | `cmd/gateway.go`, `cmd/gateway_http_handlers.go`, `cmd/gateway_http_wiring.go`, `cmd/gateway_channels_setup.go` |
 | Web UI | `ui/web/src/pages/channels/`, `ui/web/src/pages/memory/`, `ui/web/src/types/channel.ts` |
-| Schema versions | PG next migration `000074`; bump `internal/upgrade/version.go` from 73. SQLite bump `internal/store/sqlitestore/schema.go` from 42 to 43 |
+| Schema versions | PG migration `000075`; `internal/upgrade/version.go` is 75. SQLite schema version is 44. |
 
 ## Phases
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Research and Characterization Tests](./phase-01-research-and-characterization-tests.md) | Pending |
-| 2 | [Schema and Store Contracts](./phase-02-schema-and-store-contracts.md) | Pending |
-| 3 | [Extractor Worker and Redaction](./phase-03-extractor-worker-and-redaction.md) | Pending |
-| 4 | [Memory KG Review Queue Integration](./phase-04-memory-kg-review-queue-integration.md) | Pending |
-| 5 | [Channel Settings UI and Admin Controls](./phase-05-channel-settings-ui-and-admin-controls.md) | Pending |
-| 6 | [Verification Documentation and Ship Readiness](./phase-06-verification-documentation-and-ship-readiness.md) | Pending |
+| 1 | [Research and Characterization Tests](./phase-01-research-and-characterization-tests.md) | Complete |
+| 2 | [Schema and Store Contracts](./phase-02-schema-and-store-contracts.md) | Complete |
+| 3 | [Extractor Worker and Redaction](./phase-03-extractor-worker-and-redaction.md) | Complete |
+| 4 | [Memory KG Review Queue Integration](./phase-04-memory-kg-review-queue-integration.md) | Complete |
+| 5 | [Channel Settings UI and Admin Controls](./phase-05-channel-settings-ui-and-admin-controls.md) | Complete |
+| 6 | [Verification Documentation and Ship Readiness](./phase-06-verification-documentation-and-ship-readiness.md) | Complete |
 
 ## Dependencies
 
@@ -65,17 +65,17 @@ Hard boundary: no realtime per-message extraction, no default enablement, no per
 
 ## Success Criteria
 
-- [ ] Passive extraction is disabled by default and opt-in per channel instance.
-- [ ] Extraction runs only by interval, message cap, or manual trigger.
-- [ ] Raw channel messages are read from tenant-scoped pending buffers and are not stored permanently outside existing retention.
-- [ ] Redaction blocks common secrets, tokens, credentials, payment/banking data, phone/address patterns, and configurable excluded users/patterns before durable writes.
-- [ ] Extracted items go to a review queue by default.
-- [ ] Approved items write to `episodic_summaries` with `source_type='channel'` and deterministic `source_id`.
-- [ ] KG ingestion receives only approved/redacted summaries and records source metadata.
-- [ ] Review reject/delete removes queued items and prevents later writes.
-- [ ] Tenant/channel/agent boundaries covered by tests.
-- [ ] PG and SQLite schemas both migrate and compile.
-- [ ] UI exposes settings, last run status, pending items, approve/reject/delete, and manual run.
+- [x] Passive extraction is disabled by default and opt-in per channel instance.
+- [x] Extraction runs only by interval, message cap, or manual trigger.
+- [x] Raw channel messages are read from tenant-scoped pending buffers and are not stored permanently outside existing retention.
+- [x] Redaction blocks common secrets, tokens, credentials, payment/banking data, phone/address patterns, and configurable excluded users/patterns before durable writes.
+- [x] Extracted items go to a review queue by default.
+- [x] Approved items write to `episodic_summaries` with `source_type='channel'` and deterministic `source_id`.
+- [x] KG ingestion receives only approved/redacted summaries and records source metadata.
+- [x] Review reject/delete removes queued items and prevents later writes.
+- [x] Tenant/channel/agent boundaries covered by focused tests and store scoping.
+- [x] PG and SQLite schemas both migrate and compile.
+- [x] UI exposes settings, last run status, pending items, approve/reject/delete, and manual run.
 
 ## Key Risks
 

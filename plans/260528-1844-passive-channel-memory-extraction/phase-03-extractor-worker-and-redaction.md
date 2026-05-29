@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Extractor Worker and Redaction"
-status: pending
+status: complete
 priority: P1
 effort: "2d"
 dependencies: [1, 2]

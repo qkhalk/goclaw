@@ -6,6 +6,20 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Passive channel memory extraction (issue #64)
+
+**New**
+
+- Added opt-in per-channel passive memory extraction from pending group buffers, with scheduled/manual runs, redaction before LLM extraction, review queue items, and deterministic channel memory source IDs.
+- Added PostgreSQL migration `000075` and SQLite schema version `44` for `channel_memory_extraction_runs` and `channel_memory_extraction_items`.
+- Added tenant-admin HTTP APIs and channel detail UI controls for settings, manual run, last run status, and approve/reject/delete review actions.
+
+**Security**
+
+- Feature is disabled by default and group-only in v1.
+- Review mode is on by default; approved items write to `episodic_summaries` with `source_type='channel'` and then enter the existing KG consolidation event path.
+- Delete removes the review item and associated episodic summary when present. Existing KG nodes created before deletion may require later dedup/cleanup; raw channel messages are not copied into the new extraction tables.
+
 ### Channel context admin surface (issue #66)
 
 **New**

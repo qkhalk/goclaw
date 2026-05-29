@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Research and Characterization Tests"
-status: pending
+status: complete
 priority: P1
 effort: "1d"
 dependencies: []

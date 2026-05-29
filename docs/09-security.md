@@ -129,6 +129,16 @@ All four filesystem tools (`read_file`, `write_file`, `list_files`, `edit`) impl
 | Dynamic value scrubbing (SSRF) | Server IPs and other runtime-discovered values registered via `AddDynamicScrubValues()` and replaced with `[SERVER_IP]` |
 | Web content wrapping | Fetched content wrapped in `<<<EXTERNAL_UNTRUSTED_CONTENT>>>` tags with security warning |
 
+### Passive Channel Memory Redaction
+
+Passive channel memory extraction runs an additional pre-LLM redaction pass over
+pending group messages before any durable candidate is created. The pass removes
+common secret/key assignments, bearer/provider tokens, connection strings,
+payment-like digit sequences, phone numbers, email addresses, configured
+excluded sender IDs, and configured regex exclusion patterns. The new extraction
+tables store redaction counts/types and extracted summaries only, not raw message
+bodies.
+
 ### Layer 5: Isolation
 
 **Per-user workspace isolation** -- Two levels prevent cross-user file access:

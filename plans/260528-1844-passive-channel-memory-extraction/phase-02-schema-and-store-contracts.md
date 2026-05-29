@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Schema and Store Contracts"
-status: pending
+status: complete
 priority: P1
 effort: "2d"
 dependencies: [1]

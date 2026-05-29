@@ -1095,6 +1095,28 @@ Response includes `allowed`, `reason`, `instance_id`, `agent_id`, `group_id`, `u
 
 Credentials are masked in HTTP responses.
 
+### Passive Memory Extraction
+
+Tenant admins can configure and operate passive memory extraction per channel
+instance. Read endpoints are viewer-accessible; settings and item transitions
+require tenant admin.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` | Get config, latest run, pending count, and recent items |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` | Replace normalized `passive_memory` config in the channel instance config |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` | Trigger a manual extraction run |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` | List review queue items; optional `status` filter |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` | Write candidate to episodic memory and publish KG event |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` | Reject candidate |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` | Delete candidate and linked episodic summary when present |
+
+Config fields: `enabled`, `review_mode`, `interval_minutes`, `message_cap`,
+`retention_hours`, `allowed_types`, `exclude_users`, `exclude_patterns`,
+`min_messages`, `group_only`. Defaults are disabled, review mode on, group-only,
+360 minute interval, 100 message cap, 168 hour retention, and durable types:
+people, projects, decisions, todos, preferences, events.
+
 ---
 
 ## 18. Pending Messages
