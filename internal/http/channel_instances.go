@@ -109,6 +109,11 @@ func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
 		mux.HandleFunc("POST /v1/channels/instances/{id}/writers", h.adminAuth(h.handleAddWriter))
 		mux.HandleFunc("DELETE /v1/channels/instances/{id}/writers/{userId}", h.adminAuth(h.handleRemoveWriter))
 	}
+
+	if h.contactStore != nil {
+		mux.HandleFunc("GET /v1/channels/instances/{id}/contexts", h.auth(h.handleListContexts))
+		mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members", h.auth(h.handleListContextMembers))
+	}
 }
 
 func (h *ChannelInstancesHandler) auth(next http.HandlerFunc) http.HandlerFunc {
@@ -630,6 +635,9 @@ func (h *ChannelInstancesHandler) handleListContacts(w http.ResponseWriter, r *h
 	}
 	if v := r.URL.Query().Get("channel_type"); v != "" {
 		opts.ChannelType = v
+	}
+	if v := r.URL.Query().Get("channel_instance"); v != "" {
+		opts.ChannelInstance = v
 	}
 	if v := r.URL.Query().Get("peer_kind"); v != "" {
 		opts.PeerKind = v
