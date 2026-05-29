@@ -41,6 +41,8 @@ type ChannelInstancesHandler struct {
 	channelMgr      *channels.Manager       // optional — enables ChannelDestroyer hook on delete
 	mcpStore        store.MCPServerStore
 	secureCLIStore  store.SecureCLIStore
+	mcpContextStore store.MCPContextAdminStore
+	cliContextStore store.SecureCLIContextAdminStore
 	// orphanCleaners is keyed by channel_type; called when channelMgr.GetChannel
 	// returns false. Keeps handler agnostic of per-channel packages.
 	orphanCleaners map[string]OrphanChannelCleaner
@@ -71,6 +73,12 @@ func (h *ChannelInstancesHandler) SetChannelManager(mgr *channels.Manager) {
 func (h *ChannelInstancesHandler) SetCapabilityStores(mcpStore store.MCPServerStore, secureCLIStore store.SecureCLIStore) {
 	h.mcpStore = mcpStore
 	h.secureCLIStore = secureCLIStore
+	if contextStore, ok := mcpStore.(store.MCPContextAdminStore); ok {
+		h.mcpContextStore = contextStore
+	}
+	if contextStore, ok := secureCLIStore.(store.SecureCLIContextAdminStore); ok {
+		h.cliContextStore = contextStore
+	}
 }
 
 // RegisterOrphanCleaner registers a per-channel-type cleanup function that
@@ -124,6 +132,18 @@ func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
 		mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members", h.auth(h.handleListContextMembers))
 	}
 	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities", h.auth(h.handleListContextCapabilities))
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants", h.auth(h.handleListContextMCPGrants))
+	mux.HandleFunc("PUT /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}", h.adminAuth(h.handleUpsertContextMCPGrant))
+	mux.HandleFunc("DELETE /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}", h.adminAuth(h.handleDeleteContextMCPGrant))
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials", h.auth(h.handleListContextMCPCredentials))
+	mux.HandleFunc("PUT /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}", h.adminAuth(h.handleSetContextMCPCredentials))
+	mux.HandleFunc("DELETE /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}", h.adminAuth(h.handleDeleteContextMCPCredentials))
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants", h.auth(h.handleListContextCLIGrants))
+	mux.HandleFunc("PUT /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}", h.adminAuth(h.handleUpsertContextCLIGrant))
+	mux.HandleFunc("DELETE /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}", h.adminAuth(h.handleDeleteContextCLIGrant))
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials", h.auth(h.handleListContextCLICredentials))
+	mux.HandleFunc("PUT /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}", h.adminAuth(h.handleSetContextCLICredentials))
+	mux.HandleFunc("DELETE /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}", h.adminAuth(h.handleDeleteContextCLICredentials))
 }
 
 func (h *ChannelInstancesHandler) auth(next http.HandlerFunc) http.HandlerFunc {

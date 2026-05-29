@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -42,14 +43,16 @@ func (h *ChannelInstancesHandler) handleListContextCapabilities(w http.ResponseW
 		userID = store.CredentialUserIDFromContext(r.Context())
 	}
 
-	mcpRows, err := h.listChannelMCPRows(r, inst, userID)
+	scope := store.ChannelContextScope{ChannelInstanceID: inst.ID, ChannelInstanceName: inst.Name, ScopeType: scopeType, ScopeKey: scopeKey}
+
+	mcpRows, err := h.listChannelMCPRows(r, inst, scope, userID)
 	if err != nil {
 		slog.Error("channel_instances.capabilities_mcp", "error", err)
 		locale := store.LocaleFromContext(r.Context())
 		writeError(w, http.StatusInternalServerError, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToList, "MCP capabilities"))
 		return
 	}
-	cliRows, err := h.listChannelCLIRows(r, inst, userID)
+	cliRows, err := h.listChannelCLIRows(r, inst, scope, userID)
 	if err != nil {
 		slog.Error("channel_instances.capabilities_cli", "error", err)
 		locale := store.LocaleFromContext(r.Context())
@@ -66,7 +69,7 @@ func (h *ChannelInstancesHandler) handleListContextCapabilities(w http.ResponseW
 	})
 }
 
-func (h *ChannelInstancesHandler) listChannelMCPRows(r *http.Request, inst *store.ChannelInstanceData, userID string) ([]channelCapabilityDTO, error) {
+func (h *ChannelInstancesHandler) listChannelMCPRows(r *http.Request, inst *store.ChannelInstanceData, scope store.ChannelContextScope, userID string) ([]channelCapabilityDTO, error) {
 	if h.mcpStore == nil {
 		return []channelCapabilityDTO{}, nil
 	}
@@ -74,10 +77,39 @@ func (h *ChannelInstancesHandler) listChannelMCPRows(r *http.Request, inst *stor
 	if err != nil {
 		return nil, err
 	}
+	contextGrants := map[uuidString]store.MCPContextGrant{}
+	if h.mcpContextStore != nil {
+		grants, err := h.mcpContextStore.ListContextGrants(r.Context(), inst.ID, scope.ScopeType, scope.ScopeKey)
+		if err != nil {
+			return nil, err
+		}
+		for _, grant := range grants {
+			contextGrants[uuidString(grant.ServerID.String())] = grant
+		}
+	}
+	contextCreds := map[uuidString]store.MCPContextCredentials{}
+	if h.mcpContextStore != nil {
+		creds, err := h.mcpContextStore.ListContextCredentials(r.Context(), inst.ID, scope.ScopeType, scope.ScopeKey)
+		if err != nil {
+			return nil, err
+		}
+		for _, cred := range creds {
+			contextCreds[uuidString(cred.ServerID.String())] = cred
+		}
+	}
 	rows := make([]channelCapabilityDTO, 0, len(accessible))
+	seen := map[uuidString]bool{}
 	for _, info := range accessible {
+		idKey := uuidString(info.Server.ID.String())
+		seen[idKey] = true
 		credentialSource := "global"
 		hasCredential := info.Server.APIKey != "" || len(info.Server.Headers) > 0 || len(info.Server.Env) > 0
+		contextCredential := false
+		if cred, ok := contextCreds[idKey]; ok {
+			credentialSource = scope.ScopeType
+			hasCredential = cred.APIKey != "" || len(cred.Headers) > 0 || len(cred.Env) > 0
+			contextCredential = true
+		}
 		if userID != "" {
 			if creds, err := h.mcpStore.GetUserCredentials(r.Context(), info.Server.ID, userID); err == nil && creds != nil {
 				if creds.APIKey != "" || len(creds.Headers) > 0 || len(creds.Env) > 0 {
@@ -86,25 +118,62 @@ func (h *ChannelInstancesHandler) listChannelMCPRows(r *http.Request, inst *stor
 				}
 			}
 		}
+		source := "agent"
+		enabled := info.Server.Enabled
+		toolAllow := info.ToolAllow
+		toolDeny := info.ToolDeny
+		contextGrant := false
+		if grant, ok := contextGrants[idKey]; ok {
+			source = scope.ScopeType
+			enabled = grant.Enabled
+			toolAllow = decodeStringList(grant.ToolAllow)
+			toolDeny = decodeStringList(grant.ToolDeny)
+			contextGrant = true
+		}
 		rows = append(rows, channelCapabilityDTO{
 			Type:               "mcp_server",
 			ID:                 info.Server.ID.String(),
 			Name:               info.Server.Name,
 			DisplayName:        info.Server.DisplayName,
-			Enabled:            info.Server.Enabled,
-			Source:             "agent",
-			ToolAllow:          info.ToolAllow,
-			ToolDeny:           info.ToolDeny,
+			Enabled:            enabled,
+			Source:             source,
+			ToolAllow:          toolAllow,
+			ToolDeny:           toolDeny,
 			CredentialSource:   credentialSource,
 			HasCredential:      hasCredential,
-			ContextGrant:       false,
-			ContextCredentials: false,
+			ContextGrant:       contextGrant,
+			ContextCredentials: contextCredential,
+		})
+	}
+	for _, grant := range contextGrants {
+		idKey := uuidString(grant.ServerID.String())
+		if seen[idKey] {
+			continue
+		}
+		server, err := h.mcpStore.GetServer(r.Context(), grant.ServerID)
+		if err != nil || server == nil {
+			continue
+		}
+		cred, hasCredRow := contextCreds[idKey]
+		rows = append(rows, channelCapabilityDTO{
+			Type:               "mcp_server",
+			ID:                 server.ID.String(),
+			Name:               server.Name,
+			DisplayName:        server.DisplayName,
+			Enabled:            server.Enabled && grant.Enabled,
+			Source:             scope.ScopeType,
+			ToolAllow:          decodeStringList(grant.ToolAllow),
+			ToolDeny:           decodeStringList(grant.ToolDeny),
+			CredentialSource:   scope.ScopeType,
+			HasCredential:      hasCredRow && (cred.APIKey != "" || len(cred.Headers) > 0 || len(cred.Env) > 0),
+			ContextGrant:       true,
+			ContextCredentials: hasCredRow,
 		})
 	}
 	return rows, nil
 }
 
-func (h *ChannelInstancesHandler) listChannelCLIRows(r *http.Request, inst *store.ChannelInstanceData, userID string) ([]channelCapabilityDTO, error) {
+func (h *ChannelInstancesHandler) listChannelCLIRows(r *http.Request, inst *store.ChannelInstanceData, scope store.ChannelContextScope, userID string) ([]channelCapabilityDTO, error) {
 	if h.secureCLIStore == nil {
 		return []channelCapabilityDTO{}, nil
 	}
@@ -112,14 +181,49 @@ func (h *ChannelInstancesHandler) listChannelCLIRows(r *http.Request, inst *stor
 	if err != nil {
 		return nil, err
 	}
+	contextGrants := map[uuidString]store.SecureCLIContextGrant{}
+	if h.cliContextStore != nil {
+		grants, err := h.cliContextStore.ListContextGrants(r.Context(), inst.ID, scope.ScopeType, scope.ScopeKey)
+		if err != nil {
+			return nil, err
+		}
+		for _, grant := range grants {
+			contextGrants[uuidString(grant.BinaryID.String())] = grant
+		}
+	}
+	contextCreds := map[uuidString]store.SecureCLIContextCredentials{}
+	if h.cliContextStore != nil {
+		creds, err := h.cliContextStore.ListContextCredentials(r.Context(), inst.ID, scope.ScopeType, scope.ScopeKey)
+		if err != nil {
+			return nil, err
+		}
+		for _, cred := range creds {
+			contextCreds[uuidString(cred.BinaryID.String())] = cred
+		}
+	}
 	rows := make([]channelCapabilityDTO, 0, len(binaries))
+	seen := map[uuidString]bool{}
 	for _, b := range binaries {
+		idKey := uuidString(b.ID.String())
+		seen[idKey] = true
 		source := "agent"
 		if b.IsGlobal {
 			source = "global"
 		}
 		credentialSource := source
 		hasCredential := len(b.EncryptedEnv) > 0
+		contextGrant := false
+		if grant, ok := contextGrants[idKey]; ok {
+			source = scope.ScopeType
+			contextGrant = true
+			b.Enabled = b.Enabled && grant.Enabled
+		}
+		contextCredential := false
+		if cred, ok := contextCreds[idKey]; ok {
+			credentialSource = scope.ScopeType
+			hasCredential = len(cred.EncryptedEnv) > 0
+			contextCredential = true
+		}
 		if userID != "" {
 			if creds, err := h.secureCLIStore.GetUserCredentials(r.Context(), b.ID, userID); err == nil && creds != nil && len(creds.EncryptedEnv) > 0 {
 				credentialSource = "user"
@@ -135,9 +239,43 @@ func (h *ChannelInstancesHandler) listChannelCLIRows(r *http.Request, inst *stor
 			Source:             source,
 			CredentialSource:   credentialSource,
 			HasCredential:      hasCredential,
-			ContextGrant:       false,
-			ContextCredentials: false,
+			ContextGrant:       contextGrant,
+			ContextCredentials: contextCredential,
+		})
+	}
+	for _, grant := range contextGrants {
+		idKey := uuidString(grant.BinaryID.String())
+		if seen[idKey] {
+			continue
+		}
+		binary, err := h.secureCLIStore.Get(r.Context(), grant.BinaryID)
+		if err != nil || binary == nil {
+			continue
+		}
+		_, hasCredRow := contextCreds[idKey]
+		rows = append(rows, channelCapabilityDTO{
+			Type:               "secure_cli",
+			ID:                 binary.ID.String(),
+			Name:               binary.BinaryName,
+			DisplayName:        binary.Description,
+			Enabled:            binary.Enabled && grant.Enabled,
+			Source:             scope.ScopeType,
+			CredentialSource:   scope.ScopeType,
+			HasCredential:      hasCredRow,
+			ContextGrant:       true,
+			ContextCredentials: hasCredRow,
 		})
 	}
 	return rows, nil
+}
+
+type uuidString string
+
+func decodeStringList(raw json.RawMessage) []string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var list []string
+	_ = json.Unmarshal(raw, &list)
+	return list
 }
