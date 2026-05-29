@@ -39,6 +39,8 @@ type ChannelInstancesHandler struct {
 	msgBus          *bus.MessageBus
 	memberResolver  channels.MemberResolver // optional — enriches file_writer metadata on addwriter
 	channelMgr      *channels.Manager       // optional — enables ChannelDestroyer hook on delete
+	mcpStore        store.MCPServerStore
+	secureCLIStore  store.SecureCLIStore
 	// orphanCleaners is keyed by channel_type; called when channelMgr.GetChannel
 	// returns false. Keeps handler agnostic of per-channel packages.
 	orphanCleaners map[string]OrphanChannelCleaner
@@ -62,6 +64,13 @@ func (h *ChannelInstancesHandler) SetMemberResolver(r channels.MemberResolver) {
 // in cmd/gateway.go's startup ordering.
 func (h *ChannelInstancesHandler) SetChannelManager(mgr *channels.Manager) {
 	h.channelMgr = mgr
+}
+
+// SetCapabilityStores wires MCP and Secure CLI stores for channel-context
+// capability visibility. Kept as a setter to preserve startup ordering.
+func (h *ChannelInstancesHandler) SetCapabilityStores(mcpStore store.MCPServerStore, secureCLIStore store.SecureCLIStore) {
+	h.mcpStore = mcpStore
+	h.secureCLIStore = secureCLIStore
 }
 
 // RegisterOrphanCleaner registers a per-channel-type cleanup function that
@@ -114,6 +123,7 @@ func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
 		mux.HandleFunc("GET /v1/channels/instances/{id}/contexts", h.auth(h.handleListContexts))
 		mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members", h.auth(h.handleListContextMembers))
 	}
+	mux.HandleFunc("GET /v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities", h.auth(h.handleListContextCapabilities))
 }
 
 func (h *ChannelInstancesHandler) auth(next http.HandlerFunc) http.HandlerFunc {
