@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Read-only Context Surface"
-status: pending
+status: complete
 effort: "L"
 ---
 

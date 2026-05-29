@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Context-scoped Grants"
-status: pending
+status: complete
 effort: "XL"
 ---
 

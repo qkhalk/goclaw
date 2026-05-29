@@ -1,7 +1,7 @@
 ---
 phase: 6
 title: "Discord Enrichment and Verification"
-status: pending
+status: complete
 effort: "M"
 ---
 

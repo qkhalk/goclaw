@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Context-scoped Credentials"
-status: pending
+status: complete
 effort: "XL"
 ---
 

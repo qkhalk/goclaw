@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Research and Contracts"
-status: pending
+status: complete
 effort: "M"
 ---
 

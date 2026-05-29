@@ -1,7 +1,7 @@
 ---
 title: "Issue 66 Channel Context Admin Surface"
 description: "Add channel details admin views for contexts, members, granted MCP/CLI capabilities, and scoped credential overrides."
-status: pending
+status: complete
 priority: P2
 issue: 66
 branch: "codex-issue-66-channel-details-admin-design"
@@ -29,12 +29,12 @@ Out of scope for the first implementation pass: raw credential reveal, storing M
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Research and Contracts](./phase-01-research-and-contracts.md) | Pending |
-| 2 | [Read-only Context Surface](./phase-02-read-only-context-surface.md) | Pending |
-| 3 | [Effective Capability Matrix](./phase-03-effective-capability-matrix.md) | Pending |
-| 4 | [Context-scoped Grants](./phase-04-context-scoped-grants.md) | Pending |
-| 5 | [Context-scoped Credentials](./phase-05-context-scoped-credentials.md) | Pending |
-| 6 | [Discord Enrichment and Verification](./phase-06-discord-enrichment-and-verification.md) | Pending |
+| 1 | [Research and Contracts](./phase-01-research-and-contracts.md) | Complete |
+| 2 | [Read-only Context Surface](./phase-02-read-only-context-surface.md) | Complete |
+| 3 | [Effective Capability Matrix](./phase-03-effective-capability-matrix.md) | Complete |
+| 4 | [Context-scoped Grants](./phase-04-context-scoped-grants.md) | Complete |
+| 5 | [Context-scoped Credentials](./phase-05-context-scoped-credentials.md) | Complete |
+| 6 | [Discord Enrichment and Verification](./phase-06-discord-enrichment-and-verification.md) | Complete: live role/member enrichment remains gated behind Discord intent verification |
 
 ## Dependencies
 
@@ -47,4 +47,4 @@ Out of scope for the first implementation pass: raw credential reveal, storing M
 
 ## Unresolved Questions
 
-- Confirm whether Discord live role/member enrichment ships in v1 or stays documented after read-only context visibility.
+None. Discord live role/member enrichment is intentionally not enabled until required intents and permissions are verified.

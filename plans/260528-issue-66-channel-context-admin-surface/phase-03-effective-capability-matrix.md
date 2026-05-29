@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Effective Capability Matrix"
-status: pending
+status: complete
 effort: "L"
 ---
 
