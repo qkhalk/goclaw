@@ -14,6 +14,21 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+func resolveContextChannelInstanceID(ctx context.Context, db *sql.DB, scope store.ChannelContextScope) (uuid.UUID, error) {
+	if scope.ChannelInstanceID != uuid.Nil {
+		return scope.ChannelInstanceID, nil
+	}
+	if scope.ChannelInstanceName == "" {
+		return uuid.Nil, sql.ErrNoRows
+	}
+	var id uuid.UUID
+	err := db.QueryRowContext(ctx,
+		`SELECT id FROM channel_instances WHERE tenant_id = $1 AND name = $2`,
+		tenantIDForInsert(ctx), scope.ChannelInstanceName,
+	).Scan(&id)
+	return id, err
+}
+
 func validateChannelScope(scopeType, scopeKey string) error {
 	switch scopeType {
 	case store.ChannelScopeTypeChannel:
@@ -109,6 +124,17 @@ func (s *PGMCPServerStore) ListContextGrants(ctx context.Context, channelInstanc
 	return result, rows.Err()
 }
 
+func (s *PGMCPServerStore) ListContextGrantsForScope(ctx context.Context, scope store.ChannelContextScope) ([]store.MCPContextGrant, error) {
+	id, err := resolveContextChannelInstanceID(ctx, s.db, scope)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.ListContextGrants(ctx, id, scope.ScopeType, scope.ScopeKey)
+}
+
 func (s *PGMCPServerStore) SetContextCredentials(ctx context.Context, creds *store.MCPContextCredentials) error {
 	if err := validateChannelScope(creds.ScopeType, creds.ScopeKey); err != nil {
 		return err
@@ -170,6 +196,17 @@ func (s *PGMCPServerStore) GetContextCredentials(ctx context.Context, channelIns
 	return creds, err
 }
 
+func (s *PGMCPServerStore) GetContextCredentialsForScope(ctx context.Context, scope store.ChannelContextScope, serverID uuid.UUID) (*store.MCPContextCredentials, error) {
+	id, err := resolveContextChannelInstanceID(ctx, s.db, scope)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.GetContextCredentials(ctx, id, scope.ScopeType, scope.ScopeKey, serverID)
+}
+
 func (s *PGMCPServerStore) DeleteContextCredentials(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string, serverID uuid.UUID) error {
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM mcp_context_credentials
@@ -200,6 +237,17 @@ func (s *PGMCPServerStore) ListContextCredentials(ctx context.Context, channelIn
 		result = append(result, *creds)
 	}
 	return result, rows.Err()
+}
+
+func (s *PGMCPServerStore) ListContextCredentialsForScope(ctx context.Context, scope store.ChannelContextScope) ([]store.MCPContextCredentials, error) {
+	id, err := resolveContextChannelInstanceID(ctx, s.db, scope)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.ListContextCredentials(ctx, id, scope.ScopeType, scope.ScopeKey)
 }
 
 type contextCredentialScanner interface {
@@ -307,6 +355,17 @@ func (s *PGSecureCLIStore) ListContextGrants(ctx context.Context, channelInstanc
 	return result, rows.Err()
 }
 
+func (s *PGSecureCLIStore) ListContextGrantsForScope(ctx context.Context, scope store.ChannelContextScope) ([]store.SecureCLIContextGrant, error) {
+	id, err := resolveContextChannelInstanceID(ctx, s.db, scope)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.ListContextGrants(ctx, id, scope.ScopeType, scope.ScopeKey)
+}
+
 func (s *PGSecureCLIStore) scanSecureCLIContextGrant(row contextCredentialScanner) (*store.SecureCLIContextGrant, error) {
 	var g store.SecureCLIContextGrant
 	var denyArgs, denyVerbose *[]byte
@@ -386,6 +445,17 @@ func (s *PGSecureCLIStore) GetContextCredentials(ctx context.Context, channelIns
 	return creds, err
 }
 
+func (s *PGSecureCLIStore) GetContextCredentialsForScope(ctx context.Context, scope store.ChannelContextScope, binaryID uuid.UUID) (*store.SecureCLIContextCredentials, error) {
+	id, err := resolveContextChannelInstanceID(ctx, s.db, scope)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.GetContextCredentials(ctx, id, scope.ScopeType, scope.ScopeKey, binaryID)
+}
+
 func (s *PGSecureCLIStore) DeleteContextCredentials(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string, binaryID uuid.UUID) error {
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM secure_cli_context_credentials
@@ -417,6 +487,17 @@ func (s *PGSecureCLIStore) ListContextCredentials(ctx context.Context, channelIn
 		result = append(result, *creds)
 	}
 	return result, rows.Err()
+}
+
+func (s *PGSecureCLIStore) ListContextCredentialsForScope(ctx context.Context, scope store.ChannelContextScope) ([]store.SecureCLIContextCredentials, error) {
+	id, err := resolveContextChannelInstanceID(ctx, s.db, scope)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.ListContextCredentials(ctx, id, scope.ScopeType, scope.ScopeKey)
 }
 
 func (s *PGSecureCLIStore) scanSecureCLIContextCredentials(row contextCredentialScanner) (*store.SecureCLIContextCredentials, error) {

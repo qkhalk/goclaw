@@ -117,20 +117,26 @@ type MCPContextAdminStore interface {
 	UpsertContextGrant(ctx context.Context, grant *MCPContextGrant) error
 	DeleteContextGrant(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string, serverID uuid.UUID) error
 	ListContextGrants(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string) ([]MCPContextGrant, error)
+	ListContextGrantsForScope(ctx context.Context, scope ChannelContextScope) ([]MCPContextGrant, error)
 
 	SetContextCredentials(ctx context.Context, creds *MCPContextCredentials) error
 	GetContextCredentials(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string, serverID uuid.UUID) (*MCPContextCredentials, error)
+	GetContextCredentialsForScope(ctx context.Context, scope ChannelContextScope, serverID uuid.UUID) (*MCPContextCredentials, error)
 	DeleteContextCredentials(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string, serverID uuid.UUID) error
 	ListContextCredentials(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string) ([]MCPContextCredentials, error)
+	ListContextCredentialsForScope(ctx context.Context, scope ChannelContextScope) ([]MCPContextCredentials, error)
 }
 
 type SecureCLIContextAdminStore interface {
 	UpsertContextGrant(ctx context.Context, grant *SecureCLIContextGrant) error
 	DeleteContextGrant(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string, binaryID uuid.UUID) error
 	ListContextGrants(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string) ([]SecureCLIContextGrant, error)
+	ListContextGrantsForScope(ctx context.Context, scope ChannelContextScope) ([]SecureCLIContextGrant, error)
 
 	SetContextCredentials(ctx context.Context, creds *SecureCLIContextCredentials) error
 	GetContextCredentials(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string, binaryID uuid.UUID) (*SecureCLIContextCredentials, error)
+	GetContextCredentialsForScope(ctx context.Context, scope ChannelContextScope, binaryID uuid.UUID) (*SecureCLIContextCredentials, error)
 	DeleteContextCredentials(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string, binaryID uuid.UUID) error
 	ListContextCredentials(ctx context.Context, channelInstanceID uuid.UUID, scopeType, scopeKey string) ([]SecureCLIContextCredentials, error)
+	ListContextCredentialsForScope(ctx context.Context, scope ChannelContextScope) ([]SecureCLIContextCredentials, error)
 }

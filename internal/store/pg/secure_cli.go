@@ -410,7 +410,11 @@ func (s *PGSecureCLIStore) LookupByBinary(ctx context.Context, binaryName string
 	query += ` LIMIT 1`
 
 	row := s.db.QueryRowContext(ctx, query, args...)
-	return s.scanRowWithGrantAndUserEnv(row)
+	b, err := s.scanRowWithGrantAndUserEnv(row)
+	if err != nil || b == nil {
+		return b, err
+	}
+	return s.applyContextSecureCLI(ctx, b)
 }
 
 // scanRowWithGrantAndUserEnv scans a row that includes grant override columns and user_env.
@@ -496,6 +500,42 @@ func (s *PGSecureCLIStore) scanRowWithGrantAndUserEnv(row *sql.Row) (*store.Secu
 	b.UserHostScope = userHostScope
 
 	return &b, nil
+}
+
+func (s *PGSecureCLIStore) applyContextSecureCLI(ctx context.Context, b *store.SecureCLIBinary) (*store.SecureCLIBinary, error) {
+	scope, ok := store.ChannelContextScopeFromContext(ctx)
+	if !ok || b == nil {
+		return b, nil
+	}
+	grants, err := s.ListContextGrantsForScope(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	for _, contextGrant := range grants {
+		if contextGrant.BinaryID != b.ID {
+			continue
+		}
+		if !contextGrant.Enabled {
+			return nil, nil
+		}
+		grant := &store.SecureCLIAgentGrant{
+			DenyArgs:       contextGrant.DenyArgs,
+			DenyVerbose:    contextGrant.DenyVerbose,
+			TimeoutSeconds: contextGrant.TimeoutSeconds,
+			Tips:           contextGrant.Tips,
+			EncryptedEnv:   contextGrant.EncryptedEnv,
+		}
+		b.MergeGrantOverrides(grant)
+		break
+	}
+	creds, err := s.GetContextCredentialsForScope(ctx, scope, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	if creds != nil && len(creds.EncryptedEnv) > 0 {
+		b.EncryptedEnv = creds.EncryptedEnv
+	}
+	return b, nil
 }
 
 func (s *PGSecureCLIStore) ListEnabled(ctx context.Context) ([]store.SecureCLIBinary, error) {
