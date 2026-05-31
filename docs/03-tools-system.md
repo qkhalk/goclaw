@@ -64,6 +64,8 @@ Each tool carries structured metadata describing side-effect class, group member
 
 Capabilities are inferred from tool name when no explicit metadata is registered. The policy engine can use capability class to gate entire sets (e.g. restrict an agent to read-only tools).
 
+The agent loop also uses this metadata for parallel tool-call scheduling. Only registered read-only tools are eligible for bounded parallel raw I/O. Mutating, async, MCP-bridged, `exec`/`bash`, `wait`, and unknown tools stay sequential by default. `PreToolUse` hooks run before any parallel I/O so hooks can block or rewrite arguments consistently.
+
 ---
 
 ## 4. Built-in Tool Inventory
