@@ -644,7 +644,32 @@ Channel instances are loaded from the database with their assigned agent ID. The
 
 ---
 
-## 13. Local Key Propagation
+## 13. Passive Memory Extraction
+
+Passive channel memory is an opt-in per-channel feature. When enabled in
+`channel_instances.config.passive_memory`, the gateway periodically reads the
+existing tenant-scoped `channel_pending_messages` group buffers, redacts sensitive
+content, asks the background LLM provider for durable fact candidates, and stores
+only candidates in the review queue.
+
+Default behavior is privacy-first:
+
+- Disabled by default.
+- Group-only in v1.
+- Review mode enabled by default.
+- Runs by manual trigger, message cap, or interval.
+- New extraction tables store metadata, summaries, topics/entities, confidence,
+  status, and redaction counts, but not raw message bodies.
+
+Approved items write an `episodic_summaries` row with `source_type='channel'`
+and a deterministic `source_id`; existing consolidation workers then handle KG
+promotion. Reject/delete prevents later writes. Delete also removes the linked
+episodic row when one exists; already-promoted KG nodes are not synchronously
+deleted in v1.
+
+---
+
+## 14. Local Key Propagation
 
 Thread/topic context is preserved through the entire message pipeline using a `local_key` in message metadata. This ensures subagent, delegation, and team message results land in the correct thread — not the root chat.
 
@@ -660,7 +685,7 @@ All channel state — placeholders, streams, reactions, typing controllers, thre
 
 ---
 
-## 14. Per-User Isolation
+## 15. Per-User Isolation
 
 Channels provide per-user isolation through compound sender IDs and context propagation:
 
@@ -671,7 +696,7 @@ Channels provide per-user isolation through compound sender IDs and context prop
 
 ---
 
-## 15. Pairing System
+## 16. Pairing System
 
 The pairing system provides a DM authentication flow for channels using the `pairing` DM policy.
 

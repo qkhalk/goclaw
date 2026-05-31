@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 44
+const SchemaVersion = 45
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -805,7 +805,71 @@ CREATE INDEX IF NOT EXISTS idx_run_timeline_trace
     WHERE trace_id IS NOT NULL;`,
 	// Version 43 → 44: channel-context MCP and Secure CLI grants/credentials.
 	43: addChannelContextCapabilityTables,
+	// Version 44 → 45: passive channel memory extraction run and review queue.
+	44: addChannelMemoryExtractionTables,
 }
+
+const addChannelMemoryExtractionTables = `
+CREATE TABLE IF NOT EXISTS channel_memory_extraction_runs (
+    id                  TEXT NOT NULL PRIMARY KEY,
+    tenant_id           TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    channel_instance_id TEXT NOT NULL REFERENCES channel_instances(id) ON DELETE CASCADE,
+    channel_name        VARCHAR(255) NOT NULL,
+    agent_id            TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    user_id             VARCHAR(255) NOT NULL DEFAULT '',
+    history_key         VARCHAR(255) NOT NULL,
+    trigger             VARCHAR(32) NOT NULL DEFAULT 'scheduled',
+    status              VARCHAR(32) NOT NULL DEFAULT 'pending',
+    source_start_id     VARCHAR(255) NOT NULL DEFAULT '',
+    source_end_id       VARCHAR(255) NOT NULL DEFAULT '',
+    source_start_at     TEXT,
+    source_end_at       TEXT,
+    message_count       INTEGER NOT NULL DEFAULT 0,
+    redaction_count     INTEGER NOT NULL DEFAULT 0,
+    redaction_types     TEXT NOT NULL DEFAULT '[]',
+    item_count          INTEGER NOT NULL DEFAULT 0,
+    error_message       TEXT NOT NULL DEFAULT '',
+    started_at          TEXT,
+    completed_at        TEXT,
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (tenant_id, channel_instance_id, history_key, source_start_id, source_end_id)
+);
+CREATE INDEX IF NOT EXISTS idx_channel_memory_runs_channel
+  ON channel_memory_extraction_runs(tenant_id, channel_instance_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_channel_memory_runs_status
+  ON channel_memory_extraction_runs(tenant_id, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS channel_memory_extraction_items (
+    id                  TEXT NOT NULL PRIMARY KEY,
+    tenant_id           TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    run_id              TEXT NOT NULL REFERENCES channel_memory_extraction_runs(id) ON DELETE CASCADE,
+    channel_instance_id TEXT NOT NULL REFERENCES channel_instances(id) ON DELETE CASCADE,
+    agent_id            TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    user_id             VARCHAR(255) NOT NULL DEFAULT '',
+    item_hash           VARCHAR(128) NOT NULL,
+    item_type           VARCHAR(64) NOT NULL,
+    summary             TEXT NOT NULL,
+    topics              TEXT NOT NULL DEFAULT '[]',
+    entities            TEXT NOT NULL DEFAULT '[]',
+    confidence          REAL NOT NULL DEFAULT 0,
+    source_id           VARCHAR(255) NOT NULL DEFAULT '',
+    status              VARCHAR(32) NOT NULL DEFAULT 'pending_review',
+    approved_by         VARCHAR(255) NOT NULL DEFAULT '',
+    approved_at         TEXT,
+    rejected_by         VARCHAR(255) NOT NULL DEFAULT '',
+    rejected_at         TEXT,
+    deleted_at          TEXT,
+    written_at          TEXT,
+    episodic_id         VARCHAR(64) NOT NULL DEFAULT '',
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (tenant_id, run_id, item_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_channel_memory_items_channel_status
+  ON channel_memory_extraction_items(tenant_id, channel_instance_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_channel_memory_items_run
+  ON channel_memory_extraction_items(tenant_id, run_id);`
 
 const addChannelContextCapabilityTables = `
 CREATE TABLE IF NOT EXISTS mcp_context_grants (
