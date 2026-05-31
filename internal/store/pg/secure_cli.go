@@ -410,7 +410,11 @@ func (s *PGSecureCLIStore) LookupByBinary(ctx context.Context, binaryName string
 	query += ` LIMIT 1`
 
 	row := s.db.QueryRowContext(ctx, query, args...)
-	return s.scanRowWithGrantAndUserEnv(row)
+	b, err := s.scanRowWithGrantAndUserEnv(row)
+	if err != nil || b == nil {
+		return b, err
+	}
+	return s.applyContextSecureCLI(ctx, b)
 }
 
 // scanRowWithGrantAndUserEnv scans a row that includes grant override columns and user_env.
@@ -496,6 +500,60 @@ func (s *PGSecureCLIStore) scanRowWithGrantAndUserEnv(row *sql.Row) (*store.Secu
 	b.UserHostScope = userHostScope
 
 	return &b, nil
+}
+
+func (s *PGSecureCLIStore) applyContextSecureCLI(ctx context.Context, b *store.SecureCLIBinary) (*store.SecureCLIBinary, error) {
+	scopes := store.ChannelContextScopeChainFromContext(ctx)
+	if len(scopes) == 0 || b == nil {
+		return b, nil
+	}
+	hasUserCredential := len(b.UserEnv) > 0 || b.UserCredentialType != nil || b.UserHostScope != nil
+	disabledByContext := false
+	for _, scope := range scopes {
+		grants, err := s.ListContextGrantsForScope(ctx, scope)
+		if err != nil {
+			return nil, err
+		}
+		for _, contextGrant := range grants {
+			if contextGrant.BinaryID != b.ID {
+				continue
+			}
+			if !contextGrant.Enabled {
+				disabledByContext = true
+				break
+			}
+			grant := &store.SecureCLIAgentGrant{
+				DenyArgs:       contextGrant.DenyArgs,
+				DenyVerbose:    contextGrant.DenyVerbose,
+				TimeoutSeconds: contextGrant.TimeoutSeconds,
+				Tips:           contextGrant.Tips,
+				EncryptedEnv:   contextGrant.EncryptedEnv,
+			}
+			b.MergeGrantOverrides(grant)
+			disabledByContext = false
+			break
+		}
+	}
+	if disabledByContext {
+		return nil, nil
+	}
+	for _, scope := range scopes {
+		creds, err := s.GetContextCredentialsForScope(ctx, scope, b.ID)
+		if err != nil {
+			return nil, err
+		}
+		if creds == nil || len(creds.EncryptedEnv) == 0 {
+			continue
+		}
+		if !hasUserCredential {
+			b.UserEnv = creds.EncryptedEnv
+			b.UserCredentialType = creds.CredentialType
+			b.UserHostScope = creds.HostScope
+		} else {
+			b.EncryptedEnv = creds.EncryptedEnv
+		}
+	}
+	return b, nil
 }
 
 func (s *PGSecureCLIStore) ListEnabled(ctx context.Context) ([]store.SecureCLIBinary, error) {

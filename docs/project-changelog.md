@@ -6,6 +6,23 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Channel context admin surface (issue #66)
+
+**New**
+
+- Added channel context APIs under `/v1/channels/instances/{id}/contexts` for stored channel/group contexts, members, and effective MCP/Secure CLI capability matrix.
+- Added tenant-scoped context grants and context credentials for MCP servers and Secure CLI binaries, with PostgreSQL migration `000075` and SQLite schema version `44`.
+- Runtime tool execution now carries `ChannelContextScope`; MCP and Secure CLI resolution apply context grants/credentials before user credential overrides.
+- Web dashboard channel detail page now has a `Contexts` tab showing contexts, stored members, effective granted tools, and scoped credential presence without exposing secret values.
+
+**Security**
+
+- Context capability write APIs use tenant-admin checks.
+- Credential APIs return presence/metadata only; raw MCP API keys, headers/env values, and Secure CLI env values are never serialized.
+- MCP grant-check cache key includes channel scope so scoped grants do not leak across channel contexts.
+
+---
+
 ### Group chat context in agent prompts
 
 **Features**
