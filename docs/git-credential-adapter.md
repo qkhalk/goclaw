@@ -24,9 +24,31 @@ The typed `git` adapter accepts either a **Personal Access Token (PAT)** or an
 | **SSH**   | Self-hosted git over SSH. You manage `~/.ssh/known_hosts` or accept TOFU risk.  | Passphrase-protected keys are NOT supported (see below).     |
 | **Env**   | Legacy path — you have a custom env-var-driven workflow.                        | Loses host-scoped routing; same trust profile as other CLIs. |
 
-## Adding a credential (UI)
+## Adding an agent credential (UI)
 
-1. Open **Settings → CLI Credentials → User Credentials → Add**.
+Agent credentials are the default path for git auth. They avoid channel-user
+ID ambiguity: the selected agent owns the credential, and anyone allowed to use
+that agent can cause it to run git with the stored credential.
+
+1. Open **Packages → CLI Credentials**.
+2. Pick the `git` row and open **Agent Credentials**.
+3. Select the agent.
+4. Choose **Credential Type**: `Personal Access Token` or `SSH Private Key`.
+5. Enter **Host Scope** (required for PAT/SSH): the hostname the credential
+   authenticates to.
+   - Examples: `github.com`, `gitlab.example.com`, `gitea.internal:8443`.
+   - Case-insensitive. Punycode normalized via `idna.ToASCII`.
+   - Port included only when non-default for the scheme.
+6. Paste the token (PAT) or the unencrypted PEM body (SSH).
+7. Save.
+
+## Advanced user overrides
+
+Per-user credentials remain available for personal overrides and backward
+compatibility. Use them only when a stable tenant user ID is the intended
+credential boundary.
+
+1. Open **Packages → CLI Credentials → Advanced User Overrides → Add**.
 2. Select user.
 3. Choose **Credential Type**: `Personal Access Token` or `SSH Private Key`.
 4. Enter **Host Scope** (required for PAT/SSH): the hostname the credential
@@ -40,6 +62,13 @@ The typed `git` adapter accepts either a **Personal Access Token (PAT)** or an
 The stored secret is encrypted (AES-256-GCM) and can never be read back through
 the API or UI. Editing the row shows a `••••••••` placeholder; leaving the
 secret field blank preserves the stored value, typing a new value replaces it.
+
+Effective credential precedence is:
+
+1. User override.
+2. Channel/context credential.
+3. Agent credential.
+4. Binary-level env defaults.
 
 ## What gets auto-injected
 
@@ -140,7 +169,7 @@ Every successful credential injection emits exactly one structured log line:
 
 ```
 level=WARN msg=security.system_env_injection
-  adapter=git binary=git user_id=<uuid>
+  adapter=git binary=git user_id=<uuid> credential_source=agent
   env_keys=[GIT_CONFIG_COUNT,GIT_CONFIG_KEY_0,GIT_CONFIG_VALUE_0]
   argv_prefix_len=0
   host_scope_hash=3aeb0024
@@ -159,12 +188,12 @@ See `docs/09-security.md` → "CLI credential adapters" for the full schema.
 ## Migration from legacy env-paste
 
 Existing rows in `secure_cli_user_credentials` with `credential_type IS NULL`
-or `= 'env'` continue to work via the passthrough adapter — they keep
-emitting their env vars exactly as before. There is no forced migration.
+or `= 'env'` continue to work via the passthrough adapter. Existing user
+overrides remain higher precedence than agent credentials. There is no forced
+migration.
 
-To upgrade an existing git credential, open the user-credentials dialog, pick
-PAT or SSH, paste the secret, and save. The legacy env-paste row is replaced
-atomically.
+To move to the agent-scoped model, create a matching Agent Credential for the
+agent and remove the user override when the override is no longer needed.
 
 ## Operator notes
 
@@ -186,7 +215,8 @@ atomically.
 
 ## Known limitations (v1)
 
-- One credential per (user, binary, host_scope) row.
+- One credential per (agent, binary) row, plus legacy one credential per
+  (user, binary) override.
 - No multi-host wildcard (`*.github.com`).
 - No passphrase-protected SSH keys.
 - No persistent `known_hosts` per credential (TOFU only).

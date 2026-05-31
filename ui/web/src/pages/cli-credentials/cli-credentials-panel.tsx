@@ -24,6 +24,9 @@ const CliCredentialFormDialog = lazy(() =>
 const CLIUserCredentialsDialog = lazy(() =>
   import("./cli-user-credentials-dialog").then((m) => ({ default: m.CLIUserCredentialsDialog }))
 );
+const CLIAgentCredentialsDialog = lazy(() =>
+  import("./cli-agent-credentials-dialog").then((m) => ({ default: m.CLIAgentCredentialsDialog }))
+);
 
 export function CliCredentialsPanel() {
   const { t } = useTranslation("cli-credentials");
@@ -34,6 +37,7 @@ export function CliCredentialsPanel() {
   const [deleteTarget, setDeleteTarget] = useState<SecureCLIBinary | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [userCredsTarget, setUserCredsTarget] = useState<SecureCLIBinary | null>(null);
+  const [agentCredsTarget, setAgentCredsTarget] = useState<SecureCLIBinary | null>(null);
   const [grantsTarget, setGrantsTarget] = useState<SecureCLIBinary | null>(null);
 
   const { items, loading, refresh, createCredential, updateCredential, deleteCredential } =
@@ -88,6 +92,7 @@ export function CliCredentialsPanel() {
             onEdit={openEdit}
             onDelete={setDeleteTarget}
             onUserCreds={setUserCredsTarget}
+            onAgentCreds={setAgentCredsTarget}
             onGrants={setGrantsTarget}
           />
           {/* Finding #12: surface LIMIT 20 truncation so admins know there are more entries. */}
@@ -126,6 +131,16 @@ export function CliCredentialsPanel() {
             open={!!userCredsTarget}
             onOpenChange={(open: boolean) => !open && setUserCredsTarget(null)}
             binary={userCredsTarget}
+          />
+        </Suspense>
+      )}
+
+      {agentCredsTarget && (
+        <Suspense fallback={null}>
+          <CLIAgentCredentialsDialog
+            open={!!agentCredsTarget}
+            onOpenChange={(open: boolean) => !open && setAgentCredsTarget(null)}
+            binary={agentCredsTarget}
           />
         </Suspense>
       )}
