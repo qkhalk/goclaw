@@ -377,7 +377,6 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 	// Clean up on terminal events
 	if eventType == protocol.AgentEventRunCompleted || eventType == protocol.AgentEventRunFailed || eventType == protocol.AgentEventRunCancelled {
 		m.cancelQuickAck(rc)
-		m.snapshotCompletedRun(runID, rc)
 		m.runs.Delete(runID)
 	}
 }

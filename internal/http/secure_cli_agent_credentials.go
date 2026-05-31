@@ -181,7 +181,21 @@ func (h *SecureCLIHandler) handleSetAgentCredentials(w http.ResponseWriter, r *h
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgRequired, "env")})
 		return
 	}
-	envJSON, ok := validateAndSerializeEnvVars(w, locale, body.Env)
+	existing, err := agentCreds.GetAgentCredentials(r.Context(), binaryID, agentID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgInternalError, err.Error())})
+		return
+	}
+	var existingEnv []byte
+	if existing != nil {
+		existingEnv = existing.EncryptedEnv
+	}
+	envJSON, err := store.MergeSecureCLIEnv(existingEnv, body.Env)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgGrantEnvValueInvalid, err.Error())})
+		return
+	}
+	envJSON, ok = validateAndSerializeEnvVars(w, locale, json.RawMessage(envJSON))
 	if !ok {
 		return
 	}

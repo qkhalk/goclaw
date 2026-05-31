@@ -13,7 +13,7 @@ type Service struct {
 	onJob     JobHandler
 	running   bool
 	stopChan  chan struct{}
-	wg        sync.WaitGroup
+	loopWG    sync.WaitGroup
 	mu        sync.Mutex
 	runLog    []RunLogEntry // in-memory run history (last 200 entries)
 	retryCfg  RetryConfig   // retry config for failed jobs
@@ -90,9 +90,9 @@ func (cs *Service) Start() error {
 	// after a previous Stop() returned but the runLoop goroutine hasn't yet
 	// executed its ticker construction.
 	tick := runLoopTickInterval
-	cs.wg.Add(1)
+	cs.loopWG.Add(1)
 	go func() {
-		defer cs.wg.Done()
+		defer cs.loopWG.Done()
 		cs.runLoop(cs.stopChan, tick)
 	}()
 
@@ -113,7 +113,7 @@ func (cs *Service) Stop() {
 	cs.running = false
 	cs.mu.Unlock()
 
-	cs.wg.Wait()
+	cs.loopWG.Wait()
 	slog.Info("cron service stopped")
 }
 

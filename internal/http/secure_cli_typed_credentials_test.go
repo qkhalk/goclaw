@@ -214,6 +214,72 @@ func TestPutAgentCredential_PATPayload(t *testing.T) {
 	}
 }
 
+func TestPutAgentCredential_LegacyEnvPreservesMaskedSensitiveValue(t *testing.T) {
+	binaryID := uuid.New()
+	agentID := uuid.New()
+	st := &recordingSecureCLIStore{existingAgent: &store.SecureCLIAgentCredential{
+		ID:           uuid.New(),
+		BinaryID:     binaryID,
+		AgentID:      agentID,
+		EncryptedEnv: []byte(`{"GITHUB_TOKEN":{"kind":"sensitive","value":"ghp_existing"},"PUBLIC_URL":{"kind":"value","value":"https://old.example"}}`),
+	}}
+	h := newAgentCredentialTestHandler(st)
+
+	rec := putAgentCred(t, h, binaryID, agentID, map[string]any{
+		"env": map[string]any{
+			"GITHUB_TOKEN": map[string]string{"kind": "sensitive", "value": ""},
+			"PUBLIC_URL":   map[string]string{"kind": "value", "value": "https://new.example"},
+		},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if st.agentLegacyCalls != 1 || st.agentTypedCalls != 0 {
+		t.Fatalf("expected agent legacy=1 typed=0, got legacy=%d typed=%d", st.agentLegacyCalls, st.agentTypedCalls)
+	}
+	env, err := store.ParseSecureCLIEnv(st.lastAgentLegacy)
+	if err != nil {
+		t.Fatalf("ParseSecureCLIEnv(lastAgentLegacy): %v", err)
+	}
+	if got := env["GITHUB_TOKEN"].Value; got != "ghp_existing" {
+		t.Fatalf("GITHUB_TOKEN value = %q, want preserved existing secret", got)
+	}
+	if got := env["PUBLIC_URL"].Value; got != "https://new.example" {
+		t.Fatalf("PUBLIC_URL value = %q", got)
+	}
+	if got := env["PUBLIC_URL"].Kind; got != store.SecureCLIEnvKindValue {
+		t.Fatalf("PUBLIC_URL kind = %q", got)
+	}
+}
+
+func TestPutAgentCredential_LegacyEnvRejectsDeniedKeysAfterMerge(t *testing.T) {
+	binaryID := uuid.New()
+	agentID := uuid.New()
+	st := &recordingSecureCLIStore{existingAgent: &store.SecureCLIAgentCredential{
+		ID:           uuid.New(),
+		BinaryID:     binaryID,
+		AgentID:      agentID,
+		EncryptedEnv: []byte(`{"GITHUB_TOKEN":{"kind":"sensitive","value":"ghp_existing"}}`),
+	}}
+	h := newAgentCredentialTestHandler(st)
+
+	rec := putAgentCred(t, h, binaryID, agentID, map[string]any{
+		"env": map[string]any{
+			"GITHUB_TOKEN": map[string]string{"kind": "sensitive", "value": ""},
+			"PATH":         map[string]string{"kind": "value", "value": "/tmp/bin"},
+		},
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if st.agentLegacyCalls != 0 {
+		t.Fatalf("agent legacy save called despite denied env key")
+	}
+	if !strings.Contains(rec.Body.String(), "PATH") {
+		t.Fatalf("response did not mention denied key: %s", rec.Body.String())
+	}
+}
+
 func TestGetAgentCredential_TypedDoesNotReturnSecretBlob(t *testing.T) {
 	credType := "pat"
 	hostScope := "github.com"
