@@ -6,6 +6,36 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Shell security group disabled state persistence (issue #75)
+
+**Fixes**
+
+- Added regression coverage proving `config.patch` preserves explicit
+  `tools.shellDenyGroups` values set to `false` in memory, saved config JSON,
+  and follow-up `config.get` responses.
+- Aligned Claude CLI and ACP provider runtime registration with the saved
+  shell deny-group config. Provider-side deny patterns now derive from
+  `tools.ResolveDenyPatterns(cfg.Tools.ShellDenyGroups)` instead of static
+  defaults, so disabled groups stay disabled after reload/provider registration.
+- Re-registers existing Claude CLI/ACP provider runtimes on config changes so
+  settings-page saves affect runtime enforcement without restart.
+- Uses locked shell deny-group snapshots before HTTP provider registration, so
+  provider creation cannot race config reload while reading the override map.
+- Kept missing shell deny-group keys as inherited defaults; only explicit
+  `false` disables a group.
+
+**Tests**
+
+- `go test ./internal/gateway/methods -run 'TestConfigPatchPersists(InboundDebounceMs|ShellDenyGroupsFalse)' -count=1`
+- `go test ./internal/providers -run 'TestGenerateHookScript' -count=1`
+- `go test ./internal/providers/... -run 'ClaudeCLI|ACP|DenyPatterns|ToolBridge' -count=1`
+- `go test -race ./cmd -run 'TestShellDenyGroupsConfigReload_.*|TestConfiguredShellDenyPatternsDropsDisabledPackageInstall' -count=1`
+- `go vet ./...`
+- `go build ./...`
+- `go build -tags sqliteonly ./...`
+
+---
+
 ### Local-first document text extraction adapter (read_document privacy optimization)
 
 Adds optional local extraction pipeline to the `read_document` tool, allowing

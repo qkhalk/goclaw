@@ -701,7 +701,7 @@ func wireExtras(
 		}
 		providerReg.UnregisterForTenant(tenantID, p.Name)
 		if p.Enabled {
-			registerACPFromDB(providerReg, *p)
+			registerACPFromDB(providerReg, *p, configuredShellDenyGroups(appCfg))
 		}
 	})
 
