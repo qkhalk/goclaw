@@ -6,6 +6,26 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Group chat context in agent prompts
+
+**Features**
+
+- Added `## Current Chat Context` to agent system prompts for channel runs. Group chats now show platform, chat type, optional group name, group ID, and sender identity when metadata is available.
+- Preserved existing `<current_reply_target>` routing guard and group reply guidance while making the human-readable chat context explicit.
+- Added best-effort Discord channel title forwarding from the local `discordgo.State` cache. No hot-path REST lookup or schema change.
+
+**Fixes**
+
+- Normalized WhatsApp `user_name` metadata into the existing sender-name resolver so WhatsApp group prompts can include sender display names.
+- Sanitized group titles and sender display names before prompt rendering to strip quotes/control whitespace and cap length.
+
+**Tests**
+
+- Added prompt contract coverage for group title, missing title, direct chats, and prompt-injection-shaped metadata.
+- Added Discord cached-channel-title and sender-name resolver coverage.
+
+---
+
 ### Archived run timeline (issue #76)
 
 Adds persisted run archive timeline entries for session detail review.

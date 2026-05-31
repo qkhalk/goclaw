@@ -221,6 +221,7 @@ func convertRunInput(req *RunRequest) *pipeline.RunInput {
 		RunID:              req.RunID,
 		UserID:             req.UserID,
 		SenderID:           req.SenderID,
+		SenderName:         req.SenderName,
 		Stream:             req.Stream,
 		ExtraSystemPrompt:  req.ExtraSystemPrompt,
 		SkillFilter:        req.SkillFilter,

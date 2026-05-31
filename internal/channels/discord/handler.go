@@ -16,6 +16,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels/media"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/typing"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
 // handleMessage processes incoming Discord messages.
@@ -295,6 +296,11 @@ func (c *Channel) handleMessage(_ *discordgo.Session, m *discordgo.MessageCreate
 		"is_dm":           fmt.Sprintf("%t", isDM),
 		"placeholder_key": m.ID, // keyed by inbound message ID for placeholder lookup
 	}
+	if !isDM {
+		if title := c.resolveCachedChannelTitle(channelID); title != "" {
+			metadata[tools.MetaChatTitle] = title
+		}
+	}
 
 	// Voice agent routing
 	targetAgentID := c.AgentID()
@@ -410,4 +416,15 @@ func resolveDisplayName(m *discordgo.MessageCreate) string {
 		return m.Author.GlobalName
 	}
 	return m.Author.Username
+}
+
+func (c *Channel) resolveCachedChannelTitle(channelID string) string {
+	if c == nil || c.session == nil || c.session.State == nil || channelID == "" {
+		return ""
+	}
+	ch, err := c.session.State.Channel(channelID)
+	if err != nil || ch == nil {
+		return ""
+	}
+	return channels.SanitizeDisplayName(ch.Name)
 }
