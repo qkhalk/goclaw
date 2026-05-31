@@ -6,6 +6,33 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Archived run timeline (issue #76)
+
+Adds persisted run archive timeline entries for session detail review.
+
+**New**
+
+- `run_timeline_items` schema for PostgreSQL and SQLite/Lite, with tenant/run
+  sequence uniqueness and session/run indexes.
+- Best-effort agent event recorder for `activity`, `assistant.message`,
+  `tool.call`, `tool.result`, and `run.status` entries.
+- HTTP `GET /v1/runs/{runID}/timeline` and WS `run.timeline.get` read APIs,
+  including tenant/user visibility filtering.
+- Web session detail timeline panel using the WS API and localized labels.
+
+**Security**
+
+- Tool arguments/results are persisted as bounded previews only.
+- Raw thinking/reasoning is not persisted.
+- Non-admin reads are filtered to the connected/effective user.
+
+**Tests**
+
+- Added store coverage for PG and SQLite, recorder tests, HTTP/WS API tests,
+  permission classification coverage, and UI display mapping tests.
+
+---
+
 ### Shell security group disabled state persistence (issue #75)
 
 **Fixes**

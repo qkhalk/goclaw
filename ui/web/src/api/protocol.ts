@@ -79,6 +79,7 @@ export const Methods = {
   SESSIONS_PATCH: "sessions.patch",
   SESSIONS_DELETE: "sessions.delete",
   SESSIONS_RESET: "sessions.reset",
+  RUN_TIMELINE_GET: "run.timeline.get",
 
   // Phase 2 - NEEDED
   SKILLS_LIST: "skills.list",

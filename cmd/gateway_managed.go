@@ -204,6 +204,7 @@ func wireExtras(
 		sharedHookHandlers = handlers
 		slog.Info("agent hooks dispatcher wired", "handlers", "command,http,prompt")
 	}
+	timelineRecorder := agent.NewRunTimelineRecorder(stores.RunTimeline)
 
 	resolver := agent.NewManagedResolver(agent.ResolverDeps{
 		AgentStore:             stores.Agents,
@@ -299,6 +300,7 @@ func wireExtras(
 				Payload:  event,
 				TenantID: event.TenantID,
 			})
+			timelineRecorder.Record(event)
 		},
 	})
 	agentRouter.SetResolver(resolver)
