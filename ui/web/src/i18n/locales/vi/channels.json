@@ -118,6 +118,7 @@
       "config": "Cấu hình",
       "credentials": "Thông tin xác thực",
       "groups": "Nhóm",
+      "contexts": "Ngữ cảnh",
       "managers": "Quản lý"
     },
     "general": {
@@ -155,6 +156,86 @@
       "saved": "Đã lưu",
       "saveGroups": "Lưu nhóm",
       "saving": "Đang lưu..."
+    },
+    "contexts": {
+      "description": "Xem ngữ cảnh channel, thành viên đã lưu, MCP tools, Secure CLI tools và thông tin xác thực theo scope.",
+      "emptyTitle": "Không có ngữ cảnh",
+      "emptyHint": "Ngữ cảnh xuất hiện sau khi channel nhận tin nhắn hoặc metadata nhóm.",
+      "loading": "Đang tải chi tiết ngữ cảnh...",
+      "capabilities": "Quyền năng",
+      "members": "Thành viên",
+      "noCapabilities": "Không có quyền năng trong ngữ cảnh này.",
+      "noMembers": "Không có thành viên đã lưu trong ngữ cảnh này.",
+      "none": "Không có",
+      "allTools": "Tất cả tools",
+      "scopedCount": "{{count}} override theo scope",
+      "scopedCount_plural": "{{count}} override theo scope",
+      "live": "Live",
+      "grant": "Grant",
+      "revoke": "Revoke",
+      "manageCapability": "Quản lý quyền năng",
+      "scopedCredential": "Xác thực theo scope",
+      "apiKeyPlaceholder": "API key (chỉ MCP)",
+      "envPlaceholder": "JSON môi trường, ví dụ {\"TOKEN\":\"...\"}",
+      "secretHint": "Giá trị được mã hóa và không bao giờ trả về sau khi lưu.",
+      "saveCredential": "Lưu xác thực",
+      "deleteCredential": "Xóa xác thực",
+      "grantSaved": "Đã lưu grant theo ngữ cảnh",
+      "grantDeleted": "Đã xóa grant theo ngữ cảnh",
+      "credentialSaved": "Đã lưu xác thực theo ngữ cảnh",
+      "credentialDeleted": "Đã xóa xác thực theo ngữ cảnh",
+      "invalidEnv": "Môi trường phải là JSON object với giá trị dạng chuỗi.",
+      "envRequired": "Secure CLI credential cần JSON môi trường.",
+      "credentialRequired": "Nhập API key hoặc JSON môi trường.",
+      "actionFailed": "Thao tác thất bại",
+      "columns": {
+        "name": "Tên",
+        "type": "Loại",
+        "source": "Nguồn",
+        "credentials": "Xác thực",
+        "tools": "Tools",
+        "actions": "Thao tác"
+      }
+    },
+    "passiveMemory": {
+      "title": "Trích xuất bộ nhớ thụ động",
+      "description": "Trích xuất các sự kiện dài hạn từ traffic nhóm vào hàng chờ duyệt bộ nhớ.",
+      "pendingCount": "{{count}} chờ duyệt",
+      "enable": "Bật trích xuất thụ động",
+      "reviewMode": "Yêu cầu duyệt trước khi ghi",
+      "interval": "Chu kỳ (phút)",
+      "messageCap": "Ngưỡng tin nhắn",
+      "retention": "Giữ lại (giờ)",
+      "minMessages": "Tin nhắn tối thiểu",
+      "types": "Loại bộ nhớ",
+      "excludeUsers": "User loại trừ",
+      "excludePatterns": "Pattern loại trừ",
+      "runNow": "Chạy ngay",
+      "save": "Lưu",
+      "saving": "Đang lưu...",
+      "saved": "Đã lưu cấu hình bộ nhớ",
+      "saveFailed": "Lưu cấu hình bộ nhớ thất bại",
+      "runQueued": "Đã bắt đầu trích xuất bộ nhớ",
+      "runFailed": "Trích xuất bộ nhớ thất bại",
+      "itemUpdated": "Đã cập nhật mục bộ nhớ",
+      "itemFailed": "Thao tác mục bộ nhớ thất bại",
+      "reviewQueue": "Hàng chờ duyệt",
+      "loading": "Đang tải trạng thái bộ nhớ...",
+      "noRuns": "Chưa có lần trích xuất nào.",
+      "noItems": "Chưa có ứng viên bộ nhớ.",
+      "lastRun": "Lần chạy gần nhất",
+      "runStats": "{{messages}} tin nhắn, {{items}} mục, {{redactions}} redaction",
+      "approve": "Duyệt",
+      "reject": "Từ chối",
+      "delete": "Xóa",
+      "type": {
+        "people": "Con người",
+        "projects": "Dự án",
+        "decisions": "Quyết định",
+        "todos": "Việc cần làm",
+        "preferences": "Sở thích",
+        "events": "Sự kiện"
+      }
     },
     "timeline": {
       "title": "Dòng thời gian",
@@ -421,5 +502,55 @@
     "relinkDevice": "Liên kết lại",
     "connectedSuccess": "✅ Kết nối WhatsApp thành công!",
     "tabQrCode": "Mã QR"
+  },
+  "bitrix24": {
+    "portalSelect": {
+      "placeholder": "Chọn portal...",
+      "empty": "Chưa có portal Bitrix24 nào.",
+      "createFirst": "Kết nối portal Bitrix24 đầu tiên",
+      "createNew": "Tạo portal mới",
+      "pendingBadge": "Chưa authorize — click để resume",
+      "loadError": "Không tải được danh sách portal. Refresh để thử lại."
+    },
+    "errors": {
+      "portalRequired": "Vui lòng chọn portal.",
+      "portalNotInstalled": "Portal này chưa hoàn tất authorize. Authorize trước khi tạo channel."
+    },
+    "create": {
+      "title": "Kết nối Portal Bitrix24",
+      "submit": "Tạo & Authorize →",
+      "fields": {
+        "name": "Tên portal",
+        "nameHint": "Slug nội bộ. Tự điền từ domain, có thể sửa.",
+        "domain": "Domain",
+        "clientId": "Client ID",
+        "clientSecret": "Client Secret"
+      },
+      "errors": {
+        "invalidName": "Chữ thường, số, gạch nối, gạch dưới (2-64 ký tự).",
+        "invalidDomain": "Phải là domain Bitrix24 hợp lệ (vd: mycorp.bitrix24.com).",
+        "duplicateName": "Tên portal đã tồn tại.",
+        "forbidden": "Cần quyền tenant admin để tạo portal.",
+        "gatewayURLUnknown": "Mở UI goclaw qua public URL (không phải localhost) trước, rồi retry."
+      },
+      "help": {
+        "title": "Lấy Client ID và Secret ở đâu?",
+        "step1": "Đăng nhập portal Bitrix24 với quyền Administrator.",
+        "step2": "Vào Developer resources → Other → Local application → Add.",
+        "step3": "Set Handler URL là:",
+        "step4": "Tick các scope cần thiết:",
+        "step5": "Save → copy Application ID và Key vào form trên.",
+        "localDevWarning": "Đang ở localhost — Bitrix24 không reach được. Dùng Cloudflare Tunnel hoặc domain public trước."
+      },
+      "authorize": {
+        "title": "Authorize \"{{name}}\"",
+        "openButton": "Mở trang authorize",
+        "waiting": "Đang chờ authorize...",
+        "installed": "Portal đã install thành công!",
+        "timedOut": "Chưa authorize xong. Có thể resume từ dropdown sau.",
+        "closeResumeLater": "Đóng (resume sau)",
+        "urlUnknown": "Không có install URL. Mở UI qua public URL rồi retry từ dropdown."
+      }
+    }
   }
 }

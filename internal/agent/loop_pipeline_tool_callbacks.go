@@ -20,6 +20,7 @@ import (
 func (l *Loop) makeExecuteToolCall(req *RunRequest, bridgeRS *runState) func(ctx context.Context, state *pipeline.RunState, tc providers.ToolCall) ([]providers.Message, error) {
 	emitRun := makeToolEmitRun(l, req)
 	return func(ctx context.Context, state *pipeline.RunState, tc providers.ToolCall) ([]providers.Message, error) {
+		tc = l.normalizeToolCall(tc)
 		registryName := l.resolveToolCallName(tc.Name)
 		argsJSON, _ := json.Marshal(tc.Arguments)
 		slog.Info("tool call", "agent", l.id, "tool", tc.Name, "args_len", len(argsJSON))
@@ -43,9 +44,14 @@ func (l *Loop) makeExecuteToolCall(req *RunRequest, bridgeRS *runState) func(ctx
 				OtherConfig: append([]byte(nil), l.agentOtherConfig...), // defensive copy at dispatch
 			})
 		}
+		ctx = store.WithChannelContextScope(ctx, channelContextScopeForRun(req))
 
-		result := l.tools.ExecuteWithContext(ctx, registryName, tc.Arguments,
-			req.Channel, req.ChatID, req.PeerKind, req.SessionKey, nil)
+		// C2 fix: route through executeToolForActor so per-user MCP tools
+		// resolve to the calling user's BridgeTool (not the first user's
+		// BridgeTool leaked via shared registry).
+		actorUserID := resolveActorUserID(req.UserID, req.SenderID, req.PeerKind, req.ChannelType)
+		result := l.executeToolForActor(ctx, registryName, tc.Arguments,
+			req.Channel, req.ChatID, req.PeerKind, req.SessionKey, actorUserID)
 		toolDuration := time.Since(toolStart)
 
 		l.emitToolSpanEnd(ctx, toolSpanID, toolStart, result)
@@ -74,6 +80,7 @@ type toolRawResult struct {
 func (l *Loop) makeExecuteToolRaw(req *RunRequest) func(ctx context.Context, tc providers.ToolCall) (providers.Message, any, error) {
 	emitRun := makeToolEmitRun(l, req)
 	return func(ctx context.Context, tc providers.ToolCall) (providers.Message, any, error) {
+		tc = l.normalizeToolCall(tc)
 		registryName := l.resolveToolCallName(tc.Name)
 		argsJSON, _ := json.Marshal(tc.Arguments)
 		slog.Info("tool call", "agent", l.id, "tool", tc.Name, "args_len", len(argsJSON))
@@ -100,9 +107,13 @@ func (l *Loop) makeExecuteToolRaw(req *RunRequest) func(ctx context.Context, tc 
 				OtherConfig: append([]byte(nil), l.agentOtherConfig...), // defensive copy at dispatch
 			})
 		}
+		ctx = store.WithChannelContextScope(ctx, channelContextScopeForRun(req))
 
-		result := l.tools.ExecuteWithContext(ctx, registryName, tc.Arguments,
-			req.Channel, req.ChatID, req.PeerKind, req.SessionKey, nil)
+		// C2 fix (parallel path): route through executeToolForActor for per-user
+		// MCP tool isolation. Same rationale as makeExecuteToolCall above.
+		actorUserID := resolveActorUserID(req.UserID, req.SenderID, req.PeerKind, req.ChannelType)
+		result := l.executeToolForActor(ctx, registryName, tc.Arguments,
+			req.Channel, req.ChatID, req.PeerKind, req.SessionKey, actorUserID)
 		dur := time.Since(start)
 
 		// Emit tool span end inside goroutine to prevent orphaned spans on ctx cancellation.
@@ -118,11 +129,28 @@ func (l *Loop) makeExecuteToolRaw(req *RunRequest) func(ctx context.Context, tc 
 	}
 }
 
+func channelContextScopeForRun(req *RunRequest) store.ChannelContextScope {
+	if req == nil || req.Channel == "" {
+		return store.ChannelContextScope{}
+	}
+	scope := store.ChannelContextScope{
+		ChannelInstanceName: req.Channel,
+		ScopeType:           store.ChannelScopeTypeChannel,
+		ScopeKey:            req.Channel,
+	}
+	if req.PeerKind == "group" && req.ChatID != "" {
+		scope.ScopeType = store.ChannelScopeTypeGroup
+		scope.ScopeKey = req.ChatID
+	}
+	return scope
+}
+
 // makeProcessToolResult wraps post-execution bookkeeping (sequential, mutates bridgeRS).
 // rawData is *toolRawResult from ExecuteToolRaw — no re-execution.
 func (l *Loop) makeProcessToolResult(req *RunRequest, bridgeRS *runState) func(ctx context.Context, state *pipeline.RunState, tc providers.ToolCall, rawMsg providers.Message, rawData any) []providers.Message {
 	emitRun := makeToolEmitRun(l, req)
 	return func(ctx context.Context, state *pipeline.RunState, tc providers.ToolCall, rawMsg providers.Message, rawData any) []providers.Message {
+		tc = l.normalizeToolCall(tc)
 		registryName := l.resolveToolCallName(tc.Name)
 
 		// Extract result and timing from toolRawResult wrapper.
@@ -222,10 +250,16 @@ func (l *Loop) recordToolMetric(ctx context.Context, sessionKey, toolName string
 func makeToolEmitRun(l *Loop, req *RunRequest) func(AgentEvent) {
 	return func(event AgentEvent) {
 		event.RunKind = req.RunKind
+		event.DelegationID = req.DelegationID
+		event.TeamID = req.TeamID
+		event.TeamTaskID = req.TeamTaskID
+		event.ParentAgentID = req.ParentAgentID
 		event.SessionKey = req.SessionKey
 		event.SenderID = req.SenderID
 		event.UserID = req.UserID
 		event.Channel = req.Channel
+		event.ChatID = req.ChatID
+		event.TenantID = l.tenantID
 		l.emit(event)
 	}
 }

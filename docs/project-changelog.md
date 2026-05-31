@@ -4,6 +4,602 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-29
+
+### Passive channel memory extraction (issue #64)
+
+**New**
+
+- Added opt-in per-channel passive memory extraction from pending group buffers, with scheduled/manual runs, redaction before LLM extraction, review queue items, and deterministic channel memory source IDs.
+- Added PostgreSQL migration `000076` and SQLite schema version `45` for `channel_memory_extraction_runs` and `channel_memory_extraction_items`.
+- Added tenant-admin HTTP APIs and channel detail UI controls for settings, manual run, last run status, and approve/reject/delete review actions.
+
+**Security**
+
+- Feature is disabled by default and group-only in v1.
+- Review mode is on by default; approved items write to `episodic_summaries` with `source_type='channel'` and then enter the existing KG consolidation event path.
+- Delete removes the review item and associated episodic summary when present. Existing KG nodes created before deletion may require later dedup/cleanup; raw channel messages are not copied into the new extraction tables.
+
+---
+
+### Channel context admin surface (issue #66)
+
+**New**
+
+- Added channel context APIs under `/v1/channels/instances/{id}/contexts` for stored channel/group contexts, members, and effective MCP/Secure CLI capability matrix.
+- Added tenant-scoped context grants and context credentials for MCP servers and Secure CLI binaries, with PostgreSQL migration `000075` and SQLite schema version `44`.
+- Runtime tool execution now carries `ChannelContextScope`; MCP and Secure CLI resolution apply context grants/credentials before user credential overrides.
+- Web dashboard channel detail page now has a `Contexts` tab showing contexts, stored members, effective granted tools, and scoped credential presence without exposing secret values.
+
+**Security**
+
+- Context capability write APIs use tenant-admin checks.
+- Credential APIs return presence/metadata only; raw MCP API keys, headers/env values, and Secure CLI env values are never serialized.
+- MCP grant-check cache key includes channel scope so scoped grants do not leak across channel contexts.
+
+---
+
+### Group chat context in agent prompts
+
+**Features**
+
+- Added `## Current Chat Context` to agent system prompts for channel runs. Group chats now show platform, chat type, optional group name, group ID, and sender identity when metadata is available.
+- Preserved existing `<current_reply_target>` routing guard and group reply guidance while making the human-readable chat context explicit.
+- Added best-effort Discord channel title forwarding from the local `discordgo.State` cache. No hot-path REST lookup or schema change.
+
+**Fixes**
+
+- Normalized WhatsApp `user_name` metadata into the existing sender-name resolver so WhatsApp group prompts can include sender display names.
+- Sanitized group titles and sender display names before prompt rendering to strip quotes/control whitespace and cap length.
+
+**Tests**
+
+- Added prompt contract coverage for group title, missing title, direct chats, and prompt-injection-shaped metadata.
+- Added Discord cached-channel-title and sender-name resolver coverage.
+
+---
+
+### Archived run timeline (issue #76)
+
+Adds persisted run archive timeline entries for session detail review.
+
+**New**
+
+- `run_timeline_items` schema for PostgreSQL and SQLite/Lite, with tenant/run
+  sequence uniqueness and session/run indexes.
+- Best-effort agent event recorder for `activity`, `assistant.message`,
+  `tool.call`, `tool.result`, and `run.status` entries.
+- HTTP `GET /v1/runs/{runID}/timeline` and WS `run.timeline.get` read APIs,
+  including tenant/user visibility filtering.
+- Web session detail timeline panel using the WS API and localized labels.
+
+**Security**
+
+- Tool arguments/results are persisted as bounded previews only.
+- Raw thinking/reasoning is not persisted.
+- Non-admin reads are filtered to the connected/effective user.
+
+**Tests**
+
+- Added store coverage for PG and SQLite, recorder tests, HTTP/WS API tests,
+  permission classification coverage, and UI display mapping tests.
+
+---
+
+### Shell security group disabled state persistence (issue #75)
+
+**Fixes**
+
+- Added regression coverage proving `config.patch` preserves explicit
+  `tools.shellDenyGroups` values set to `false` in memory, saved config JSON,
+  and follow-up `config.get` responses.
+- Aligned Claude CLI and ACP provider runtime registration with the saved
+  shell deny-group config. Provider-side deny patterns now derive from
+  `tools.ResolveDenyPatterns(cfg.Tools.ShellDenyGroups)` instead of static
+  defaults, so disabled groups stay disabled after reload/provider registration.
+- Re-registers existing Claude CLI/ACP provider runtimes on config changes so
+  settings-page saves affect runtime enforcement without restart.
+- Uses locked shell deny-group snapshots before HTTP provider registration, so
+  provider creation cannot race config reload while reading the override map.
+- Kept missing shell deny-group keys as inherited defaults; only explicit
+  `false` disables a group.
+
+**Tests**
+
+- `go test ./internal/gateway/methods -run 'TestConfigPatchPersists(InboundDebounceMs|ShellDenyGroupsFalse)' -count=1`
+- `go test ./internal/providers -run 'TestGenerateHookScript' -count=1`
+- `go test ./internal/providers/... -run 'ClaudeCLI|ACP|DenyPatterns|ToolBridge' -count=1`
+- `go test -race ./cmd -run 'TestShellDenyGroupsConfigReload_.*|TestConfiguredShellDenyPatternsDropsDisabledPackageInstall' -count=1`
+- `go vet ./...`
+- `go build ./...`
+- `go build -tags sqliteonly ./...`
+
+---
+
+### Local-first document text extraction adapter (read_document privacy optimization)
+
+Adds optional local extraction pipeline to the `read_document` tool, allowing
+PDF and DOCX parsing via `pdftotext` (poppler-utils) and `pandoc` before
+falling back to cloud vision. Reduces token costs and improves privacy for
+document analysis when local binaries are available.
+
+**New**
+
+- `DocumentParser` interface + `LocalExtractParser` implementation in
+  `internal/tools/document_parser.go`. Handles PDF (`pdftotext`) and DOCX
+  (`pandoc`) with no-shell subprocess exec, binary detection, process-group
+  timeout kill (SIGTERM → 3s grace → SIGKILL), minimal subprocess environment,
+  and 500KB output limit.
+- `DocumentParserConfig` in `internal/config/config_channels.go` under `tools` section:
+  `local_first` (opt-in, default false), `max_pages` (default 200), `timeout_sec`
+  (default 30), `min_text_len` (default 16). Config is read at tool construction;
+  binary availability re-checked per call for runtime installs.
+- Integration in `read_document` tool: `SetLocalParser()` wired at gateway
+  startup (`cmd/gateway_managed.go`). On a clean extraction hit, returns text
+  with no LLM usage (zero tokens, no Provider/Model/Usage fields). Any miss
+  (disabled, unsupported mime, missing binary, timeout, empty output, exec
+  error) transparently falls back to the cloud vision chain unchanged.
+- Security: subprocess exec uses `exec.Command` (no shell), docPath validated
+  at the exec boundary, extracted text treated as untrusted, minimal env
+  (no gateway secrets), `pandoc --sandbox` for DOCX parsing.
+
+**Requirements**
+
+- Requires `pdftotext` and `pandoc` on PATH for local extraction. Present in:
+  - Docker `full` variant (`ghcr.io/nextlevelbuilder/goclaw:vX.Y.Z-full`)
+  - Builds with `-tags "" -X main.enableFullSkills=true` (when available)
+- Desktop Lite edition: local extraction wired but not user-configurable
+  (remains in code for future mobile/CLI usage; server/Docker only now).
+
+**Docs**
+
+- `docs/03-tools-system.md` § 5 — new `document_parser` config block with all
+  four fields, defaults, and fallback semantics.
+- `docs/03-tools-system.md` § 4 (Media Reading) — updated `read_document`
+  description to mention local-first extraction option.
+
+**Testing**
+
+- Behavior unchanged when `local_first: false` (default).
+- Verify local extraction when enabled: create test PDF/DOCX, enable config,
+  inspect tool output for zero-token response vs cloud vision (Gemini, etc.).
+
+---
+
+### Skill selected download export (issue #80)
+
+**Features**
+
+- Extended `GET /v1/skills/export` with selected skill IDs via repeated `id`
+  or comma-separated `ids`, while preserving the no-selection full export as
+  tenant custom-skill only by default.
+- Added archive format selection: `tar.gz`, `tgz` alias, and `zip`. Direct and
+  SSE download paths now return matching archive filenames and content types.
+- Selected exports can include system/core skills explicitly without changing
+  full backup defaults.
+- Archive output now preserves skill directory content such as `SKILL.md`,
+  `references/`, `scripts/`, and `assets/`, while skipping unsafe paths and
+  symlinks. Nested files named `metadata.json` or `grants.jsonl` remain
+  exportable; only generated root archive artifacts are skipped.
+- Archive assembly streams file contents into the writer and revalidates opened
+  files against the resolved skill root to avoid large in-memory reads and
+  symlink-swap escapes.
+- Web Skills page now supports Download from the detail dialog and Download
+  selected from the bulk toolbar, with format selection and EN/VI/ZH labels.
+
+**Tests**
+
+- Added backend coverage for export request parsing, archive writers, safe
+  directory walking, selected system/custom scope, and full export defaults.
+- Added web helper coverage for selected export URLs and archive filenames.
+
+---
+
+### Discord thread history and attachment backfill (issue #69)
+
+**Fixes**
+
+- Discord thread mentions now fetch recent thread messages before the triggering mention and prepend them as context for the agent run.
+- Prior thread image and document attachments are downloaded immediately and passed through the existing inbound media pipeline, so `read_image` and `read_document` can use files posted earlier in the thread.
+- Backfill is limited to addressed Discord threads, 25 prior messages, 15 attachments, 5 MB per backfilled file, and a 30-second timeout. Missing Discord history permission or REST failures fall back to the current message without crashing.
+
+---
+
+### Telegram voice transcription and read_audio fallback (issue #85)
+
+**Fixes**
+
+- Telegram voice/audio STT now preserves Telegram's detected MIME type, including `audio/ogg; codecs=opus`, instead of forcing every STT request to `audio/ogg`.
+- Telegram STT now resolves channel-scoped legacy proxy overrides by platform type `telegram`, so DB channel instances with custom names still select the Telegram override.
+- `read_audio` no longer sends unsupported audio routes as `providers.ImageContent`; unsupported provider/model combinations now fail closed with an audio-specific error that names supported routes.
+
+**Tests**
+
+- Added Telegram STT regression coverage for channel-type override selection and MIME preservation.
+- Added `read_audio` regression coverage proving unsupported providers are not called through chat/image fallback.
+
+---
+
+### RapidAPI cron SecureCLI diagnostics (issue #74)
+
+**Fixes**
+
+- Added a built-in `rapidapi` SecureCLI preset with required `RAPIDAPI_KEY`, 60s timeout, and verbose/debug flag denials.
+- Credentialed exec now validates required preset env keys before binary resolution, so missing RapidAPI credentials return a GoClaw diagnostic instead of downstream `RAPIDAPI_KEY required`.
+- Added safe SecureCLI env diagnostics that log env key names/count context only, never credential values.
+- Added `RAPIDAPI_KEY` to fall-through exec env scrubbing.
+
+**Tests**
+
+- Added RapidAPI preset contract and deny-pattern coverage.
+- Added credentialed exec regressions for missing RapidAPI env and successful direct exec with injected `RAPIDAPI_KEY`.
+
+---
+
+### Sandbox tenant workspace isolation (issue #68)
+
+**Security**
+
+- Scoped Docker sandbox workspace mounts to the effective tenant/session workspace from tool context instead of the global workspace root.
+- Kept the in-container UX stable: the effective workspace is mounted at `/workspace`.
+- Made Docker sandbox reuse workspace/config-aware so shared or agent-scoped containers cannot cross workspace boundaries.
+- Added fail-closed behavior when tenant-scoped sandbox execution has no effective workspace.
+
+**Tests**
+
+- Added unit coverage for effective sandbox workspace selection, `/workspace` cwd mapping, normal and credentialed sandbox exec, file-tool sandbox bridge mount selection, and Docker cache-key isolation.
+
+---
+
+### Human-like channel delivery MVP (issue #67)
+
+**New**
+
+- Added `gateway.chat_behavior` runtime config for global quick acknowledgement and safe final multi-message splitting.
+- Added per-channel `chat_behavior` override support for channel instances that already participate in channel delivery settings.
+- Quick acknowledgements are emitted only for non-streaming channel runs and are cancelled when a block reply or terminal event arrives.
+- Final splitting applies only to non-streaming text-only final replies; unsafe Markdown, code, tables, lists, quotes, JSON, and URL-only paragraphs stay as one message.
+- Added `chat_behavior.preview` RPC plus dashboard controls and per-channel override fields.
+
+**Validation**
+
+- Added Go coverage for config resolution, preview, conservative splitting, and non-streaming quick acknowledgement delivery.
+- Verified focused Go packages, both Go builds, `go vet`, web Vitest, web production build, and `git diff --check`.
+
+**Out of scope**
+
+- No archive/timeline storage, renderer, share/export, or interleaved run history changes. Those remain issue #76 scope.
+
+---
+
+### GitHub Releases update scratch dir fallback (issue #94)
+
+- Changed GitHub Releases package updates to prefer `{runtimeDir}/tmp` for
+  scratch extraction and staging, instead of deriving tmp from a release or
+  binary directory.
+- If `packages.scratch_dir` is configured but cannot be created, the update
+  executor now logs a warning and falls back to runtime tmp before failing.
+- Added regression tests for default scratch-dir selection and fallback from an
+  unusable configured scratch path.
+
+---
+
+### CLI Credentials git preset null-env crash (issue #93)
+
+**Fixes**
+
+- Stopped `/v1/cli-credentials/presets` from returning nullable preset arrays
+  for adapter-managed CLIs such as `git`; frontend now also normalizes older
+  `null` payloads defensively.
+- Allowed the `git` preset to create a SecureCLI binary without legacy env
+  vars and persisted its `adapter_name=git`, so the PAT/SSH user credential
+  flow activates after creation.
+- Guarded the preset env-var renderer against nullish `env_vars` to keep the
+  Runtime & Packages → CLI Credentials tab renderable.
+
+**Tests**
+
+- Added backend regression coverage for stable preset arrays and git preset
+  creation without legacy env.
+- Added frontend normalization coverage for nullable adapter-managed preset
+  arrays.
+
+---
+
+## 2026-05-28
+
+### CLI credential adapter framework + git adapter (issue #82)
+
+Refactors `credentialed_exec.go` from "flat env-var injection only" to a
+generic `CredentialAdapter` interface that supports argv prefix injection,
+ephemeral filesystem material, system-trusted env vars, and per-injection
+redaction. Existing presets (`gh`, `aws`, `gcloud`, `kubectl`, `terraform`,
+`gws`) route through a passthrough adapter and keep current behavior
+bit-for-bit.
+
+**New**
+
+- `CredentialAdapter` interface + registry in `internal/tools/credential_adapter.go`.
+  Default `passthrough` adapter preserves legacy behavior; named adapters
+  register via `init() → RegisterAdapter`.
+- `git` adapter (`internal/tools/credential_adapter_git.go`) covering both
+  HTTPS PAT and SSH key paths. PAT injected via `GIT_CONFIG_COUNT` +
+  `GIT_CONFIG_KEY_*`/`GIT_CONFIG_VALUE_*` env vars (never argv → keeps token
+  off `ps`/`/proc/<pid>/cmdline`). SSH key materialized to 0600 tmpfile +
+  `GIT_SSH_COMMAND` with `IdentitiesOnly=yes` and `StrictHostKeyChecking=accept-new`.
+  Passphrase-protected SSH keys rejected at validation with
+  `git.cred_ssh_passphrase_unsupported`.
+- `psql` framework-validation stub adapter (`internal/tools/credential_adapter_psql.go`)
+  proving the interface holds for non-git credential families.
+- Shared `materializeEphemeral` helper (`internal/tools/credential_ephemeral.go`)
+  with idempotent cleanup latch and explicit `0600` chmod.
+- Per-injection audit log: `slog.Warn("security.system_env_injection", …)`
+  with `adapter`, `binary`, `user_id`, sorted `env_keys` (names only),
+  `argv_prefix_len`, `host_scope_hash` (SHA-256 first 8 hex chars — plaintext
+  hostname intentionally omitted for PII safety). Schema pinned by
+  `TestEmitSystemEnvInjectionAudit_*`.
+- Typed-credential HTTP PUT path with `{error:{code,message}, error_key}`
+  envelope so the web UI can drive field-level validation
+  (`git.cred_host_scope_required`, `git.cred_ssh_passphrase_unsupported`,
+  etc.).
+- Web UI: `CliCredentialGitFields` extends the CLI Credentials dialog with
+  `Personal Access Token` / `SSH Private Key` picker, host-scope input,
+  CRLF→LF paste normalization, masked-secret edit flow (`••••••••`
+  placeholder preserves stored value on save).
+- 17 i18n keys × 3 locales (en/vi/zh).
+
+**Docs**
+
+- New: `docs/git-credential-adapter.md` — user-facing guide (when to use PAT
+  vs SSH vs env, host-scope semantics, TOFU caveat with `ssh-keyscan`
+  mitigation, SIGKILL residual material note, operator sweep recipe).
+- New: `docs/credential-adapter-playbook.md` — implementer guide with worked
+  mappings for `kubectl`, `docker`, `npm`, `aws`, `psql` and the three-question
+  interface-validation gate.
+- `docs/09-security.md` § 14 — trust-boundary diagram, audit field schema,
+  SSH TOFU + SIGKILL caveats, v2 future-work list.
+- `docs/03-tools-system.md` § 8a — adapter framework summary linking to the
+  playbook.
+
+**Security**
+
+- User-paste denylist (`ValidateGrantEnvVars`) unchanged — first line of
+  defense intact. Adapter path is the second, audit-trailed line; a typo in
+  `adapter_name` falls back to passthrough (no silent bypass).
+- AES-256-GCM at rest for stored PAT/SSH bodies; secrets cannot be read back
+  via API/UI.
+- `ScrubCredentials` redacts PAT bytes and SSH key path from stdout, stderr,
+  `Result.Content`, and audit log JSON.
+
+**Known v1 limitations**
+
+- One credential per (user, binary, host_scope).
+- No multi-host wildcard (`*.github.com`).
+- No persistent `known_hosts` per credential (TOFU only).
+- No sandbox support (adapter is incompatible with bind-mount-based sandbox
+  path).
+- No credential-refresh primitive (blocks future `aws sts assume-role`
+  adapter).
+
+---
+
+## 2026-05-27
+
+### zuey VPS ops scripts: repo-tracked + CI auto-sync
+
+**Fixes**
+
+- Patched `/usr/local/bin/goclaw-deploy` on zuey to survive a self-loop `/opt/goclaw/current` symlink (`readlink -f` now `2>/dev/null || true`, with a warning when `previous` is empty). Without this, `set -euo pipefail` aborted before `ln -sfn` could overwrite the symlink, silently failing every `deploy_zuey_beta` CI run.
+
+**Changes**
+
+- Moved `scripts/goclaw-upgrade-release.sh` → `scripts/zuey/goclaw-upgrade-release.sh`.
+- Added `scripts/zuey/goclaw-deploy.sh` (canonical source for the on-host `/usr/local/bin/goclaw-deploy`).
+- Wired `Sync zuey ops scripts to VPS` step in `.github/workflows/dev-beta-release.yaml` to `scp + sudo install` both scripts before triggering the gateway upgrade endpoint on every beta release. Requires new repository secrets `ZUEY_SSH_PRIVATE_KEY_B64` (base64-encoded private key, single line) and `ZUEY_SUDO_PASS`; step skips with a warning if either is unset.
+- Updated `docs/deployment-guide.md` with the self-loop guard rationale, manual sync recipe, and required-secrets table.
+
+**Followup fix (run 26499549166)**
+
+- First real `deploy_zuey_beta` run on `dev` failed with `Load key: error in libcrypto` because GitHub Secrets storage normalized newlines inside the multi-line PEM block. Switched the secret to base64 (`ZUEY_SSH_PRIVATE_KEY_B64`) and added pre-flight validation (`ssh-keygen -y -f`) that fails fast with a remediation hint if the decoded key is malformed.
+
+---
+
+## 2026-05-24
+
+### Google Workspace CLI runtime integration
+
+**Features**
+
+- Added `gws` as a preinstalled Google Workspace CLI in the full runtime image.
+- Added a SecureCLI `gws` preset with encrypted credential injection fields and guardrails for interactive auth/export commands.
+- Documented Drive, Gmail, and Calendar command patterns plus live credential smoke-test requirements.
+
+**Tests**
+
+- Added runtime binary discovery, SecureCLI preset, deny-pattern, and Dockerfile contract coverage for Google Workspace CLI.
+
+### Slash skill commands
+
+**Features**
+
+- Added explicit slash skill activation for `/<slug>`, `/use <slug-or-name>`, `/list-skills`, and `/help <slug-or-name>`.
+- Added tenant settings for slash command enablement, similar-skill suggestions, partial matching, and custom prefix.
+
+**Tests**
+
+- Added backend coverage for parser false positives, exact/partial skill resolution, suggestions, help/list commands, and config overlays.
+
+### Configurable skill upload limits
+
+**Features**
+
+- Added configurable skill ZIP upload limits with config/env, SKILL.md frontmatter, and tenant system setting support.
+- Added dashboard settings and dynamic upload validation so the Web UI follows the tenant limit instead of hardcoding 20MB.
+
+**Tests**
+
+- Added backend coverage for limit precedence, clamping, oversized rejection, and frontend coverage for parameterized upload validation.
+
+### CLI environment variable visibility
+
+**Features**
+
+- Added `sensitive` and `value` kinds for secure CLI environment variables across binary defaults, agent grant overrides, and user overrides.
+- Plain value entries are visible to authorized admins for operational config review, while sensitive entries remain masked and replace-only.
+
+**Fixes**
+
+- Stopped per-user credential reads from returning legacy sensitive env values raw.
+- Kept legacy `{"KEY":"value"}` env blobs backward-compatible by treating them as sensitive.
+
+**Tests**
+
+- Added backend regression coverage for env kind parsing, sanitized API responses, runtime flattening, and invalid kind rejection.
+- Verified Web UI build after adding env-kind controls and warnings.
+
+### Command keyword allowlist
+
+**Features**
+
+- Added scoped credentialed CLI keyword allowlist config for content arguments and positional arguments, with runtime reload and web config editing.
+
+**Fixes**
+
+- Kept credentialed CLI `deny_args` active for command paths such as `gh secret set` while allowing approved GitHub issue/PR prose to mention security vocabulary.
+- Added security audit logging for real allowlisted pass-throughs without logging full argument values.
+
+**Tests**
+
+- Added regression coverage for scoped keyword masking, disabled rules, unsafe positional rules, config reload, and race-safe policy snapshots.
+
+### Browser cookie sync and config UI
+
+**Features**
+
+- Added scoped browser cookie sync API, encrypted cookie store, browser runtime cookie application, dashboard browser settings, and a selected-cookie Chrome extension prototype.
+
+### Cron SecureCLI credential context
+
+**Fixes**
+
+- Fixed cron-triggered agent turns so credentialed CLI lookups preserve the explicit tenant user credential identity captured when the cron job is created.
+- Kept cron `user_id` ownership unchanged for group-scoped list/remove behavior while storing credential lookup identity separately in cron payload metadata.
+
+**Tests**
+
+- Added regression coverage for cron payload credential metadata, legacy payload compatibility, cron scheduler context injection, and SQLite cron persistence parity.
+
+---
+
+## 2026-05-22
+
+### Usage Cap budget controls
+
+**Features**
+
+- Added Standard/PostgreSQL usage caps for AI budget control by hour, day, week, or month.
+- Caps support token and USD cost ceilings at tenant, agent, provider, provider type, and model scopes.
+- Added OpenRouter catalog sync plus tenant/provider/model pricing overrides for input, output, cache read/write, reasoning, request, image, and web search units.
+- Enforced caps in agent, fallback model, subagent, memory flush, compaction, and media reading tools (`read_image`, `read_document`, `read_audio`, `read_video`) with preflight reservation and post-call reconciliation.
+- Added non-negative validation for catalog and override pricing fields.
+- Added OpenRouter alias resolution for native model IDs, cached-input accounting normalization, and partial-stream failure reconciliation.
+- Bridged legacy `budget_monthly_cents` into generated monthly agent USD cap policies, including migration backfill and save-time sync.
+- Added web dashboard controls on Usage and Provider detail pages.
+- Added Usage page editing for manual cap policies, including enable/disable, scope clearing, and token/USD limit clearing while keeping generated agent-budget caps read-only.
+- Added usage-cap decision metadata to LLM spans, including allow/skip/block reason, policy IDs, estimates, actuals, and reconcile status.
+
+**Tests**
+
+- Added pricing and cap service coverage.
+- Verified Go builds, SQLite build compatibility, full Go test suite, integration race suite, and Web UI production build.
+
+### Messaging debounce hardening
+
+**Features**
+
+- Added per-agent inbound debounce override via `other_config.inbound_debounce_ms`; unset inherits the global gateway setting.
+- Added Web Chat debounce for rapid text-only `chat.send` calls using `gateway.inbound_debounce_ms`.
+- Clarified shared inbound debounce behavior in docs and Web UI config help text.
+
+**Fixes**
+
+- Fixed inbound debounce semantics so `gateway.inbound_debounce_ms=0` means no debounce and positive values set the wait window.
+- Fixed Slack `debounce_delay: 0` so it disables per-thread batching instead of falling back to the default.
+
+**Tests**
+
+- Added regression coverage for channel inbound debounce, Web Chat debounce, media/cancel bypass handling, and Slack debounce config defaults.
+
+### CLI P6 backend API unblock
+
+**Features**
+
+- Added HTTP session branch and history follow endpoints for automation clients.
+- Added read-only channel writer permission testing.
+- Added split activity-log and runtime-log aggregate endpoints.
+
+**Tests**
+
+- Added focused HTTP, store, and runtime log coverage for branch/follow, writer test, activity aggregate, and LogTee ring aggregation.
+
+### CI/CD: zuey beta deploy
+
+**Features**
+
+- Added automatic zuey VPS deployment to the `Dev CI and Beta Release` workflow after beta prerelease assets are published.
+- The deploy job triggers the protected gateway upgrade endpoint with the generated `vX.Y.Z-beta.N` tag, waits for upgrade status, and verifies public `/health`.
+- Beta prereleases now upload `CHECKSUMS.sha256` alongside binary assets.
+
+**Fixes**
+
+- Updated the host release-upgrade script to support beta asset filenames with a leading `v`.
+- Added checksum fallback to GitHub release asset SHA256 digests when beta releases do not publish `CHECKSUMS.sha256`.
+- Detached gateway-triggered upgrades into a transient `systemd-run` unit so stopping `goclaw` during deploy no longer kills the upgrade job.
+- Allowed stale upgrade `running` status records to be superseded after timeout and made the zuey deploy wait loop tolerate transient 502s during restart.
+
+**Tests**
+
+- Added regression coverage for stale gateway upgrade status recovery.
+
+---
+
+## 2026-05-21
+
+### Tools: configurable exec timeout
+
+**Features**
+
+- Added `exec.settings.timeout_seconds` for configurable host command timeout through global and tenant built-in tool settings.
+- Added dashboard controls for the `exec` timeout, defaulting missing settings to 60 seconds.
+- Kept Docker sandbox execution on `sandbox_config.timeout_sec`; `exec.timeout_seconds` only affects the host built-in.
+
+**Fixes**
+
+- Added API validation for `exec` settings so invalid, zero, negative, fractional, or excessive timeout values are rejected before persistence.
+
+**Tests**
+
+- Added focused runtime and HTTP API regression coverage for configured `exec` timeouts and invalid settings.
+- Verified web dashboard build with the typed `exec` settings form.
+
+---
+
+## 2026-05-20
+
+### HTTP API contract hardening
+
+**Fixes**
+
+- Fixed memory API `{agentID}` handling so agent keys are resolved before storage access and invalid IDs return structured client errors instead of leaking UUID parse failures as HTTP 500.
+- Allowed system/admin API-key automation to list agents and sessions without an extra `X-GoClaw-User-Id` header while preserving user filtering for non-admin callers.
+- Added structured `/v1/*` not-found responses and a read-only `GET /v1/sessions` compatibility endpoint for automation clients.
+
+**Tests**
+
+- Added regression coverage for memory agent-key resolution, invalid memory IDs, session list auth behavior, and structured API 404s.
+
+---
+
 ## 2026-05-18
 
 ### Packages: GitHub installer runtime path

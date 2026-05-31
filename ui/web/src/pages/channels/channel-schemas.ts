@@ -26,6 +26,12 @@ const blockReplyOptions = [
   { value: "false", label: "Disabled" },
 ];
 
+const chatBehaviorOverrideFields: FieldDef[] = [
+  { key: "chat_behavior.enabled", label: "Human-like Delivery", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Override gateway quick acknowledgement and final reply splitting." },
+  { key: "chat_behavior.quick_ack.enabled", label: "Quick Acknowledgement", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Override quick acknowledgement for this channel." },
+  { key: "chat_behavior.final_split.enabled", label: "Final Reply Splitting", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Override final multi-message splitting for this channel." },
+];
+
 const dmPolicyOptions = [
   { value: "pairing", label: "Pairing (require code)" },
   { value: "open", label: "Open (accept all)" },
@@ -81,6 +87,10 @@ export const credentialsSchema: Record<string, FieldDef[]> = {
     { key: "page_access_token", label: "Page Access Token", type: "password", required: true, help: "Page-level token from Pancake dashboard → Page Settings" },
     { key: "webhook_secret", label: "Webhook Secret (Optional)", type: "password", help: "HMAC-SHA256 secret for webhook signature verification. Leave empty to skip verification." },
   ],
+  // Bitrix24 credentials are empty: portal-level OAuth (client_id/client_secret/tokens)
+  // lives on the bitrix_portals row, not the channel instance. Authorize the portal
+  // once via /bitrix24/install, then create channel instances against that portal.
+  bitrix24: [],
 };
 
 // --- Pancake platform options ---
@@ -125,6 +135,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "link_preview", label: "Link Preview", type: "boolean", defaultValue: true },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "User IDs or @usernames, one per line or comma-separated" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
+    ...chatBehaviorOverrideFields,
   ],
   discord: [
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
@@ -133,6 +144,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "history_limit", label: "Group History Limit", type: "number", defaultValue: 50, help: "Max pending group messages for context (0 = disabled)" },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Discord user IDs" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
+    ...chatBehaviorOverrideFields,
   ],
   slack: [
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing", help: "How to handle direct messages from unknown users" },
@@ -147,6 +159,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "reaction_level", label: "Reaction Level", type: "select", options: [{ value: "off", label: "Off" }, { value: "minimal", label: "Minimal (thinking + done)" }, { value: "full", label: "Full (all status emoji)" }], defaultValue: "off", help: "Show emoji reactions on user messages during agent processing" },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Slack user IDs (U...) allowed to interact; empty = no allowlist filter" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
+    ...chatBehaviorOverrideFields,
   ],
   feishu: [
     { key: "domain", label: "Domain", type: "select", options: [{ value: "lark", label: "Lark (Global)" }, { value: "feishu", label: "Feishu (China)" }], defaultValue: "lark" },
@@ -165,6 +178,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Lark open_ids (ou_...)" },
     { key: "group_allow_from", label: "Group Allowed Users", type: "tags", help: "Separate allowlist for group senders" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
+    ...chatBehaviorOverrideFields,
   ],
   zalo_oa: [
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
@@ -172,6 +186,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "media_max_mb", label: "Max Media Size (MB)", type: "number", defaultValue: 5 },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Zalo user IDs" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
+    ...chatBehaviorOverrideFields,
   ],
   zalo_personal: [
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "allowlist" },
@@ -179,6 +194,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "require_mention", label: "Require @mention in groups", type: "boolean", defaultValue: true },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Zalo user IDs or group IDs" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
+    ...chatBehaviorOverrideFields,
   ],
   whatsapp: [
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
@@ -186,6 +202,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "require_mention", label: "Require @Mention in Groups", type: "boolean", help: "Only respond in group chats when the bot is explicitly @mentioned" },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "WhatsApp user IDs" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
+    ...chatBehaviorOverrideFields,
   ],
   facebook: [
     { key: "page_id", label: "Page ID", type: "text", required: true, help: "Facebook Page numeric ID" },
@@ -233,6 +250,33 @@ export const configSchema: Record<string, FieldDef[]> = {
       help: "Never react to comments from these user IDs." },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Sender IDs to whitelist. Empty = accept all." },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit" },
+    ...chatBehaviorOverrideFields,
+  ],
+  bitrix24: [
+    { key: "portal", label: "Portal", type: "text", required: true, placeholder: "my-portal", help: "Select an existing Bitrix24 portal, or click \"+ Create new portal\" to connect a new one." },
+    { key: "bot_code", label: "Bot Code", type: "text", required: true, placeholder: "support_bot", help: "Stable key passed to imbot.register. Must be unique per portal." },
+    { key: "bot_name", label: "Bot Name", type: "text", required: true, placeholder: "Support Bot", help: "Display name shown in Bitrix24 chats." },
+    { key: "bot_type", label: "Bot Type", type: "select", options: [
+      { value: "B", label: "B — Standard internal bot (default)" },
+      { value: "O", label: "O — Open Channel bot (customer-facing queue)" },
+    ], defaultValue: "B", help: "Forwarded verbatim to imbot.register TYPE. \"B\" = standard internal bot for portal users. \"O\" = Open Channel bot attached to a queue; per-user MCP credential minting is skipped because senders are transient customers." },
+    { key: "bot_avatar", label: "Bot Avatar URL", type: "text", placeholder: "https://...", help: "Optional avatar URL — fetched and base64-encoded at Start()." },
+    // public_url removed: gateway URL is now captured automatically from the
+    // install handler request and stored on the portal row.
+    { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
+    { key: "group_policy", label: "Group Policy", type: "select", options: groupPolicyOptions, defaultValue: "open" },
+    { key: "require_mention", label: "Require @mention in groups", type: "boolean", defaultValue: true, help: "Only respond in group chats when the bot is explicitly @mentioned." },
+    { key: "history_limit", label: "Group History Limit", type: "number", defaultValue: 0, help: "Max pending group messages for context (0 = disabled)" },
+    { key: "streaming", label: "Streaming", type: "boolean", defaultValue: true, help: "Stream response progressively." },
+    { key: "reaction_level", label: "Reaction Level", type: "select", options: [{ value: "off", label: "Off" }, { value: "minimal", label: "Minimal" }, { value: "full", label: "Full" }], defaultValue: "minimal", help: "Typing/status reactions while the agent is processing." },
+    { key: "text_chunk_limit", label: "Text Chunk Limit", type: "number", defaultValue: 4000, help: "Max characters per outbound message." },
+    { key: "media_max_mb", label: "Max Media Size (MB)", type: "number", defaultValue: 20, help: "Max inbound media download size." },
+    { key: "allow_from", label: "Allowed Users (DM)", type: "tags", help: "Bitrix24 user IDs allowed to DM the bot. Empty = no allowlist filter." },
+    { key: "group_allow_from", label: "Allowed Users (Group)", type: "tags", help: "Separate allowlist for group senders." },
+    { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations." },
+    ...chatBehaviorOverrideFields,
+    { key: "mcp_server_name", label: "MCP Server Name", type: "text", advanced: true, placeholder: "bitrix24-prod", help: "Optional — name from mcp_servers table. Must be set together with MCP Base URL to enable per-user MCP credential auto-onboard. Leave both empty to disable." },
+    { key: "mcp_base_url", label: "MCP Base URL", type: "text", advanced: true, placeholder: "https://mcp.example.com", help: "Optional — HTTPS root of the partner MCP server. Channel POSTs {mcp_base_url}/api/auto-onboard to mint per-user credentials on first-sight. The MCP server authenticates each call via the caller's Bitrix access_token, so no admin secret is required." },
   ],
 };
 

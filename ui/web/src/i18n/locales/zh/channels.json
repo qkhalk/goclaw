@@ -118,6 +118,7 @@
       "config": "配置",
       "credentials": "凭据",
       "groups": "群组",
+      "contexts": "上下文",
       "managers": "管理员"
     },
     "general": {
@@ -155,6 +156,86 @@
       "saved": "已保存",
       "saveGroups": "保存群组",
       "saving": "保存中..."
+    },
+    "contexts": {
+      "description": "查看 Channel 上下文、已存成员、MCP 工具、Secure CLI 工具和作用域凭据。",
+      "emptyTitle": "暂无上下文",
+      "emptyHint": "Channel 收到消息或群组元数据后会显示上下文。",
+      "loading": "正在加载上下文详情...",
+      "capabilities": "能力",
+      "members": "成员",
+      "noCapabilities": "此上下文没有可用能力。",
+      "noMembers": "此上下文没有已存成员。",
+      "none": "无",
+      "allTools": "全部工具",
+      "scopedCount": "{{count}} 个作用域覆盖",
+      "scopedCount_plural": "{{count}} 个作用域覆盖",
+      "live": "实时",
+      "grant": "授权",
+      "revoke": "撤销",
+      "manageCapability": "管理能力",
+      "scopedCredential": "作用域凭据",
+      "apiKeyPlaceholder": "API key（仅 MCP）",
+      "envPlaceholder": "环境变量 JSON，例如 {\"TOKEN\":\"...\"}",
+      "secretHint": "值会加密保存，保存后不会返回。",
+      "saveCredential": "保存凭据",
+      "deleteCredential": "删除凭据",
+      "grantSaved": "上下文授权已保存",
+      "grantDeleted": "上下文授权已删除",
+      "credentialSaved": "上下文凭据已保存",
+      "credentialDeleted": "上下文凭据已删除",
+      "invalidEnv": "环境变量必须是字符串值的 JSON 对象。",
+      "envRequired": "Secure CLI 凭据需要环境变量 JSON。",
+      "credentialRequired": "请输入 API key 或环境变量 JSON。",
+      "actionFailed": "操作失败",
+      "columns": {
+        "name": "名称",
+        "type": "类型",
+        "source": "来源",
+        "credentials": "凭据",
+        "tools": "工具",
+        "actions": "操作"
+      }
+    },
+    "passiveMemory": {
+      "title": "被动记忆提取",
+      "description": "从群组被动消息中提取长期事实，并进入可审核的记忆队列。",
+      "pendingCount": "{{count}} 待审核",
+      "enable": "启用被动提取",
+      "reviewMode": "写入前需要审核",
+      "interval": "间隔（分钟）",
+      "messageCap": "消息阈值",
+      "retention": "保留（小时）",
+      "minMessages": "最少消息数",
+      "types": "记忆类型",
+      "excludeUsers": "排除用户",
+      "excludePatterns": "排除规则",
+      "runNow": "立即运行",
+      "save": "保存",
+      "saving": "保存中...",
+      "saved": "记忆设置已保存",
+      "saveFailed": "保存记忆设置失败",
+      "runQueued": "记忆提取已启动",
+      "runFailed": "记忆提取失败",
+      "itemUpdated": "记忆项已更新",
+      "itemFailed": "记忆项操作失败",
+      "reviewQueue": "审核队列",
+      "loading": "正在加载记忆状态...",
+      "noRuns": "暂无提取运行。",
+      "noItems": "暂无记忆候选项。",
+      "lastRun": "最近运行",
+      "runStats": "{{messages}} 条消息，{{items}} 项，{{redactions}} 次脱敏",
+      "approve": "批准",
+      "reject": "拒绝",
+      "delete": "删除",
+      "type": {
+        "people": "人物",
+        "projects": "项目",
+        "decisions": "决策",
+        "todos": "待办",
+        "preferences": "偏好",
+        "events": "事件"
+      }
     },
     "timeline": {
       "title": "时间线",
@@ -421,5 +502,55 @@
     "relinkDevice": "重新连接",
     "connectedSuccess": "✅ WhatsApp 连接成功！",
     "tabQrCode": "二维码"
+  },
+  "bitrix24": {
+    "portalSelect": {
+      "placeholder": "选择门户...",
+      "empty": "尚未连接 Bitrix24 门户。",
+      "createFirst": "连接第一个 Bitrix24 门户",
+      "createNew": "创建新门户",
+      "pendingBadge": "等待授权 — 点击继续",
+      "loadError": "门户加载失败，请刷新重试。"
+    },
+    "errors": {
+      "portalRequired": "请选择一个门户。",
+      "portalNotInstalled": "此门户尚未完成授权。请先授权再创建通道。"
+    },
+    "create": {
+      "title": "连接 Bitrix24 门户",
+      "submit": "创建并授权 →",
+      "fields": {
+        "name": "门户名称",
+        "nameHint": "内部标识。从域名自动填充，可编辑。",
+        "domain": "域名",
+        "clientId": "Client ID",
+        "clientSecret": "Client Secret"
+      },
+      "errors": {
+        "invalidName": "请使用小写字母、数字、连字符、下划线（2-64 字符）。",
+        "invalidDomain": "必须是有效的 Bitrix24 域名（例如：mycorp.bitrix24.com）。",
+        "duplicateName": "门户名称已存在。",
+        "forbidden": "您需要租户管理员权限才能创建门户。",
+        "gatewayURLUnknown": "请先通过公网 URL（非 localhost）打开 goclaw UI 然后重试。"
+      },
+      "help": {
+        "title": "如何获取 Client ID 和 Secret？",
+        "step1": "以管理员身份打开 Bitrix24 门户。",
+        "step2": "进入开发者资源 → 其他 → 本地应用 → 添加。",
+        "step3": "将 Handler URL 设置为：",
+        "step4": "勾选所需的权限：",
+        "step5": "保存 → 将 Application ID 和 Key 复制到上面的表单。",
+        "localDevWarning": "您正在 localhost — Bitrix24 无法访问此 URL。请先使用 Cloudflare Tunnel 或公网域名。"
+      },
+      "authorize": {
+        "title": "授权 \"{{name}}\"",
+        "openButton": "打开授权页面",
+        "waiting": "等待授权中...",
+        "installed": "门户安装成功！",
+        "timedOut": "尚未完成授权。可从下拉框继续。",
+        "closeResumeLater": "关闭（稍后继续）",
+        "urlUnknown": "无法获取安装 URL。请通过公网 URL 打开 goclaw UI 后从下拉框重试。"
+      }
+    }
   }
 }

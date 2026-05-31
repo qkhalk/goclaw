@@ -40,6 +40,7 @@ type RunContext struct {
 	// Tool configuration
 	BuiltinToolSettings map[string][]byte
 	ChannelType         string
+	ChannelContextScope ChannelContextScope
 	SubagentsCfg        *config.SubagentsConfig
 	ParentModel         string
 	ParentProvider      string
