@@ -164,7 +164,7 @@ Memory layers: L1 (`memory_search`) returns ranked abstracts; L2 (`memory_expand
 | Tool | Description |
 |---|---|
 | `read_image` | Analyze/describe images using vision AI (Gemini, Anthropic, OpenRouter, DashScope) |
-| `read_audio` | Transcribe audio to text |
+| `read_audio` | Transcribe audio to text using Gemini File API, native OpenAI audio input, or OpenAI-compatible transcription models; unsupported provider/model routes fail closed instead of sending audio as image data |
 | `read_document` | Extract and analyze documents (PDF, images) via Gemini or Resolve service |
 | `read_video` | Analyze/transcribe video content |
 

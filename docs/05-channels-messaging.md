@@ -287,7 +287,7 @@ flowchart TD
     WHATSAPP_CHECK -->|Yes| DOWNLOAD
     
     DOWNLOAD --> STT_CHECK{"STT providers<br/>configured?"}
-    STT_CHECK -->|Yes| STT_CHAIN["Try providers in order:<br/>elevenlabs_scribe, proxy"]
+    STT_CHECK -->|Yes| STT_CHAIN["Try providers in order:<br/>elevenlabs, proxy"]
     STT_CHECK -->|No| LEGACY{"Legacy bridge<br/>providers?"}
     
     LEGACY -->|Yes| STT_CHAIN
@@ -309,11 +309,11 @@ flowchart TD
 
 #### Configuration & Decision Rules
 
-**Decision 2 (Conflict rule):** When `builtin_tools[stt].settings.providers[]` is present in the database, it OVERRIDES all legacy channel-specific STT configs. The legacy STT bridge (`STTProxyURL` → `proxy_stt` provider) only activates when the providers list is empty or missing.
+**Decision 2 (Conflict rule):** When `builtin_tools[stt].settings.providers[]` is present in the database, it OVERRIDES all legacy channel-specific STT configs. The legacy STT bridge (`STTProxyURL` → `proxy` provider) only activates when the providers list is empty or missing.
 
 | Setting | Behavior |
 |---------|----------|
-| `providers: ["elevenlabs_scribe", "proxy_stt"]` | Try ElevenLabs Scribe first; fall back to legacy proxy |
+| `providers: ["elevenlabs", "proxy"]` | Try ElevenLabs Scribe first; fall back to legacy proxy |
 | `providers: []` (empty) | Skip all STT; voice → `[Voice message]` fallback |
 | `providers` missing (nil) | Check for legacy bridge at startup; activate if `STTProxyURL` exists |
 
@@ -331,7 +331,7 @@ When enabled:
 
 | Channel | STT Support | Notes |
 |---------|:-:|---------|
-| **Telegram** | Yes | Uses unified chain; voice routing via `VoiceAgentID` config |
+| **Telegram** | Yes | Uses unified chain; preserves Telegram voice MIME; legacy proxy override is keyed by platform type `telegram`; voice routing via `VoiceAgentID` config |
 | **Discord** | Yes | Standard flow; no special routing |
 | **Feishu** | Yes | Standard flow; no special routing |
 | **WhatsApp** | Yes (opt-in) | Requires explicit admin approval; default OFF |

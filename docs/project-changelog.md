@@ -6,6 +6,21 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Telegram voice transcription and read_audio fallback (issue #85)
+
+**Fixes**
+
+- Telegram voice/audio STT now preserves Telegram's detected MIME type, including `audio/ogg; codecs=opus`, instead of forcing every STT request to `audio/ogg`.
+- Telegram STT now resolves channel-scoped legacy proxy overrides by platform type `telegram`, so DB channel instances with custom names still select the Telegram override.
+- `read_audio` no longer sends unsupported audio routes as `providers.ImageContent`; unsupported provider/model combinations now fail closed with an audio-specific error that names supported routes.
+
+**Tests**
+
+- Added Telegram STT regression coverage for channel-type override selection and MIME preservation.
+- Added `read_audio` regression coverage proving unsupported providers are not called through chat/image fallback.
+
+---
+
 ### RapidAPI cron SecureCLI diagnostics (issue #74)
 
 **Fixes**
