@@ -271,12 +271,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 	}
 
 	// Handle block.reply: deliver intermediate assistant text to non-streaming channels.
-	// Gated by BlockReplyEnabled (resolved from gateway + per-channel config at RegisterRun time).
+	// Gated by explicit block_reply or generated-progress chat behavior.
 	// Streaming channels already deliver via chunks, so skip to avoid double-delivery.
 	if eventType == protocol.AgentEventBlockReply {
-		if !rc.BlockReplyEnabled {
-			return
-		}
 		content := extractPayloadString(payload, "content")
 		if content == "" {
 			return
@@ -287,6 +284,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 
 		if streaming {
 			return // streaming already delivered via chunks
+		}
+		if !rc.BlockReplyEnabled && !ShouldDeliverGeneratedProgress(rc.ChatBehavior, streaming) {
+			return
 		}
 
 		m.cancelQuickAck(rc)

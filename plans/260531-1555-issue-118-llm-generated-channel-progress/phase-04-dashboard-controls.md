@@ -1,10 +1,12 @@
 ---
 phase: 4
-title: "Dashboard Controls"
-status: pending
+title: Dashboard Controls
+status: completed
 priority: P2
-effort: ""
-dependencies: [2, 3]
+effort: ''
+dependencies:
+  - 2
+  - 3
 ---
 
 # Phase 4: Dashboard Controls

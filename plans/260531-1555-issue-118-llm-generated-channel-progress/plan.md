@@ -1,14 +1,22 @@
 ---
-title: "Issue 118 LLM-Generated Channel Progress"
-description: "TDD plan for digitopvn/goclaw#118: make channel immediate/progress replies LLM-generated through the existing main-turn block.reply path, with fixed quick_ack templates retained only as fallback."
-status: pending
+title: Issue 118 LLM-Generated Channel Progress
+description: >-
+  TDD plan for digitopvn/goclaw#118: make channel immediate/progress replies
+  LLM-generated through the existing main-turn block.reply path, with fixed
+  quick_ack templates retained only as fallback.
+status: completed
 priority: P2
-branch: "codex/issue-118-llm-generated-progress-messages"
-tags: [issue-118, channels, chat-behavior, block-reply, tdd]
+branch: codex/issue-118-llm-generated-progress-messages
+tags:
+  - issue-118
+  - channels
+  - chat-behavior
+  - block-reply
+  - tdd
 blockedBy: []
 blocks: []
-created: "2026-05-31T08:55:50.410Z"
-createdBy: "ck:plan"
+created: '2026-05-31T08:55:50.410Z'
+createdBy: 'ck:plan'
 source: skill
 ---
 
@@ -52,11 +60,11 @@ Explicitly out of scope:
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Characterization Tests](./phase-01-characterization-tests.md) | Pending |
-| 2 | [Config Contract](./phase-02-config-contract.md) | Pending |
-| 3 | [Runtime Delivery](./phase-03-runtime-delivery.md) | Pending |
-| 4 | [Dashboard Controls](./phase-04-dashboard-controls.md) | Pending |
-| 5 | [Validation and Ship Handoff](./phase-05-validation-and-ship-handoff.md) | Pending |
+| 1 | [Characterization Tests](./phase-01-characterization-tests.md) | Completed |
+| 2 | [Config Contract](./phase-02-config-contract.md) | Completed |
+| 3 | [Runtime Delivery](./phase-03-runtime-delivery.md) | Completed |
+| 4 | [Dashboard Controls](./phase-04-dashboard-controls.md) | Completed |
+| 5 | [Validation and Ship Handoff](./phase-05-validation-and-ship-handoff.md) | Completed |
 
 ## Dependencies
 

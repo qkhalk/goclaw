@@ -539,10 +539,11 @@ func processNormalMessage(
 			return
 		}
 
+		interimReplyEnabled := blockReplyEnabled || channels.ShouldDeliverGeneratedProgress(chatBehavior, streaming)
 		// Dedup: if block replies were delivered and the final content matches the last
 		// block reply, suppress the final message to avoid duplicate delivery.
-		// Only applies when blockReply is enabled (otherwise nothing was delivered).
-		if blockReplyEnabled && outcome.Result.BlockReplies > 0 && outcome.Result.Content == outcome.Result.LastBlockReply && len(outcome.Result.Media) == 0 {
+		// Only applies when an interim reply mode is enabled (otherwise nothing was delivered).
+		if interimReplyEnabled && outcome.Result.BlockReplies > 0 && outcome.Result.Content == outcome.Result.LastBlockReply && len(outcome.Result.Media) == 0 {
 			slog.Debug("inbound: dedup final message (matches last block reply)",
 				"channel", channel, "run_id", rID)
 			deps.MsgBus.PublishOutbound(bus.OutboundMessage{

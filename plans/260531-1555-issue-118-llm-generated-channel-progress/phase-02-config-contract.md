@@ -1,10 +1,11 @@
 ---
 phase: 2
-title: "Config Contract"
-status: pending
+title: Config Contract
+status: completed
 priority: P1
-effort: ""
-dependencies: [1]
+effort: ''
+dependencies:
+  - 1
 ---
 
 # Phase 2: Config Contract

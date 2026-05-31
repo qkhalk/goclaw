@@ -1,9 +1,9 @@
 ---
 phase: 1
-title: "Characterization Tests"
-status: pending
+title: Characterization Tests
+status: completed
 priority: P1
-effort: ""
+effort: ''
 dependencies: []
 ---
 

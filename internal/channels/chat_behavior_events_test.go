@@ -16,6 +16,7 @@ func TestHandleAgentEvent_QuickAckNonStreamingOnly(t *testing.T) {
 		Enabled: true,
 		QuickAck: ResolvedQuickAckConfig{
 			Enabled:    true,
+			Mode:       QuickAckModeFixedTemplate,
 			MinDelayMs: 0,
 			Templates:  []string{"On it."},
 		},
@@ -60,6 +61,7 @@ func TestUnregisterRun_CancelsPendingQuickAck(t *testing.T) {
 		Enabled: true,
 		QuickAck: ResolvedQuickAckConfig{
 			Enabled:    true,
+			Mode:       QuickAckModeFixedTemplate,
 			MinDelayMs: 50,
 			Templates:  []string{"On it."},
 		},
@@ -85,6 +87,7 @@ func TestCancelQuickAck_BlocksInFlightSend(t *testing.T) {
 			Enabled: true,
 			QuickAck: ResolvedQuickAckConfig{
 				Enabled:   true,
+				Mode:      QuickAckModeFixedTemplate,
 				Templates: []string{"On it."},
 			},
 		},
@@ -97,5 +100,99 @@ func TestCancelQuickAck_BlocksInFlightSend(t *testing.T) {
 	defer cancel()
 	if got, ok := mb.SubscribeOutbound(ctx); ok {
 		t.Fatalf("cancelled quick ack emitted message: %+v", got)
+	}
+}
+
+func TestHandleAgentEvent_GeneratedProgressCancelsFallback(t *testing.T) {
+	behavior := ResolvedChatBehavior{
+		Enabled: true,
+		QuickAck: ResolvedQuickAckConfig{
+			Enabled:    true,
+			Mode:       QuickAckModeLLMGenerated,
+			MinDelayMs: 50,
+			Templates:  []string{"Fallback."},
+		},
+	}
+
+	mb := bus.New()
+	mgr := NewManager(mb)
+	mgr.RegisterChannel("test", &chatBehaviorTestChannel{name: "test"})
+	mgr.RegisterRunWithBehavior("run-1", "test", "chat-1", "msg-1", map[string]string{"local_key": "chat-1/topic"}, uuid.Nil, false, false, true, behavior)
+
+	mgr.HandleAgentEvent(protocol.AgentEventRunStarted, "run-1", nil)
+	mgr.HandleAgentEvent(protocol.AgentEventBlockReply, "run-1", map[string]string{"content": "I will check that now."})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, ok := mb.SubscribeOutbound(ctx)
+	if !ok {
+		t.Fatal("expected generated progress outbound message")
+	}
+	if got.Content != "I will check that now." || got.Metadata["local_key"] != "chat-1/topic" {
+		t.Fatalf("generated progress outbound = %+v, want generated content and routing metadata", got)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 75*time.Millisecond)
+	defer cancel()
+	if got, ok := mb.SubscribeOutbound(ctx); ok {
+		t.Fatalf("fallback emitted after generated progress: %+v", got)
+	}
+}
+
+func TestHandleAgentEvent_GeneratedModeFallsBackWithoutBlockReply(t *testing.T) {
+	behavior := ResolvedChatBehavior{
+		Enabled: true,
+		QuickAck: ResolvedQuickAckConfig{
+			Enabled:    true,
+			Mode:       QuickAckModeLLMGenerated,
+			MinDelayMs: 0,
+			Templates:  []string{"Fallback."},
+		},
+	}
+
+	mb := bus.New()
+	mgr := NewManager(mb)
+	mgr.RegisterChannel("test", &chatBehaviorTestChannel{name: "test"})
+	mgr.RegisterRunWithBehavior("run-1", "test", "chat-1", "msg-1", nil, uuid.Nil, false, false, true, behavior)
+
+	mgr.HandleAgentEvent(protocol.AgentEventRunStarted, "run-1", nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, ok := mb.SubscribeOutbound(ctx)
+	if !ok {
+		t.Fatal("expected fallback quick acknowledgement")
+	}
+	if got.Content != "Fallback." {
+		t.Fatalf("fallback content = %q, want Fallback.", got.Content)
+	}
+}
+
+func TestHandleAgentEvent_QuickAckModeOffPreservesExplicitBlockReply(t *testing.T) {
+	behavior := ResolvedChatBehavior{
+		Enabled: true,
+		QuickAck: ResolvedQuickAckConfig{
+			Enabled:   true,
+			Mode:      QuickAckModeOff,
+			Templates: []string{"Fallback."},
+		},
+	}
+
+	mb := bus.New()
+	mgr := NewManager(mb)
+	mgr.RegisterChannel("test", &chatBehaviorTestChannel{name: "test"})
+	mgr.RegisterRunWithBehavior("run-1", "test", "chat-1", "msg-1", nil, uuid.Nil, false, true, true, behavior)
+
+	mgr.HandleAgentEvent(protocol.AgentEventRunStarted, "run-1", nil)
+	mgr.HandleAgentEvent(protocol.AgentEventBlockReply, "run-1", map[string]string{"content": "Explicit block reply."})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, ok := mb.SubscribeOutbound(ctx)
+	if !ok {
+		t.Fatal("expected explicit block reply outbound message")
+	}
+	if got.Content != "Explicit block reply." {
+		t.Fatalf("explicit block reply content = %q", got.Content)
 	}
 }
