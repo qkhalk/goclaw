@@ -1,8 +1,8 @@
 ---
 phase: 1
-title: "Research and contract tests"
-status: pending
-effort: ""
+title: Research and contract tests
+status: completed
+effort: ''
 ---
 
 # Phase 1: Research and contract tests

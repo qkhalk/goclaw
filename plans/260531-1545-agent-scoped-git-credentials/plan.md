@@ -1,15 +1,17 @@
 ---
-title: "Agent-scoped Git credentials"
-description: "TDD plan for moving git typed credentials from channel/user-id keyed defaults to agent-scoped credentials, with HTTP API and Web UI management."
-status: pending
+title: Agent-scoped Git credentials
+description: >-
+  TDD plan for moving git typed credentials from channel/user-id keyed defaults
+  to agent-scoped credentials, with HTTP API and Web UI management.
+status: completed
 priority: P1
 issue: 117
-branch: "codex/issue-117-agent-scoped-git-credentials-plan"
+branch: codex/issue-117-agent-scoped-git-credentials-plan
 tags: []
 blockedBy: []
 blocks: []
-created: "2026-05-31T08:45:33.071Z"
-createdBy: "ck:plan"
+created: '2026-05-31T08:45:33.071Z'
+createdBy: 'ck:plan'
 source: skill
 ---
 
@@ -33,12 +35,12 @@ TDD target:
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Research and contract tests](./phase-01-research-and-contract-tests.md) | Pending |
-| 2 | [Schema and store resolver](./phase-02-schema-and-store-resolver.md) | Pending |
-| 3 | [HTTP API credential management](./phase-03-http-api-credential-management.md) | Pending |
-| 4 | [Web UI credential management](./phase-04-web-ui-credential-management.md) | Pending |
-| 5 | [Runtime git adapter validation](./phase-05-runtime-git-adapter-validation.md) | Pending |
-| 6 | [Docs validation and handoff](./phase-06-docs-validation-and-handoff.md) | Pending |
+| 1 | [Research and contract tests](./phase-01-research-and-contract-tests.md) | Completed |
+| 2 | [Schema and store resolver](./phase-02-schema-and-store-resolver.md) | Completed |
+| 3 | [HTTP API credential management](./phase-03-http-api-credential-management.md) | Completed |
+| 4 | [Web UI credential management](./phase-04-web-ui-credential-management.md) | Completed |
+| 5 | [Runtime git adapter validation](./phase-05-runtime-git-adapter-validation.md) | Completed |
+| 6 | [Docs validation and handoff](./phase-06-docs-validation-and-handoff.md) | Completed |
 
 ## Dependencies
 

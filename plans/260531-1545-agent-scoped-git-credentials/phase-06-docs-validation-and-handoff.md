@@ -1,8 +1,8 @@
 ---
 phase: 6
-title: "Docs validation and handoff"
-status: pending
-effort: ""
+title: Docs validation and handoff
+status: completed
+effort: ''
 ---
 
 # Phase 6: Docs validation and handoff

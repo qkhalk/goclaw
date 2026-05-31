@@ -4,6 +4,29 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-31
+
+### Agent-scoped git credentials (issue #117)
+
+**New**
+
+- Added agent-scoped Secure CLI credentials with PostgreSQL migration `000077`
+  and SQLite schema version `46`.
+- Added HTTP APIs under
+  `/v1/cli-credentials/{id}/agent-credentials/{agentId}` for listing,
+  reading metadata, saving, and deleting agent credentials.
+- Web CLI Credentials now exposes Agent Credentials as the primary git PAT/SSH
+  setup path, with User Credentials renamed to advanced personal overrides.
+
+**Security**
+
+- Runtime credential precedence is now user override, context credential, agent
+  credential, then binary env defaults.
+- Git adapter audit logs include `credential_source` without logging raw
+  secrets or plaintext host scopes.
+
+---
+
 ## 2026-05-29
 
 ### Passive channel memory extraction (issue #64)

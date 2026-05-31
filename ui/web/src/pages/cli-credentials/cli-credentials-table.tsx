@@ -4,7 +4,7 @@
  * Phase 8: each row has a chip sub-row from agent_grants_summary.
  */
 import { useTranslation } from "react-i18next";
-import { KeyRound, Pencil, Trash2, Users, Shield } from "lucide-react";
+import { Bot, KeyRound, Pencil, Trash2, Users, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CliCredentialAgentChips } from "./cli-credential-agent-chips";
@@ -15,10 +15,11 @@ interface Props {
   onEdit: (item: SecureCLIBinary) => void;
   onDelete: (item: SecureCLIBinary) => void;
   onUserCreds: (item: SecureCLIBinary) => void;
+  onAgentCreds: (item: SecureCLIBinary) => void;
   onGrants: (item: SecureCLIBinary) => void;
 }
 
-export function CliCredentialsTable({ items, onEdit, onDelete, onUserCreds, onGrants }: Props) {
+export function CliCredentialsTable({ items, onEdit, onDelete, onUserCreds, onAgentCreds, onGrants }: Props) {
   const { t } = useTranslation("cli-credentials");
   const { t: tc } = useTranslation("common");
 
@@ -76,6 +77,9 @@ export function CliCredentialsTable({ items, onEdit, onDelete, onUserCreds, onGr
                     >
                       <Shield className="h-3.5 w-3.5" />
                       {t("grants.addGrant")}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => onAgentCreds(item)} title={t("agentCredentials.title")}>
+                      <Bot className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => onUserCreds(item)} title={t("userCredentials.title")}>
                       <Users className="h-3.5 w-3.5" />

@@ -1,8 +1,8 @@
 ---
 phase: 5
-title: "Runtime git adapter validation"
-status: pending
-effort: ""
+title: Runtime git adapter validation
+status: completed
+effort: ''
 ---
 
 # Phase 5: Runtime git adapter validation

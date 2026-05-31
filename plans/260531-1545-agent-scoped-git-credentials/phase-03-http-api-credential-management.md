@@ -1,8 +1,8 @@
 ---
 phase: 3
-title: "HTTP API credential management"
-status: pending
-effort: ""
+title: HTTP API credential management
+status: completed
+effort: ''
 ---
 
 # Phase 3: HTTP API credential management

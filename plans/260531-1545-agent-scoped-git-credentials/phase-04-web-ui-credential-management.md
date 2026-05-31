@@ -1,8 +1,8 @@
 ---
 phase: 4
-title: "Web UI credential management"
-status: pending
-effort: ""
+title: Web UI credential management
+status: completed
+effort: ''
 ---
 
 # Phase 4: Web UI credential management

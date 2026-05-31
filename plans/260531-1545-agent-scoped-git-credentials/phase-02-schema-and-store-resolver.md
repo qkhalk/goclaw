@@ -1,8 +1,8 @@
 ---
 phase: 2
-title: "Schema and store resolver"
-status: pending
-effort: ""
+title: Schema and store resolver
+status: completed
+effort: ''
 ---
 
 # Phase 2: Schema and store resolver
