@@ -6,6 +6,20 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-31
 
+### CI/CD: fast zuey beta deploy (issue #88)
+
+**Changes**
+
+- Split the dev beta release workflow so zuey deploy starts after the linux amd64 prerelease asset is published, instead of waiting for Docker multi-arch builds and beta alias promotion.
+- Added stale beta tag guards for zuey deploy and Docker beta alias promotion so older runs cannot roll back a newer beta.
+- Kept linux arm64 binaries, refreshed checksums, multi-arch Docker images, and beta aliases as required post-deploy completion jobs.
+
+**Tests**
+
+- Added a workflow-structure test covering the fast deploy graph, artifact completion graph, and stale-tag guards.
+
+---
+
 ### Provider fallback content-policy recovery
 
 **Fixes**
