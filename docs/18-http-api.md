@@ -376,6 +376,22 @@ The default prefix is `/`; supported prompt forms are `/<slug> prompt`,
 | `GET` | `/v1/skills/export` | Export skills bundle |
 | `POST` | `/v1/skills/import` | Import skills bundle |
 
+`GET /v1/skills/export` supports direct download and the existing SSE token flow:
+
+| Query | Description |
+|-------|-------------|
+| `stream=true` | Start the existing SSE export flow and return a temporary `download_url` |
+| `format=tar.gz\|tgz\|zip` | Archive format; defaults to `tar.gz`. `tgz` is an alias for gzip tar output |
+| `id=<uuid>` | Select one skill ID. Can be repeated for multiple selected skills |
+| `ids=<uuid>,<uuid>` | Select multiple skill IDs as a comma-separated list |
+| `include_system=true` | Include system skills in a full export when no selected IDs are provided |
+
+Without `id` or `ids`, export remains backward-compatible and includes tenant
+custom skills by default. Explicitly selected IDs may include system/core skills
+without `include_system=true`; tenant-scoped custom skills are still filtered by
+the request tenant. ZIP support is export/download only; the import endpoint
+continues to accept the existing skills bundle format.
+
 ---
 
 ## 6. Providers

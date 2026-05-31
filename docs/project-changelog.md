@@ -6,6 +6,35 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Skill selected download export (issue #80)
+
+**Features**
+
+- Extended `GET /v1/skills/export` with selected skill IDs via repeated `id`
+  or comma-separated `ids`, while preserving the no-selection full export as
+  tenant custom-skill only by default.
+- Added archive format selection: `tar.gz`, `tgz` alias, and `zip`. Direct and
+  SSE download paths now return matching archive filenames and content types.
+- Selected exports can include system/core skills explicitly without changing
+  full backup defaults.
+- Archive output now preserves skill directory content such as `SKILL.md`,
+  `references/`, `scripts/`, and `assets/`, while skipping unsafe paths and
+  symlinks. Nested files named `metadata.json` or `grants.jsonl` remain
+  exportable; only generated root archive artifacts are skipped.
+- Archive assembly streams file contents into the writer and revalidates opened
+  files against the resolved skill root to avoid large in-memory reads and
+  symlink-swap escapes.
+- Web Skills page now supports Download from the detail dialog and Download
+  selected from the bulk toolbar, with format selection and EN/VI/ZH labels.
+
+**Tests**
+
+- Added backend coverage for export request parsing, archive writers, safe
+  directory walking, selected system/custom scope, and full export defaults.
+- Added web helper coverage for selected export URLs and archive filenames.
+
+---
+
 ### Discord thread history and attachment backfill (issue #69)
 
 **Fixes**
