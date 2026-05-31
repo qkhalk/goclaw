@@ -167,7 +167,7 @@ Memory layers: L1 (`memory_search`) returns ranked abstracts; L2 (`memory_expand
 |---|---|
 | `read_image` | Analyze/describe images using vision AI (Gemini, Anthropic, OpenRouter, DashScope) |
 | `read_audio` | Transcribe audio to text using Gemini File API, native OpenAI audio input, or OpenAI-compatible transcription models; unsupported provider/model routes fail closed instead of sending audio as image data |
-| `read_document` | Extract and analyze documents (PDF, images) via Gemini or Resolve service |
+| `read_document` | Extract and analyze documents (PDF, DOCX, images). Supports local-first extraction via pdftotext/pandoc before falling back to cloud vision (opt-in via config) |
 | `read_video` | Analyze/transcribe video content |
 
 ### Skills & Content
@@ -216,6 +216,23 @@ User-facing parameter schemas for the most commonly configured tools.
 ```
 - `primary`: provider (`elevenlabs`, `openai`, `edge`, `minimax`).
 - Per-agent overrides: `agent.other_config.tts_voice_id`, `agent.other_config.tts_model_id`.
+
+### `document_parser` config shape
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+Controls local-first document text extraction in the `read_document` tool.
+- `local_first`: Enable local extraction via `pdftotext` (PDF) and `pandoc` (DOCX) before cloud vision fallback (default `false` — opt-in). Requires binaries on PATH; present in `full` Docker variant or builds with `ENABLE_FULL_SKILLS=true`.
+- `max_pages`: Page limit for PDF extraction (default 200). Passed to `pdftotext -l`.
+- `timeout_sec`: Per-extraction timeout in seconds (default 30). Process group killed on timeout.
+- `min_text_len`: Minimum characters (after trim) to consider extraction successful; shorter output triggers cloud fallback (default 16).
+
+**Note:** Config values are captured at tool construction (startup) and not picked up by hot-reload. Binary availability is re-checked per call, so runtime binary installations are detected without restart. Any extraction miss (disabled, unsupported mime, missing binary, timeout, empty output) transparently falls back to the cloud vision chain with no caller-visible difference.
 
 ### Custom tool definition
 ```json

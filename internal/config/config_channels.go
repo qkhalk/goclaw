@@ -425,6 +425,30 @@ type ToolsConfig struct {
 	RateLimitPerHour        int                           `json:"rate_limit_per_hour,omitempty"` // max tool executions per hour per session (0 = disabled)
 	ScrubCredentials        *bool                         `json:"scrub_credentials,omitempty"`   // auto-redact API keys/tokens in tool output (default true)
 	McpServers              map[string]*MCPServerConfig   `json:"mcp_servers,omitempty"`         // external MCP server connections
+	DocumentParser          DocumentParserConfig          `json:"document_parser"`               // local-first document text extraction
+}
+
+// DocumentParserConfig controls local-first document text extraction in the
+// read_document tool. Local-first is OPT-IN (disabled by default): plain
+// pdftotext/pandoc output mis-orders tables/multi-column layouts and ignores
+// the analysis prompt, so the cloud vision path remains the default. When
+// enabled, PDF/DOCX are extracted via local binaries before any cloud LLM
+// call; missing binaries or empty output fall back to the provider chain.
+//
+// Changing these values requires a gateway restart — they are captured at tool
+// construction and not picked up by config hot-reload. (Binary availability,
+// however, is re-checked per call, so runtime installs are seen without a
+// restart.)
+type DocumentParserConfig struct {
+	LocalFirst *bool `json:"local_first,omitempty"`  // nil => false (default OFF)
+	MaxPages   int   `json:"max_pages,omitempty"`    // 0 => 200
+	TimeoutSec int   `json:"timeout_sec,omitempty"`  // 0 => 30s
+	MinTextLen int   `json:"min_text_len,omitempty"` // 0 => 16
+}
+
+// LocalFirstEnabled reports whether local-first extraction is turned on.
+func (c DocumentParserConfig) LocalFirstEnabled() bool {
+	return c.LocalFirst != nil && *c.LocalFirst
 }
 
 // CommandKeywordAllowlistRule scopes product/security vocabulary that may appear

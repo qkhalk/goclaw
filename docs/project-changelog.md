@@ -6,6 +6,56 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Local-first document text extraction adapter (read_document privacy optimization)
+
+Adds optional local extraction pipeline to the `read_document` tool, allowing
+PDF and DOCX parsing via `pdftotext` (poppler-utils) and `pandoc` before
+falling back to cloud vision. Reduces token costs and improves privacy for
+document analysis when local binaries are available.
+
+**New**
+
+- `DocumentParser` interface + `LocalExtractParser` implementation in
+  `internal/tools/document_parser.go`. Handles PDF (`pdftotext`) and DOCX
+  (`pandoc`) with no-shell subprocess exec, binary detection, process-group
+  timeout kill (SIGTERM → 3s grace → SIGKILL), minimal subprocess environment,
+  and 500KB output limit.
+- `DocumentParserConfig` in `internal/config/config_channels.go` under `tools` section:
+  `local_first` (opt-in, default false), `max_pages` (default 200), `timeout_sec`
+  (default 30), `min_text_len` (default 16). Config is read at tool construction;
+  binary availability re-checked per call for runtime installs.
+- Integration in `read_document` tool: `SetLocalParser()` wired at gateway
+  startup (`cmd/gateway_managed.go`). On a clean extraction hit, returns text
+  with no LLM usage (zero tokens, no Provider/Model/Usage fields). Any miss
+  (disabled, unsupported mime, missing binary, timeout, empty output, exec
+  error) transparently falls back to the cloud vision chain unchanged.
+- Security: subprocess exec uses `exec.Command` (no shell), docPath validated
+  at the exec boundary, extracted text treated as untrusted, minimal env
+  (no gateway secrets), `pandoc --sandbox` for DOCX parsing.
+
+**Requirements**
+
+- Requires `pdftotext` and `pandoc` on PATH for local extraction. Present in:
+  - Docker `full` variant (`ghcr.io/nextlevelbuilder/goclaw:vX.Y.Z-full`)
+  - Builds with `-tags "" -X main.enableFullSkills=true` (when available)
+- Desktop Lite edition: local extraction wired but not user-configurable
+  (remains in code for future mobile/CLI usage; server/Docker only now).
+
+**Docs**
+
+- `docs/03-tools-system.md` § 5 — new `document_parser` config block with all
+  four fields, defaults, and fallback semantics.
+- `docs/03-tools-system.md` § 4 (Media Reading) — updated `read_document`
+  description to mention local-first extraction option.
+
+**Testing**
+
+- Behavior unchanged when `local_first: false` (default).
+- Verify local extraction when enabled: create test PDF/DOCX, enable config,
+  inspect tool output for zero-token response vs cloud vision (Gemini, etc.).
+
+---
+
 ### Skill selected download export (issue #80)
 
 **Features**
