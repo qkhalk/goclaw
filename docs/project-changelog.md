@@ -6,6 +6,21 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Sandbox tenant workspace isolation (issue #68)
+
+**Security**
+
+- Scoped Docker sandbox workspace mounts to the effective tenant/session workspace from tool context instead of the global workspace root.
+- Kept the in-container UX stable: the effective workspace is mounted at `/workspace`.
+- Made Docker sandbox reuse workspace/config-aware so shared or agent-scoped containers cannot cross workspace boundaries.
+- Added fail-closed behavior when tenant-scoped sandbox execution has no effective workspace.
+
+**Tests**
+
+- Added unit coverage for effective sandbox workspace selection, `/workspace` cwd mapping, normal and credentialed sandbox exec, file-tool sandbox bridge mount selection, and Docker cache-key isolation.
+
+---
+
 ### Human-like channel delivery MVP (issue #67)
 
 **New**
