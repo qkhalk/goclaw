@@ -218,10 +218,7 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	// Placeholder update (e.g. LLM retry notification): edit the placeholder
 	// but keep it alive for the final response. Don't stop typing or cleanup.
 	if msg.Metadata["placeholder_update"] == "true" {
-		if pID, ok := c.placeholders.Load(localKey); ok {
-			_ = c.editMessage(ctx, chatID, pID.(int), msg.Content)
-		}
-		return nil
+		return c.updatePlaceholder(ctx, localKey, chatID, msg.Content, replyToMsgID, threadID)
 	}
 
 	// Stop thinking animation
@@ -472,6 +469,56 @@ func (c *Channel) outboundMediaMaxBytes() int64 {
 // replyTo and threadID are optional (0 = omit). General topic (1) is handled by resolveThreadIDForSend.
 func (c *Channel) sendHTML(ctx context.Context, chatID int64, htmlContent string, replyTo, threadID int) error {
 	return c.sendHTMLWithDepth(ctx, chatID, htmlContent, replyTo, threadID, 0)
+}
+
+func (c *Channel) updatePlaceholder(ctx context.Context, localKey string, chatID int64, content string, replyTo, threadID int) error {
+	if strings.TrimSpace(content) == "" {
+		return nil
+	}
+	htmlContent := html.EscapeString(content)
+	if pID, ok := c.placeholders.Load(localKey); ok {
+		_ = c.editMessage(ctx, chatID, pID.(int), htmlContent)
+		return nil
+	}
+
+	msg, err := c.sendPlaceholder(ctx, chatID, htmlContent, replyTo, threadID)
+	if err != nil {
+		if newChatID := extractMigrateChatID(err); newChatID != 0 {
+			slog.Info("telegram: group migrated to supergroup (placeholder update)",
+				"old_chat_id", chatID, "new_chat_id", newChatID)
+			c.migrateGroupChat(ctx, chatID, newChatID)
+			msg, err = c.sendPlaceholder(ctx, newChatID, htmlContent, replyTo, threadID)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if msg != nil && msg.MessageID > 0 {
+		c.placeholders.Store(localKey, msg.MessageID)
+	}
+	return nil
+}
+
+func (c *Channel) sendPlaceholder(ctx context.Context, chatID int64, htmlContent string, replyTo, threadID int) (*telego.Message, error) {
+	tgMsg := tu.Message(tu.ID(chatID), htmlContent)
+	tgMsg.ParseMode = telego.ModeHTML
+	if sendThreadID := resolveThreadIDForSend(threadID); sendThreadID > 0 {
+		tgMsg.MessageThreadID = sendThreadID
+	}
+	if replyTo > 0 {
+		tgMsg.ReplyParameters = &telego.ReplyParameters{
+			MessageID:                replyTo,
+			AllowSendingWithoutReply: true,
+		}
+	}
+
+	var sent *telego.Message
+	err := c.retrySend(ctx, "sendMessage", nil, func(ctx context.Context) error {
+		var sendErr error
+		sent, sendErr = c.bot.SendMessage(ctx, tgMsg)
+		return sendErr
+	})
+	return sent, err
 }
 
 func (c *Channel) sendHTMLWithDepth(ctx context.Context, chatID int64, htmlContent string, replyTo, threadID, depth int) error {
