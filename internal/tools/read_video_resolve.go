@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -70,11 +72,9 @@ func (t *ReadVideoTool) callProvider(ctx context.Context, cp credentialProvider,
 	// Gemini: use File API (requires credentials).
 	ptype := GetParamString(params, "_provider_type", providerTypeFromName(providerName))
 	if cp != nil && ptype == "gemini" {
-		if videoURL != "" {
-			return nil, nil, fmt.Errorf("provider %q does not support analyzing videos directly from a URL", providerName)
-		}
+		var resp *providers.ChatResponse
+		var err error
 
-		slog.Info("read_video: using gemini file API", "provider", providerName, "model", model, "size", len(data), "mime", mime)
 		chatReq := providers.ChatRequest{
 			Messages: []providers.Message{{Role: "user", Content: prompt}},
 			Model:    model,
@@ -84,7 +84,70 @@ func (t *ReadVideoTool) callProvider(ctx context.Context, cp credentialProvider,
 		if reserveErr != nil {
 			return nil, nil, reserveErr
 		}
-		resp, err := geminiFileAPICall(ctx, cp.APIKey(), model, prompt, data, mime, 180*time.Second)
+
+		if videoURL != "" {
+			slog.Info("read_video: streaming URL directly to Gemini File API", "provider", providerName, "model", model, "url", videoURL)
+			
+			// Send GET request to fetch the stream.
+			req, getErr := http.NewRequestWithContext(ctx, "GET", videoURL, nil)
+			if getErr != nil {
+				if reservation != nil {
+					reservation.Reconcile(ctx, nil, getErr)
+				}
+				return nil, nil, fmt.Errorf("failed to create GET request for video URL: %w", getErr)
+			}
+			
+			// No global Timeout on http.Client to allow piping large streams.
+			client := &http.Client{}
+			httpResp, getErr := client.Do(req)
+			if getErr != nil {
+				if reservation != nil {
+					reservation.Reconcile(ctx, nil, getErr)
+				}
+				return nil, nil, fmt.Errorf("failed to fetch video URL: %w", getErr)
+			}
+			defer httpResp.Body.Close()
+
+			if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+				statusErr := fmt.Errorf("video URL returned status code %d", httpResp.StatusCode)
+				if reservation != nil {
+					reservation.Reconcile(ctx, nil, statusErr)
+				}
+				return nil, nil, statusErr
+			}
+
+			// Validate Content-Length
+			contentLength := httpResp.ContentLength
+			if contentLength <= 0 {
+				invalidLenErr := fmt.Errorf("URL does not support static streaming (missing or invalid Content-Length: %d)", contentLength)
+				if reservation != nil {
+					reservation.Reconcile(ctx, nil, invalidLenErr)
+				}
+				return nil, nil, invalidLenErr
+			}
+
+			// Check limits: maximum 2 GB
+			const videoMaxStreamBytes = 2 * 1024 * 1024 * 1024 // 2 GB
+			if contentLength > videoMaxStreamBytes {
+				limitErr := fmt.Errorf("video stream size (%d bytes) exceeds the maximum limit of 2 GB", contentLength)
+				if reservation != nil {
+					reservation.Reconcile(ctx, nil, limitErr)
+				}
+				return nil, nil, limitErr
+			}
+
+			// Extract MIME type from Content-Type header if valid video type, otherwise use the inferred/passed one
+			contentType := httpResp.Header.Get("Content-Type")
+			if contentType != "" && strings.HasPrefix(contentType, "video/") {
+				mime = contentType
+			}
+
+			resp, err = geminiFileAPICallStream(ctx, cp.APIKey(), model, prompt, httpResp.Body, contentLength, mime, 300*time.Second)
+		} else {
+			slog.Info("read_video: using gemini file API", "provider", providerName, "model", model, "size", len(data), "mime", mime)
+			resp, err = geminiFileAPICall(ctx, cp.APIKey(), model, prompt, data, mime, 180*time.Second)
+		}
+
 		if reservation != nil {
 			reservation.Reconcile(ctx, resp, err)
 		}
