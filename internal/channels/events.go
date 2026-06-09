@@ -50,7 +50,8 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 	if sc, ok := ch.(StreamingChannel); ok && rc.Streaming {
 		switch eventType {
 		case protocol.AgentEventRunStarted:
-			stream, err := sc.CreateStream(ctx, rc.ChatID, true)
+			firstStreamIsReasoning := rc.ReasoningDelivery.ShowInChannel && !rc.ReasoningDelivery.BubbleDelivery && sc.ReasoningStreamEnabled()
+			stream, err := sc.CreateStream(ctx, rc.ChatID, firstStreamIsReasoning)
 			if err != nil {
 				slog.Debug("stream start failed", "channel", rc.ChannelName, "error", err)
 			} else {
@@ -66,11 +67,15 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 			// When the first chunk arrives, this stream is stopped (reasoning message stays
 			// visible) and a new stream is created for the answer lane.
 			// Gated by ReasoningStreamEnabled() — channels can opt out (e.g. Slack).
-			if !sc.ReasoningStreamEnabled() {
-				break
-			}
 			content := extractPayloadString(payload, "content")
 			if content != "" {
+				if rc.ReasoningDelivery.BubbleDelivery {
+					m.appendReasoningBubble(runID, rc, content)
+					break
+				}
+				if !rc.ReasoningDelivery.ShowInChannel || !sc.ReasoningStreamEnabled() {
+					break
+				}
 				rc.mu.Lock()
 				rc.thinkingBuffer += content
 				rc.hasThinking = true
@@ -82,6 +87,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 				}
 			}
 		case protocol.AgentEventToolCall:
+			if rc.ReasoningDelivery.BubbleDelivery {
+				m.flushReasoningBubbles(runID)
+			}
 			// Agent is executing a tool — mark tool phase so the next chunk
 			// (new LLM iteration) resets the stream buffer.
 			// Stop the current stream (reasoning or answer) and finalize only
@@ -106,26 +114,17 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 				// stuck at tool status text. Only run.completed finalizes.
 			}
 
-			// Show tool status by editing placeholder message (non-streaming only).
-			// Streaming channels show tool status via reaction emoji instead —
-			// editing the placeholder would overwrite streamed content.
 			toolName := extractPayloadString(payload, "name")
-			if toolName != "" && rc.ToolStatusEnabled && !rc.Streaming {
-				statusText := formatToolStatus(toolName)
-				outMeta := copyRoutingMeta(rc.Metadata)
-				outMeta["placeholder_update"] = "true"
-				m.bus.PublishOutbound(bus.OutboundMessage{
-					Channel:  rc.ChannelName,
-					ChatID:   rc.ChatID,
-					Content:  statusText,
-					Metadata: outMeta,
-					TenantID: rc.TenantID,
-				})
+			if toolName != "" && ShouldDeliverGeneratedProgress(rc.ChatBehavior, rc.Streaming) {
+				go m.sendIntermediateProgress(rc, toolName)
 			}
 		case protocol.ChatEventChunk:
 			// Accumulate chunk deltas into full text.
 			content := extractPayloadString(payload, "content")
 			if content != "" {
+				if rc.ReasoningDelivery.BubbleDelivery {
+					m.flushReasoningBubbles(runID)
+				}
 				rc.mu.Lock()
 				needNewStream := rc.inToolPhase
 				if needNewStream {
@@ -140,28 +139,54 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 					candidate := rc.streamBuffer + content
 					split := SplitThinkTags(candidate)
 					if split.Thinking != "" {
-						// Found think tags — commit to buffer and route to reasoning lane
+						// Found think tags — commit to buffer and route or suppress reasoning
+						// before any tagged content can leak into the answer lane.
+						displayReasoningInStream := rc.ReasoningDelivery.ShowInChannel && !rc.ReasoningDelivery.BubbleDelivery && sc.ReasoningStreamEnabled()
+						previousThinking := rc.thinkingBuffer
 						rc.streamBuffer = candidate
-						rc.hasThinking = true
 						rc.thinkingBuffer = split.Thinking
 						thinkText := rc.thinkingBuffer
 						currentStream := rc.stream
 						if split.Partial {
-							// Still inside <think> — update reasoning stream, wait for close
+							// Still inside <think> — wait for the close tag before streaming
+							// answer content. Native thinking uses hasThinking; tag parsing
+							// keeps it false until close so later chunks continue parsing.
 							rc.mu.Unlock()
-							if currentStream != nil {
+							if rc.ReasoningDelivery.BubbleDelivery {
+								if delta := reasoningDelta(previousThinking, thinkText); delta != "" {
+									m.appendReasoningBubble(runID, rc, delta)
+								}
+							} else if displayReasoningInStream && currentStream != nil {
 								currentStream.Update(ctx, formatReasoningPreview(thinkText))
 							}
 							break
 						}
-						// Tag closed — transition to answer
+						// Tag closed — transition to answer, or strip reasoning entirely
+						// when Show Reasoning is off.
+						answerText := split.Answer
 						rc.thinkingDone = true
-						rc.streamBuffer = split.Answer
+						rc.hasThinking = displayReasoningInStream
+						rc.streamBuffer = answerText
 						reasoningStream := currentStream
 						rc.mu.Unlock()
 
-						// Stop reasoning stream
+						if rc.ReasoningDelivery.BubbleDelivery {
+							if delta := reasoningDelta(previousThinking, thinkText); delta != "" {
+								m.appendReasoningBubble(runID, rc, delta)
+							}
+							m.flushReasoningBubbles(runID)
+						}
+
+						if !displayReasoningInStream {
+							if reasoningStream != nil && answerText != "" {
+								reasoningStream.Update(ctx, answerText)
+							}
+							break
+						}
+
+						// Stop reasoning stream after showing the final extracted thinking.
 						if reasoningStream != nil {
+							reasoningStream.Update(ctx, formatReasoningPreview(thinkText))
 							_ = reasoningStream.Stop(ctx)
 						}
 						// Create answer stream
@@ -174,12 +199,12 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 							rc.mu.Unlock()
 						}
 						// Update answer stream with extracted answer content
-						if split.Answer != "" {
+						if answerText != "" {
 							rc.mu.Lock()
 							currentStream = rc.stream
 							rc.mu.Unlock()
 							if currentStream != nil {
-								currentStream.Update(ctx, split.Answer)
+								currentStream.Update(ctx, answerText)
 							}
 						}
 						break
@@ -270,6 +295,33 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		}
 	}
 
+	if eventType == protocol.AgentEventToolCall {
+		toolName := extractPayloadString(payload, "name")
+		if toolName != "" && ShouldDeliverGeneratedProgress(rc.ChatBehavior, rc.Streaming) {
+			go m.sendIntermediateProgress(rc, toolName)
+		}
+	}
+
+	if !rc.Streaming && rc.ReasoningDelivery.BubbleDelivery {
+		switch eventType {
+		case protocol.ChatEventThinking:
+			content := extractPayloadString(payload, "content")
+			if content != "" {
+				m.appendReasoningBubble(runID, rc, content)
+			}
+			return
+		case protocol.ChatEventChunk:
+			content := extractPayloadString(payload, "content")
+			if content != "" {
+				m.appendReasoningBubbleFromThinkTagChunk(runID, rc, content)
+			}
+			m.flushReasoningBubbles(runID)
+			return
+		case protocol.AgentEventToolCall, protocol.AgentEventRunCompleted, protocol.AgentEventRunFailed, protocol.AgentEventRunCancelled:
+			m.flushReasoningBubbles(runID)
+		}
+	}
+
 	// Handle block.reply: deliver intermediate assistant text to non-streaming channels.
 	// Gated by explicit block_reply or generated-progress chat behavior.
 	// Streaming channels already deliver via chunks, so skip to avoid double-delivery.
@@ -290,12 +342,11 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		if streaming {
 			return // streaming already delivered via chunks
 		}
-		generatedProgress := ShouldDeliverGeneratedProgress(chatBehavior, streaming)
-		if !blockReplyEnabled && !generatedProgress {
+		if !blockReplyEnabled {
 			return
 		}
 		isToolAnnouncement := source == protocol.BlockReplySourceToolAnnouncement
-		if isInitialBlockReply && !isToolAnnouncement && blockReplyEnabled && !generatedProgress && ShouldSuppressInitialBlockReply(chatBehavior, streaming) {
+		if isInitialBlockReply && !isToolAnnouncement && blockReplyEnabled && ShouldSuppressInitialBlockReply(chatBehavior, streaming) {
 			return
 		}
 
@@ -377,7 +428,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 	// Clean up on terminal events
 	if eventType == protocol.AgentEventRunCompleted || eventType == protocol.AgentEventRunFailed || eventType == protocol.AgentEventRunCancelled {
 		m.cancelQuickAck(rc)
-		m.runs.Delete(runID)
+		rc.mu.Lock()
+		stopReasoningBubbleTimerLocked(rc)
+		rc.mu.Unlock()
 	}
 }
 
@@ -416,8 +469,24 @@ func (m *Manager) sendQuickAck(rc *RunContext) {
 		return
 	}
 	content := rc.ChatBehavior.QuickAck.Templates[0]
+	mode := effectiveQuickAckMode(rc.ChatBehavior.QuickAck.Mode)
+	generator := rc.Delivery.QuickAckGenerator
+	request := rc.deliveryRequestLocked(DeliveryPurposeQuickAck, "")
 	rc.ackSent = true
 	rc.ackTimer = nil
+	rc.mu.Unlock()
+
+	if generator != nil && (mode == QuickAckModeLLMGenerated || mode == QuickAckModeSidecar) {
+		if generated, err := generator.GenerateDeliveryMessage(context.Background(), request); err == nil && generated != "" {
+			content = generated
+		}
+	}
+
+	rc.mu.Lock()
+	if rc.ackCancelled || rc.blockReplySent {
+		rc.mu.Unlock()
+		return
+	}
 	rc.mu.Unlock()
 
 	m.bus.PublishOutbound(bus.OutboundMessage{
@@ -427,6 +496,71 @@ func (m *Manager) sendQuickAck(rc *RunContext) {
 		Metadata: copyRoutingMeta(rc.Metadata),
 		TenantID: rc.TenantID,
 	})
+}
+
+func (m *Manager) sendIntermediateProgress(rc *RunContext, toolName string) {
+	rc.mu.Lock()
+	if rc.ackCancelled || rc.blockReplySent || !ShouldDeliverGeneratedProgress(rc.ChatBehavior, rc.Streaming) {
+		rc.mu.Unlock()
+		return
+	}
+	generator := rc.Delivery.ProgressGenerator
+	request := rc.deliveryRequestLocked(DeliveryPurposeProgress, toolName)
+	rc.mu.Unlock()
+
+	if generator == nil {
+		return
+	}
+	content, err := generator.GenerateDeliveryMessage(context.Background(), request)
+	if err != nil || content == "" {
+		return
+	}
+
+	rc.mu.Lock()
+	if rc.ackCancelled || rc.blockReplySent {
+		rc.mu.Unlock()
+		return
+	}
+	rc.ackCancelled = true
+	if rc.ackTimer != nil {
+		rc.ackTimer.Stop()
+		rc.ackTimer = nil
+	}
+	rc.blockReplySent = true
+	rc.interimDelivered++
+	rc.lastInterimReply = content
+	rc.mu.Unlock()
+
+	m.bus.PublishOutbound(bus.OutboundMessage{
+		Channel:  rc.ChannelName,
+		ChatID:   rc.ChatID,
+		Content:  content,
+		Metadata: copyRoutingMeta(rc.Metadata),
+		TenantID: rc.TenantID,
+	})
+}
+
+func (rc *RunContext) deliveryRequestLocked(purpose, toolName string) DeliveryMessageRequest {
+	maxTokens := rc.ChatBehavior.QuickAck.MaxTokens
+	maxChars := rc.ChatBehavior.QuickAck.MaxChars
+	timeout := rc.ChatBehavior.QuickAck.Timeout
+	if purpose == DeliveryPurposeProgress {
+		maxTokens = rc.ChatBehavior.IntermediateReplies.MaxTokens
+		maxChars = rc.ChatBehavior.IntermediateReplies.MaxChars
+		timeout = rc.ChatBehavior.IntermediateReplies.Timeout
+	}
+	return DeliveryMessageRequest{
+		Purpose:     purpose,
+		UserMessage: rc.Delivery.Inbound,
+		Locale:      rc.Delivery.Locale,
+		PeerKind:    rc.Delivery.PeerKind,
+		ChannelType: rc.Delivery.Channel,
+		AgentName:   rc.Delivery.AgentName,
+		ToolName:    toolName,
+		MaxTokens:   maxTokens,
+		MaxChars:    maxChars,
+		Timeout:     timeout,
+	}
 }
 
 // extractPayloadString extracts a string field from a payload (map[string]string or map[string]interface{}).

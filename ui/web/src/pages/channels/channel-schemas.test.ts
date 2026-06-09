@@ -1,5 +1,40 @@
 import { describe, it, expect } from "vitest";
 import { configSchema } from "./channel-schemas";
+import { normalizeReasoningDeliveryConfig, resolveReasoningDeliveryValue } from "./reasoning-delivery-config";
+
+describe("telegram configSchema", () => {
+  const telegramConfig = configSchema["telegram"]!;
+
+  it("uses reasoning_delivery mode instead of legacy reasoning_stream", () => {
+    const reasoningDelivery = telegramConfig.find((f) => f.key === "reasoning_delivery");
+    expect(reasoningDelivery).toBeDefined();
+    expect(reasoningDelivery!.type).toBe("select");
+    expect(reasoningDelivery!.defaultValue).toBe("streaming_only");
+    expect(reasoningDelivery!.help).not.toMatch(/requires streaming/i);
+    expect(reasoningDelivery!.options!.map((o) => o.value)).toEqual(["streaming_only", "always_bubbles", "off"]);
+    expect(telegramConfig.find((f) => f.key === "reasoning_stream")).toBeUndefined();
+  });
+
+  it("normalizes legacy reasoning_stream into explicit reasoning_delivery", () => {
+    expect(resolveReasoningDeliveryValue({ reasoning_stream: false })).toBe("off");
+    expect(resolveReasoningDeliveryValue({ reasoning_stream: true })).toBe("streaming_only");
+    expect(normalizeReasoningDeliveryConfig({ reasoning_delivery: "always_bubbles", reasoning_stream: false })).toEqual({
+      reasoning_delivery: "always_bubbles",
+    });
+  });
+
+  it("exposes independent sidecar delivery overrides", () => {
+    const keys = new Set(telegramConfig.map((field) => field.key));
+    expect(keys.has("chat_behavior.intermediate_replies.enabled")).toBe(true);
+    expect(keys.has("chat_behavior.intermediate_replies.provider")).toBe(true);
+    expect(keys.has("chat_behavior.intermediate_replies.model")).toBe(true);
+    expect(keys.has("chat_behavior.quick_ack.provider")).toBe(true);
+    expect(keys.has("chat_behavior.quick_ack.model")).toBe(true);
+    const quickMode = telegramConfig.find((field) => field.key === "chat_behavior.quick_ack.mode")!;
+    expect(quickMode.help).not.toMatch(/main LLM block reply/i);
+    expect(quickMode.options!.map((option) => option.value)).toContain("sidecar_generated");
+  });
+});
 
 describe("pancake configSchema", () => {
   const pancakeConfig = configSchema["pancake"]!;

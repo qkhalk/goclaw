@@ -125,7 +125,7 @@ func TestThinkStage_WithToolCalls_ReturnsContinue(t *testing.T) {
 	}
 }
 
-func TestThinkStage_EmptyToolCallContent_EmitsToolAnnouncement(t *testing.T) {
+func TestThinkStage_EmptyToolCallContent_DoesNotEmitTemplateAnnouncement(t *testing.T) {
 	t.Parallel()
 	var gotContent, gotSource string
 	deps := &PipelineDeps{
@@ -152,18 +152,44 @@ func TestThinkStage_EmptyToolCallContent_EmitsToolAnnouncement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
-	if gotSource != protocol.BlockReplySourceToolAnnouncement {
-		t.Fatalf("block reply source = %q, want %q", gotSource, protocol.BlockReplySourceToolAnnouncement)
-	}
-	if !strings.Contains(gotContent, "search secret") {
-		t.Fatalf("announcement content = %q, want sanitized tool name", gotContent)
-	}
-	if strings.Contains(gotContent, "must-not-leak") || strings.Contains(gotContent, "api_key") {
-		t.Fatalf("announcement leaked tool arguments: %q", gotContent)
+	if gotContent != "" || gotSource != "" {
+		t.Fatalf("empty tool-call content emitted template block reply: content=%q source=%q", gotContent, gotSource)
 	}
 }
 
-func TestThinkStage_GeneratedToolCallContent_AppendsMissingToolAnnouncement(t *testing.T) {
+func TestThinkStage_EmptyMultiToolCallContent_DoesNotEmitRawToolNames(t *testing.T) {
+	t.Parallel()
+	var gotContent, gotSource string
+	deps := &PipelineDeps{
+		Config: PipelineConfig{MaxIterations: 10, MaxTokens: 1000},
+		CallLLM: func(_ context.Context, _ *RunState, _ providers.ChatRequest) (*providers.ChatResponse, error) {
+			return &providers.ChatResponse{
+				FinishReason: "tool_calls",
+				ToolCalls: []providers.ToolCall{
+					{ID: "tc1", Name: "skill_search"},
+					{ID: "tc2", Name: "read_file", Arguments: map[string]any{"path": "notes.md"}},
+					{ID: "tc3", Name: "web_fetch", Arguments: map[string]any{"url": "https://example.test"}},
+				},
+			}, nil
+		},
+		EmitBlockReplyWithSource: func(content, source string) {
+			gotContent = content
+			gotSource = source
+		},
+	}
+	stage := NewThinkStage(deps)
+	state := defaultState()
+
+	err := stage.Execute(context.Background(), state)
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+	if gotContent != "" || gotSource != "" {
+		t.Fatalf("empty multi-tool content emitted template block reply: content=%q source=%q", gotContent, gotSource)
+	}
+}
+
+func TestThinkStage_GeneratedToolCallContent_PreservesNaturalProgress(t *testing.T) {
 	t.Parallel()
 	var gotContent, gotSource string
 	deps := &PipelineDeps{
@@ -188,7 +214,7 @@ func TestThinkStage_GeneratedToolCallContent_AppendsMissingToolAnnouncement(t *t
 	if err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
-	want := "Tôi sẽ tìm trong kho kỹ năng trước.\n\nTôi sẽ dùng `skill_search` để xử lý bước tiếp theo."
+	want := "Tôi sẽ tìm trong kho kỹ năng trước."
 	if gotContent != want {
 		t.Fatalf("block reply content = %q", gotContent)
 	}

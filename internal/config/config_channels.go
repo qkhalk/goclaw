@@ -3,9 +3,10 @@ package config
 // ChatBehaviorConfig controls optional human-like channel delivery behavior.
 // Pointer fields allow per-channel overrides to inherit gateway defaults.
 type ChatBehaviorConfig struct {
-	Enabled    *bool             `json:"enabled,omitempty"`
-	QuickAck   *QuickAckConfig   `json:"quick_ack,omitempty"`
-	FinalSplit *FinalSplitConfig `json:"final_split,omitempty"`
+	Enabled             *bool                      `json:"enabled,omitempty"`
+	IntermediateReplies *IntermediateRepliesConfig `json:"intermediate_replies,omitempty"`
+	QuickAck            *QuickAckConfig            `json:"quick_ack,omitempty"`
+	FinalSplit          *FinalSplitConfig          `json:"final_split,omitempty"`
 }
 
 // QuickAckConfig controls one short acknowledgement before longer non-streaming runs.
@@ -13,7 +14,23 @@ type QuickAckConfig struct {
 	Enabled    *bool    `json:"enabled,omitempty"`
 	Mode       *string  `json:"mode,omitempty"`
 	MinDelayMs *int     `json:"min_delay_ms,omitempty"`
+	Provider   string   `json:"provider,omitempty"`
+	Model      string   `json:"model,omitempty"`
+	TimeoutMs  *int     `json:"timeout_ms,omitempty"`
+	MaxTokens  *int     `json:"max_tokens,omitempty"`
+	MaxChars   *int     `json:"max_chars,omitempty"`
 	Templates  []string `json:"templates,omitempty"`
+}
+
+// IntermediateRepliesConfig controls delivery-only progress messages during tool phases.
+type IntermediateRepliesConfig struct {
+	Enabled   *bool   `json:"enabled,omitempty"`
+	Mode      *string `json:"mode,omitempty"`
+	Provider  string  `json:"provider,omitempty"`
+	Model     string  `json:"model,omitempty"`
+	TimeoutMs *int    `json:"timeout_ms,omitempty"`
+	MaxTokens *int    `json:"max_tokens,omitempty"`
+	MaxChars  *int    `json:"max_chars,omitempty"`
 }
 
 // FinalSplitConfig controls semantic splitting of final channel replies.
@@ -48,26 +65,27 @@ type ChannelsConfig struct {
 }
 
 type TelegramConfig struct {
-	Enabled         bool                `json:"enabled"`
-	Token           string              `json:"token"`
-	Proxy           string              `json:"proxy,omitempty"`
-	APIServer       string              `json:"api_server,omitempty"` // custom Telegram Bot API server URL (e.g. "http://localhost:8081")
-	AllowFrom       FlexibleStringSlice `json:"allow_from"`
-	DMPolicy        string              `json:"dm_policy,omitempty"`        // "pairing" (default), "allowlist", "open", "disabled"
-	GroupPolicy     string              `json:"group_policy,omitempty"`     // "open" (default), "allowlist", "disabled"
-	RequireMention  *bool               `json:"require_mention,omitempty"`  // require @bot mention in groups (default true)
-	MentionMode     string              `json:"mention_mode,omitempty"`     // "strict" (default) = only respond when mentioned; "yield" = respond unless another bot is mentioned
-	HistoryLimit    int                 `json:"history_limit,omitempty"`    // max pending group messages for context (default 50, 0=disabled)
-	DMStream        *bool               `json:"dm_stream,omitempty"`        // enable streaming for DMs (default false) — edits placeholder progressively
-	GroupStream     *bool               `json:"group_stream,omitempty"`     // enable streaming for groups (default false) — sends new message, edits progressively
-	DraftTransport  *bool               `json:"draft_transport,omitempty"`  // use sendMessageDraft for DM streaming (default true) — stealth preview, no notifications per edit
-	ReasoningStream *bool               `json:"reasoning_stream,omitempty"` // show reasoning as separate message when provider emits thinking events (default true)
-	ReactionLevel   string              `json:"reaction_level,omitempty"`   // "off" (default), "minimal", "full" — status emoji reactions
-	MediaMaxBytes   int64               `json:"media_max_bytes,omitempty"`  // max media download size in bytes (default 20MB)
-	LinkPreview     *bool               `json:"link_preview,omitempty"`     // enable URL previews in messages (default true)
-	BlockReply      *bool               `json:"block_reply,omitempty"`      // override gateway block_reply (nil = inherit)
-	ChatBehavior    *ChatBehaviorConfig `json:"chat_behavior,omitempty"`    // override gateway chat behavior (nil = inherit)
-	ForceIPv4       bool                `json:"force_ipv4,omitempty"`       // force IPv4 for all Telegram API requests (use when IPv6 routing is broken)
+	Enabled           bool                `json:"enabled"`
+	Token             string              `json:"token"`
+	Proxy             string              `json:"proxy,omitempty"`
+	APIServer         string              `json:"api_server,omitempty"` // custom Telegram Bot API server URL (e.g. "http://localhost:8081")
+	AllowFrom         FlexibleStringSlice `json:"allow_from"`
+	DMPolicy          string              `json:"dm_policy,omitempty"`          // "pairing" (default), "allowlist", "open", "disabled"
+	GroupPolicy       string              `json:"group_policy,omitempty"`       // "open" (default), "allowlist", "disabled"
+	RequireMention    *bool               `json:"require_mention,omitempty"`    // require @bot mention in groups (default true)
+	MentionMode       string              `json:"mention_mode,omitempty"`       // "strict" (default) = only respond when mentioned; "yield" = respond unless another bot is mentioned
+	HistoryLimit      int                 `json:"history_limit,omitempty"`      // max pending group messages for context (default 50, 0=disabled)
+	DMStream          *bool               `json:"dm_stream,omitempty"`          // enable streaming for DMs (default false) — edits placeholder progressively
+	GroupStream       *bool               `json:"group_stream,omitempty"`       // enable streaming for groups (default false) — sends new message, edits progressively
+	DraftTransport    *bool               `json:"draft_transport,omitempty"`    // use sendMessageDraft for DM streaming (default true) — stealth preview, no notifications per edit
+	ReasoningDelivery string              `json:"reasoning_delivery,omitempty"` // off, streaming_only, always_bubbles
+	ReasoningStream   *bool               `json:"reasoning_stream,omitempty"`   // show reasoning as separate message when provider emits thinking events (default true)
+	ReactionLevel     string              `json:"reaction_level,omitempty"`     // "off" (default), "minimal", "full" — status emoji reactions
+	MediaMaxBytes     int64               `json:"media_max_bytes,omitempty"`    // max media download size in bytes (default 20MB)
+	LinkPreview       *bool               `json:"link_preview,omitempty"`       // enable URL previews in messages (default true)
+	BlockReply        *bool               `json:"block_reply,omitempty"`        // override gateway block_reply (nil = inherit)
+	ChatBehavior      *ChatBehaviorConfig `json:"chat_behavior,omitempty"`      // override gateway chat behavior (nil = inherit)
+	ForceIPv4         bool                `json:"force_ipv4,omitempty"`         // force IPv4 for all Telegram API requests (use when IPv6 routing is broken)
 
 	// Optional STT (Speech-to-Text) pipeline for voice/audio inbound messages.
 	// When stt_proxy_url is set, audio/voice messages are transcribed before being forwarded to the agent.

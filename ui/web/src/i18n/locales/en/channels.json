@@ -338,18 +338,14 @@
       "label": "Draft Preview",
       "help": "Use stealth draft preview for answer stream in DMs — no notification per edit (requires DM Streaming)"
     },
-    "reasoning_stream": {
+    "reasoning_delivery": {
       "label": "Show Reasoning",
-      "help": "Display AI thinking as a separate message before the answer (requires streaming)"
+      "help": "Choose how model reasoning is shown in channel messages."
     },
     "reaction_level": { "label": "Reaction Level" },
     "media_max_mb": { "label": "Max Media Size (MB)" },
     "link_preview": { "label": "Link Preview" },
     "allow_from": { "label": "Allowed Users" },
-    "block_reply": {
-      "label": "Block Reply",
-      "help": "Deliver tool announcements and intermediate text around tool iterations"
-    },
     "domain": { "label": "Domain" },
     "connection_mode": {
       "label": "Connection Mode",
@@ -410,11 +406,6 @@
     }
   },
   "fieldOptions": {
-    "block_reply": {
-      "inherit": "Inherit from gateway",
-      "true": "Enabled",
-      "false": "Disabled"
-    },
     "dm_policy": {
       "pairing": "Pairing (require code)",
       "open": "Open (accept all)",
@@ -435,6 +426,11 @@
       "off": "Off",
       "minimal": "Minimal",
       "full": "Full"
+    },
+    "reasoning_delivery": {
+      "streaming_only": "Streaming only",
+      "always_bubbles": "Always as bubbles",
+      "off": "Off"
     },
     "domain": {
       "lark": "Lark (Global)",
@@ -492,9 +488,9 @@
         "label": "Draft Preview",
         "help": "Use stealth draft preview for answer stream in DMs — no notification per edit (requires DM Streaming)"
       },
-      "reasoning_stream": {
+      "reasoning_delivery": {
         "label": "Show Reasoning",
-        "help": "Display AI thinking as a separate message before the answer (requires streaming)"
+        "help": "Choose how model reasoning is shown in channel messages."
       }
     },
     "fields": {

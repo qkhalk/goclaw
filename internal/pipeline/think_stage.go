@@ -6,9 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
@@ -192,17 +190,10 @@ func isEmptyLengthResponse(resp *providers.ChatResponse) bool {
 		len(resp.Images) == 0
 }
 
-func (s *ThinkStage) emitToolIterationBlockReply(ctx context.Context, resp *providers.ChatResponse) {
+func (s *ThinkStage) emitToolIterationBlockReply(_ context.Context, resp *providers.ChatResponse) {
 	content := resp.Content
 	source := protocol.BlockReplySourceLLMProgress
-	announcement := defaultToolAnnouncement(ctx, resp.ToolCalls)
-	if strings.TrimSpace(content) == "" {
-		content = announcement
-		source = protocol.BlockReplySourceToolAnnouncement
-	} else if announcement != "" {
-		if !contentMentionsAnnouncedTools(content, resp.ToolCalls) {
-			content = strings.TrimRight(content, "\r\n\t ") + "\n\n" + announcement
-		}
+	if len(resp.ToolCalls) > 0 {
 		source = protocol.BlockReplySourceToolAnnouncement
 	}
 	if strings.TrimSpace(content) == "" {
@@ -215,69 +206,6 @@ func (s *ThinkStage) emitToolIterationBlockReply(ctx context.Context, resp *prov
 	if s.deps.EmitBlockReply != nil {
 		s.deps.EmitBlockReply(content)
 	}
-}
-
-func defaultToolAnnouncement(ctx context.Context, calls []providers.ToolCall) string {
-	names := announcedToolNames(calls)
-	if len(names) == 0 {
-		return ""
-	}
-	list := strings.Join(names, ", ")
-	locale := store.LocaleFromContext(ctx)
-	if len(names) == 1 {
-		return i18n.T(locale, i18n.MsgToolAnnouncementSingle, list)
-	}
-	return i18n.T(locale, i18n.MsgToolAnnouncementMulti, list)
-}
-
-func announcedToolNames(calls []providers.ToolCall) []string {
-	names := sanitizedAnnouncementToolNames(calls)
-	for i, name := range names {
-		names[i] = "`" + name + "`"
-	}
-	return names
-}
-
-func contentMentionsAnnouncedTools(content string, calls []providers.ToolCall) bool {
-	names := sanitizedAnnouncementToolNames(calls)
-	if len(names) == 0 {
-		return false
-	}
-	lowerContent := strings.ToLower(content)
-	for _, name := range names {
-		if !strings.Contains(lowerContent, strings.ToLower(name)) {
-			return false
-		}
-	}
-	return true
-}
-
-func sanitizedAnnouncementToolNames(calls []providers.ToolCall) []string {
-	names := make([]string, 0, len(calls))
-	seen := make(map[string]struct{}, len(calls))
-	for _, call := range calls {
-		name := sanitizeToolAnnouncementName(call.Name)
-		if name == "" {
-			continue
-		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		names = append(names, name)
-	}
-	return names
-}
-
-func sanitizeToolAnnouncementName(name string) string {
-	name = strings.TrimSpace(name)
-	name = strings.NewReplacer("`", "", "\n", " ", "\r", " ", "\t", " ").Replace(name)
-	name = strings.Join(strings.Fields(name), " ")
-	runes := []rune(name)
-	if len(runes) > 64 {
-		name = string(runes[:64])
-	}
-	return name
 }
 
 // maybeInjectNudge injects iteration budget warnings at 70% and 90%.

@@ -4,7 +4,68 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-06-09
+
+### Behavior UX sidecar delivery overrides (issue #144)
+
+**Changes**
+
+- Removed user-facing Tool Status Messages from Behavior settings and disabled
+  deterministic tool-status channel text.
+- Added sidecar-generated Quick Acknowledgement and Intermediate Replies with
+  optional provider/model, timeout, token, and char caps.
+- Added Channel > Agent > Workspace delivery-behavior resolution. Agent
+  overrides use `other_config.delivery_behavior` without a schema migration.
+- Kept legacy `block_reply` readable as a default for Intermediate Replies while
+  removing its separate Web UI controls.
+- Kept Show Reasoning as a separate debug/testing feature.
+
+**Tests**
+
+- Added config resolution coverage for Channel > Agent > Workspace and Quick
+  Ack independent from Intermediate Replies.
+- Added channel event coverage for sidecar quick ack, sidecar tool progress, and
+  retired tool-status messages.
+- Added Web UI schema coverage for sidecar delivery override fields.
+
+---
+
+## 2026-06-01
+
+### Telegram Show Reasoning delivery modes (issues #132, #133)
+
+**Fixes**
+
+- Added `reasoning_delivery=streaming_only|always_bubbles|off` with backward compatibility for legacy `reasoning_stream`.
+- HTTP and WebSocket channel-instance writes normalize explicit `reasoning_delivery` over legacy `reasoning_stream`.
+- `always_bubbles` forces provider streaming internally so reasoning can be delivered as bounded channel bubbles even when Telegram live streaming is disabled.
+- Stream-path final `resp.Thinking` is now emitted when no thinking chunk arrived during the stream.
+- Terminal channel events preserve interim delivery state until the consumer reads the final dedup snapshot.
+
+**UI**
+
+- Web and desktop channel settings now expose Show Reasoning as a mode selector instead of a streaming-only boolean.
+
+**Tests**
+
+- Added channel delivery, config resolution, and agent stream final-thinking coverage.
+
+---
+
 ## 2026-05-31
+
+### CI/CD: zuey release asset race fix
+
+**Fixes**
+
+- Made release artifact completion wait for zuey beta deploy before refreshing GitHub Release assets with `--clobber`.
+- Prevents the VPS upgrade script from seeing `linux amd64 release asset not found` while another workflow job is replacing the same asset.
+
+**Tests**
+
+- Updated the dev beta workflow structure test to lock the deploy-before-completion dependency.
+
+---
 
 ### CI/CD: fast zuey beta deploy (issue #88)
 
@@ -70,17 +131,27 @@ Significant changes, features, and fixes in reverse chronological order.
 
 **Fixes**
 
-- Intermediate Replies now guarantees a pre-tool announcement when the model
-  requests tools without assistant text, or with text that does not name the
-  tools. The fallback uses sanitized tool names only and is tagged as
-  `tool_announcement`.
+- Intermediate Replies now preserve natural assistant progress text as-is
+  instead of appending a deterministic tool-name sentence.
+- Empty-content tool calls no longer emit synthetic server-generated
+  Intermediate Reply bubbles. This prevents repeated template messages and
+  keeps visible progress model-generated.
+- Tool-call progress keeps the `tool_announcement` source when the model does
+  provide assistant text, so Quick acknowledgement suppression still treats it
+  as explicit progress.
+- The full-mode system prompt now tells the LLM to write any short progress
+  sentence naturally in the user's language and to describe user-visible action
+  instead of internal tool names.
 - Quick acknowledgement off still suppresses generic first acknowledgements,
-  but no longer suppresses explicit tool announcements.
+  but no longer suppresses explicit model-generated tool progress.
 
 **Tests**
 
-- Added pipeline coverage for empty-content tool calls and channel coverage for
-  `tool_announcement` delivery when Quick acknowledgement is off.
+- Added pipeline coverage for empty-content tool calls so they do not emit
+  template `block.reply` messages.
+- Added prompt coverage for natural, user-language progress guidance.
+- Kept channel coverage for `tool_announcement` delivery when Quick
+  acknowledgement is off.
 
 ---
 
