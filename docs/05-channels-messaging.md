@@ -78,8 +78,8 @@ Normal channel messages pass through the shared inbound debouncer before agent e
 - `quick_ack.mode = "llm_generated"` uses the existing main-turn `block.reply` event as the natural progress response for non-streaming channel runs. It does not make a separate LLM call.
 - `quick_ack.templates` are fallback messages. In generated mode, the first template is sent only if no generated `block.reply` arrives before `quick_ack.min_delay_ms`.
 - `quick_ack.mode = "fixed_template"` preserves the older fixed-template acknowledgement behavior.
-- `quick_ack.mode = "off"` disables chat-behavior quick acknowledgement. When explicit `gateway.block_reply` is on, the first generic pre-tool `block.reply` is treated as the immediate acknowledgement and suppressed; deterministic tool announcements still deliver before tool execution because they are part of Intermediate Replies.
-- If a model requests tools without assistant text, or with text that does not name the tools, the pipeline emits a safe `tool_announcement` fallback using only sanitized tool names. Tool arguments are never included in this message.
+- `quick_ack.mode = "off"` disables chat-behavior quick acknowledgement. When explicit `gateway.block_reply` is on, the first generic pre-tool `block.reply` is treated as the immediate acknowledgement and suppressed; model-generated tool progress still delivers before tool execution because it is part of Intermediate Replies.
+- If a model requests tools without assistant text, the pipeline does not emit a synthetic Intermediate Reply. This avoids repetitive server templates; visible progress messages come from the LLM and should match the user's language.
 - `final_split` splits long final text replies into a bounded number of paragraph messages.
 - Per-channel `chat_behavior` overrides inherit the gateway config unless a field is explicitly set.
 

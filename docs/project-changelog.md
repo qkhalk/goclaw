@@ -105,17 +105,27 @@ Significant changes, features, and fixes in reverse chronological order.
 
 **Fixes**
 
-- Intermediate Replies now guarantees a pre-tool announcement when the model
-  requests tools without assistant text, or with text that does not name the
-  tools. The fallback uses sanitized tool names only and is tagged as
-  `tool_announcement`.
+- Intermediate Replies now preserve natural assistant progress text as-is
+  instead of appending a deterministic tool-name sentence.
+- Empty-content tool calls no longer emit synthetic server-generated
+  Intermediate Reply bubbles. This prevents repeated template messages and
+  keeps visible progress model-generated.
+- Tool-call progress keeps the `tool_announcement` source when the model does
+  provide assistant text, so Quick acknowledgement suppression still treats it
+  as explicit progress.
+- The full-mode system prompt now tells the LLM to write any short progress
+  sentence naturally in the user's language and to describe user-visible action
+  instead of internal tool names.
 - Quick acknowledgement off still suppresses generic first acknowledgements,
-  but no longer suppresses explicit tool announcements.
+  but no longer suppresses explicit model-generated tool progress.
 
 **Tests**
 
-- Added pipeline coverage for empty-content tool calls and channel coverage for
-  `tool_announcement` delivery when Quick acknowledgement is off.
+- Added pipeline coverage for empty-content tool calls so they do not emit
+  template `block.reply` messages.
+- Added prompt coverage for natural, user-language progress guidance.
+- Kept channel coverage for `tool_announcement` delivery when Quick
+  acknowledgement is off.
 
 ---
 

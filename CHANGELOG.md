@@ -51,6 +51,12 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Fixed
 
+- **Intermediate Replies are model-generated** — Tool-call progress no longer
+  appends fixed "I'll use ..." text or emits synthetic fallback bubbles when the
+  model returns tool calls without assistant text. The system prompt now nudges
+  the model to write any short progress sentence naturally in the user's
+  language without mentioning internal tool names.
+
 - **Multi-attachment messages no longer trigger N agent replies (#63).**
   Three coalescing surfaces hardened so a single user action produces ONE
   agent run regardless of how the platform delivers attachments:
