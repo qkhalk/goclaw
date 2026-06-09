@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/select";
 import { ToolNameSelect } from "@/components/shared/tool-name-select";
 import { SkillNameSelect } from "@/components/shared/skill-name-select";
+import { ProviderModelSelect } from "@/components/shared/provider-model-select";
 import { BitrixPortalSelect } from "./bitrix24/bitrix-portal-select";
+import { deliveryModelKey, isDeliveryModelKey, isDeliveryProviderKey } from "./channel-delivery-provider-fields";
 import type { FieldDef } from "./channel-schemas";
 
 const INHERIT = "__inherit__";
@@ -41,6 +43,7 @@ export function ChannelFields({ fields, values, onChange, idPrefix, isEdit, cont
   return (
     <div className="grid gap-3">
       {fields.map((field) => {
+        if (isDeliveryModelKey(field.key)) return null;
         // Conditional visibility: skip field if showWhen condition is not met
         if (field.showWhen) {
           const depValue = allValues[field.showWhen.key] ?? fields.find((f) => f.key === field.showWhen!.key)?.defaultValue;
@@ -60,6 +63,25 @@ export function ChannelFields({ fields, values, onChange, idPrefix, isEdit, cont
             disabledHint = field.disabledWhen.hint;
           }
         }
+        if (isDeliveryProviderKey(field.key)) {
+          const modelKey = deliveryModelKey(field.key);
+          const modelField = fields.find((f) => f.key === modelKey);
+          return (
+            <DeliveryProviderModelField
+              key={field.key}
+              providerField={field}
+              modelField={modelField}
+              providerValue={(values[field.key] as string) ?? ""}
+              modelValue={(values[modelKey] as string) ?? ""}
+              disabled={disabled}
+              onProviderChange={(provider) => {
+                onChange(field.key, provider || undefined);
+                onChange(modelKey, undefined);
+              }}
+              onModelChange={(model) => onChange(modelKey, model || undefined)}
+            />
+          );
+        }
         return (
           <FieldRenderer
             key={field.key}
@@ -77,6 +99,47 @@ export function ChannelFields({ fields, values, onChange, idPrefix, isEdit, cont
         );
       })}
     </div>
+  );
+}
+
+function DeliveryProviderModelField({
+  providerField,
+  modelField,
+  providerValue,
+  modelValue,
+  disabled,
+  onProviderChange,
+  onModelChange,
+}: {
+  providerField: FieldDef;
+  modelField?: FieldDef;
+  providerValue: string;
+  modelValue: string;
+  disabled?: boolean;
+  onProviderChange: (value: string) => void;
+  onModelChange: (value: string) => void;
+}) {
+  const { t } = useTranslation("channels");
+  const providerLabel = t(`fieldConfig.${providerField.key}.label`, { defaultValue: providerField.label });
+  const providerTip = providerField.help ? t(`fieldConfig.${providerField.key}.help`, { defaultValue: providerField.help }) : undefined;
+  const modelLabel = modelField ? t(`fieldConfig.${modelField.key}.label`, { defaultValue: modelField.label }) : t("fieldConfig.model.label", { defaultValue: "Model" });
+  const modelTip = modelField?.help ? t(`fieldConfig.${modelField.key}.help`, { defaultValue: modelField.help }) : undefined;
+
+  return (
+    <ProviderModelSelect
+      provider={providerValue}
+      onProviderChange={onProviderChange}
+      model={modelValue}
+      onModelChange={onModelChange}
+      allowEmpty
+      disabled={disabled}
+      providerLabel={providerLabel}
+      modelLabel={modelLabel}
+      providerTip={providerTip}
+      modelTip={modelTip}
+      providerPlaceholder={providerField.placeholder}
+      modelPlaceholder={modelField?.placeholder}
+    />
   );
 }
 

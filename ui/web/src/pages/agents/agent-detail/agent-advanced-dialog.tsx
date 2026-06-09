@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { ProviderModelSelect } from "@/components/shared/provider-model-select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -334,7 +335,7 @@ function DeliveryBehaviorSection({
             disabled={disabled}
             provider={value.quick_ack?.provider ?? ""}
             model={value.quick_ack?.model ?? ""}
-            onProvider={(provider) => patchQuick({ provider })}
+            onProvider={(provider) => patchQuick({ provider, model: "" })}
             onModel={(model) => patchQuick({ model })}
           />
           <NumberField label={t("delivery.quickAckDelay")} value={value.quick_ack?.min_delay_ms ?? 1000} disabled={disabled} onChange={(min_delay_ms) => patchQuick({ min_delay_ms })} />
@@ -348,7 +349,7 @@ function DeliveryBehaviorSection({
             disabled={disabled}
             provider={value.intermediate_replies?.provider ?? ""}
             model={value.intermediate_replies?.model ?? ""}
-            onProvider={(provider) => patchIntermediate({ provider })}
+            onProvider={(provider) => patchIntermediate({ provider, model: "" })}
             onModel={(model) => patchIntermediate({ model })}
           />
           <NumberField label={t("delivery.timeoutMs")} value={value.intermediate_replies?.timeout_ms ?? 2500} disabled={disabled} onChange={(timeout_ms) => patchIntermediate({ timeout_ms })} />
@@ -361,16 +362,18 @@ function DeliveryBehaviorSection({
 function DeliveryProviderFields({ disabled, provider, model, onProvider, onModel }: { disabled: boolean; provider: string; model: string; onProvider: (value: string) => void; onModel: (value: string) => void }) {
   const { t } = useTranslation("agents");
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <div className="grid gap-1.5">
-        <Label>{t("delivery.provider")}</Label>
-        <Input className="text-base md:text-sm" value={provider} disabled={disabled} placeholder={t("delivery.providerPlaceholder")} onChange={(e) => onProvider(e.target.value)} />
-      </div>
-      <div className="grid gap-1.5">
-        <Label>{t("delivery.model")}</Label>
-        <Input className="text-base md:text-sm" value={model} disabled={disabled} placeholder={t("delivery.modelPlaceholder")} onChange={(e) => onModel(e.target.value)} />
-      </div>
-    </div>
+    <ProviderModelSelect
+      provider={provider}
+      onProviderChange={onProvider}
+      model={model}
+      onModelChange={onModel}
+      disabled={disabled}
+      allowEmpty
+      providerLabel={t("delivery.provider")}
+      modelLabel={t("delivery.model")}
+      providerPlaceholder={t("delivery.providerPlaceholder")}
+      modelPlaceholder={t("delivery.modelPlaceholder")}
+    />
   );
 }
 

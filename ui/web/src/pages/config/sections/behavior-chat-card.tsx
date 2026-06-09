@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { InfoLabel } from "@/components/shared/info-label";
+import { ProviderModelSelect } from "@/components/shared/provider-model-select";
 
 const quickAckModeValues = ["sidecar_generated", "llm_generated", "fixed_template", "off"] as const;
 type QuickAckMode = (typeof quickAckModeValues)[number];
@@ -154,10 +155,18 @@ export function BehaviorChatCard({ value, onChange }: Props) {
                 disabled={!value.enabled}
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TextField label={t("behavior.provider")} value={value.quick_ack?.provider ?? ""} disabled={!value.enabled} placeholder={t("behavior.providerPlaceholder")} onChange={(provider) => patchAck({ provider })} />
-              <TextField label={t("behavior.model")} value={value.quick_ack?.model ?? ""} disabled={!value.enabled} placeholder={t("behavior.modelPlaceholder")} onChange={(model) => patchAck({ model })} />
-            </div>
+            <ProviderModelSelect
+              provider={value.quick_ack?.provider ?? ""}
+              onProviderChange={(provider) => patchAck({ provider, model: "" })}
+              model={value.quick_ack?.model ?? ""}
+              onModelChange={(model) => patchAck({ model })}
+              disabled={!value.enabled}
+              allowEmpty
+              providerLabel={t("behavior.provider")}
+              modelLabel={t("behavior.model")}
+              providerPlaceholder={t("behavior.providerPlaceholder")}
+              modelPlaceholder={t("behavior.modelPlaceholder")}
+            />
             <div className="grid grid-cols-3 gap-3">
               <NumberField label={t("behavior.timeoutMs")} value={value.quick_ack?.timeout_ms ?? 2500} disabled={!value.enabled} onChange={(timeout_ms) => patchAck({ timeout_ms })} />
               <NumberField label={t("behavior.maxTokens")} value={value.quick_ack?.max_tokens ?? 40} disabled={!value.enabled} onChange={(max_tokens) => patchAck({ max_tokens })} />
@@ -205,10 +214,18 @@ export function BehaviorChatCard({ value, onChange }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TextField label={t("behavior.provider")} value={value.intermediate_replies?.provider ?? ""} disabled={!value.enabled} placeholder={t("behavior.providerPlaceholder")} onChange={(provider) => patchIntermediate({ provider })} />
-              <TextField label={t("behavior.model")} value={value.intermediate_replies?.model ?? ""} disabled={!value.enabled} placeholder={t("behavior.modelPlaceholder")} onChange={(model) => patchIntermediate({ model })} />
-            </div>
+            <ProviderModelSelect
+              provider={value.intermediate_replies?.provider ?? ""}
+              onProviderChange={(provider) => patchIntermediate({ provider, model: "" })}
+              model={value.intermediate_replies?.model ?? ""}
+              onModelChange={(model) => patchIntermediate({ model })}
+              disabled={!value.enabled}
+              allowEmpty
+              providerLabel={t("behavior.provider")}
+              modelLabel={t("behavior.model")}
+              providerPlaceholder={t("behavior.providerPlaceholder")}
+              modelPlaceholder={t("behavior.modelPlaceholder")}
+            />
             <div className="grid grid-cols-3 gap-3">
               <NumberField label={t("behavior.timeoutMs")} value={value.intermediate_replies?.timeout_ms ?? 2500} disabled={!value.enabled} onChange={(timeout_ms) => patchIntermediate({ timeout_ms })} />
               <NumberField label={t("behavior.maxTokens")} value={value.intermediate_replies?.max_tokens ?? 60} disabled={!value.enabled} onChange={(max_tokens) => patchIntermediate({ max_tokens })} />
@@ -258,15 +275,6 @@ function formatAckPreview(preview: PreviewResponse | null, t: (key: string, opti
     return t("behavior.previewGeneratedAck", { fallback: ack.fallbackContent ?? "" });
   }
   return `${t("behavior.previewAck")}: ${ack.content ?? ""}`;
-}
-
-function TextField({ label, value, disabled, placeholder, onChange }: { label: string; value: string; disabled: boolean; placeholder?: string; onChange: (v: string) => void }) {
-  return (
-    <div className="grid gap-1.5">
-      <Label>{label}</Label>
-      <Input className="text-base md:text-sm" value={value} disabled={disabled} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-    </div>
-  );
 }
 
 function NumberField({ label, value, disabled, onChange }: { label: string; value: number; disabled: boolean; onChange: (v: number) => void }) {

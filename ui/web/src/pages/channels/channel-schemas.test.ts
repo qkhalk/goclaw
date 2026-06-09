@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { configSchema } from "./channel-schemas";
+import { deliveryModelKey, isDeliveryModelKey, isDeliveryProviderKey } from "./channel-delivery-provider-fields";
 import { normalizeReasoningDeliveryConfig, resolveReasoningDeliveryValue } from "./reasoning-delivery-config";
 
 describe("telegram configSchema", () => {
@@ -33,6 +34,14 @@ describe("telegram configSchema", () => {
     const quickMode = telegramConfig.find((field) => field.key === "chat_behavior.quick_ack.mode")!;
     expect(quickMode.help).not.toMatch(/main LLM block reply/i);
     expect(quickMode.options!.map((option) => option.value)).toContain("sidecar_generated");
+  });
+
+  it("groups delivery provider and model fields for dropdown rendering", () => {
+    expect(isDeliveryProviderKey("chat_behavior.quick_ack.provider")).toBe(true);
+    expect(isDeliveryProviderKey("chat_behavior.intermediate_replies.provider")).toBe(true);
+    expect(isDeliveryModelKey("chat_behavior.quick_ack.model")).toBe(true);
+    expect(isDeliveryModelKey("chat_behavior.intermediate_replies.model")).toBe(true);
+    expect(deliveryModelKey("chat_behavior.intermediate_replies.provider")).toBe("chat_behavior.intermediate_replies.model");
   });
 });
 
