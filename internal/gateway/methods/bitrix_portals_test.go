@@ -369,7 +369,7 @@ func TestBitrixPortals_Create_InvalidDomain(t *testing.T) {
 	client, ch := gateway.NewCapturingTestClient(permissions.RoleAdmin, tid, "u", 4)
 	m.handleCreate(store.WithTenantID(context.Background(), tid), client, buildBitrixReq(t, protocol.MethodBitrixPortalsCreate, map[string]string{
 		"name":          "p",
-		"domain":        "not-a-bitrix-domain.com",
+		"domain":        "-invalid.com",
 		"client_id":     "x",
 		"client_secret": "y",
 	}))
@@ -377,6 +377,29 @@ func TestBitrixPortals_Create_InvalidDomain(t *testing.T) {
 	resp := readResponse(t, ch)
 	if resp.Error == nil || resp.Error.Code != protocol.ErrInvalidRequest {
 		t.Errorf("expected INVALID_REQUEST, got %+v", resp.Error)
+	}
+}
+
+func TestBitrixPortals_Create_SelfHostedDomain(t *testing.T) {
+	tid := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	pStore := newStubBitrixPortalStore()
+	m := NewBitrixPortalsMethods(pStore, newStubChannelInstanceStore(), gatewayURLFn("https://goclaw.tamgiac.com"))
+
+	client, ch := gateway.NewCapturingTestClient(permissions.RoleAdmin, tid, "admin", 4)
+	m.handleCreate(store.WithTenantID(context.Background(), tid), client, buildBitrixReq(t, protocol.MethodBitrixPortalsCreate, map[string]string{
+		"name":          "myportal",
+		"domain":        "bx.mycompany.com",
+		"client_id":     "local.abc",
+		"client_secret": "secret123",
+	}))
+
+	resp := readResponse(t, ch)
+	if resp.Error != nil {
+		t.Fatalf("create with self-hosted domain failed: %+v", resp.Error)
+	}
+	result := resp.Payload.(map[string]any)
+	if result["domain"] != "bx.mycompany.com" {
+		t.Errorf("domain = %q, want bx.mycompany.com", result["domain"])
 	}
 }
 
@@ -543,19 +566,44 @@ func TestBitrixDomainRegex(t *testing.T) {
 	}
 	bad := []string{
 		"tamgiac.bitrix24",
-		"tamgiac.example.com",
 		"tamgiac.bitrix24.xx",
 		"-bad.bitrix24.com",
 		"UPPER.bitrix24.com", // we lowercase before match
 		"a.b.bitrix24.com",   // multi-level subdomain not allowed
 	}
 	for _, d := range good {
-		if !bitrixDomainRegex.MatchString(d) {
+		if !bitrixCloudDomainRegex.MatchString(d) {
 			t.Errorf("should accept %q", d)
 		}
 	}
 	for _, d := range bad {
-		if bitrixDomainRegex.MatchString(d) {
+		if bitrixCloudDomainRegex.MatchString(d) {
+			t.Errorf("should reject %q", d)
+		}
+	}
+}
+
+func TestSelfHostedDomainRegex(t *testing.T) {
+	good := []string{
+		"bx.example.com",
+		"portal.internal",
+		"bitrix.mycompany.co.uk",
+		"portal.example.com:8443",
+		"bx.corp",
+	}
+	bad := []string{
+		"-bad.example.com",
+		"UPPER.example.com", // we lowercase before match
+		"",
+		"not a domain",
+	}
+	for _, d := range good {
+		if !selfHostedDomainRegex.MatchString(d) {
+			t.Errorf("should accept %q", d)
+		}
+	}
+	for _, d := range bad {
+		if selfHostedDomainRegex.MatchString(d) {
 			t.Errorf("should reject %q", d)
 		}
 	}

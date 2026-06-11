@@ -71,7 +71,11 @@ type bitrixPortalView struct {
 var (
 	// Bitrix24 cloud portal hosts. Matches *.bitrix24.{com,eu,ru,de,fr,jp,in,kz,ua,by}
 	// plus self-hosted *.bitrix.info. Subdomain regex matches DNS label rules.
-	bitrixDomainRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.(bitrix24\.(com|eu|ru|de|fr|jp|in|kz|ua|by)|bitrix\.info)$`)
+	bitrixCloudDomainRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.(bitrix24\.(com|eu|ru|de|fr|jp|in|kz|ua|by)|bitrix\.info)$`)
+
+	// Valid hostname regex for self-hosted Bitrix24 instances (custom domains).
+	// Accepts any valid FQDN or hostname with optional port (e.g. bx.example.com, portal.internal:8443).
+	selfHostedDomainRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*(\:\d+)?$`)
 
 	// Portal name: lowercase slug used in install state token + channel config
 	// reference. Underscore allowed for legacy CLI-created portals.
@@ -142,8 +146,8 @@ func (m *BitrixPortalsMethods) handleCreate(ctx context.Context, client *gateway
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, "name: lowercase letters, digits, hyphen, underscore (2-64 chars)")))
 		return
 	}
-	if !bitrixDomainRegex.MatchString(domain) {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, "domain: must be *.bitrix24.{com,eu,ru,…} or *.bitrix.info")))
+	if !bitrixCloudDomainRegex.MatchString(domain) && !selfHostedDomainRegex.MatchString(domain) {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, "domain: must be a valid hostname (e.g. *.bitrix24.com, *.bitrix.info, or your self-hosted domain)")))
 		return
 	}
 	if clientID == "" || clientSecret == "" {
