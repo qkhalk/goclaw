@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -13,6 +16,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
+	"github.com/nextlevelbuilder/goclaw/internal/security"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
@@ -149,6 +153,14 @@ func (m *BitrixPortalsMethods) handleCreate(ctx context.Context, client *gateway
 	if !bitrixCloudDomainRegex.MatchString(domain) && !selfHostedDomainRegex.MatchString(domain) {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, "domain: must be a valid hostname (e.g. *.bitrix24.com, *.bitrix.info, or your self-hosted domain)")))
 		return
+	}
+	// SSRF + port validation for self-hosted domains (cloud domains are
+	// Bitrix-operated and implicitly trusted).
+	if !bitrixCloudDomainRegex.MatchString(domain) {
+		if err := validateSelfHostedDomain(domain); err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, "domain: "+err.Error())))
+			return
+		}
 	}
 	if clientID == "" || clientSecret == "" {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "client_id and client_secret")))
@@ -354,6 +366,67 @@ func portalRowToView(row store.BitrixPortalData) bitrixPortalView {
 		}
 	}
 	return v
+}
+
+// validateSelfHostedDomain checks a self-hosted Bitrix24 domain for SSRF
+// risks and invalid port ranges. Cloud domains (*.bitrix24.*, *.bitrix.info)
+// are Bitrix-operated and implicitly trusted — this function is only called
+// for custom/self-hosted domains.
+//
+// Policy:
+//   - Rejects literal private/loopback/metadata IPs (127.x, 10.x, 192.168.x,
+//     169.254.x, ::1, fc00::, etc.)
+//   - Rejects hostnames that resolve to blocked IPs (defense against
+//     internal service names like "postgres", "redis", "metadata")
+//   - Rejects .localhost and .local TLDs (commonly used for local dev)
+//   - Validates port range 1-65535 when a port is specified
+func validateSelfHostedDomain(domain string) error {
+	// Extract host and optional port.
+	host := domain
+	portStr := ""
+	if idx := strings.LastIndex(domain, ":"); idx != -1 {
+		host = domain[:idx]
+		portStr = domain[idx+1:]
+	}
+
+	// Validate port range if present.
+	if portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("port must be 1-65535")
+		}
+	}
+
+	// Reject .localhost and .local TLDs (commonly used for local development).
+	lowerHost := strings.ToLower(host)
+	if strings.HasSuffix(lowerHost, ".localhost") || strings.HasSuffix(lowerHost, ".local") || lowerHost == "localhost" {
+		return fmt.Errorf("private/internal hostnames (localhost, .local, .localhost) are not allowed")
+	}
+
+	// If the host is a literal IP, check it against blocked CIDRs.
+	if ip := net.ParseIP(host); ip != nil {
+		if security.IsBlocked(ip) {
+			return fmt.Errorf("IP %s is in a blocked range (loopback/private/metadata)", ip)
+		}
+		return nil
+	}
+
+	// For hostnames, resolve and check the first returned IP.
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		return fmt.Errorf("cannot resolve hostname %q", host)
+	}
+	if len(addrs) == 0 {
+		return fmt.Errorf("hostname %q resolved to no addresses", host)
+	}
+	ip := net.ParseIP(addrs[0])
+	if ip == nil {
+		return fmt.Errorf("resolved address %q is not a valid IP", addrs[0])
+	}
+	if security.IsBlocked(ip) {
+		return fmt.Errorf("hostname %q resolved to blocked IP %s (loopback/private/metadata)", host, ip)
+	}
+	return nil
 }
 
 // isDuplicateKeyErr probes a store error for a UNIQUE violation. Kept as a

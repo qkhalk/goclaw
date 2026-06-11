@@ -366,17 +366,36 @@ func TestBitrixPortals_Create_HappyPath_ReturnsInstallURL(t *testing.T) {
 func TestBitrixPortals_Create_InvalidDomain(t *testing.T) {
 	tid := uuid.New()
 	m := NewBitrixPortalsMethods(newStubBitrixPortalStore(), newStubChannelInstanceStore(), gatewayURLFn("https://gw.example.com"))
-	client, ch := gateway.NewCapturingTestClient(permissions.RoleAdmin, tid, "u", 4)
-	m.handleCreate(store.WithTenantID(context.Background(), tid), client, buildBitrixReq(t, protocol.MethodBitrixPortalsCreate, map[string]string{
-		"name":          "p",
-		"domain":        "-invalid.com",
-		"client_id":     "x",
-		"client_secret": "y",
-	}))
 
-	resp := readResponse(t, ch)
-	if resp.Error == nil || resp.Error.Code != protocol.ErrInvalidRequest {
-		t.Errorf("expected INVALID_REQUEST, got %+v", resp.Error)
+	cases := []struct {
+		name   string
+		domain string
+	}{
+		{"leading hyphen", "-invalid.com"},
+		{"scheme included", "https://example.com"},
+		{"path included", "example.com/path"},
+		{"space in domain", "exam ple.com"},
+		{"invalid port zero", "example.com:0"},
+		{"invalid port overflow", "example.com:99999"},
+		{"localhost", "localhost"},
+		{"localhost subdomain", "bx.localhost"},
+		{"local TLD", "bx.local"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, ch := gateway.NewCapturingTestClient(permissions.RoleAdmin, tid, "u", 4)
+			m.handleCreate(store.WithTenantID(context.Background(), tid), client, buildBitrixReq(t, protocol.MethodBitrixPortalsCreate, map[string]string{
+				"name":          "p",
+				"domain":        tc.domain,
+				"client_id":     "x",
+				"client_secret": "y",
+			}))
+			resp := readResponse(t, ch)
+			if resp.Error == nil || resp.Error.Code != protocol.ErrInvalidRequest {
+				t.Errorf("expected INVALID_REQUEST for %q, got %+v", tc.domain, resp.Error)
+			}
+		})
 	}
 }
 
@@ -626,6 +645,64 @@ func TestPortalNameRegex(t *testing.T) {
 	for _, n := range bad {
 		if portalNameRegex.MatchString(n) {
 			t.Errorf("should reject %q", n)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SSRF + port validation for self-hosted domains
+// ---------------------------------------------------------------------------
+
+func TestValidateSelfHostedDomain_SSRF(t *testing.T) {
+	// These should all be rejected as SSRF risks.
+	blocked := []string{
+		"127.0.0.1",
+		"127.0.0.1:8080",
+		"::1",
+		"10.0.0.1",
+		"10.0.0.1:443",
+		"192.168.1.1",
+		"172.16.0.1",
+		"169.254.169.254", // cloud metadata
+		"0.0.0.0",
+		"localhost",
+		"bx.localhost",
+		"bx.local",
+		"portal.internal.localhost",
+	}
+	for _, d := range blocked {
+		if err := validateSelfHostedDomain(d); err == nil {
+			t.Errorf("should reject %q (SSRF risk)", d)
+		}
+	}
+}
+
+func TestValidateSelfHostedDomain_PortRange(t *testing.T) {
+	badPorts := []string{
+		"example.com:0",
+		"example.com:99999",
+		"example.com:-1",
+		"example.com:abc",
+	}
+	for _, d := range badPorts {
+		if err := validateSelfHostedDomain(d); err == nil {
+			t.Errorf("should reject %q (invalid port)", d)
+		}
+	}
+}
+
+func TestValidateSelfHostedDomain_ValidPublicDomain(t *testing.T) {
+	// Public domains that resolve to public IPs should pass.
+	// (Note: this does a real DNS lookup — if the test environment has no
+	// internet, this will fail. That's acceptable; the SSRF logic is still
+	// tested via the blocked cases above which use literal IPs.)
+	valid := []string{
+		"google.com",
+		"example.com:443",
+	}
+	for _, d := range valid {
+		if err := validateSelfHostedDomain(d); err != nil {
+			t.Errorf("should accept %q, got error: %v", d, err)
 		}
 	}
 }
