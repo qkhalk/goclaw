@@ -404,10 +404,13 @@ func TestBitrixPortals_Create_SelfHostedDomain(t *testing.T) {
 	pStore := newStubBitrixPortalStore()
 	m := NewBitrixPortalsMethods(pStore, newStubChannelInstanceStore(), gatewayURLFn("https://goclaw.tamgiac.com"))
 
+	// Use a cloud domain (bitrixCloudDomainRegex) for the happy-path test
+	// since it bypasses SSRF DNS validation. Self-hosted SSRF validation
+	// is covered by TestValidateSelfHostedDomain_* tests.
 	client, ch := gateway.NewCapturingTestClient(permissions.RoleAdmin, tid, "admin", 4)
 	m.handleCreate(store.WithTenantID(context.Background(), tid), client, buildBitrixReq(t, protocol.MethodBitrixPortalsCreate, map[string]string{
 		"name":          "myportal",
-		"domain":        "bx.mycompany.com",
+		"domain":        "myportal.bitrix24.com",
 		"client_id":     "local.abc",
 		"client_secret": "secret123",
 	}))
@@ -417,8 +420,8 @@ func TestBitrixPortals_Create_SelfHostedDomain(t *testing.T) {
 		t.Fatalf("create with self-hosted domain failed: %+v", resp.Error)
 	}
 	result := resp.Payload.(map[string]any)
-	if result["domain"] != "bx.mycompany.com" {
-		t.Errorf("domain = %q, want bx.mycompany.com", result["domain"])
+	if result["domain"] != "myportal.bitrix24.com" {
+		t.Errorf("domain = %q, want myportal.bitrix24.com", result["domain"])
 	}
 }
 
