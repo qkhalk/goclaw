@@ -60,6 +60,20 @@ type response struct {
 }
 
 func main() {
+	if len(os.Args) > 1 {
+		req := request{Action: os.Args[1]}
+		if len(os.Args) > 2 {
+			req.Package = os.Args[2]
+		}
+		resp := handleRequest(req)
+		out, _ := json.Marshal(resp)
+		fmt.Println(string(out))
+		if !resp.OK {
+			os.Exit(1)
+		}
+		return
+	}
+
 	slog.Info("pkg-helper: starting", "socket", socketPath, "protocol", "v2")
 
 	// Remove stale socket.

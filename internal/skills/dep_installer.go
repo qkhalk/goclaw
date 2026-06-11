@@ -305,6 +305,33 @@ func UninstallPackage(ctx context.Context, dep string) (bool, string) {
 func apkHelperCall(ctx context.Context, action, pkg string) (ok bool, code, data, errMsg string) {
 	conn, err := net.DialTimeout("unix", pkgHelperSocket, 5*time.Second)
 	if err != nil {
+		// Fallback: try executing pkg-helper directly if available
+		if path, lookErr := exec.LookPath("pkg-helper"); lookErr == nil {
+			cmd := exec.CommandContext(ctx, path, action)
+			if pkg != "" {
+				cmd.Args = append(cmd.Args, pkg)
+			}
+			out, execErr := cmd.CombinedOutput()
+			
+			var resp struct {
+				OK    bool   `json:"ok"`
+				Error string `json:"error"`
+				Code  string `json:"code"`
+				Data  string `json:"data"`
+			}
+			if unmarshalErr := json.Unmarshal(out, &resp); unmarshalErr == nil {
+				if resp.Code == "" && !resp.OK {
+					resp.Code = "system_error"
+				}
+				return resp.OK, resp.Code, resp.Data, resp.Error
+			}
+			
+			if execErr != nil {
+				return false, "system_error", "", fmt.Sprintf("pkg-helper fallback failed: %v: %s", execErr, strings.TrimSpace(string(out)))
+			}
+			return true, "", string(out), ""
+		}
+		
 		return false, "helper_unavailable", "", fmt.Sprintf("pkg-helper unavailable: %v", err)
 	}
 	defer conn.Close()
