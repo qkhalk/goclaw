@@ -563,6 +563,10 @@ func TestBitrixDomainRegex(t *testing.T) {
 		"my-corp.bitrix24.eu",
 		"a.bitrix24.com",
 		"company.bitrix.info",
+		"mycorp.bitrix24.vn",
+		"portal.bitrix24.tr",
+		"miempresa.bitrix24.es",
+		"empresa.bitrix24.com.br",
 	}
 	bad := []string{
 		"tamgiac.bitrix24",

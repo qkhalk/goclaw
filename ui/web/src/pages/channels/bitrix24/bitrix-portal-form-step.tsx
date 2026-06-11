@@ -10,11 +10,14 @@ import { useBitrixPortalCreate } from "./use-bitrix-portals";
 // Validation mirrors the server-side regex in
 // internal/gateway/methods/bitrix_portals.go. Server is authoritative;
 // client validation is purely UX so the operator gets feedback before a
-// round-trip. Pattern intentionally accepts a wide TLD set (Bitrix24 has
-// regional clouds: .com, .eu, .ru, .de, .fr, .jp, .in, .kz, .ua, .by) plus
-// .bitrix.info for self-hosted.
+// round-trip. Pattern accepts Bitrix24 regional clouds (.com, .eu, .ru,
+// .de, .fr, .jp, .in, .kz, .ua, .by, .vn, .tr, .es, .com.br, .com.ar),
+// .bitrix.info self-hosted, plus any valid hostname/port for fully
+// self-hosted custom domains.
 const BITRIX_DOMAIN_RE =
-  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.(bitrix24\.(com|eu|ru|de|fr|jp|in|kz|ua|by)|bitrix\.info)$/;
+  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.(bitrix24\.(com|eu|ru|de|fr|jp|in|kz|ua|by|vn|tr|es|com\.br|com\.ar)|bitrix\.info)$/;
+const SELF_HOSTED_DOMAIN_RE =
+  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*(:\d+)?$/;
 const PORTAL_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}[a-z0-9]$/;
 
 interface BitrixPortalFormStepProps {
@@ -53,9 +56,9 @@ export function BitrixPortalFormStep({ onSuccess, onCancel }: BitrixPortalFormSt
         defaultValue: "Use lowercase letters, digits, hyphens, underscores (2-64 chars).",
       });
     }
-    if (!BITRIX_DOMAIN_RE.test(domain.toLowerCase())) {
+    if (!BITRIX_DOMAIN_RE.test(domain.toLowerCase()) && !SELF_HOSTED_DOMAIN_RE.test(domain.toLowerCase())) {
       e.domain = t("bitrix24.create.errors.invalidDomain", {
-        defaultValue: "Must be a valid Bitrix24 portal domain (e.g. mycorp.bitrix24.com).",
+        defaultValue: "Must be a valid hostname (e.g. *.bitrix24.com, *.bitrix.info, or your self-hosted domain).",
       });
     }
     if (!clientId.trim()) e.client_id = t("common.required", { defaultValue: "Required" });
@@ -121,7 +124,7 @@ export function BitrixPortalFormStep({ onSuccess, onCancel }: BitrixPortalFormSt
           value={domain}
           onChange={(e) => setDomain(e.target.value)}
           onBlur={handleDomainBlur}
-          placeholder="tamgiac.bitrix24.com"
+          placeholder="mycorp.bitrix24.vn or bitrix.example.com"
           autoComplete="off"
           autoFocus
         />

@@ -69,9 +69,9 @@ type bitrixPortalView struct {
 // Validation regexes. Kept package-level so they compile once and tests can
 // reference them directly.
 var (
-	// Bitrix24 cloud portal hosts. Matches *.bitrix24.{com,eu,ru,de,fr,jp,in,kz,ua,by}
+	// Bitrix24 cloud portal hosts. Matches *.bitrix24.{com,eu,ru,de,fr,jp,in,kz,ua,by,vn,tr,es,com.br,com.ar}
 	// plus self-hosted *.bitrix.info. Subdomain regex matches DNS label rules.
-	bitrixCloudDomainRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.(bitrix24\.(com|eu|ru|de|fr|jp|in|kz|ua|by)|bitrix\.info)$`)
+	bitrixCloudDomainRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.(bitrix24\.(com|eu|ru|de|fr|jp|in|kz|ua|by|vn|tr|es|com\.br|com\.ar)|bitrix\.info)$`)
 
 	// Valid hostname regex for self-hosted Bitrix24 instances (custom domains).
 	// Accepts any valid FQDN or hostname with optional port (e.g. bx.example.com, portal.internal:8443).
