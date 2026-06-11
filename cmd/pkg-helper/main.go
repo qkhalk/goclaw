@@ -227,7 +227,8 @@ var runApkFunc = runApk
 func runApk(args ...string) ([]byte, error) {
 	if os.Getuid() != 0 {
 		if sudo, err := exec.LookPath("sudo"); err == nil {
-			sudoArgs := append([]string{"apk"}, args...)
+			// Use -n to prevent blocking on interactive password prompts
+			sudoArgs := append([]string{"-n", "apk"}, args...)
 			return exec.Command(sudo, sudoArgs...).CombinedOutput()
 		}
 	}
