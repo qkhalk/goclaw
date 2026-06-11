@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -694,19 +695,56 @@ func TestValidateSelfHostedDomain_PortRange(t *testing.T) {
 	}
 }
 
-func TestValidateSelfHostedDomain_ValidPublicDomain(t *testing.T) {
-	// Public domains that resolve to public IPs should pass.
-	// (Note: this does a real DNS lookup — if the test environment has no
-	// internet, this will fail. That's acceptable; the SSRF logic is still
-	// tested via the blocked cases above which use literal IPs.)
-	valid := []string{
-		"google.com",
-		"example.com:443",
+func TestValidateSelfHostedDomain_StubbedDNS(t *testing.T) {
+	// Save and restore the real resolver.
+	orig := lookupHost
+	defer func() { lookupHost = orig }()
+
+	tests := []struct {
+		name    string
+		host    string
+		addrs   []string
+		dnsErr  error
+		wantErr bool
+	}{
+		{"single public IP", "public.example.com", []string{"8.8.8.8"}, nil, false},
+		{"public IP with port", "public.example.com", []string{"93.184.216.34"}, nil, false},
+		{"single private IP", "internal.example.com", []string{"10.0.0.1"}, nil, true},
+		{"DNS resolution failure", "unresolvable.example.com", nil, fmt.Errorf("no such host"), true},
+		{"no addresses returned", "empty.example.com", []string{}, nil, true},
+		{"invalid IP string", "bad.example.com", []string{"not-an-ip"}, nil, true},
+		// Regression: multi-IP SSRF bypass — public IP first, private IP second.
+		// DNS ordering is not a security boundary; must reject if ANY IP is blocked.
+		{"multi-ip public-then-private", "evil.example.com", []string{"8.8.8.8", "10.0.0.1"}, nil, true},
+		{"multi-ip private-then-public", "evil2.example.com", []string{"192.168.1.1", "8.8.4.4"}, nil, true},
+		{"multi-ip all public", "safe.example.com", []string{"8.8.8.8", "8.8.4.4"}, nil, false},
+		{"multi-ip metadata IP", "meta.example.com", []string{"8.8.8.8", "169.254.169.254"}, nil, true},
+		{"multi-ip IPv6 loopback", "ipv6evil.example.com", []string{"2001:db8::1", "::1"}, nil, true},
 	}
-	for _, d := range valid {
-		if err := validateSelfHostedDomain(d); err != nil {
-			t.Errorf("should accept %q, got error: %v", d, err)
-		}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lookupHost = func(host string) ([]string, error) {
+				if host == tc.host {
+					return tc.addrs, tc.dnsErr
+				}
+				return nil, fmt.Errorf("unexpected host: %s", host)
+			}
+
+			domain := tc.host
+			// Add port for the "public IP with port" case.
+			if tc.name == "public IP with port" {
+				domain = tc.host + ":443"
+			}
+
+			err := validateSelfHostedDomain(domain)
+			if tc.wantErr && err == nil {
+				t.Errorf("expected error for %q, got nil", tc.name)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("expected no error for %q, got: %v", tc.name, err)
+			}
+		})
 	}
 }
 

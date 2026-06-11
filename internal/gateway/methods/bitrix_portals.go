@@ -368,6 +368,11 @@ func portalRowToView(row store.BitrixPortalData) bitrixPortalView {
 	return v
 }
 
+// lookupHost is the DNS resolver used by validateSelfHostedDomain.
+// Replaced in tests to avoid real network calls and to exercise multi-IP
+// SSRF bypass scenarios.
+var lookupHost = net.LookupHost
+
 // validateSelfHostedDomain checks a self-hosted Bitrix24 domain for SSRF
 // risks and invalid port ranges. Cloud domains (*.bitrix24.*, *.bitrix.info)
 // are Bitrix-operated and implicitly trusted — this function is only called
@@ -376,8 +381,7 @@ func portalRowToView(row store.BitrixPortalData) bitrixPortalView {
 // Policy:
 //   - Rejects literal private/loopback/metadata IPs (127.x, 10.x, 192.168.x,
 //     169.254.x, ::1, fc00::, etc.)
-//   - Rejects hostnames that resolve to blocked IPs (defense against
-//     internal service names like "postgres", "redis", "metadata")
+//   - Rejects hostnames where ANY resolved IP is blocked (not just the first)
 //   - Rejects .localhost and .local TLDs (commonly used for local dev)
 //   - Validates port range 1-65535 when a port is specified
 func validateSelfHostedDomain(domain string) error {
@@ -411,20 +415,24 @@ func validateSelfHostedDomain(domain string) error {
 		return nil
 	}
 
-	// For hostnames, resolve and check the first returned IP.
-	addrs, err := net.LookupHost(host)
+	// For hostnames, resolve and check ALL returned IPs. DNS result ordering
+	// is not a security boundary — a resolver may return a public IP first
+	// followed by a private one (e.g. split-horizon, fallback addresses).
+	addrs, err := lookupHost(host)
 	if err != nil {
 		return fmt.Errorf("cannot resolve hostname %q", host)
 	}
 	if len(addrs) == 0 {
 		return fmt.Errorf("hostname %q resolved to no addresses", host)
 	}
-	ip := net.ParseIP(addrs[0])
-	if ip == nil {
-		return fmt.Errorf("resolved address %q is not a valid IP", addrs[0])
-	}
-	if security.IsBlocked(ip) {
-		return fmt.Errorf("hostname %q resolved to blocked IP %s (loopback/private/metadata)", host, ip)
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			return fmt.Errorf("resolved address %q is not a valid IP", addr)
+		}
+		if security.IsBlocked(ip) {
+			return fmt.Errorf("hostname %q resolved to blocked IP %s (loopback/private/metadata)", host, ip)
+		}
 	}
 	return nil
 }
