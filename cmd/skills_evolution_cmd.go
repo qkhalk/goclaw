@@ -33,7 +33,7 @@ func skillsEvolveStatusCmd() *cobra.Command {
 			skillID := resolveGatewaySkillID(args[0])
 			resp, err := gatewayHTTPGet("/v1/skills/" + url.PathEscape(skillID) + "/evolution")
 			exitOnErr(err)
-			printJSON(resp)
+			printSkillEvolutionJSON(resp)
 		},
 	}
 }
@@ -48,7 +48,7 @@ func skillsEvolveSetCmd(name string, enabled bool) *cobra.Command {
 			skillID := resolveGatewaySkillID(args[0])
 			resp, err := gatewayHTTPDo("PATCH", "/v1/skills/"+url.PathEscape(skillID)+"/evolution", map[string]any{"enabled": enabled})
 			exitOnErr(err)
-			printJSON(resp)
+			printSkillEvolutionJSON(resp)
 		},
 	}
 }
@@ -63,7 +63,7 @@ func skillsEvolveModeCmd() *cobra.Command {
 			skillID := resolveGatewaySkillID(args[0])
 			resp, err := gatewayHTTPDo("PATCH", "/v1/skills/"+url.PathEscape(skillID)+"/evolution", map[string]any{"mode": args[1]})
 			exitOnErr(err)
-			printJSON(resp)
+			printSkillEvolutionJSON(resp)
 		},
 	}
 }
@@ -80,7 +80,7 @@ func skillsMetricsCmd() *cobra.Command {
 			resp, err := gatewayHTTPGet("/v1/skills/" + url.PathEscape(skillID) + "/metrics")
 			exitOnErr(err)
 			if jsonOutput {
-				printJSON(resp)
+				printSkillEvolutionJSON(resp)
 				return
 			}
 			fmt.Printf("Total: %.0f\nStarted: %.0f\nSucceeded: %.0f\nFailed: %.0f\nAbandoned: %.0f\nSuccess rate: %.2f\n",
@@ -101,7 +101,7 @@ func skillsActivityCmd() *cobra.Command {
 			skillID := resolveGatewaySkillID(args[0])
 			resp, err := gatewayHTTPGet("/v1/skills/" + url.PathEscape(skillID) + "/activity")
 			exitOnErr(err)
-			printJSON(resp)
+			printSkillEvolutionJSON(resp)
 		},
 	}
 }
@@ -128,7 +128,7 @@ func skillsSuggestionsListCmd() *cobra.Command {
 			skillID := resolveGatewaySkillID(args[0])
 			resp, err := gatewayHTTPGet("/v1/skills/" + url.PathEscape(skillID) + "/evolution/suggestions")
 			exitOnErr(err)
-			printJSON(resp)
+			printSkillEvolutionJSON(resp)
 		},
 	}
 }
@@ -144,7 +144,7 @@ func skillsSuggestionStatusCmd(action string) *cobra.Command {
 			path := fmt.Sprintf("/v1/skills/%s/evolution/suggestions/%s/%s", url.PathEscape(skillID), url.PathEscape(args[1]), action)
 			resp, err := gatewayHTTPPost(path, nil)
 			exitOnErr(err)
-			printJSON(resp)
+			printSkillEvolutionJSON(resp)
 		},
 	}
 }
@@ -161,7 +161,7 @@ func skillsSuggestionApplyCmd() *cobra.Command {
 			path := fmt.Sprintf("/v1/skills/%s/evolution/suggestions/%s/apply", url.PathEscape(skillID), url.PathEscape(args[1]))
 			resp, err := gatewayHTTPPost(path, map[string]any{"approve": approve})
 			exitOnErr(err)
-			printJSON(resp)
+			printSkillEvolutionJSON(resp)
 		},
 	}
 	cmd.Flags().BoolVar(&approve, "approve", false, "approve pending suggestion before applying")
@@ -186,7 +186,7 @@ func resolveGatewaySkillID(input string) string {
 	return input
 }
 
-func printJSON(v any) {
+func printSkillEvolutionJSON(v any) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetIndent("", "  ")
