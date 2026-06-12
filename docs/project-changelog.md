@@ -6,6 +6,21 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-06-12
 
+### Bundled GoClaw gateway administration skill (issue #175)
+
+**Changes**
+
+- Added a bundled `goclaw` system skill for version-aware GoClaw CLI/runtime
+  discovery, read-only-first diagnostics, gateway administration workflows, and
+  troubleshooting playbooks.
+- Documented safety guidance for credentials, destructive actions,
+  permissions, tenant scope, and trace redaction.
+
+**Tests**
+
+- Added bundled-skill regression coverage to keep the default core skill set
+  discoverable in fresh runtimes.
+
 ### Bailian Coding qwen3.7-plus catalog (issue #169)
 
 **Changes**
