@@ -6,6 +6,21 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-06-12
 
+### Bailian Coding qwen3.7-plus catalog (issue #169)
+
+**Changes**
+
+- Added `qwen3.7-plus` / `Qwen 3.7 Plus` to the hardcoded Bailian
+  Coding provider model catalog.
+- Documented the model's advertised Text Generation, Deep Thinking, and Visual
+  Understanding capabilities while keeping Bailian on the existing
+  OpenAI-compatible provider wrapper.
+
+**Tests**
+
+- Added provider model endpoint coverage to verify Bailian exposes
+  `qwen3.7-plus` without adding unsupported OpenAI reasoning metadata.
+
 ### Multi-attachment outbound delivery (issue #172)
 
 **Changes**
