@@ -26,6 +26,7 @@ type Stores struct {
 	Contacts              ContactStore
 	Activity              ActivityStore
 	Snapshots             SnapshotStore
+	UsageEvents           UsageEventStore
 	BrowserCookies        BrowserCookieStore
 	SecureCLI             SecureCLIStore
 	SecureCLIGrants       SecureCLIAgentGrantStore

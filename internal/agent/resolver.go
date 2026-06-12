@@ -102,6 +102,7 @@ type ResolverDeps struct {
 	// Tracing store for budget enforcement queries
 	TracingStore store.TracingStore
 	UsageCaps    *usagecaps.Service
+	UsageEvents  store.UsageEventStore
 
 	// Memory store for extractive memory fallback
 	MemoryStore store.MemoryStore
@@ -536,6 +537,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			BudgetMonthlyCents:     derefInt(ag.BudgetMonthlyCents),
 			TracingStore:           deps.TracingStore,
 			UsageCaps:              deps.UsageCaps,
+			UsageEvents:            deps.UsageEvents,
 			MemoryStore:            deps.MemoryStore,
 			MCPStore:               deps.MCPStore,
 			MCPPool:                deps.MCPPool,

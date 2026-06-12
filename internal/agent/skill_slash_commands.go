@@ -42,6 +42,7 @@ func (l *Loop) applySkillSlashCommand(ctx context.Context, req *RunRequest, mess
 			message = result.RemainingPrompt
 		}
 		skillFilter = []string{result.Skill.Slug}
+		l.recordSkillSlashUsageEvent(ctx, result.Skill.Slug)
 		l.recordSkillUsage(ctx, req, result.Skill.Slug, "", "slash", store.SkillUsageStatusStarted, "", 0)
 	case skillSlashCommandList:
 		message = "List the available skills shown in the system instructions."

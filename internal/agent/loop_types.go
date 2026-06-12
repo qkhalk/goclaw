@@ -243,6 +243,7 @@ type Loop struct {
 	budgetMonthlyCents int
 	tracingStore       store.TracingStore
 	usageCaps          *usagecaps.Service
+	usageEvents        store.UsageEventStore
 
 	// Memory store for extractive memory fallback (writes directly when LLM flush fails)
 	memStore store.MemoryStore
@@ -441,6 +442,7 @@ type LoopConfig struct {
 	BudgetMonthlyCents int
 	TracingStore       store.TracingStore
 	UsageCaps          *usagecaps.Service
+	UsageEvents        store.UsageEventStore
 
 	// Memory store for extractive memory fallback (writes directly when LLM flush fails)
 	MemoryStore store.MemoryStore
@@ -586,6 +588,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		budgetMonthlyCents:     cfg.BudgetMonthlyCents,
 		tracingStore:           cfg.TracingStore,
 		usageCaps:              cfg.UsageCaps,
+		usageEvents:            cfg.UsageEvents,
 		memStore:               cfg.MemoryStore,
 		mcpStore:               cfg.MCPStore,
 		mcpPool:                cfg.MCPPool,
