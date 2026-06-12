@@ -6,6 +6,27 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-06-12
 
+### Multi-attachment outbound delivery (issue #172)
+
+**Changes**
+
+- Extended `send_file` with `attachments[]` so agents can queue multiple
+  existing workspace files in one tool call while preserving order and captions.
+- Added caption propagation from tool result media through agent media results
+  into outbound channel attachments.
+- Added Telegram media-group delivery for compatible batches with 2-10 item
+  chunks, plus ordered fallback for singleton, voice, oversized-image, or mixed
+  incompatible cases.
+- Added explicit channel batch capability metadata for Telegram, Discord, and
+  ordered fallback channels.
+
+**Tests**
+
+- Added batch `send_file` regressions for happy path, duplicate rejection, and
+  all-or-nothing delivered-state handling.
+- Added Telegram media-group chunking tests for compatible grouping, max-size
+  chunking, and non-groupable fallback.
+
 ### Operator trace CLI (issue #158)
 
 **Changes**
