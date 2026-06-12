@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
@@ -29,6 +30,9 @@ var healthClient = &http.Client{Timeout: 3 * time.Second}
 
 // resolveGatewayBaseURL reads host/port from config and returns http://host:port.
 func resolveGatewayBaseURL() string {
+	if server := strings.TrimSpace(os.Getenv("GOCLAW_SERVER")); server != "" {
+		return strings.TrimRight(server, "/")
+	}
 	cfg, err := config.Load(resolveConfigPath())
 	if err != nil {
 		return "http://127.0.0.1:18790"
