@@ -246,6 +246,7 @@ func wireExtras(
 		ModelPricing:           appCfg.Telemetry.ModelPricing,
 		TracingStore:           stores.Tracing,
 		UsageCaps:              usageCapSvc,
+		UsageEvents:            stores.UsageEvents,
 		MemoryStore:            stores.Memory,
 		ContactStore:           stores.Contacts,
 		TenantStore:            stores.Tenants,
