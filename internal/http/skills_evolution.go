@@ -14,9 +14,19 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+)
+
+var (
+	errSkillEvolutionSkillNotFound        = errors.New("skill not found")
+	errSkillEvolutionSystemMutation       = errors.New("system skill mutation is blocked")
+	errSkillEvolutionInvalidDraftPatch    = errors.New("invalid draft_patch")
+	errSkillEvolutionDraftPatchRequired   = errors.New("draft_patch requires content or find/replace")
+	errSkillEvolutionFindTextNotFound     = errors.New("find text not found in target file")
+	errSkillEvolutionGuardPolicyViolation = errors.New("skill guard policy violation")
 )
 
 type skillEvolutionPatchRequest struct {
@@ -42,30 +52,34 @@ type skillDraftPatch struct {
 	Content *string `json:"content"`
 }
 
-func (h *SkillsHandler) evolutionConfigured(w http.ResponseWriter) bool {
+func (h *SkillsHandler) evolutionConfigured(w http.ResponseWriter, r *http.Request) bool {
 	if h.evolutionStore == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "skill evolution store not configured"})
+		writeSkillEvolutionError(w, r, http.StatusServiceUnavailable, i18n.MsgSkillEvolutionNotConfigured)
 		return false
 	}
 	return true
 }
 
+func writeSkillEvolutionError(w http.ResponseWriter, r *http.Request, status int, key string, args ...any) {
+	writeJSON(w, status, map[string]string{"error": i18n.T(store.LocaleFromContext(r.Context()), key, args...)})
+}
+
 func (h *SkillsHandler) skillIDFromRequest(w http.ResponseWriter, r *http.Request) (uuid.UUID, store.SkillInfo, bool) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid skill id"})
+		writeSkillEvolutionError(w, r, http.StatusBadRequest, i18n.MsgInvalidID, "skill")
 		return uuid.Nil, store.SkillInfo{}, false
 	}
 	info, ok := h.skills.GetSkillByID(r.Context(), id)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "skill not found"})
+		writeSkillEvolutionError(w, r, http.StatusNotFound, i18n.MsgNotFound, "skill", id.String())
 		return uuid.Nil, store.SkillInfo{}, false
 	}
 	return id, info, true
 }
 
 func (h *SkillsHandler) handleGetEvolution(w http.ResponseWriter, r *http.Request) {
-	if !h.evolutionConfigured(w) {
+	if !h.evolutionConfigured(w, r) {
 		return
 	}
 	skillID, _, ok := h.skillIDFromRequest(w, r)
@@ -74,14 +88,14 @@ func (h *SkillsHandler) handleGetEvolution(w http.ResponseWriter, r *http.Reques
 	}
 	settings, err := h.evolutionStore.GetSettings(r.Context(), skillID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, settings)
 }
 
 func (h *SkillsHandler) handlePatchEvolution(w http.ResponseWriter, r *http.Request) {
-	if !h.evolutionConfigured(w) {
+	if !h.evolutionConfigured(w, r) {
 		return
 	}
 	skillID, _, ok := h.skillIDFromRequest(w, r)
@@ -94,7 +108,7 @@ func (h *SkillsHandler) handlePatchEvolution(w http.ResponseWriter, r *http.Requ
 	}
 	current, err := h.evolutionStore.GetSettings(r.Context(), skillID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	enabled := current.Enabled
@@ -109,7 +123,7 @@ func (h *SkillsHandler) handlePatchEvolution(w http.ResponseWriter, r *http.Requ
 		mode = store.SkillEvolutionModeSuggestOnly
 	}
 	if mode != store.SkillEvolutionModeSuggestOnly && mode != store.SkillEvolutionModeAutoAnalyze {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid evolution mode"})
+		writeSkillEvolutionError(w, r, http.StatusBadRequest, i18n.MsgInvalidEvolutionMode)
 		return
 	}
 	updated, err := h.evolutionStore.UpsertSettings(r.Context(), store.SkillEvolutionSettings{
@@ -118,7 +132,7 @@ func (h *SkillsHandler) handlePatchEvolution(w http.ResponseWriter, r *http.Requ
 		Mode:    mode,
 	})
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	action := "skill.evolve.mode_updated"
@@ -134,7 +148,7 @@ func (h *SkillsHandler) handlePatchEvolution(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *SkillsHandler) handleGetSkillMetrics(w http.ResponseWriter, r *http.Request) {
-	if !h.evolutionConfigured(w) {
+	if !h.evolutionConfigured(w, r) {
 		return
 	}
 	skillID, _, ok := h.skillIDFromRequest(w, r)
@@ -149,7 +163,7 @@ func (h *SkillsHandler) handleGetSkillMetrics(w http.ResponseWriter, r *http.Req
 	}
 	stats, err := h.evolutionStore.AggregateUsage(r.Context(), skillID, since)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	if !permissions.HasMinRole(resolveAuth(r).Role, permissions.RoleAdmin) {
@@ -160,7 +174,7 @@ func (h *SkillsHandler) handleGetSkillMetrics(w http.ResponseWriter, r *http.Req
 
 func (h *SkillsHandler) handleGetSkillActivity(w http.ResponseWriter, r *http.Request) {
 	if h.activityStore == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "activity store not configured"})
+		writeSkillEvolutionError(w, r, http.StatusServiceUnavailable, i18n.MsgActivityStoreNotConfigured)
 		return
 	}
 	skillID, _, ok := h.skillIDFromRequest(w, r)
@@ -173,14 +187,14 @@ func (h *SkillsHandler) handleGetSkillActivity(w http.ResponseWriter, r *http.Re
 		Limit:      clampLimit(r.URL.Query().Get("limit"), 50, 200),
 	})
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"activity": items})
 }
 
 func (h *SkillsHandler) handleListSkillSuggestions(w http.ResponseWriter, r *http.Request) {
-	if !h.evolutionConfigured(w) {
+	if !h.evolutionConfigured(w, r) {
 		return
 	}
 	skillID, _, ok := h.skillIDFromRequest(w, r)
@@ -189,7 +203,7 @@ func (h *SkillsHandler) handleListSkillSuggestions(w http.ResponseWriter, r *htt
 	}
 	items, err := h.evolutionStore.ListSuggestions(r.Context(), skillID, r.URL.Query().Get("status"), clampLimit(r.URL.Query().Get("limit"), 50, 200))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	if !permissions.HasMinRole(resolveAuth(r).Role, permissions.RoleAdmin) {
@@ -204,7 +218,7 @@ func (h *SkillsHandler) handleListSkillSuggestions(w http.ResponseWriter, r *htt
 }
 
 func (h *SkillsHandler) handleCreateSkillSuggestion(w http.ResponseWriter, r *http.Request) {
-	if !h.evolutionConfigured(w) {
+	if !h.evolutionConfigured(w, r) {
 		return
 	}
 	skillID, _, ok := h.skillIDFromRequest(w, r)
@@ -216,14 +230,14 @@ func (h *SkillsHandler) handleCreateSkillSuggestion(w http.ResponseWriter, r *ht
 		return
 	}
 	if strings.TrimSpace(req.SuggestionType) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "suggestion_type is required"})
+		writeSkillEvolutionError(w, r, http.StatusBadRequest, i18n.MsgRequired, "suggestion_type")
 		return
 	}
 	target := strings.TrimSpace(req.TargetFile)
 	if target != "" {
 		clean, err := skills.ValidateSkillTargetPath(target, true)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			writeSkillEvolutionError(w, r, http.StatusBadRequest, i18n.MsgInvalidRequest, err.Error())
 			return
 		}
 		target = clean
@@ -239,7 +253,7 @@ func (h *SkillsHandler) handleCreateSkillSuggestion(w http.ResponseWriter, r *ht
 		CreatedByActorID:   store.ActorIDFromContext(r.Context()),
 	})
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	h.logSkillActivity(r, "skill.suggestion.created", skillID, map[string]any{"suggestion_id": created.ID.String(), "type": created.SuggestionType})
@@ -255,7 +269,7 @@ func (h *SkillsHandler) handleRejectSkillSuggestion(w http.ResponseWriter, r *ht
 }
 
 func (h *SkillsHandler) handleSuggestionStatus(w http.ResponseWriter, r *http.Request, status, action string) {
-	if !h.evolutionConfigured(w) {
+	if !h.evolutionConfigured(w, r) {
 		return
 	}
 	skillID, _, ok := h.skillIDFromRequest(w, r)
@@ -264,21 +278,21 @@ func (h *SkillsHandler) handleSuggestionStatus(w http.ResponseWriter, r *http.Re
 	}
 	suggestionID, err := uuid.Parse(r.PathValue("suggestionID"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid suggestion id"})
+		writeSkillEvolutionError(w, r, http.StatusBadRequest, i18n.MsgInvalidID, "suggestion")
 		return
 	}
 	sg, err := h.evolutionStore.GetSuggestion(r.Context(), suggestionID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	if sg == nil || sg.SkillID != skillID {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "suggestion not found"})
+		writeSkillEvolutionError(w, r, http.StatusNotFound, i18n.MsgNotFound, "suggestion", suggestionID.String())
 		return
 	}
 	updated, err := h.evolutionStore.UpdateSuggestionStatus(r.Context(), suggestionID, status, "user", store.ActorIDFromContext(r.Context()))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	h.logSkillActivity(r, action, skillID, map[string]any{"suggestion_id": suggestionID.String()})
@@ -286,7 +300,7 @@ func (h *SkillsHandler) handleSuggestionStatus(w http.ResponseWriter, r *http.Re
 }
 
 func (h *SkillsHandler) handleApplySkillSuggestion(w http.ResponseWriter, r *http.Request) {
-	if !h.evolutionConfigured(w) {
+	if !h.evolutionConfigured(w, r) {
 		return
 	}
 	skillID, info, ok := h.skillIDFromRequest(w, r)
@@ -294,23 +308,23 @@ func (h *SkillsHandler) handleApplySkillSuggestion(w http.ResponseWriter, r *htt
 		return
 	}
 	if info.IsSystem {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "system skill mutation is blocked"})
+		writeSkillEvolutionError(w, r, http.StatusForbidden, i18n.MsgSystemSkillMutationBlocked)
 		return
 	}
 	suggestionID, err := uuid.Parse(r.PathValue("suggestionID"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid suggestion id"})
+		writeSkillEvolutionError(w, r, http.StatusBadRequest, i18n.MsgInvalidID, "suggestion")
 		return
 	}
 	var req skillSuggestionApplyRequest
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	sg, err := h.evolutionStore.GetSuggestion(r.Context(), suggestionID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 		return
 	}
 	if sg == nil || sg.SkillID != skillID {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "suggestion not found"})
+		writeSkillEvolutionError(w, r, http.StatusNotFound, i18n.MsgNotFound, "suggestion", suggestionID.String())
 		return
 	}
 	if sg.Status == store.SkillSuggestionStatusApplied && sg.AppliedVersion != nil {
@@ -319,18 +333,18 @@ func (h *SkillsHandler) handleApplySkillSuggestion(w http.ResponseWriter, r *htt
 	}
 	if sg.Status != store.SkillSuggestionStatusApproved {
 		if !req.Approve {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "suggestion must be approved before apply"})
+			writeSkillEvolutionError(w, r, http.StatusBadRequest, i18n.MsgSuggestionMustBeApproved)
 			return
 		}
 		sg, err = h.evolutionStore.UpdateSuggestionStatus(r.Context(), suggestionID, store.SkillSuggestionStatusApproved, "user", store.ActorIDFromContext(r.Context()))
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeSkillEvolutionError(w, r, http.StatusInternalServerError, i18n.MsgInternalError, err.Error())
 			return
 		}
 	}
 	applied, err := h.applySkillSuggestionPatch(r, skillID, sg)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": h.skillEvolutionApplyErrorMessage(r, skillID, err)})
 		return
 	}
 	writeJSON(w, http.StatusOK, applied)
@@ -339,10 +353,10 @@ func (h *SkillsHandler) handleApplySkillSuggestion(w http.ResponseWriter, r *htt
 func (h *SkillsHandler) applySkillSuggestionPatch(r *http.Request, skillID uuid.UUID, sg *store.SkillImprovementSuggestion) (*store.SkillImprovementSuggestion, error) {
 	currentDir, slug, oldVersion, isSystem, ok := h.skills.GetSkillFilePath(r.Context(), skillID)
 	if !ok {
-		return nil, fmt.Errorf("skill not found")
+		return nil, errSkillEvolutionSkillNotFound
 	}
 	if isSystem {
-		return nil, fmt.Errorf("system skill mutation is blocked")
+		return nil, errSkillEvolutionSystemMutation
 	}
 	target := sg.TargetFile
 	if strings.TrimSpace(target) == "" {
@@ -355,11 +369,11 @@ func (h *SkillsHandler) applySkillSuggestionPatch(r *http.Request, skillID uuid.
 	var patch skillDraftPatch
 	if len(sg.DraftPatch) > 0 {
 		if err := json.Unmarshal(sg.DraftPatch, &patch); err != nil {
-			return nil, fmt.Errorf("invalid draft_patch: %w", err)
+			return nil, fmt.Errorf("%w: %v", errSkillEvolutionInvalidDraftPatch, err)
 		}
 	}
 	if patch.Content == nil && patch.Find == "" {
-		return nil, fmt.Errorf("draft_patch requires content or find/replace")
+		return nil, errSkillEvolutionDraftPatchRequired
 	}
 	newVersion, commitLock, err := h.skills.GetNextVersionLocked(r.Context(), slug)
 	if err != nil {
@@ -372,10 +386,10 @@ func (h *SkillsHandler) applySkillSuggestionPatch(r *http.Request, skillID uuid.
 	if err := copyDir(currentDir, tmpDir); err != nil {
 		return nil, fmt.Errorf("stage version: %w", err)
 	}
-	cleanup := true
+	removeDestOnError := true
 	defer func() {
-		if cleanup {
-			_ = os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
+		if removeDestOnError {
 			_ = os.RemoveAll(destDir)
 		}
 	}()
@@ -392,14 +406,14 @@ func (h *SkillsHandler) applySkillSuggestionPatch(r *http.Request, skillID uuid.
 		nextContent = string(currentBytes)
 		replaced := strings.Replace(nextContent, patch.Find, patch.Replace, 1)
 		if replaced == nextContent {
-			return nil, fmt.Errorf("find text not found in target file")
+			return nil, errSkillEvolutionFindTextNotFound
 		}
 		nextContent = replaced
 	}
 	if cleanTarget == "SKILL.md" {
 		violations, safe := skills.GuardSkillContent(nextContent)
 		if !safe {
-			return nil, errors.New(skills.FormatGuardViolations(violations))
+			return nil, fmt.Errorf("%w: %s", errSkillEvolutionGuardPolicyViolation, skills.FormatGuardViolations(violations))
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
@@ -425,6 +439,9 @@ func (h *SkillsHandler) applySkillSuggestionPatch(r *http.Request, skillID uuid.
 	}); err != nil {
 		return nil, fmt.Errorf("update skill: %w", err)
 	}
+	// The active skill row now points at destDir; keep files even if
+	// version history or suggestion metadata fails after this point.
+	removeDestOnError = false
 	changedFiles, _ := json.Marshal([]string{cleanTarget})
 	if _, err := h.evolutionStore.CreateSkillVersion(r.Context(), store.SkillVersion{
 		SkillID:                 skillID,
@@ -448,8 +465,27 @@ func (h *SkillsHandler) applySkillSuggestionPatch(r *http.Request, skillID uuid.
 		"new_version":   newVersion,
 		"content_hash":  hash,
 	})
-	cleanup = false
 	return applied, nil
+}
+
+func (h *SkillsHandler) skillEvolutionApplyErrorMessage(r *http.Request, skillID uuid.UUID, err error) string {
+	locale := store.LocaleFromContext(r.Context())
+	switch {
+	case errors.Is(err, errSkillEvolutionSkillNotFound):
+		return i18n.T(locale, i18n.MsgNotFound, "skill", skillID.String())
+	case errors.Is(err, errSkillEvolutionSystemMutation):
+		return i18n.T(locale, i18n.MsgSystemSkillMutationBlocked)
+	case errors.Is(err, errSkillEvolutionInvalidDraftPatch):
+		return i18n.T(locale, i18n.MsgInvalidDraftPatch, strings.TrimPrefix(err.Error(), errSkillEvolutionInvalidDraftPatch.Error()+": "))
+	case errors.Is(err, errSkillEvolutionDraftPatchRequired):
+		return i18n.T(locale, i18n.MsgDraftPatchRequired)
+	case errors.Is(err, errSkillEvolutionFindTextNotFound):
+		return i18n.T(locale, i18n.MsgFindTextNotFound)
+	case errors.Is(err, errSkillEvolutionGuardPolicyViolation):
+		return i18n.T(locale, i18n.MsgInvalidRequest, strings.TrimPrefix(err.Error(), errSkillEvolutionGuardPolicyViolation.Error()+": "))
+	default:
+		return i18n.T(locale, i18n.MsgInvalidRequest, err.Error())
+	}
 }
 
 func (h *SkillsHandler) logSkillActivity(r *http.Request, action string, skillID uuid.UUID, details map[string]any) {

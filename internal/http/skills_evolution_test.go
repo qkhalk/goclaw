@@ -3,16 +3,19 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/crypto"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -68,6 +71,95 @@ func TestApplySkillSuggestionPatchCreatesNewReferenceFile(t *testing.T) {
 	}
 }
 
+func TestApplySkillSuggestionPatchKeepsActiveFilesWhenVersionRecordFails(t *testing.T) {
+	handler, skillStore, ctx, root := newTestUploadHandler(t)
+	evolution := &skillEvolutionStoreStub{createVersionErr: errors.New("version store unavailable")}
+	handler.SetEvolutionStore(evolution, nil)
+
+	currentDir := filepath.Join(root, "skills-store", "failure-skill", "1")
+	if err := os.MkdirAll(currentDir, 0755); err != nil {
+		t.Fatalf("mkdir current skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(currentDir, "SKILL.md"), []byte(skillMarkdown("Failure Skill", "failure-skill")), 0644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+	skillID := skillStore.seedCustomSkill("failure-skill", currentDir, "active", nil)
+	content := "Keep active files when metadata recording fails.\n"
+	patch, err := json.Marshal(skillDraftPatch{Content: &content})
+	if err != nil {
+		t.Fatalf("marshal draft patch: %v", err)
+	}
+	suggestion := &store.SkillImprovementSuggestion{
+		ID:             uuid.New(),
+		SkillID:        skillID,
+		TargetFile:     "references/recovery.md",
+		DraftPatch:     patch,
+		Status:         store.SkillSuggestionStatusApproved,
+		SuggestionType: "skill_reference_add",
+	}
+	req := httptest.NewRequest(http.MethodPost, "/v1/skills/"+skillID.String()+"/evolution/suggestions/"+suggestion.ID.String()+"/apply", nil).WithContext(ctx)
+
+	_, err = handler.applySkillSuggestionPatch(req, skillID, suggestion)
+	if err == nil || !strings.Contains(err.Error(), "record skill version") {
+		t.Fatalf("error = %v, want record skill version failure", err)
+	}
+
+	newDir := filepath.Join(root, "skills-store", "failure-skill", "2")
+	if _, err := os.Stat(newDir); err != nil {
+		t.Fatalf("new active skill dir missing after metadata failure: %v", err)
+	}
+	created, err := os.ReadFile(filepath.Join(newDir, "references", "recovery.md"))
+	if err != nil {
+		t.Fatalf("read preserved reference: %v", err)
+	}
+	if string(created) != content {
+		t.Fatalf("preserved reference = %q, want %q", created, content)
+	}
+	info, ok := skillStore.GetSkillByID(ctx, skillID)
+	if !ok {
+		t.Fatal("skill not found after apply failure")
+	}
+	if info.BaseDir != newDir || info.Version != 2 {
+		t.Fatalf("skill active target = (%q, v%d), want (%q, v2)", info.BaseDir, info.Version, newDir)
+	}
+}
+
+func TestSkillEvolutionMutationRouteRejectsNonTenantAdmin(t *testing.T) {
+	handler, skillStore, _, root := newTestUploadHandler(t)
+	tenantID := uuid.New()
+	skillID := skillStore.seedCustomSkillForTenant(tenantID, "evolution-skill", filepath.Join(root, "tenants", tenantID.String(), "skills-store", "evolution-skill", "1"), "active", nil)
+	tenants := newMockTenantStore()
+	tenants.addTenant(tenantID, "tenant-a")
+	tenants.setUserRole(tenantID, "scope-admin", store.TenantRoleMember)
+	handler.tenantStore = tenants
+	evolution := &skillEvolutionStoreStub{}
+	handler.SetEvolutionStore(evolution, nil)
+	rawKey := "evolution-admin"
+	setupTestCache(t, map[string]*store.APIKeyData{
+		crypto.HashAPIKey(rawKey): {
+			ID:       uuid.New(),
+			Scopes:   []string{"operator.admin"},
+			TenantID: tenantID,
+			OwnerID:  "scope-admin",
+		},
+	})
+
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+	req := httptest.NewRequest(http.MethodPatch, "/v1/skills/"+skillID.String()+"/evolution", strings.NewReader(`{"enabled":true}`))
+	req.Header.Set("Authorization", "Bearer "+rawKey)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, body = %s, want 403", w.Code, w.Body.String())
+	}
+	if evolution.settingsUpdates != 0 {
+		t.Fatalf("settings updates = %d, want 0", evolution.settingsUpdates)
+	}
+}
+
 func TestHandleSuggestionStatusDoesNotUpdateDifferentSkillSuggestion(t *testing.T) {
 	handler, skillStore, ctx, root := newTestUploadHandler(t)
 	requestSkillID := skillStore.seedCustomSkill("request-skill", filepath.Join(root, "skills-store", "request-skill", "1"), "active", nil)
@@ -104,9 +196,12 @@ func TestHandleSuggestionStatusDoesNotUpdateDifferentSkillSuggestion(t *testing.
 }
 
 type skillEvolutionStoreStub struct {
-	versions      []store.SkillVersion
-	suggestions   map[uuid.UUID]*store.SkillImprovementSuggestion
-	statusUpdates int
+	versions         []store.SkillVersion
+	suggestions      map[uuid.UUID]*store.SkillImprovementSuggestion
+	statusUpdates    int
+	settingsUpdates  int
+	createVersionErr error
+	markAppliedErr   error
 }
 
 func (s *skillEvolutionStoreStub) GetSettings(context.Context, uuid.UUID) (*store.SkillEvolutionSettings, error) {
@@ -114,7 +209,8 @@ func (s *skillEvolutionStoreStub) GetSettings(context.Context, uuid.UUID) (*stor
 }
 
 func (s *skillEvolutionStoreStub) UpsertSettings(context.Context, store.SkillEvolutionSettings) (*store.SkillEvolutionSettings, error) {
-	return nil, nil
+	s.settingsUpdates++
+	return &store.SkillEvolutionSettings{}, nil
 }
 
 func (s *skillEvolutionStoreStub) RecordUsage(context.Context, store.SkillUsageMetric) error {
@@ -167,6 +263,9 @@ func (s *skillEvolutionStoreStub) UpdateSuggestionStatus(_ context.Context, id u
 }
 
 func (s *skillEvolutionStoreStub) MarkSuggestionApplied(_ context.Context, id uuid.UUID, version int, actorType, actorID string) (*store.SkillImprovementSuggestion, error) {
+	if s.markAppliedErr != nil {
+		return nil, s.markAppliedErr
+	}
 	return &store.SkillImprovementSuggestion{
 		ID:                  id,
 		Status:              store.SkillSuggestionStatusApplied,
@@ -177,6 +276,9 @@ func (s *skillEvolutionStoreStub) MarkSuggestionApplied(_ context.Context, id uu
 }
 
 func (s *skillEvolutionStoreStub) CreateSkillVersion(_ context.Context, version store.SkillVersion) (*store.SkillVersion, error) {
+	if s.createVersionErr != nil {
+		return nil, s.createVersionErr
+	}
 	s.versions = append(s.versions, version)
 	return &version, nil
 }
