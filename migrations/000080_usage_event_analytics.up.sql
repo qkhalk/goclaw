@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS usage_events (
     resource_id   TEXT NOT NULL DEFAULT '',
     source        TEXT NOT NULL DEFAULT '',
     agent_id      UUID REFERENCES agents(id) ON DELETE SET NULL,
-    team_id       UUID REFERENCES teams(id) ON DELETE SET NULL,
+    team_id       UUID,
     trace_id      UUID REFERENCES traces(id) ON DELETE SET NULL,
     span_id       UUID REFERENCES spans(id) ON DELETE SET NULL,
     run_id        TEXT NOT NULL DEFAULT '',
