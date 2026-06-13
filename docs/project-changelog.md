@@ -4,6 +4,24 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-06-13
+
+### Cron NO_REPLY delivery suppression (issue #141)
+
+**Fixes**
+
+- Suppressed configured cron channel delivery when final agent output contains a
+  standalone `NO_REPLY` sentinel anywhere in the text, while keeping normal chat
+  silent-reply behavior unchanged.
+- Added suppression logging with cron job/channel metadata for debugging.
+
+**Tests**
+
+- Added cron handler regression coverage for exact, prefix, suffix,
+  mid-sentence, decorative, and glued-token `NO_REPLY` outputs.
+
+---
+
 ## 2026-06-12
 
 ### Cron scheduler shutdown drain (post-merge CI follow-up)
