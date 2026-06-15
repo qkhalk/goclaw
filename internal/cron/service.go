@@ -222,10 +222,10 @@ func (cs *Service) GetJob(jobID string) (*Job, bool) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
-	for i, job := range cs.store.Jobs {
+	for _, job := range cs.store.Jobs {
 		if job.ID == jobID {
-			jobCopy := cs.store.Jobs[i]
-			return &jobCopy, true
+			result := job
+			return &result, true
 		}
 	}
 	return nil, false
