@@ -30,13 +30,14 @@ func TestValidateCommand_Injection_Rejected(t *testing.T) {
 		{"not in allowlist", "sh", true},
 		{"not in allowlist bash", "bash", true},
 		{"valid node", "node", false},
+		{"valid node exe basename", "node.exe", false},
 		{"valid npx", "npx", false},
 		{"valid python", "python", false},
 		{"valid python3", "python3", false},
 		{"valid uvx", "uvx", false},
 		{"valid deno", "deno", false},
 		{"valid bun", "bun", false},
-		{"valid absolute path", "/usr/local/bin/node", false},
+		{"absolute path to runtime rejected", "/usr/local/bin/node", true},
 		{"empty command", "", false},
 	}
 	for _, tt := range tests {
@@ -49,6 +50,41 @@ func TestValidateCommand_Injection_Rejected(t *testing.T) {
 				t.Errorf("ValidateCommand(%q) = %v, want nil", tt.command, err)
 			}
 		})
+	}
+}
+
+func TestValidateCommand_PathBearingRuntimeRejected(t *testing.T) {
+	tests := []string{
+		"./node",
+		"tools/node",
+		"./python",
+		`.\node.exe`,
+		`tools\node.exe`,
+		"/tmp/node",
+		"/workspace/node",
+		`C:\tmp\node.exe`,
+	}
+
+	for _, command := range tests {
+		t.Run(command, func(t *testing.T) {
+			if err := ValidateCommand(command); err == nil {
+				t.Fatalf("ValidateCommand(%q) accepted path-bearing runtime", command)
+			}
+		})
+	}
+}
+
+func TestValidateCommand_AllowedCommandsErrorIsComplete(t *testing.T) {
+	err := ValidateCommand("sh")
+	if err == nil {
+		t.Fatal("ValidateCommand accepted disallowed command")
+	}
+
+	msg := err.Error()
+	for _, want := range []string{"cargo", "dotnet", "npm", "php", "python2"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("allowlist error %q missing %q", msg, want)
+		}
 	}
 }
 

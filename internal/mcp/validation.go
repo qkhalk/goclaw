@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/security"
@@ -74,17 +75,15 @@ func ValidateCommand(cmd string) error {
 
 	basename := commandBasename(cmd)
 
-	// Allow absolute paths to known commands
-	if strings.HasPrefix(cmd, "/") || strings.ContainsAny(cmd, `/\`) {
-		if !allowedCommands[basename] {
-			return fmt.Errorf("command %q not in allowlist", basename)
-		}
-		return nil
+	// Only bare runtime names are accepted. Path-bearing commands can point at
+	// workspace-controlled wrappers named after an allowlisted runtime.
+	if strings.ContainsAny(cmd, `/\`) {
+		return fmt.Errorf("command must be a bare allowlisted runtime name, not a path")
 	}
 
 	// Bare command must be in allowlist
 	if !allowedCommands[basename] {
-		return fmt.Errorf("command %q not in allowlist (allowed: node, npx, python, python3, ruby, go, java, uvx, uv, pipx, deno, bun)", basename)
+		return fmt.Errorf("command %q not in allowlist (allowed: %s)", basename, allowedCommandNames())
 	}
 	return nil
 }
@@ -143,6 +142,15 @@ func commandBasename(command string) string {
 	}
 	base = strings.TrimSuffix(strings.ToLower(base), ".exe")
 	return base
+}
+
+func allowedCommandNames() string {
+	names := make([]string, 0, len(allowedCommands))
+	for name := range allowedCommands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
 }
 
 func validateNodeArgs(args []string) error {
