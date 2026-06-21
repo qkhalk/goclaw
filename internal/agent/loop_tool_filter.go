@@ -39,7 +39,9 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 		toolDefs = l.toolPolicy.FilterTools(registry, l.id, l.provider.Name(), l.agentToolPolicy, req.ToolAllow, false, false)
 		allowedTools = make(map[string]bool, len(toolDefs))
 		for _, td := range toolDefs {
-			allowedTools[td.Function.Name] = true
+			if td.Function != nil {
+				allowedTools[td.Function.Name] = true
+			}
 		}
 	} else {
 		// No policy → all tools allowed. ProviderDefs() omits per-user MCP tools (not in
@@ -67,10 +69,12 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 	if orchDeny := orchModeDenyTools(l.orchMode); len(orchDeny) > 0 {
 		filtered := toolDefs[:0:0]
 		for _, td := range toolDefs {
-			if !orchDeny[td.Function.Name] {
+			if td.Function == nil || !orchDeny[td.Function.Name] {
 				filtered = append(filtered, td)
 			} else {
-				delete(allowedTools, td.Function.Name)
+				if allowedTools != nil {
+					delete(allowedTools, td.Function.Name)
+				}
 			}
 		}
 		toolDefs = filtered
@@ -80,10 +84,12 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 	if len(l.disabledTools) > 0 {
 		filtered := toolDefs[:0]
 		for _, td := range toolDefs {
-			if !l.disabledTools[td.Function.Name] {
+			if td.Function == nil || !l.disabledTools[td.Function.Name] {
 				filtered = append(filtered, td)
 			} else {
-				delete(allowedTools, td.Function.Name)
+				if allowedTools != nil {
+					delete(allowedTools, td.Function.Name)
+				}
 			}
 		}
 		toolDefs = filtered
@@ -94,7 +100,7 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 	if hadBootstrap && l.agentType != store.AgentTypePredefined {
 		var bootstrapDefs []providers.ToolDefinition
 		for _, td := range toolDefs {
-			if bootstrapToolAllowlist[td.Function.Name] {
+			if td.Function != nil && bootstrapToolAllowlist[td.Function.Name] {
 				bootstrapDefs = append(bootstrapDefs, td)
 			}
 		}
@@ -106,7 +112,7 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 	if !l.skillEvolve {
 		filtered := toolDefs[:0:0]
 		for _, td := range toolDefs {
-			if td.Function.Name != "skill_manage" {
+			if td.Function == nil || td.Function.Name != "skill_manage" {
 				filtered = append(filtered, td)
 			}
 		}
@@ -117,10 +123,12 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 	if req.ChannelType != "" {
 		filtered := toolDefs[:0:0]
 		for _, td := range toolDefs {
-			if tool, ok := l.tools.Get(td.Function.Name); ok {
-				if ca, ok := tool.(tools.ChannelAware); ok {
-					if !slices.Contains(ca.RequiredChannelTypes(), req.ChannelType) {
-						continue
+			if td.Function != nil {
+				if tool, ok := l.tools.Get(td.Function.Name); ok {
+					if ca, ok := tool.(tools.ChannelAware); ok {
+						if !slices.Contains(ca.RequiredChannelTypes(), req.ChannelType) {
+							continue
+						}
 					}
 				}
 			}
