@@ -449,12 +449,12 @@ func runGateway() {
 			oauthRefresher = r
 		}
 		mcpOAuthH = httpapi.NewMCPOAuthHandler(httpapi.MCPOAuthHandlerDeps{
-			MCPStore:   pgStores.MCP,
-			OAuthStore: pgStores.MCPOAuthTokens,
-			Discoverer: mcpoauth.NewDiscoverer(safeHTTPClient),
-			FlowMgr:    mcpoauth.NewFlowManager(safeHTTPClient),
-			Refresher:  oauthRefresher,
-			EventBus:   msgBus,
+			MCPStore:    pgStores.MCP,
+			OAuthStore:  pgStores.MCPOAuthTokens,
+			Discoverer:  mcpoauth.NewDiscoverer(safeHTTPClient),
+			FlowMgr:     mcpoauth.NewFlowManager(safeHTTPClient),
+			Refresher:   oauthRefresher,
+			EventBus:    msgBus,
 			PublicURL:   cfg.Gateway.PublicURL,
 			Port:        cfg.Gateway.Port,
 			TenantStore: pgStores.Tenants,
@@ -511,7 +511,7 @@ func runGateway() {
 	// Register all RPC methods
 	server.SetLogTee(logTee)
 	server.SetRuntimeLogsHandler(httpapi.NewRuntimeLogsHandler(logTee))
-	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.RunTimeline, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc)
+	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.RunTimeline, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc, providerRegistry)
 
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {
