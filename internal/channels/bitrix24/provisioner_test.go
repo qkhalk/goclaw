@@ -30,6 +30,7 @@ type fakeMCPStore struct {
 	mu sync.Mutex
 
 	serversByName map[string]*store.MCPServerData
+	serversByID   map[uuid.UUID]*store.MCPServerData
 	userCreds     map[string]store.MCPUserCredentials // key = serverID + ":" + userID
 
 	getUserCallCount int
@@ -39,6 +40,7 @@ type fakeMCPStore struct {
 func newFakeMCPStore() *fakeMCPStore {
 	return &fakeMCPStore{
 		serversByName: map[string]*store.MCPServerData{},
+		serversByID:   map[uuid.UUID]*store.MCPServerData{},
 		userCreds:     map[string]store.MCPUserCredentials{},
 	}
 }
@@ -81,8 +83,13 @@ func (f *fakeMCPStore) SetUserCredentials(_ context.Context, serverID uuid.UUID,
 func (f *fakeMCPStore) CreateServer(_ context.Context, _ *store.MCPServerData) error {
 	return nil
 }
-func (f *fakeMCPStore) GetServer(_ context.Context, _ uuid.UUID) (*store.MCPServerData, error) {
-	return nil, nil
+func (f *fakeMCPStore) GetServer(_ context.Context, id uuid.UUID) (*store.MCPServerData, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if s, ok := f.serversByID[id]; ok {
+		return s, nil
+	}
+	return nil, nil // partner's contract: nil + nil when absent
 }
 func (f *fakeMCPStore) ListServers(_ context.Context) ([]store.MCPServerData, error) { return nil, nil }
 func (f *fakeMCPStore) UpdateServer(_ context.Context, _ uuid.UUID, _ map[string]any) error {
@@ -607,6 +614,141 @@ func TestInitMCPProvisioner_DisabledModes(t *testing.T) {
 			t.Errorf("missing server row should leave provisioner off")
 		}
 	})
+
+	// mcp_server_id path (v3.15+ dashboard wiring): the UUID string must
+	// parse and resolve to a live mcp_servers row. Broken UUID or missing
+	// row silently disables provisioning — no fallback to legacy name.
+	t.Run("mcp_server_id_invalid_uuid", func(t *testing.T) {
+		fs := newFakeStore()
+		resetWebhookRouterForTest()
+		defer resetWebhookRouterForTest()
+
+		mcpStore := newFakeMCPStore()
+
+		fn := FactoryWithPortalStoreAndMCP(fs, mcpStore, "")
+		ch, _ := fn("b1", nil, json.RawMessage(`{"portal":"p","bot_code":"c","bot_name":"n","mcp_server_id":"not-a-uuid"}`),
+			bus.New(), nil)
+		bc := ch.(*Channel)
+		if err := bc.initMCPProvisioner(context.Background()); err != nil {
+			t.Fatalf("init: %v", err)
+		}
+		if bc.mcpClient != nil || bc.mcpServerID != uuid.Nil {
+			t.Errorf("invalid mcp_server_id UUID should leave provisioner off")
+		}
+	})
+
+	t.Run("mcp_server_id_row_not_found", func(t *testing.T) {
+		fs := newFakeStore()
+		resetWebhookRouterForTest()
+		defer resetWebhookRouterForTest()
+
+		mcpStore := newFakeMCPStore()
+		// Intentionally do NOT seed serversByID — GetServer returns nil.
+
+		fn := FactoryWithPortalStoreAndMCP(fs, mcpStore, "")
+		ch, _ := fn("b1", nil, json.RawMessage(`{"portal":"p","bot_code":"c","bot_name":"n","mcp_server_id":"00000000-0000-0000-0000-000000000042"}`),
+			bus.New(), nil)
+		bc := ch.(*Channel)
+		if err := bc.initMCPProvisioner(context.Background()); err != nil {
+			t.Fatalf("init: %v", err)
+		}
+		if bc.mcpClient != nil || bc.mcpServerID != uuid.Nil {
+			t.Errorf("missing mcp_servers row for mcp_server_id should leave provisioner off")
+		}
+	})
+}
+
+// TestDeriveAutoOnboardBaseURL guards the fix for the Phase 2 regression
+// where mcp_servers.url (JSON-RPC endpoint under /mcp) was passed verbatim
+// to mcp_client.newMCPClient — which appends "/api/auto-onboard" to it,
+// producing "…/mcp/api/auto-onboard" (404). The origin extraction is the
+// contract the Bitrix24 auto-onboard client expects.
+func TestDeriveAutoOnboardBaseURL(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"jsonrpc subpath", "https://mcp.example.com/mcp", "https://mcp.example.com"},
+		{"jsonrpc trailing slash", "https://mcp.example.com/mcp/", "https://mcp.example.com"},
+		{"origin trailing slash", "https://mcp.example.com/", "https://mcp.example.com"},
+		{"origin only", "https://mcp.example.com", "https://mcp.example.com"},
+		{"deep path with query", "http://localhost:8080/some/path?x=1#frag", "http://localhost:8080"},
+		{"prod b24 syn mcp", "https://b24-mcp-dev.synity.so/mcp", "https://b24-mcp-dev.synity.so"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := deriveAutoOnboardBaseURL(tc.in)
+			if err != nil {
+				t.Fatalf("deriveAutoOnboardBaseURL(%q) unexpected error: %v", tc.in, err)
+			}
+			if got != tc.want {
+				t.Errorf("deriveAutoOnboardBaseURL(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+
+	errCases := []struct {
+		name string
+		in   string
+	}{
+		{"empty", ""},
+		{"whitespace only", "   \t"},
+		{"no scheme", "mcp.example.com/mcp"},
+		{"no host", "https:///path"},
+	}
+	for _, tc := range errCases {
+		t.Run("err_"+tc.name, func(t *testing.T) {
+			if _, err := deriveAutoOnboardBaseURL(tc.in); err == nil {
+				t.Errorf("deriveAutoOnboardBaseURL(%q) expected error, got nil", tc.in)
+			}
+		})
+	}
+}
+
+// TestInitMCPProvisioner_MCPServerID exercises the v3.15+ id-based wiring:
+// mcp_server_id resolves to a live mcp_servers row whose URL becomes the
+// base URL for /api/auto-onboard. Legacy MCPServerName + MCPBaseURL are
+// ignored on this path (single source of truth).
+func TestInitMCPProvisioner_MCPServerID(t *testing.T) {
+	fs := newFakeStore()
+	resetWebhookRouterForTest()
+	defer resetWebhookRouterForTest()
+
+	mcpStore := newFakeMCPStore()
+	serverID := uuid.MustParse("019df803-ec13-76c3-b1f5-60b0e80d3eec")
+	// URL carries a /mcp subpath because that's how partner MCP servers
+	// really configure the JSON-RPC endpoint. initMCPProvisioner must
+	// strip it before handing the value to mcp_client (which appends
+	// /api/auto-onboard). Regression guard for the Phase 2 fix.
+	mcpStore.serversByID[serverID] = &store.MCPServerData{
+		BaseModel: store.BaseModel{ID: serverID},
+		Name:      "b24-syn-mcp",
+		URL:       "https://b24-mcp.example.test/mcp",
+		Enabled:   true,
+		// Field promoted from settings JSONB in Phase 89 — the provisioner
+		// reads it to log accurately and downstream provisionIfMissing
+		// respects it via manager-level checks.
+		RequireUserCredentials: true,
+	}
+
+	fn := FactoryWithPortalStoreAndMCP(fs, mcpStore, "")
+	cfg := `{"portal":"p","bot_code":"c","bot_name":"n","mcp_server_id":"019df803-ec13-76c3-b1f5-60b0e80d3eec"}`
+	ch, err := fn("b1", nil, json.RawMessage(cfg), bus.New(), nil)
+	if err != nil {
+		t.Fatalf("factory: %v", err)
+	}
+	bc := ch.(*Channel)
+	if err := bc.initMCPProvisioner(context.Background()); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	if bc.mcpClient == nil {
+		t.Fatalf("mcp_server_id path should wire mcpClient — got nil")
+	}
+	if bc.mcpServerID != serverID {
+		t.Errorf("mcpServerID = %s, want %s", bc.mcpServerID, serverID)
+	}
 }
 
 // newBareChannelForNotifyTest builds a Channel that's wired enough for

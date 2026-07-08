@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -94,41 +95,89 @@ func (c *Channel) initMCPProvisioner(ctx context.Context) error {
 			"channel", c.Name())
 		return nil
 	}
-	if strings.TrimSpace(c.cfg.MCPServerName) == "" || strings.TrimSpace(c.cfg.MCPBaseURL) == "" {
-		slog.Debug("bitrix24 mcp: provisioning disabled (mcp_server_name or mcp_base_url empty)",
+
+	hasServerID := strings.TrimSpace(c.cfg.MCPServerID) != ""
+	hasLegacy := strings.TrimSpace(c.cfg.MCPServerName) != "" && strings.TrimSpace(c.cfg.MCPBaseURL) != ""
+	if !hasServerID && !hasLegacy {
+		slog.Debug("bitrix24 mcp: provisioning disabled (no mcp_server_id and legacy fields empty)",
 			"channel", c.Name())
 		return nil
 	}
 
-	// Resolve server name → UUID once at startup. If the server name is
-	// wrong or the row doesn't exist yet, log and disable provisioning —
-	// don't block channel startup. Admin can create the server + reload
-	// the channel later.
+	// Resolve the mcp_servers row. Preferred path: mcp_server_id (UUID
+	// dashboards write since v3.15). Fallback: legacy name lookup for
+	// configs written before the refactor and not yet migrated.
 	//
-	// PGMCPServerStore.GetServerByName scopes the lookup by tenant_id from
-	// context (multi-tenant isolation). Channel.Start receives ctx from the
-	// instance loader without that scope set — wrap it explicitly with the
-	// channel's own tenant id so the lookup matches the row a tenant admin
-	// created via `bitrix-portal create` / dashboard.
+	// GetServer / GetServerByName both scope by tenant_id from context.
+	// Channel.Start receives ctx from the instance loader without that
+	// scope set — wrap it explicitly with the channel's own tenant id so
+	// the lookup matches the row a tenant admin created via the dashboard
+	// or `bitrix-portal create`.
 	lookupCtx := ctx
 	if tid := c.TenantID(); tid != uuid.Nil {
 		lookupCtx = store.WithTenantID(ctx, tid)
 	}
-	server, err := c.mcpStore.GetServerByName(lookupCtx, c.cfg.MCPServerName)
+
+	var (
+		server *store.MCPServerData
+		err    error
+	)
+	if hasServerID {
+		serverUUID, parseErr := uuid.Parse(strings.TrimSpace(c.cfg.MCPServerID))
+		if parseErr != nil {
+			slog.Warn("bitrix24 mcp: provisioning disabled — invalid mcp_server_id",
+				"channel", c.Name(), "mcp_server_id", c.cfg.MCPServerID, "err", parseErr)
+			return nil
+		}
+		server, err = c.mcpStore.GetServer(lookupCtx, serverUUID)
+	} else {
+		server, err = c.mcpStore.GetServerByName(lookupCtx, c.cfg.MCPServerName)
+	}
 	if err != nil || server == nil {
 		slog.Warn("bitrix24 mcp: provisioning disabled — server not found",
-			"channel", c.Name(), "mcp_server_name", c.cfg.MCPServerName, "err", err)
+			"channel", c.Name(),
+			"mcp_server_id", c.cfg.MCPServerID,
+			"mcp_server_name", c.cfg.MCPServerName,
+			"err", err)
+		return nil
+	}
+
+	// Base URL sourcing: for the id-based path we derive the ORIGIN
+	// (scheme://host[:port]) from the mcp_servers row. The row's URL is
+	// the MCP JSON-RPC endpoint (e.g. https://mcp.example.com/mcp), but
+	// the /api/auto-onboard REST call the provisioner will POST expects
+	// the origin only — appending "/api/auto-onboard" to the JSON-RPC
+	// path would 404. Legacy path stays on MCPBaseURL, which historically
+	// was already the origin (admin gave us "https://mcp.example.com"),
+	// so a half-migrated fleet keeps working until Phase 5 rewrites configs.
+	baseURL := strings.TrimSpace(c.cfg.MCPBaseURL)
+	if hasServerID {
+		derived, deriveErr := deriveAutoOnboardBaseURL(server.URL)
+		if deriveErr != nil {
+			slog.Warn("bitrix24 mcp: provisioning disabled — mcp_servers.url unparseable",
+				"channel", c.Name(),
+				"mcp_server", server.Name,
+				"url", server.URL,
+				"err", deriveErr)
+			return nil
+		}
+		baseURL = derived
+	}
+	if baseURL == "" {
+		slog.Warn("bitrix24 mcp: provisioning disabled — mcp_servers row has empty url",
+			"channel", c.Name(), "mcp_server", server.Name)
 		return nil
 	}
 
 	c.mcpServerID = server.ID
-	c.mcpClient = newMCPClient(c.cfg.MCPBaseURL, 10*time.Second)
+	c.mcpClient = newMCPClient(baseURL, 10*time.Second)
 	c.mcpDebounce = make(map[mcpDebounceKey]time.Time)
 
 	slog.Info("bitrix24 mcp: provisioning enabled",
 		"channel", c.Name(),
-		"mcp_server", c.cfg.MCPServerName,
-		"mcp_server_id", server.ID)
+		"mcp_server", server.Name,
+		"mcp_server_id", server.ID,
+		"require_user_credentials", server.RequireUserCredentials)
 	return nil
 }
 
@@ -340,6 +389,47 @@ func (c *Channel) selfRefreshUserCreds(ctx context.Context, userID string, exist
 	slog.Info("bitrix24 mcp: self-refreshed user credentials",
 		"channel", c.Name(), "user_id", userID, "mcp_server_id", c.mcpServerID, "created", resp.Created)
 	return nil
+}
+
+// deriveAutoOnboardBaseURL strips the path/query/fragment from an MCP server
+// URL so what's left is safe to append "/api/auto-onboard" to. The
+// mcp_servers.url column stores the JSON-RPC endpoint the agent loop dials
+// for tool calls (which usually lives under a subpath like /mcp), while the
+// per-user credential-minting REST call the Bitrix24 channel makes lives at
+// the origin. This helper bridges the two conventions with a single URL
+// column so operators don't have to fill in a second field.
+//
+// Examples:
+//   - "https://mcp.example.com/mcp"       → "https://mcp.example.com"
+//   - "https://mcp.example.com/mcp/"      → "https://mcp.example.com"
+//   - "https://mcp.example.com/"          → "https://mcp.example.com"
+//   - "https://mcp.example.com"           → "https://mcp.example.com"
+//   - "http://localhost:8080/some/path"   → "http://localhost:8080"
+//
+// Returns an error when the string cannot be parsed as an absolute URL or
+// carries no host — either case would produce a nonsensical base URL for
+// the auto-onboard client and we prefer to disable provisioning rather than
+// send credentials to a bogus origin.
+func deriveAutoOnboardBaseURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", errors.New("mcp_servers.url is empty")
+	}
+	u, err := url.Parse(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("parse mcp_servers.url: %w", err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("mcp_servers.url %q has no scheme or host", trimmed)
+	}
+	// Reset every component that could turn the origin back into a full URL
+	// so a future field addition here doesn't silently break the invariant.
+	u.Path = ""
+	u.RawPath = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	u.Opaque = ""
+	return u.String(), nil
 }
 
 // tryAcquireMCPProvision atomically checks the debounce window for
