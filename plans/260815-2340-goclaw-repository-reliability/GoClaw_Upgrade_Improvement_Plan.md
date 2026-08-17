@@ -1506,11 +1506,11 @@ Không nên để provider-specific retry logic rải khắp từng provider.
 ## Phase 9 — Testing
 
 - [x] Unit tests. (12 cho reliability layer phase-03 + durable run records phase §7 + Phase 5 module tests, 2026-08-15/16)
-- [ ] Integration tests. (phase-09, in progress 2026-08-17; run-lifecycle + stale-recovery + stream-disconnect PG-backed)
-- [ ] Provider simulation. (phase-09, in progress 2026-08-17; fake-LLM HTTP chaos harness)
-- [ ] Chaos tests. (phase-09, in progress 2026-08-17; provider chaos + weak-model pipeline chaos + Case E reasoning regression)
+- [x] Integration tests. (`61919fb3` run-lifecycle: stream disconnect not-FAILED + stale-run recovery PG-backed, PR #7 merged `9cb7c23c`, 2026-08-17)
+- [x] Provider simulation. (`353bdbe1` fake-LLM HTTP chaos harness: scripted 429+Retry-After/5xx/SSE/abrupt close, PR #7 merged `9cb7c23c`, 2026-08-17)
+- [x] Chaos tests. (`353bdbe1`+`27666afa` provider retry/failover/watchdog chaos + weak-model pipeline chaos + Case E reasoning regression, PR #7 merged `9cb7c23c`, 2026-08-17)
 - [ ] Load tests. (deferred — CLAUDE.md bỏ load/stress/benchmark trên CI runner shared)
-- [ ] Regression tests. (phase-09, in progress 2026-08-17; Case A 429-storm, Case B stream disconnect, Case E long reasoning)
+- [x] Regression tests. (`353bdbe1` Case A 429-storm, `61919fb3` Case B stream disconnect, `353bdbe1` Case E long reasoning; `7e8698c2` wiring test-phase9 vào CI, PR #7 merged `9cb7c23c`, 2026-08-17)
 
 ## Phase 10 — Production hardening
 
