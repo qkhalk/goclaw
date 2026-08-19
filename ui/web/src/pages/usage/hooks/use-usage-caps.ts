@@ -50,7 +50,8 @@ export function useUsageCaps() {
       queryClient.invalidateQueries({ queryKey: queryKeys.usage.caps.policies }),
       queryClient.invalidateQueries({ queryKey: queryKeys.usage.caps.utilization }),
       queryClient.invalidateQueries({ queryKey: queryKeys.usage.caps.events }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.usage.caps.overview }),
+      // Invalidates every overview window via the shared "usage/caps" prefix.
+      queryClient.invalidateQueries({ queryKey: ["usage", "caps", "overview"] }),
     ]);
   }, [queryClient]);
 
