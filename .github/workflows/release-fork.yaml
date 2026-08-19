@@ -1,0 +1,264 @@
+name: Fork Release (manual)
+
+# Manual release of a qkhalk/goclaw fork build. Records the fork delta versus
+# upstream in the release notes, publishes godot binaries + web UI, and pushes
+# Docker images to ghcr.io/qkhalk/goclaw. Does NOT auto-trigger on push — the
+# beta flow (dev-beta-release.yaml) already covers dev branches.
+#
+# Usage: Actions → "Fork Release (manual)" → Run workflow.
+#    FORK_BASE          base semver (default 3.16.0) — tag becomes v3.16.0-fork.N
+#    VERSION_OVERRIDE   optional re-cut for an existing tag (e.g. 3.16.0-fork.1)
+#    PRERELEASE         mark the GitHub Release as a prerelease (default true)
+#
+# Pushes to ghcr.io/qkhalk/goclaw (the fork's own registry). Check docker-compose
+# and install-lite keep pointing at upstream images; this fork publishes
+# ghcr.io/qkhalk/goclaw as a self-hosted image channel.
+
+on:
+  workflow_dispatch:
+    inputs:
+      FORK_BASE:
+        description: "Base semver for the fork release (default 3.16.0)"
+        required: false
+        default: "3.16.0"
+      VERSION_OVERRIDE:
+        description: "Re-cut an existing tag (e.g. 3.16.0-fork.1). Leave empty for auto-increment."
+        required: false
+        default: ""
+      PRERELEASE:
+        description: "Mark as GitHub prerelease"
+        required: false
+        default: "true"
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  GHCR_IMAGE: ghcr.io/qkhalk/goclaw
+  FORK_BASE: ${{ inputs.FORK_BASE }}
+  VERSION_OVERRIDE: ${{ inputs.VERSION_OVERRIDE }}
+  PRERELEASE_ID: fork
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        # fetch-depth 0 + fetch --tags lets the version script compare against
+        # upstream tags reachable from HEAD.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: go build ./...
+      - run: go build -tags sqliteonly ./...
+      - run: go vet ./...
+
+  version:
+    needs: checks
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.version.outputs.released }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      notes_path: ${{ steps.version.outputs.notes_path }}
+      anchor: ${{ steps.version.outputs.anchor }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compute fork version + notes
+        id: version
+        env:
+          FORK_BASE: ${{ env.FORK_BASE }}
+          VERSION_OVERRIDE: ${{ env.VERSION_OVERRIDE }}
+          PRERELEASE_ID: ${{ env.PRERELEASE_ID }}
+        run: node scripts/ci/semantic-fork-version.mjs
+      - name: Push release tag
+        if: steps.version.outputs.released == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git tag -f "$TAG"
+          git push -f origin "$TAG"
+      - name: Upload release notes
+        if: steps.version.outputs.released == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ steps.version.outputs.notes_path }}
+
+  build_binaries:
+    needs: version
+    if: needs.version.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/web/pnpm-lock.yaml
+      - name: Build web UI
+        run: |
+          cd ui/web
+          pnpm install --frozen-lockfile
+          pnpm build
+          cd ../..
+          mkdir -p internal/webui/dist
+          cp -r ui/web/dist/* internal/webui/dist/
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ needs.version.outputs.tag }}
+        run: |
+          CGO_ENABLED=0 go build -tags embedui \
+            -ldflags="-s -w -X github.com/nextlevelbuilder/goclaw/cmd.Version=${VERSION}" \
+            -o goclaw .
+          tar -czf "goclaw-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" goclaw migrations/ skills/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: goclaw-*.tar.gz
+
+  publish_release:
+    needs: [version, build_binaries]
+    if: needs.version.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: artifacts
+          merge-multiple: true
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+          PRERELEASE: ${{ inputs.PRERELEASE }}
+        run: |
+          (cd artifacts && sha256sum goclaw-*.tar.gz > CHECKSUMS.sha256)
+          flags=""
+          if [[ "$PRERELEASE" == "true" ]]; then flags="--prerelease"; fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "GoClaw $TAG" --notes-file release-notes/release-notes.md $flags
+          else
+            gh release create "$TAG" --title "GoClaw $TAG" --notes-file release-notes/release-notes.md $flags
+          fi
+          gh release upload "$TAG" artifacts/* --clobber
+
+  docker_images:
+    needs: version
+    if: needs.version.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: latest
+            suffix: ""
+            enable_embedui: "true"
+            enable_python: "true"
+            enable_full_skills: "false"
+          - variant: full
+            suffix: "-full"
+            enable_embedui: "true"
+            enable_python: "true"
+            enable_full_skills: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve Docker tags
+        id: docker_tags
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+          SUFFIX: ${{ matrix.suffix }}
+        run: |
+          {
+            echo "tags<<EOF"
+            echo "${GHCR_IMAGE}:${TAG}${SUFFIX}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.docker_tags.outputs.tags }}
+          build-args: |
+            ENABLE_EMBEDUI=${{ matrix.enable_embedui }}
+            ENABLE_PYTHON=${{ matrix.enable_python }}
+            ENABLE_FULL_SKILLS=${{ matrix.enable_full_skills }}
+            VERSION=${{ needs.version.outputs.tag }}
+          cache-from: type=gha,scope=fork-${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=fork-${{ matrix.variant }}
+
+  promote_fork_alias:
+    needs: [version, docker_images]
+    if: needs.version.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote :fork aliases
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          docker buildx imagetools create -t "${GHCR_IMAGE}:fork" "${GHCR_IMAGE}:${TAG}"
+          docker buildx imagetools create -t "${GHCR_IMAGE}:fork-full" "${GHCR_IMAGE}:${TAG}-full"

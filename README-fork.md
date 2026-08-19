@@ -14,7 +14,15 @@ Các GitHub Actions workflow của upstream nằm trong `.github.disabled/` — 
 
 Xem mục **Fork Features** trong [`README.md`](README.md): reliability layer (`internal/reliability/`) + cấu hình repo/CI.
 
-## Quick Start
+## Release fork
+
+Release fork được tạo **manual** qua GitHub Actions → **Fork Release (manual)** (`release-fork.yaml`):
+
+- Tag `v3.16.0-fork.N` (tự tăng), kèm **fork delta** so với upstream trong release notes.
+- Build binaries (linux/amd64 + arm64, web embedded) + Docker image `ghcr.io/qkhalk/goclaw:{tag}` (+ `-full`, alias `:fork`).
+- Publish lên **GHCR `ghcr.io/qkhalk/goclaw`** — registry riêng của fork (upstream giữ `ghcr.io/nextlevelbuilder/goclaw` + Docker Hub).
+
+Không tự kích hoạt trên push — tránh đè beta flow (`dev-beta-release.yaml`).
 
 Xem [`README.md`](README.md) → **Quick Start**: one-liner install (`curl | bash` cho macOS/Linux/WSL, `irm | iex` cho Windows) hoặc build từ source.
 

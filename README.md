@@ -62,7 +62,7 @@ Single binary. Production-tested. Agents that orchestrate for you.
 
 > Fork **`qkhalk/goclaw`** — bản nhánh cá nhân của upstream [`nextlevelbuilder/goclaw`](https://github.com/nextlevelbuilder/goclaw), kèm các cải tiến reliability và cấu hình CI riêng.
 
-**Reliability Layer** (`internal/reliability/`) — bổ sung thống nhất, có unit tests (30/30 pass), không phá vỡ public contracts:
+**Reliability Layer** (`internal/reliability/`) — bổ sung thống nhất, có unit tests, không phá vỡ public contracts:
 
 | Module | File | Nội dung |
 |--------|------|----------|
@@ -71,6 +71,18 @@ Single binary. Production-tested. Agents that orchestrate for you.
 | Health registry | `internal/reliability/health.go` | Per-key runtime reliability scoring (success ratio − stall/tool-error penalties) |
 | Rate-limit coordinator | `internal/reliability/ratelimit.go` | Single-flight cooldown chống retry storms; stale waiter không xóa newer cooldown |
 | Metrics | `internal/reliability/metrics.go` | `atomic` counters + `Snapshot`, global swap-safe `Sink`, `Flush` drain per-counter |
+
+**AgentKit phases (fork delta so với upstream):** các feature mỗi release ghi ở mục **Release** bên dưới. Fork theo dõi upstream thủ công; mỗi tag `v3.16.0-fork.*` ghi rõ chính xác những gì khác upstream, kèm image GHCR.
+
+### Releases
+
+Release fork được tạo manual (`release-fork.yaml`, workflow_dispatch) — build binaries (linux/amd64 + arm64, web embedded), Docker image `ghcr.io/qkhalk/goclaw:{tag}` (+ `-full`, alias `:fork`) và GitHub Release. **Fork delta** (khác upstream) được ghi trong từng release:
+
+| Tag | Kiểu | Fork delta (so với upstream) | Docker (`ghcr.io/qkhalk/goclaw`) |
+|-----|------|-------------------------------|----------------------------------|
+| `v3.16.0-fork.1` | fork release | Reliability layer; CI enabled; AgentKit Phase 1–7 Enterprise (approval persistence, audit completeness, cost governance, Prometheus/SLO, skill review + signed packages, tenant policies + RBAC); goclaw-docs | `:v3.16.0-fork.1`, `:v3.16.0-fork.1-full`, `:fork` |
+
+> Cách build ảnh cho installed: `docker pull ghcr.io/qkhalk/goclaw:fork` rồi dùng cùng cấu hình như upstream image (xem [docker-compose.yml](docker-compose.yml)).
 
 **Repo & CI cấu hình**:
 - Source đã un-nest về repo root (module path giữ nguyên `github.com/nextlevelbuilder/goclaw` → merge upstream không vỡ imports).
