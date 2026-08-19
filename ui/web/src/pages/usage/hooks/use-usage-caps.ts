@@ -4,7 +4,7 @@ import i18next from "i18next";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
 import { toast } from "@/stores/use-toast-store";
-import type { UsageCapEvent, UsageCapPolicy, UsageCapUtilization } from "@/types/usage-caps";
+import type { BudgetUsageRow, UsageCapEvent, UsageCapPolicy, UsageCapUtilization } from "@/types/usage-caps";
 
 export interface UsageCapPolicyInput {
   agent_id?: string;
@@ -50,6 +50,8 @@ export function useUsageCaps() {
       queryClient.invalidateQueries({ queryKey: queryKeys.usage.caps.policies }),
       queryClient.invalidateQueries({ queryKey: queryKeys.usage.caps.utilization }),
       queryClient.invalidateQueries({ queryKey: queryKeys.usage.caps.events }),
+      // Invalidates every overview window via the shared "usage/caps" prefix.
+      queryClient.invalidateQueries({ queryKey: ["usage", "caps", "overview"] }),
     ]);
   }, [queryClient]);
 
@@ -106,4 +108,20 @@ export function useUsageCaps() {
     updatePolicy,
     deletePolicy,
   };
+}
+
+/**
+ * Spend-to-date overview for every enabled policy over the given window.
+ * Backed by GET /v1/usage-caps/overview (GetBudgetUsage). Standalone hook so
+ * callers can use it unconditionally at their own component top level.
+ */
+export function useBudgetOverview(window: "hour" | "day" | "week" | "month") {
+  const http = useHttp();
+  return useQuery({
+    queryKey: queryKeys.usage.caps.overview(window),
+    queryFn: async () => {
+      const res = await http.get<{ rows: BudgetUsageRow[] }>("/v1/usage-caps/overview", { window });
+      return res.rows ?? [];
+    },
+  });
 }
