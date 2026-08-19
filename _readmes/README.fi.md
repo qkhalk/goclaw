@@ -120,7 +120,7 @@ Go-portti [OpenClaw](https://github.com/openclaw/openclaw)-projektista, jossa on
 ### Lähdekoodista
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Interaktiivinen asennusohjaaja
 source .env.local && ./goclaw

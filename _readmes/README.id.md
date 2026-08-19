@@ -120,7 +120,7 @@ Merupakan port Go dari [OpenClaw](https://github.com/openclaw/openclaw) dengan k
 ### Dari Kode Sumber
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Wizard pengaturan interaktif
 source .env.local && ./goclaw

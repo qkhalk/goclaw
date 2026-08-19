@@ -120,7 +120,7 @@ En Go-port af [OpenClaw](https://github.com/openclaw/openclaw) med forbedret sik
 ### Fra Kildekode
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Interaktiv opsætningsguide
 source .env.local && ./goclaw

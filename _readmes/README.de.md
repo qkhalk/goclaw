@@ -98,7 +98,7 @@ Ein Go-Port von [OpenClaw](https://github.com/openclaw/openclaw) mit verbesserte
 ### Aus dem Quellcode
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Interaktiver Einrichtungsassistent
 source .env.local && ./goclaw

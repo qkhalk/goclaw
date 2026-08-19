@@ -98,7 +98,7 @@ Single binary. Production-tested. Agents that orchestrate for you.
 ### 소스에서 빌드
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Interactive setup wizard
 source .env.local && ./goclaw

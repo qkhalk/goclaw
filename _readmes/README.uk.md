@@ -120,7 +120,7 @@ Go-порт [OpenClaw](https://github.com/openclaw/openclaw) з посилено
 ### З вихідного коду
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Інтерактивний майстер налаштування
 source .env.local && ./goclaw

@@ -120,7 +120,7 @@ Isang Go port ng [OpenClaw](https://github.com/openclaw/openclaw) na may pinahus
 ### Mula sa Source
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Interactive setup wizard
 source .env.local && ./goclaw

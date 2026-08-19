@@ -100,7 +100,7 @@ Single binary. Production-tested. Agents that orchestrate for you.
 ### จาก Source Code
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # ตัวช่วยตั้งค่าแบบ interactive
 source .env.local && ./goclaw
