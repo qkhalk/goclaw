@@ -98,7 +98,7 @@ Um port em Go do [OpenClaw](https://github.com/openclaw/openclaw) com segurança
 ### A Partir do Código-Fonte
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Assistente de configuração interativo
 source .env.local && ./goclaw

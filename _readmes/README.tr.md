@@ -120,7 +120,7 @@ Single binary. Production-tested. Agents that orchestrate for you.
 ### Kaynaktan
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Etkileşimli kurulum sihirbazı
 source .env.local && ./goclaw

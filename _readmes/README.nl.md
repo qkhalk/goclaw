@@ -120,7 +120,7 @@ Een Go-port van [OpenClaw](https://github.com/openclaw/openclaw) met verbeterde 
 ### Vanuit broncode
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Interactieve installatiewizard
 source .env.local && ./goclaw

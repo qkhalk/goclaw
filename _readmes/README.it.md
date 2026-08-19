@@ -120,7 +120,7 @@ Un port Go di [OpenClaw](https://github.com/openclaw/openclaw) con sicurezza mig
 ### Dal Sorgente
 
 ```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git && cd goclaw
+git clone https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
 ./goclaw onboard        # Procedura guidata di configurazione interattiva
 source .env.local && ./goclaw
