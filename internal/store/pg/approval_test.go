@@ -50,7 +50,11 @@ func approvalTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// seedApprovalTenantPG inserts a minimal tenant + agent row.
+// seedApprovalTenantPG inserts a minimal tenant + agent row and registers
+// cleanup. Slug/agent_key use the FULL UUID: UUIDv7 values generated in the
+// same millisecond share their 8-char prefix, so deriving from [:8] collides
+// and ON CONFLICT DO NOTHING swallows the insert — leaving the tenant row
+// absent and the agent insert violating agents_tenant_id_fkey.
 func seedApprovalTenantPG(t *testing.T, db *sql.DB) (tenantID, agentID uuid.UUID) {
 	t.Helper()
 	tenantID = uuid.Must(uuid.NewV7())
@@ -58,17 +62,22 @@ func seedApprovalTenantPG(t *testing.T, db *sql.DB) (tenantID, agentID uuid.UUID
 
 	_, err := db.Exec(
 		`INSERT INTO tenants (id, name, slug, status) VALUES ($1,$2,$3,'active') ON CONFLICT DO NOTHING`,
-		tenantID, "approval-pg-"+tenantID.String()[:8], "apg"+tenantID.String()[:8])
+		tenantID, "approval-pg-"+tenantID.String(), "apg"+tenantID.String())
 	if err != nil {
 		t.Fatalf("seed tenant: %v", err)
 	}
 	_, err = db.Exec(
 		`INSERT INTO agents (id, tenant_id, agent_key, agent_type, status, provider, model, owner_id)
 		 VALUES ($1,$2,$3,'predefined','active','test','test-model','owner') ON CONFLICT DO NOTHING`,
-		agentID, tenantID, "aa-"+agentID.String()[:8])
+		agentID, tenantID, "aa-"+agentID.String())
 	if err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}
+	t.Cleanup(func() {
+		db.Exec("DELETE FROM approval_requests WHERE tenant_id=$1", tenantID)
+		db.Exec("DELETE FROM agents WHERE id=$1", agentID)
+		db.Exec("DELETE FROM tenants WHERE id=$1", tenantID)
+	})
 	return tenantID, agentID
 }
 
