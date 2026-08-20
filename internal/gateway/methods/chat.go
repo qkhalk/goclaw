@@ -41,6 +41,7 @@ type ChatMethods struct {
 	teamStore        store.TeamStore
 	linkStore        store.AgentLinkStore
 	teamWorkEmbedder memory.EmbeddingProvider
+	policyStore      store.AgentPolicies // optional: tenant suspension + max_sessions cap (Phase 4)
 }
 
 func NewChatMethods(agents *agent.Router, sess store.SessionStore, cfg *config.Config, rl *gateway.RateLimiter, eventBus bus.EventPublisher) *ChatMethods {
@@ -56,6 +57,12 @@ func (m *ChatMethods) SetAudioManager(mgr *audio.Manager) {
 
 func (m *ChatMethods) SetUsageCapService(s *usagecaps.Service) {
 	m.usageCaps = s
+}
+
+// SetTenantPolicies wires the per-tenant policy store for suspension + session
+// cap enforcement at run entry. Nil-safe: unwired editions skip the gate.
+func (m *ChatMethods) SetTenantPolicies(ps store.AgentPolicies) {
+	m.policyStore = ps
 }
 
 func (m *ChatMethods) SetTeamWorkClassification(agentStore store.AgentStore, teamStore store.TeamStore, linkStore store.AgentLinkStore, embedder memory.EmbeddingProvider) {
@@ -182,6 +189,28 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		}
 		if params.AgentID == "" {
 			params.AgentID = "default"
+		}
+	}
+
+	// Phase 4: enforce tenant policy at run entry — suspension + session cap.
+	// A suspended tenant is blocked before any new work starts; the max_sessions
+	// cap is checked only for brand-new sessions (resuming an existing session is
+	// allowed past the cap).
+	if m.policyStore != nil {
+		tid := store.TenantIDFromContext(ctx)
+		if fail := checkTenantActive(ctx, m.policyStore, tid, locale); fail != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrFailedPrecondition, fail.msg))
+			return
+		}
+		// Only brand-new sessions (no explicit sessionKey) count against the cap;
+		// resuming an existing session stays allowed.
+		if params.SessionKey == "" {
+			if fail := checkTenantLimit(ctx, m.policyStore, tid, func(ctx context.Context) error {
+				return m.policyStore.CheckCanCreateSession(ctx, tid)
+			}, locale); fail != nil {
+				client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrFailedPrecondition, fail.msg))
+				return
+			}
 		}
 	}
 

@@ -23,12 +23,17 @@ type TeamsMethods struct {
 	agentRouter *agent.Router        // for cache invalidation
 	msgBus      *bus.MessageBus      // for pub/sub cache invalidation
 	eventBus    bus.EventPublisher
-	dataDir string // workspace data directory for resolving file paths
+	dataDir     string               // workspace data directory for resolving file paths
+	policyStore store.AgentPolicies  // optional: tenant max_teams cap (Phase 4)
 }
 
 func NewTeamsMethods(teamStore store.TeamStore, agentStore store.AgentStore, linkStore store.AgentLinkStore, agentRouter *agent.Router, msgBus *bus.MessageBus, eventBus bus.EventPublisher, dataDir string) *TeamsMethods {
 	return &TeamsMethods{teamStore: teamStore, agentStore: agentStore, linkStore: linkStore, agentRouter: agentRouter, msgBus: msgBus, eventBus: eventBus, dataDir: dataDir}
 }
+
+// SetTenantPolicies wires the per-tenant policy store for the max_teams cap at
+// team creation time. Nil-safe: unwired editions skip the gate.
+func (m *TeamsMethods) SetTenantPolicies(ps store.AgentPolicies) { m.policyStore = ps }
 
 // emitTeamCacheInvalidate broadcasts a cache invalidation event for team data.
 func (m *TeamsMethods) emitTeamCacheInvalidate() {
@@ -153,6 +158,17 @@ func (m *TeamsMethods) handleCreate(ctx context.Context, client *gateway.Client,
 			return
 		}
 		memberAgents = append(memberAgents, ag)
+	}
+
+	// Phase 4: enforce tenant max_teams cap before creating the row.
+	if m.policyStore != nil {
+		tid := store.TenantIDFromContext(ctx)
+		if fail := checkTenantLimit(ctx, m.policyStore, tid, func(ctx context.Context) error {
+			return m.policyStore.CheckCanCreateTeam(ctx, tid)
+		}, locale); fail != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrFailedPrecondition, fail.msg))
+			return
+		}
 	}
 
 	// Create team
