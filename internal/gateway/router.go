@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"slices"
 	"time"
@@ -351,6 +352,23 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 }
 
 func (r *MethodRouter) sendConnectResponse(ctx context.Context, client *Client, reqID string) {
+	// Phase 4: a suspended tenant is denied at connect. Master-scope connections
+	// (owner or a nil/Master tenant ID) are not tenant-scoped and bypass the
+	// gate; the store's CheckTenantActive already treats a missing policy row as
+	// active, so an unwired tenant connects normally.
+	if ps := r.server.tenantPolicies; ps != nil && client.tenantID != uuid.Nil && client.tenantID != store.MasterTenantID {
+		if err := ps.CheckTenantActive(ctx, client.tenantID); err != nil {
+			if errors.Is(err, store.ErrTenantSuspended) {
+				slog.Warn("security.ws_connect_tenant_suspended", "tenant_id", client.tenantID.String(), "client", client.id)
+				client.authenticated = false
+				locale := i18n.Normalize(client.locale)
+				client.SendResponse(protocol.NewErrorResponse(reqID, protocol.ErrFailedPrecondition, i18n.T(locale, i18n.MsgPolicyTenantSuspended)))
+				return
+			}
+			slog.Error("ws_connect: tenant policy check failed", "tenant_id", client.tenantID.String(), "client", client.id, "error", err)
+		}
+	}
+
 	// Now that the client is authenticated, promote the upgrade-request URL
 	// into the gateway-wide PublicURLSnapshot. RPC methods that advertise URLs
 	// back to external systems (e.g. bitrix.portals.create) read from this
