@@ -171,7 +171,11 @@ func wireChannelRPCMethods(server *gateway.Server, pgStores *store.Stores, chann
 
 	// Register agent teams WS RPC methods
 	if pgStores.Teams != nil {
-		methods.NewTeamsMethods(pgStores.Teams, pgStores.Agents, pgStores.AgentLinks, agentRouter, msgBus, msgBus, dataDir).Register(server.Router())
+		teamsMethods := methods.NewTeamsMethods(pgStores.Teams, pgStores.Agents, pgStores.AgentLinks, agentRouter, msgBus, msgBus, dataDir)
+		if pgStores.TenantPolicies != nil {
+			teamsMethods.SetTenantPolicies(pgStores.TenantPolicies)
+		}
+		teamsMethods.Register(server.Router())
 	}
 
 	return chInstancesM
