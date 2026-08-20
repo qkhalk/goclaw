@@ -3,15 +3,71 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 const SkillRecoveryBundledSlugCollision = "bundled_slug_collision"
 
+// Skill status lifecycle (Phase 3 W1 — skill approval/curation).
+//
+// skills.status is a plain VARCHAR(20) in both PostgreSQL and SQLite, so the
+// new states are TEXT constants validated here in the store layer — no
+// ALTER TYPE / DDL lock on PG. The legacy "active" state is preserved as an
+// alias for "published" after the 000105 migration rewrites existing rows:
+//
+//	draft          → just created/uploaded; owner-only (not discoverable)
+//	pending_review → submitted for admin review (public skills only)
+//	approved       → admin approved, awaiting publish
+//	published      → discoverable by agents (replaces legacy "active")
+//	rejected       → admin rejected; review_note carries the reason
+//	suspended      → admin pulled from discovery (reversible)
+//	archived       → legacy: dependency missing (unchanged semantics)
+//	deleted        → soft-delete (unchanged semantics)
+const (
+	SkillStatusDraft         = "draft"
+	SkillStatusPendingReview = "pending_review"
+	SkillStatusApproved      = "approved"
+	SkillStatusPublished     = "published"
+	SkillStatusRejected      = "rejected"
+	SkillStatusSuspended     = "suspended"
+
+	// Legacy statuses kept for compatibility with pre-review rows.
+	SkillStatusLegacyActive = "active"
+	SkillStatusArchived     = "archived"
+	SkillStatusDeleted      = "deleted"
+)
+
+// ValidSkillStatuses is the whitelist enforced by CreateSkillManaged.
+// A status outside this set is rejected before touching the DB.
+var ValidSkillStatuses = map[string]struct{}{
+	SkillStatusDraft:         {},
+	SkillStatusPendingReview: {},
+	SkillStatusApproved:      {},
+	SkillStatusPublished:     {},
+	SkillStatusRejected:      {},
+	SkillStatusSuspended:     {},
+	SkillStatusLegacyActive:  {},
+	SkillStatusArchived:      {},
+	SkillStatusDeleted:       {},
+}
+
+// IsValidSkillStatus reports whether status is in the whitelist.
+func IsValidSkillStatus(status string) bool {
+	_, ok := ValidSkillStatuses[status]
+	return ok
+}
+
 // ErrSystemSkillSlugConflict prevents a bundled skill from replacing or
 // shadowing an existing custom skill with the same slug.
 var ErrSystemSkillSlugConflict = errors.New("system skill slug conflicts with custom skill")
+
+// ErrSkillNotReviewable is returned by ApproveSkill/RejectSkill when the skill
+// is not in a review-eligible state (e.g. a system skill, or a skill that has
+// already left the review lifecycle). Callers pre-fetch the skill to give a
+// precise message; this sentinel is the store-level guard backing that check.
+var ErrSkillNotReviewable = errors.New("skill is not in a reviewable state")
 
 // ErrMisclassifiedCustomSkill marks a custom row repaired by the schema
 // migration that still needs its metadata restored from managed files.
@@ -38,6 +94,25 @@ type SkillInfo struct {
 	CreatorAgent  *SkillAgentRef  `json:"creator_agent,omitempty" db:"-"`
 	ManagerAgents []SkillAgentRef `json:"manager_agents,omitempty" db:"-"`
 	MissingDeps   []string        `json:"missing_deps,omitempty" db:"missing_deps"`
+
+	// Review metadata (Phase 3 W1). ReviewedBy is the actor who approved or
+	// rejected the skill; ReviewNote carries the rejection reason.
+	ReviewedBy string    `json:"reviewed_by,omitempty" db:"reviewed_by"`
+	ReviewedAt time.Time `json:"reviewed_at" db:"reviewed_at"`
+	ReviewNote string    `json:"review_note,omitempty" db:"review_note"`
+}
+
+// SkillReviewer is an optional interface for stores that enforce the skill
+// review lifecycle (Phase 3 W1). Both PGSkillStore and SQLiteSkillStore
+// implement it; handlers type-assert like skillUpdater/skillOwnerGetter so
+// file-backed or stub stores that do not participate in review still compile.
+type SkillReviewer interface {
+	// ApproveSkill transitions a pending skill to published and stamps the
+	// reviewer identity. Approved transitions: draft|pending_review|approved → published.
+	ApproveSkill(ctx context.Context, id uuid.UUID, reviewedBy string) error
+	// RejectSkill transitions a pending skill to rejected with a review note.
+	// Reject transitions: draft|pending_review|approved → rejected.
+	RejectSkill(ctx context.Context, id uuid.UUID, reviewedBy, note string) error
 }
 
 // SkillAgentRef is a small UI/API-safe agent reference for skill metadata.
