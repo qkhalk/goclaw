@@ -21,7 +21,7 @@ func (s *PGSkillStore) LoadSkill(ctx context.Context, name string) (string, bool
 	var version int
 	var filePath *string
 	// Tenant filter: system skills visible globally, custom skills scoped to tenant.
-	q := "SELECT slug, version, file_path FROM skills WHERE slug = $1 AND status = 'active'"
+	q := "SELECT slug, version, file_path FROM skills WHERE slug = $1 AND status IN ('published', 'active')"
 	args := []any{name}
 	if !store.IsCrossTenant(ctx) {
 		tid := store.TenantIDFromContext(ctx)
@@ -137,15 +137,16 @@ func (s *PGSkillStore) GetSkill(ctx context.Context, name string) (*store.SkillI
 
 	// "archived" means a system skill has missing dependencies (see seeder.go); it does not
 	// mean the skill is hidden from lookup. ListSkills() and GetSkillByID() both include
-	// active + archived skills, so name/slug lookup must match to avoid 404s on archived
-	// skills that are otherwise still enabled.
+	// published + archived skills, so name/slug lookup must match to avoid 404s on archived
+	// skills that are otherwise still enabled. Legacy "active" is accepted alongside
+	// "published" for pre-review rows.
 	if id, err := uuid.Parse(name); err == nil {
-		return scan(baseSelect+"id = $"+fmt.Sprint(len(args)+1)+" AND status IN ('active', 'archived')"+scope, append(args, id)...)
+		return scan(baseSelect+"id = $"+fmt.Sprint(len(args)+1)+" AND status IN ('published', 'active', 'archived')"+scope, append(args, id)...)
 	}
-	if info, ok := scan(baseSelect+"slug = $"+fmt.Sprint(len(args)+1)+" AND status IN ('active', 'archived')"+scope, append(args, name)...); ok {
+	if info, ok := scan(baseSelect+"slug = $"+fmt.Sprint(len(args)+1)+" AND status IN ('published', 'active', 'archived')"+scope, append(args, name)...); ok {
 		return info, true
 	}
-	return scan(baseSelect+"name = $"+fmt.Sprint(len(args)+1)+" AND status IN ('active', 'archived')"+scope+" ORDER BY id LIMIT 1", append(args, name)...)
+	return scan(baseSelect+"name = $"+fmt.Sprint(len(args)+1)+" AND status IN ('published', 'active', 'archived')"+scope+" ORDER BY id LIMIT 1", append(args, name)...)
 }
 
 func (s *PGSkillStore) FilterSkills(ctx context.Context, allowList []string) []store.SkillInfo {
@@ -237,7 +238,7 @@ func (s *PGSkillStore) GetSkillOwnerID(ctx context.Context, id uuid.UUID) (strin
 // GetSkillOwnerIDBySlug returns the owner_id for a skill by slug.
 // Returns ("", false) if the skill does not exist or is archived.
 func (s *PGSkillStore) GetSkillOwnerIDBySlug(ctx context.Context, slug string) (string, bool) {
-	q := "SELECT owner_id FROM skills WHERE slug = $1 AND status = 'active'"
+	q := "SELECT owner_id FROM skills WHERE slug = $1 AND status IN ('published', 'active')"
 	args := []any{slug}
 	if !store.IsCrossTenant(ctx) {
 		tid := store.TenantIDFromContext(ctx)
