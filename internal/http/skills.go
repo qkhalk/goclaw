@@ -101,6 +101,8 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/skills/{id}/activity", h.adminMiddleware(h.handleGetSkillActivity))
 	mux.HandleFunc("GET /v1/skills/{id}/evolution/suggestions", h.authMiddleware(h.handleListSkillSuggestions))
 	// Skill writes (admin+)
+	mux.HandleFunc("POST /v1/skills/{id}/approve", h.tenantAdminMiddleware(h.handleApproveReview))
+	mux.HandleFunc("POST /v1/skills/{id}/reject", h.tenantAdminMiddleware(h.handleRejectReview))
 	mux.HandleFunc("POST /v1/skills/upload", h.adminMiddleware(h.handleUpload))
 	mux.HandleFunc("PUT /v1/skills/{id}", h.adminMiddleware(h.handleUpdate))
 	mux.HandleFunc("DELETE /v1/skills/{id}", h.adminMiddleware(h.handleDelete))
@@ -303,6 +305,69 @@ func (h *SkillsHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	h.skills.BumpVersion()
 	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, uuid.Nil)
 	emitAudit(h.msgBus, r, "skill.deleted", "skill", idStr)
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// reviewSkillType asserts the handler's store supports the skill review
+// lifecycle (Phase 3 W1) — approve/reject unpublished skills.
+func (h *SkillsHandler) reviewSkillType() store.SkillReviewer {
+	if r, ok := h.skills.(store.SkillReviewer); ok {
+		return r
+	}
+	return nil
+}
+
+// handleApproveReview approves a pending skill → published (admin only).
+func (h *SkillsHandler) handleApproveReview(w http.ResponseWriter, r *http.Request) {
+	locale := store.LocaleFromContext(r.Context())
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "skill")})
+		return
+	}
+	reviewer := h.reviewSkillType()
+	if reviewer == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgSkillsUpdateNotSupported)})
+		return
+	}
+	userID := store.UserIDFromContext(r.Context())
+	if err := reviewer.ApproveSkill(r.Context(), id, userID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	h.skills.BumpVersion()
+	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, store.TenantIDFromContext(r.Context()))
+	emitAudit(h.msgBus, r, "skill.approved", "skill", idStr)
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// handleRejectReview rejects a pending skill → rejected with a note (admin only).
+func (h *SkillsHandler) handleRejectReview(w http.ResponseWriter, r *http.Request) {
+	locale := store.LocaleFromContext(r.Context())
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "skill")})
+		return
+	}
+	reviewer := h.reviewSkillType()
+	if reviewer == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgSkillsUpdateNotSupported)})
+		return
+	}
+	var body struct {
+		Note string `json:"note"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	userID := store.UserIDFromContext(r.Context())
+	if err := reviewer.RejectSkill(r.Context(), id, userID, body.Note); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	h.skills.BumpVersion()
+	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, store.TenantIDFromContext(r.Context()))
+	emitAudit(h.msgBus, r, "skill.rejected", "skill", idStr)
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
 
