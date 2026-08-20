@@ -84,6 +84,26 @@ const (
 	MethodSkillsGet    = "skills.get"
 	MethodSkillsUpdate = "skills.update"
 
+	// Skill review/curation (Phase 3 W1) — admin-classified.
+	MethodSkillsApprove = "skills.approve"
+	MethodSkillsReject  = "skills.reject"
+
+	// Tenant policies (Phase 4 W1) — tenant-admin sorted.
+	MethodTenantPoliciesGet    = "tenant.policies.get"
+	MethodTenantPoliciesUpdate = "tenant.policies.update"
+
+	// RBAC custom roles (Phase 4 W2) — tenant-admin sorted.
+	MethodRolesList            = "role.list"
+	MethodRolesGet             = "role.get"
+	MethodRolesCreate          = "role.create"
+	MethodRolesUpdate          = "role.update"
+	MethodRolesDelete          = "role.delete"
+	MethodRolePermissionsSet   = "role.permissions.set"
+	MethodRolePermissionsList  = "role.permissions.list"
+	MethodRoleAssign           = "role.assign"
+	MethodRoleRevoke           = "role.revoke"
+	MethodRoleEffectiveGet     = "role.effective.get"
+
 	MethodCronList   = "cron.list"
 	MethodCronCreate = "cron.create"
 	MethodCronUpdate = "cron.update"
