@@ -65,6 +65,13 @@ func ValidScope(s string) bool {
 type PolicyEngine struct {
 	ownerIDs map[string]bool // sender IDs that are considered "owner"
 	mu       sync.RWMutex
+
+	// roleResolver supplies per-tenant custom-role permission rows for the
+	// resource:action catalog (Phase 4 W2). Wired by the gateway once at startup
+	// via SetRoleResolver; stays nil for master-scope/test callers, where the
+	// tier fallback applies unchanged. Implemented in internal/store to avoid
+	// an import cycle (store imports this package transitively).
+	roleResolver RoleResolver
 }
 
 // NewPolicyEngine creates a new permission policy engine.
@@ -291,6 +298,26 @@ func isAdminMethod(method string) bool {
 
 		// Skills (can rewrite agent behavior).
 		protocol.MethodSkillsUpdate,
+		// Skill review/curation — only admins approve/reject published skills.
+		protocol.MethodSkillsApprove,
+		protocol.MethodSkillsReject,
+
+		// Tenant policies — read/mutate the per-tenant quota + allowlists.
+		protocol.MethodTenantPoliciesGet,
+		protocol.MethodTenantPoliciesUpdate,
+
+		// RBAC custom roles — mutate role definitions, permissions, and member
+		// assignments. Reads that can expose tenant role data are admin too.
+		protocol.MethodRolesList,
+		protocol.MethodRolesGet,
+		protocol.MethodRolesCreate,
+		protocol.MethodRolesUpdate,
+		protocol.MethodRolesDelete,
+		protocol.MethodRolePermissionsSet,
+		protocol.MethodRolePermissionsList,
+		protocol.MethodRoleAssign,
+		protocol.MethodRoleRevoke,
+		protocol.MethodRoleEffectiveGet,
 
 		// Heartbeat — any write/test path (closes CVE #866 step 2 + step 4).
 		protocol.MethodHeartbeatSet,

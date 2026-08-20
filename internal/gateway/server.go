@@ -52,8 +52,9 @@ type Server struct {
 	handlers []routeRegistrar
 
 	// Non-handler dependencies (don't implement RegisterRoutes)
-	policyEngine   *permissions.PolicyEngine
-	pairingService store.PairingStore
+	policyEngine    *permissions.PolicyEngine
+	tenantPolicies  store.AgentPolicies // optional: tenant suspension gate on /v1/chat/completions (Phase 4)
+	pairingService  store.PairingStore
 	apiKeyStore    store.APIKeyStore   // for API key auth lookup
 	agentStore     store.AgentStore    // for context injection in tools_invoke
 	skillStore     store.SkillStore    // for the CRUD MCP server (/api/mcp/) skill tools
@@ -209,6 +210,9 @@ func (s *Server) BuildMux() *http.ServeMux {
 	}
 	if s.postTurn != nil {
 		chatHandler.SetPostTurnProcessor(s.postTurn)
+	}
+	if s.tenantPolicies != nil {
+		chatHandler.SetTenantPolicies(s.tenantPolicies)
 	}
 	mux.Handle("/v1/chat/completions", chatHandler)
 
@@ -647,6 +651,11 @@ func (s *Server) Router() *MethodRouter { return s.router }
 // SetPolicyEngine sets the permission policy engine for RPC method authorization.
 func (s *Server) SetPolicyEngine(pe *permissions.PolicyEngine) { s.policyEngine = pe }
 
+// SetTenantPolicies wires the per-tenant policy store so the OpenAI-compatible
+// chat surface enforces suspension at run entry. Nil-safe: unwired editions
+// skip the gate.
+func (s *Server) SetTenantPolicies(ps store.AgentPolicies) { s.tenantPolicies = ps }
+
 // SetPairingService sets the pairing service for channel authentication.
 func (s *Server) SetPairingService(ps store.PairingStore) { s.pairingService = ps }
 
@@ -859,6 +868,11 @@ func (s *Server) SetBackupS3Handler(h *httpapi.BackupS3Handler) { s.handlers = a
 
 // SetTenantBackupHandler sets the tenant-scoped backup/restore handler.
 func (s *Server) SetTenantBackupHandler(h *httpapi.TenantBackupHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
+// SetTenantAdminHandler sets the tenant policy + RBAC custom-role HTTP handler.
+func (s *Server) SetTenantAdminHandler(h *httpapi.TenantAdminHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
@@ -1156,6 +1170,9 @@ func StartTestServer(s *Server, ctx context.Context) (addr string, start func())
 	}
 	if s.postTurn != nil {
 		chatHandler.SetPostTurnProcessor(s.postTurn)
+	}
+	if s.tenantPolicies != nil {
+		chatHandler.SetTenantPolicies(s.tenantPolicies)
 	}
 	mux.Handle("/v1/chat/completions", chatHandler)
 

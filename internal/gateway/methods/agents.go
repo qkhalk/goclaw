@@ -26,11 +26,16 @@ type AgentsMethods struct {
 	agentStore  store.AgentStore
 	interceptor *tools.ContextFileInterceptor // invalidated on file writes
 	eventBus    bus.EventPublisher
+	policyStore store.AgentPolicies // optional: tenant max_agents cap + provider/model allowlist (Phase 4)
 }
 
 func NewAgentsMethods(agents *agent.Router, cfg *config.Config, cfgPath, workspace string, agentStore store.AgentStore, interceptor *tools.ContextFileInterceptor, eventBus bus.EventPublisher) *AgentsMethods {
 	return &AgentsMethods{agents: agents, cfg: cfg, cfgPath: cfgPath, workspace: workspace, agentStore: agentStore, interceptor: interceptor, eventBus: eventBus}
 }
+
+// SetTenantPolicies wires the per-tenant policy store for cap + allowlist
+// enforcement at agent creation time. Nil-safe: unwired editions skip the gate.
+func (m *AgentsMethods) SetTenantPolicies(ps store.AgentPolicies) { m.policyStore = ps }
 
 // isOwnerUser checks if the given user ID is in the configured owner IDs.
 func (m *AgentsMethods) isOwnerUser(userID string) bool {

@@ -18,7 +18,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore store.SessionStore, tracingStore store.TracingStore, runTimeline store.RunTimelineStore, runsStore store.RunsStore, cronStore store.CronStore, pairingStore store.PairingStore, cfg *config.Config, cfgPath, workspace, dataDir string, msgBus *bus.MessageBus, execApprovalMgr *tools.ExecApprovalManager, approvalStore store.ApprovalStore, agentStore store.AgentStore, skillStore store.SkillStore, configSecretsStore store.ConfigSecretsStore, teamStore store.TeamStore, agentLinkStore store.AgentLinkStore, contextFileInterceptor *tools.ContextFileInterceptor, logTee *gateway.LogTee, heartbeatStore store.HeartbeatStore, configPermStore store.ConfigPermissionStore, sysConfigStore store.SystemConfigStore, tenantStore store.TenantStore, skillTenantCfgStore store.SkillTenantConfigStore, audioMgr *audio.Manager, usageCapSvc *usagecaps.Service, providerReg *providers.Registry, teamWorkEmbedder memory.EmbeddingProvider, contractStore store.ContractStore, checkpointSnapshots store.CheckpointSnapshotStore, missionStore store.MissionStore) (*methods.PairingMethods, *methods.HeartbeatMethods, *methods.ChatMethods, *methods.ConfigPermissionsMethods) {
+func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore store.SessionStore, tracingStore store.TracingStore, runTimeline store.RunTimelineStore, runsStore store.RunsStore, cronStore store.CronStore, pairingStore store.PairingStore, cfg *config.Config, cfgPath, workspace, dataDir string, msgBus *bus.MessageBus, execApprovalMgr *tools.ExecApprovalManager, approvalStore store.ApprovalStore, agentStore store.AgentStore, skillStore store.SkillStore, configSecretsStore store.ConfigSecretsStore, teamStore store.TeamStore, agentLinkStore store.AgentLinkStore, contextFileInterceptor *tools.ContextFileInterceptor, logTee *gateway.LogTee, heartbeatStore store.HeartbeatStore, configPermStore store.ConfigPermissionStore, sysConfigStore store.SystemConfigStore, tenantStore store.TenantStore, skillTenantCfgStore store.SkillTenantConfigStore, audioMgr *audio.Manager, usageCapSvc *usagecaps.Service, providerReg *providers.Registry, teamWorkEmbedder memory.EmbeddingProvider, contractStore store.ContractStore, checkpointSnapshots store.CheckpointSnapshotStore, missionStore store.MissionStore, tenantPolicyStore store.TenantPolicyStore, tenantRoleStore store.TenantRoleStore) (*methods.PairingMethods, *methods.HeartbeatMethods, *methods.ChatMethods, *methods.ConfigPermissionsMethods) {
 	router := server.Router()
 
 	// Phase 1: Core methods
@@ -26,8 +26,15 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	chatMethods.SetAudioManager(audioMgr) // Wire TTS auto-apply for WS responses
 	chatMethods.SetUsageCapService(usageCapSvc)
 	chatMethods.SetTeamWorkClassification(agentStore, teamStore, agentLinkStore, teamWorkEmbedder)
+	if tenantPolicyStore != nil {
+		chatMethods.SetTenantPolicies(tenantPolicyStore)
+	}
 	chatMethods.Register(router)
-	methods.NewAgentsMethods(agents, cfg, cfgPath, workspace, agentStore, contextFileInterceptor, msgBus).Register(router)
+	agentsMethods := methods.NewAgentsMethods(agents, cfg, cfgPath, workspace, agentStore, contextFileInterceptor, msgBus)
+	if tenantPolicyStore != nil {
+		agentsMethods.SetTenantPolicies(tenantPolicyStore)
+	}
+	agentsMethods.Register(router)
 	methods.NewSessionsMethods(sessStore, msgBus, cfg).Register(router)
 	runMethods := methods.NewRunTimelineMethods(runTimeline, cfg)
 	runMethods.SetRunsStore(runsStore)
@@ -85,7 +92,11 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 
 	// Phase 2: Usage (queries SessionStore for real token data)
 	methods.NewUsageMethods(sessStore, tracingStore).Register(router)
-	methods.NewLLMMethods(providerReg, cfg.Gateway.BackgroundProvider, cfg.Gateway.BackgroundModel).Register(router)
+	llmMethods := methods.NewLLMMethods(providerReg, cfg.Gateway.BackgroundProvider, cfg.Gateway.BackgroundModel)
+	if tenantPolicyStore != nil {
+		llmMethods.SetTenantPolicies(tenantPolicyStore)
+	}
+	llmMethods.Register(router)
 	// Wire the same provider registry into the CRUD MCP server (see
 	// internal/mcp/crud_server.go, mounted at /api/mcp/ in BuildMux()).
 	server.SetLLMProviders(providerReg, cfg.Gateway.BackgroundProvider, cfg.Gateway.BackgroundModel)
@@ -112,6 +123,11 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	travelMethods.SetRunsStore(runsStore)
 	travelMethods.SetReplay(makeRunReplayer(agents, runsStore, checkpointSnapshots))
 	travelMethods.Register(router)
+
+	// Phase 4: tenant policies + RBAC custom roles (tenant-admin gated).
+	if tenantPolicyStore != nil && tenantRoleStore != nil && tenantStore != nil && msgBus != nil {
+		methods.NewTenantAdminMethods(tenantPolicyStore, tenantRoleStore, tenantStore, msgBus).Register(router)
+	}
 
 	// Mission Mode: durable mission records + resume. Nil-safe when the store is
 	// absent — the handlers report unavailable. The resume closure resolves the

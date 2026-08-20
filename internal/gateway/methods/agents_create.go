@@ -127,6 +127,20 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 			model = m.cfg.Agents.Defaults.Model
 		}
 
+		// Phase 4: enforce tenant policy — resource cap + provider/model allowlist.
+		if m.policyStore != nil {
+			if fail := checkTenantLimit(ctx, m.policyStore, tenantID, func(ctx context.Context) error {
+				return m.policyStore.CheckCanCreateAgent(ctx, tenantID)
+			}, locale); fail != nil {
+				client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrFailedPrecondition, fail.msg))
+				return
+			}
+			if fail := checkProviderModelAccess(ctx, m.policyStore, tenantID, provider, model, locale); fail != nil {
+				client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrFailedPrecondition, fail.msg))
+				return
+			}
+		}
+
 		agentData := &store.AgentData{
 			AgentKey:         agentID,
 			DisplayName:      params.Name,

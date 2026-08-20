@@ -631,6 +631,17 @@ func runGateway() {
 	server.SetVersion(Version)
 	server.SetDB(pgStores.DB)
 	server.SetPolicyEngine(permPE)
+	// Wire per-tenant custom-role overrides into the permission engine so the
+	// resource:action catalog (Phase 4) can honor custom roles. Master-scope and
+	// Lite callers keep the tier fallback (nil resolver = unchanged behavior).
+	if pgStores.TenantRoles != nil {
+		permPE.SetRoleResolver(store.NewTenantRoleResolver(pgStores.TenantRoles))
+	}
+	// Wire the tenant policy store into the OpenAI-compatible chat surface so a
+	// suspended tenant is blocked at run entry (Phase 4).
+	if pgStores.TenantPolicies != nil {
+		server.SetTenantPolicies(pgStores.TenantPolicies)
+	}
 	server.SetToolPolicy(toolPE)
 	server.SetPairingService(pgStores.Pairing)
 	server.SetMessageBus(msgBus)
@@ -851,10 +862,15 @@ func runGateway() {
 		server.SetTenantBackupHandler(httpapi.NewTenantBackupHandler(pgStores.DB, cfg, pgStores.Tenants, Version, permPE.IsOwner))
 	}
 
+	// Tenant policies + RBAC custom roles (Phase 4) HTTP surface.
+	if pgStores.TenantPolicies != nil && pgStores.TenantRoles != nil && pgStores.Tenants != nil {
+		server.SetTenantAdminHandler(httpapi.NewTenantAdminHandler(pgStores.TenantPolicies, pgStores.TenantRoles, pgStores.Tenants))
+	}
+
 	// Register all RPC methods
 	server.SetLogTee(logTee)
 	server.SetRuntimeLogsHandler(httpapi.NewRuntimeLogsHandler(logTee))
-	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Tracing, pgStores.RunTimeline, pgStores.Runs, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Approval, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, pgStores.AgentLinks, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc, providerRegistry, teamWorkEmbedder, pgStores.Contracts, pgStores.CheckpointSnapshots, pgStores.Missions)
+	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Tracing, pgStores.RunTimeline, pgStores.Runs, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Approval, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, pgStores.AgentLinks, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc, providerRegistry, teamWorkEmbedder, pgStores.Contracts, pgStores.CheckpointSnapshots, pgStores.Missions, pgStores.TenantPolicies, pgStores.TenantRoles)
 
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {

@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -19,11 +20,12 @@ import (
 
 // ChatCompletionsHandler handles POST /v1/chat/completions (OpenAI-compatible).
 type ChatCompletionsHandler struct {
-	agents      *agent.Router
-	sessions    store.SessionStore
-	isManaged   bool
-	rateLimiter func(string) bool // rate limit check: key → allowed (nil = no limit)
-	postTurn    tools.PostTurnProcessor
+	agents       *agent.Router
+	sessions     store.SessionStore
+	isManaged    bool
+	rateLimiter  func(string) bool      // rate limit check: key → allowed (nil = no limit)
+	policyStore  store.AgentPolicies     // optional: tenant suspension + session cap (Phase 4)
+	postTurn     tools.PostTurnProcessor
 }
 
 // SetPostTurnProcessor sets the post-turn processor for team task dispatch.
@@ -43,6 +45,12 @@ func NewChatCompletionsHandler(agents *agent.Router, sess store.SessionStore, is
 // SetRateLimiter sets the rate limiter function for HTTP requests.
 func (h *ChatCompletionsHandler) SetRateLimiter(fn func(string) bool) {
 	h.rateLimiter = fn
+}
+
+// SetTenantPolicies wires the per-tenant policy store for suspension
+// enforcement at run entry. Nil-safe: unwired editions skip the gate.
+func (h *ChatCompletionsHandler) SetTenantPolicies(ps store.AgentPolicies) {
+	h.policyStore = ps
 }
 
 type chatCompletionsRequest struct {
@@ -140,6 +148,25 @@ func (h *ChatCompletionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":{"message":"%s"}}`, i18n.T(locale, i18n.MsgNotFound, "agent", agentID)), http.StatusNotFound)
 		return
+	}
+
+	// Phase 4: enforce tenant policy at run entry — a suspended tenant is
+	// blocked before any new work starts. The session cap is not enforced here:
+	// HTTP chat creates a short-lived one-shot session per request and the WS
+	// chat.send cap covers interactive sessions.
+	if h.policyStore != nil {
+		tid := store.TenantIDFromContext(r.Context())
+		if tid != uuid.Nil {
+			if err := h.policyStore.CheckTenantActive(r.Context(), tid); err != nil {
+				if errors.Is(err, store.ErrTenantSuspended) {
+					http.Error(w, fmt.Sprintf(`{"error":{"message":"%s"}}`, i18n.T(locale, i18n.MsgPolicyTenantSuspended)), http.StatusForbidden)
+					return
+				}
+				slog.Error("chat.completions: tenant policy check failed", "tenant_id", tid, "error", err)
+				http.Error(w, fmt.Sprintf(`{"error":{"message":"%s"}}`, i18n.T(locale, i18n.MsgInternalError, err.Error())), http.StatusInternalServerError)
+				return
+			}
+		}
 	}
 
 	// Extract the last user message

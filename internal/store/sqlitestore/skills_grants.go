@@ -498,7 +498,7 @@ func (s *SQLiteSkillStore) ListAccessible(ctx context.Context, agentID uuid.UUID
 		`SELECT DISTINCT s.name, s.slug, s.description, s.version, s.file_path FROM skills s
 		LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = ?`+agentGrantTenantCond+`
 		LEFT JOIN skill_user_grants sug ON s.id = sug.skill_id AND (sug.user_id = ? OR sug.user_id = ?)`+userGrantTenantCond+stcJoin+`
-		WHERE s.status = 'active'`+tenantCond+stcFilter+` AND (
+		WHERE s.status IN ('published', 'active')`+tenantCond+stcFilter+` AND (
 			s.is_system = 1
 			OR s.visibility = 'public'
 			OR (s.visibility = 'private' AND (s.owner_id = ? OR s.owner_id = ?))
@@ -555,7 +555,7 @@ func (s *SQLiteSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid
 		        s.is_system
 		 FROM skills s
 		 LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = ?`+grantTenantCond+`
-		 WHERE s.status = 'active'`+tenantCond+`
+		 WHERE s.status IN ('published', 'active')`+tenantCond+`
 		 ORDER BY s.name`, queryArgs...)
 	if err != nil {
 		return nil, err

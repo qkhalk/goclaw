@@ -44,11 +44,31 @@ func IsSkillVisibleTo(ctx context.Context, ownerID, visibility string, isSystem 
 	}
 }
 
+// IsStatusDiscoverable reports whether a skill status is discoverable through
+// the non-privileged skill list. Only published skills are discoverable; the
+// review lifecycle states (draft/pending_review/approved/rejected/suspended)
+// are hidden until an admin approves them into published. Legacy rows with an
+// empty or "active" status remain discoverable for back-compat.
+func IsStatusDiscoverable(status string) bool {
+	switch status {
+	case "", SkillStatusPublished, SkillStatusLegacyActive:
+		return true
+	default:
+		return false
+	}
+}
+
 // FilterVisibleSkills returns skills the caller can discover. Uses
-// IsSkillVisibleTo for each entry.
+// IsSkillVisibleTo for each entry and gates on status: a skill sitting in a
+// review-lifecycle state (draft, pending_review, approved, rejected,
+// suspended) is not discoverable until it reaches published. Admin/master
+// scope bypass is the caller's responsibility.
 func FilterVisibleSkills(ctx context.Context, skills []SkillInfo) []SkillInfo {
 	out := make([]SkillInfo, 0, len(skills))
 	for _, s := range skills {
+		if !IsStatusDiscoverable(s.Status) {
+			continue
+		}
 		if IsSkillVisibleTo(ctx, s.OwnerID, s.Visibility, s.IsSystem) {
 			out = append(out, s)
 		}

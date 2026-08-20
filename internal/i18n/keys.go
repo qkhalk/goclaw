@@ -166,6 +166,27 @@ const (
 	MsgDraftPatchRequired          = "error.draft_patch_required"           // "draft_patch requires content or find/replace"
 	MsgFindTextNotFound            = "error.find_text_not_found"            // "find text not found in target file"
 
+	// --- Skill review lifecycle (Phase 3 W1) ---
+	MsgSkillPendingReview = "skill.pending_review"        // "skill is pending admin review and not yet discoverable"
+	MsgSkillRejected      = "skill.rejected"              // "skill was rejected: %s"
+	MsgSkillNotReviewable = "skill.not_reviewable"        // "skill is not in a reviewable state"
+	MsgSkillReviewDenied  = "error.permission_denied_skill_review" // "only admins can approve or reject skills"
+
+	// --- Tenant policies (Phase 4 W1) ---
+	MsgPolicyProviderDenied = "policy.provider_denied" // "provider %s is not allowed by this tenant policy"
+	MsgPolicyModelDenied    = "policy.model_denied"    // "model %s is not allowed by this tenant policy"
+	MsgPolicyLimitReached   = "policy.limit_reached"   // "tenant limit reached: %s (limit %d, existing %d)"
+	MsgPolicyTenantSuspended = "policy.tenant_suspended" // "tenant is suspended"
+	MsgPolicyNotFound       = "policy.not_found"       // "tenant policy not found"
+	MsgPolicyUpdateFailed   = "policy.update_failed"   // "failed to update tenant policy"
+
+	// --- RBAC custom roles (Phase 4 W2) ---
+	MsgRoleNotFound          = "role.not_found"          // "role not found"
+	MsgRoleBuiltinProtected  = "role.builtin_protected"  // "builtin roles cannot be modified"
+	MsgRoleInvalidPermission = "role.invalid_permission" // "invalid permission: %s"
+	MsgRoleNameRequired      = "role.name_required"      // "role name is required"
+	MsgRoleNameConflict      = "role.name_conflict"      // "a role with this name already exists"
+
 	// --- Package updates (Phase 4+5) ---
 	MsgPackageNotInstalled  = "packages.update.not_installed"     // "Package {name} is not installed"
 	MsgPackageUpdateLocked  = "packages.update.locked"            // "Package {name} is being updated by another request"
