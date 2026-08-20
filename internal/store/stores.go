@@ -78,4 +78,16 @@ type Stores struct {
 	// Implemented for both PostgreSQL (pg) and SQLite (sqlitestore), so the
 	// desktop/Lite edition enforces budgets too.
 	UsageCaps UsageCapStore
+
+	// TenantPolicies persists one per-tenant policy row (resource caps,
+	// provider/model allowlists, suspension status).
+	TenantPolicies TenantPolicyStore
+	// TenantRoles persists per-tenant custom roles + role_permissions for
+	// fine-grained RBAC (Phase 4). Builtin roles stay legacy tier anchors.
+	TenantRoles TenantRoleStore
+
+	// PublisherKeys manages ed25519 trust anchors for signed skill packages
+	// (Phase 3 W2). A published skill's manifest signature must verify against
+	// an active key here or the skill is rejected on install/import.
+	PublisherKeys PublisherKeystore
 }

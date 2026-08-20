@@ -386,6 +386,12 @@ CREATE TABLE IF NOT EXISTS skills (
     deps        TEXT NOT NULL DEFAULT '{}',
     enabled     BOOLEAN NOT NULL DEFAULT 1,
     tenant_id   TEXT NOT NULL REFERENCES tenants(id),
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    review_note TEXT,
+    signature   TEXT,
+    publisher_id TEXT,
+    signed_at   TEXT,
     created_at  TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at  TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -393,10 +399,82 @@ CREATE TABLE IF NOT EXISTS skills (
 -- tenant-scoped unique slug (migration 27 Phase I)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_tenant_slug ON skills(tenant_id, slug);
 CREATE INDEX IF NOT EXISTS idx_skills_owner ON skills(owner_id);
-CREATE INDEX IF NOT EXISTS idx_skills_visibility ON skills(visibility) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_skills_visibility ON skills(visibility) WHERE status = 'published';
 CREATE INDEX IF NOT EXISTS idx_skills_system ON skills(is_system) WHERE is_system = 1;
 CREATE INDEX IF NOT EXISTS idx_skills_enabled ON skills(enabled) WHERE enabled = 0;
 CREATE INDEX IF NOT EXISTS idx_skills_tenant ON skills(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_skills_review_queue
+    ON skills(tenant_id, status)
+    WHERE status IN ('pending_review', 'approved', 'rejected', 'suspended', 'draft');
+
+-- publisher trust anchors (PG 000106): skill signing key registry.
+CREATE TABLE IF NOT EXISTS publisher_keys (
+    id             TEXT NOT NULL PRIMARY KEY,
+    publisher_id   TEXT NOT NULL,
+    publisher_type TEXT NOT NULL DEFAULT 'tenant',
+    public_key     TEXT NOT NULL,
+    fingerprint    TEXT NOT NULL UNIQUE,
+    status         TEXT NOT NULL DEFAULT 'active',
+    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_publisher_keys_publisher
+    ON publisher_keys(publisher_id, status);
+
+-- ============================================================
+-- Table: tenant_policies (PG 000107)
+-- ============================================================
+-- Typed per-tenant policy config: quota JSON, allowed providers/models,
+-- resource caps, and status (active | suspended).
+CREATE TABLE IF NOT EXISTS tenant_policies (
+    id                 TEXT NOT NULL PRIMARY KEY,
+    tenant_id          TEXT NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+    quota              TEXT NOT NULL DEFAULT '{}',
+    allowed_providers  TEXT NOT NULL DEFAULT '[]',
+    allowed_models     TEXT NOT NULL DEFAULT '[]',
+    max_agents         INT,
+    max_sessions       INT,
+    max_teams          INT,
+    status             TEXT NOT NULL DEFAULT 'active',
+    updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tenant_policies_tenant
+    ON tenant_policies(tenant_id);
+
+-- ============================================================
+-- Table: roles / role_permissions / member_role_assignments (PG 000108)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS roles (
+    id          TEXT NOT NULL PRIMARY KEY,
+    tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    description TEXT,
+    builtin     BOOLEAN NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (tenant_id, name)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_tenant_name
+    ON roles(tenant_id, name);
+CREATE TABLE IF NOT EXISTS role_permissions (
+    id         TEXT NOT NULL PRIMARY KEY,
+    role_id    TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    permission TEXT NOT NULL,
+    effect     TEXT NOT NULL DEFAULT 'allow',
+    UNIQUE (role_id, permission)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_role_permissions_role_perm
+    ON role_permissions(role_id, permission);
+CREATE TABLE IF NOT EXISTS member_role_assignments (
+    id         TEXT NOT NULL PRIMARY KEY,
+    tenant_id  TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id    VARCHAR(255) NOT NULL,
+    role_id    TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (tenant_id, user_id, role_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_member_role_assignments_unique
+    ON member_role_assignments(tenant_id, user_id, role_id);
+CREATE INDEX IF NOT EXISTS idx_member_role_assignments_role
+    ON member_role_assignments(role_id);
 
 -- ============================================================
 -- Table: skill_agent_grants

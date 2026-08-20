@@ -46,18 +46,47 @@ func TestFilterVisibleSkills(t *testing.T) {
 		{Slug: "mine-private", OwnerID: "alice", Visibility: "private"},
 		{Slug: "theirs-private", OwnerID: "bob", Visibility: "private"},
 		{Slug: "theirs-public", OwnerID: "bob", Visibility: "public"},
+		{Slug: "theirs-pending", OwnerID: "bob", Visibility: "public", Status: SkillStatusPendingReview},
+		{Slug: "mine-pending", OwnerID: "alice", Visibility: "public", Status: SkillStatusPendingReview},
+		{Slug: "mine-draft", OwnerID: "alice", Visibility: "private", Status: SkillStatusDraft},
+		{Slug: "legacy-active", OwnerID: "bob", Visibility: "public", Status: SkillStatusLegacyActive},
 	}
 	got := FilterVisibleSkills(ctx, skills)
 	gotSlugs := map[string]bool{}
 	for _, s := range got {
 		gotSlugs[s.Slug] = true
 	}
-	for _, want := range []string{"sys", "mine-private", "theirs-public"} {
+	for _, want := range []string{"sys", "mine-private", "theirs-public", "legacy-active"} {
 		if !gotSlugs[want] {
 			t.Errorf("expected %q in filtered output, got %v", want, gotSlugs)
 		}
 	}
-	if gotSlugs["theirs-private"] {
-		t.Errorf("leaked private skill to non-owner: %v", gotSlugs)
+	for _, leak := range []string{"theirs-private", "theirs-pending", "mine-pending", "mine-draft"} {
+		if gotSlugs[leak] {
+			t.Errorf("leaked non-discoverable skill %q to non-owner list: %v", leak, gotSlugs)
+		}
+	}
+}
+
+func TestIsStatusDiscoverable(t *testing.T) {
+	tests := []struct {
+		status string
+		want   bool
+	}{
+		{"", true},                    // legacy rows without status
+		{SkillStatusPublished, true},  // review-approved
+		{SkillStatusLegacyActive, true}, // pre-review rows
+		{SkillStatusDraft, false},     // just created
+		{SkillStatusPendingReview, false}, // submitted, awaiting admin
+		{SkillStatusApproved, false},
+		{SkillStatusRejected, false},
+		{SkillStatusSuspended, false},
+	}
+	for _, tt := range tests {
+		t.Run("status="+tt.status, func(t *testing.T) {
+			if got := IsStatusDiscoverable(tt.status); got != tt.want {
+				t.Fatalf("IsStatusDiscoverable(%q) = %v, want %v", tt.status, got, tt.want)
+			}
+		})
 	}
 }

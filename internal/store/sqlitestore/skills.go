@@ -72,7 +72,7 @@ func (s *SQLiteSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, name, slug, description, visibility, owner_id, tags, version, is_system, status, enabled, deps, frontmatter, file_path
-		 FROM skills WHERE (status IN ('active', 'archived') OR is_system = 1) AND (is_system = 1 OR tenant_id = ?)
+		 FROM skills WHERE (status IN ('published', 'active', 'archived') OR is_system = 1) AND (is_system = 1 OR tenant_id = ?)
 		 ORDER BY name`, tid)
 	if err != nil {
 		return nil

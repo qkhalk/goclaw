@@ -32,7 +32,7 @@ func (s *PGSkillStore) SearchByEmbedding(ctx context.Context, embedding []float3
 	q := fmt.Sprintf(`SELECT name, slug, COALESCE(description, '') AS description, version, file_path,
 			1 - (embedding <=> $1::vector) AS score
 		FROM skills
-		WHERE status = 'active' AND enabled = true AND embedding IS NOT NULL
+		WHERE status IN ('published', 'active') AND enabled = true AND embedding IS NOT NULL
 		  AND visibility != 'private'%s
 		ORDER BY embedding <=> $%d::vector
 		LIMIT $%d`, tenantCond, orderN, limitN)
@@ -80,7 +80,7 @@ func (s *PGSkillStore) BackfillSkillEmbeddings(ctx context.Context) (int, error)
 
 	var pending []skillBackfillRow
 	if err := pkgSqlxDB.SelectContext(ctx, &pending,
-		`SELECT id, name, COALESCE(description, '') AS description FROM skills WHERE status = 'active' AND enabled = true AND embedding IS NULL`,
+		`SELECT id, name, COALESCE(description, '') AS description FROM skills WHERE status IN ('published', 'active') AND enabled = true AND embedding IS NULL`,
 	); err != nil {
 		return 0, err
 	}
@@ -137,7 +137,7 @@ func (s *PGSkillStore) generateEmbedding(ctx context.Context, slug, name, descri
 	}
 	vecStr := vectorToString(embeddings[0])
 	_, err = s.db.ExecContext(ctx,
-		`UPDATE skills SET embedding = $1::vector WHERE slug = $2 AND status = 'active'`, vecStr, slug)
+		`UPDATE skills SET embedding = $1::vector WHERE slug = $2 AND status IN ('published', 'active')`, vecStr, slug)
 	if err != nil {
 		slog.Warn("skill embedding store failed", "skill", name, "error", err)
 	}

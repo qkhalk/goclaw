@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 67
+const SchemaVersion = 71
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -123,6 +123,98 @@ var migrations = map[int]string{
 		ON approval_requests(agent_id);`,
 	// Version 66 → 67: usage cap + pricing tables (PG 000070–000072, 000104).
 	66: usageCapTablesMigration,
+	// Version 67 → 68: skill review/curation lifecycle (PG 000105). skills.status
+	// gains a review state machine (draft/pending_review/approved/published/
+	// rejected/suspended) plus reviewer bookkeeping columns. Legacy 'active' rows
+	// become 'published' so existing skills stay discoverable; discovery index
+	// targets 'published'. reviewer fields are TEXT (SQLite lacks UUID/BYTEA).
+	67: `ALTER TABLE skills
+		ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+		ALTER TABLE skills
+		ADD COLUMN IF NOT EXISTS reviewed_at TEXT;
+		ALTER TABLE skills
+		ADD COLUMN IF NOT EXISTS review_note TEXT;
+		UPDATE skills SET status = 'published' WHERE status = 'active';
+		DROP INDEX IF EXISTS idx_skills_visibility;
+		CREATE INDEX idx_skills_visibility ON skills(visibility) WHERE status = 'published';
+		CREATE INDEX IF NOT EXISTS idx_skills_review_queue
+			ON skills(tenant_id, status)
+			WHERE status IN ('pending_review', 'approved', 'rejected', 'suspended', 'draft');`,
+	// Version 68 → 69: publisher trust anchors + signed package columns
+	// (PG 000106). publisher_keys is the trust anchor for skill signing — a
+	// manifest signed with ed25519 must match a registered public_key
+	// (fingerprint = hex(sha256(public_key)) computed in Go). SQLite stores keys
+	// as TEXT (no BYTEA). skills gains signature/publisher_id/signed_at columns.
+	68: `CREATE TABLE IF NOT EXISTS publisher_keys (
+		id             TEXT NOT NULL PRIMARY KEY,
+		publisher_id   TEXT NOT NULL,
+		publisher_type TEXT NOT NULL DEFAULT 'tenant',
+		public_key     TEXT NOT NULL,
+		fingerprint    TEXT NOT NULL UNIQUE,
+		status         TEXT NOT NULL DEFAULT 'active',
+		created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+	);
+	CREATE INDEX IF NOT EXISTS idx_publisher_keys_publisher
+		ON publisher_keys(publisher_id, status);
+	ALTER TABLE skills
+		ADD COLUMN IF NOT EXISTS signature TEXT;
+	ALTER TABLE skills
+		ADD COLUMN IF NOT EXISTS publisher_id TEXT;
+	ALTER TABLE skills
+		ADD COLUMN IF NOT EXISTS signed_at TEXT;`,
+	// Version 69 → 70: tenant policies (PG 000107). One typed config row per
+	// tenant: quota (JSON text), allowed_providers/allowed_models (JSON array
+	// text), max_agents/max_sessions/max_teams caps, and status
+	// ('active'|'suspended'). Mirrors tenants.settings but typed.
+	69: `CREATE TABLE IF NOT EXISTS tenant_policies (
+		id                 TEXT NOT NULL PRIMARY KEY,
+		tenant_id          TEXT NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+		quota              TEXT NOT NULL DEFAULT '{}',
+		allowed_providers  TEXT NOT NULL DEFAULT '[]',
+		allowed_models     TEXT NOT NULL DEFAULT '[]',
+		max_agents         INT,
+		max_sessions       INT,
+		max_teams          INT,
+		status             TEXT NOT NULL DEFAULT 'active',
+		updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+	);
+	CREATE INDEX IF NOT EXISTS idx_tenant_policies_tenant
+		ON tenant_policies(tenant_id);`,
+	// Version 70 → 71: per-tenant custom roles + role_permissions + member
+	// assignments (PG 000108). Builtin roles resolve to existing tiers; custom
+	// roles add resource:action=effect overrides on top. deny wins over allow.
+	70: `CREATE TABLE IF NOT EXISTS roles (
+		id          TEXT NOT NULL PRIMARY KEY,
+		tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		name        TEXT NOT NULL,
+		description TEXT,
+		builtin     BOOLEAN NOT NULL DEFAULT 0,
+		created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		UNIQUE (tenant_id, name)
+	);
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_tenant_name
+		ON roles(tenant_id, name);
+	CREATE TABLE IF NOT EXISTS role_permissions (
+		id         TEXT NOT NULL PRIMARY KEY,
+		role_id    TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+		permission TEXT NOT NULL,
+		effect     TEXT NOT NULL DEFAULT 'allow',
+		UNIQUE (role_id, permission)
+	);
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_role_permissions_role_perm
+		ON role_permissions(role_id, permission);
+	CREATE TABLE IF NOT EXISTS member_role_assignments (
+		id         TEXT NOT NULL PRIMARY KEY,
+		tenant_id  TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		user_id    VARCHAR(255) NOT NULL,
+		role_id    TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		UNIQUE (tenant_id, user_id, role_id)
+	);
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_member_role_assignments_unique
+		ON member_role_assignments(tenant_id, user_id, role_id);
+	CREATE INDEX IF NOT EXISTS idx_member_role_assignments_role
+		ON member_role_assignments(role_id);`,
 	// Version 63 → 64: append-only checkpoint-snapshot history for durable agent
 	// runs. One row per versioned pipeline checkpoint so a paused run can be
 	// replayed ("time travel") from any earlier snapshot seq; the store layer

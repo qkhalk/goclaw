@@ -2,9 +2,13 @@ package pg
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -129,7 +133,14 @@ func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p store.SkillCrea
 	}
 	status := p.Status
 	if status == "" {
-		status = "active"
+		status = store.SkillStatusLegacyActive
+	}
+	// Whitelist enforcement: reject out-of-lifecycle statuses before touching
+	// the DB. "active" (legacy alias for published) stays accepted so callers
+	// that predate the review lifecycle (system reconciler, evolution_skill_apply,
+	// MCP crud, tests) keep working — the 000105 migration rewrote existing rows.
+	if !store.IsValidSkillStatus(status) {
+		return uuid.Nil, fmt.Errorf("invalid skill status %q", status)
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -196,7 +207,7 @@ func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p store.SkillCrea
 
 // GetSkillFilePath returns the filesystem path, version, and system flag for a skill by UUID.
 func (s *PGSkillStore) GetSkillFilePath(ctx context.Context, id uuid.UUID) (filePath string, slug string, version int, isSystem bool, ok bool) {
-	q := "SELECT file_path, slug, version, is_system FROM skills WHERE id = $1 AND status = 'active'"
+	q := "SELECT file_path, slug, version, is_system FROM skills WHERE id = $1 AND status IN ('published', 'active')"
 	args := []any{id}
 	if !store.IsCrossTenant(ctx) {
 		tid := store.TenantIDFromContext(ctx)
@@ -208,6 +219,127 @@ func (s *PGSkillStore) GetSkillFilePath(ctx context.Context, id uuid.UUID) (file
 	}
 	err := s.db.QueryRowContext(ctx, q, args...).Scan(&filePath, &slug, &version, &isSystem)
 	return filePath, slug, version, isSystem, err == nil
+}
+
+// ApproveSkill transitions a pending skill to published and stamps the
+// reviewer identity (Phase 3 W1 skill review). Tenant-scoped via ctx like
+// every other write. Approved transitions: draft|pending_review|approved → published.
+func (s *PGSkillStore) ApproveSkill(ctx context.Context, id uuid.UUID, reviewedBy string) error {
+	if err := store.ValidateUserID(reviewedBy); err != nil {
+		return err
+	}
+	// Guard against reviewing system skills and non-reviewable statuses before
+	// mutating — fail-closed so a bad transition never reaches the DB.
+	if ok, err := s.skillReviewable(ctx, id); err != nil || !ok {
+		if err != nil {
+			return err
+		}
+		return store.ErrSkillNotReviewable
+	}
+	now := time.Now().UTC()
+	if err := s.UpdateSkill(ctx, id, map[string]any{
+		"status":      store.SkillStatusPublished,
+		"reviewed_by": reviewedBy,
+		"reviewed_at": now,
+	}); err != nil {
+		return err
+	}
+	// Generate the embedding for the freshly published skill so vector search
+	// discovers it immediately. Status gates in SearchByEmbedding require
+	// ('published', 'active'), so a skill created as pending_review never got
+	// an embedding until now.
+	s.generateEmbeddingForSkill(id)
+	return nil
+}
+
+// generateEmbeddingForSkill looks up a skill's name/description by ID and
+// generates its embedding asynchronously.
+func (s *PGSkillStore) generateEmbeddingForSkill(id uuid.UUID) {
+	go func() {
+		ctx := context.Background()
+		var name, description string
+		if err := s.db.QueryRowContext(ctx,
+			"SELECT name, COALESCE(description, '') FROM skills WHERE id = $1", id,
+		).Scan(&name, &description); err != nil {
+			return
+		}
+		if s.embProvider == nil {
+			return
+		}
+		text := name
+		if description != "" {
+			text += ": " + description
+		}
+		embeddings, err := s.embProvider.Embed(ctx, []string{text})
+		if err != nil {
+			slog.Warn("skill embedding generation failed", "skill", name, "error", err)
+			return
+		}
+		if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+			return
+		}
+		vecStr := vectorToString(embeddings[0])
+		if _, err := s.db.ExecContext(ctx,
+			"UPDATE skills SET embedding = $1::vector WHERE id = $2", vecStr, id); err != nil {
+			slog.Warn("skill embedding store failed", "skill", name, "error", err)
+		}
+	}()
+}
+
+// RejectSkill transitions a pending skill to rejected with a review note.
+// Tenant-scoped via ctx. Reject transitions: draft|pending_review|approved → rejected.
+func (s *PGSkillStore) RejectSkill(ctx context.Context, id uuid.UUID, reviewedBy, note string) error {
+	if err := store.ValidateUserID(reviewedBy); err != nil {
+		return err
+	}
+	if ok, err := s.skillReviewable(ctx, id); err != nil || !ok {
+		if err != nil {
+			return err
+		}
+		return store.ErrSkillNotReviewable
+	}
+	now := time.Now().UTC()
+	return s.UpdateSkill(ctx, id, map[string]any{
+		"status":      store.SkillStatusRejected,
+		"reviewed_by": reviewedBy,
+		"reviewed_at": now,
+		"review_note": note,
+	})
+}
+
+// skillReviewable reports whether a skill may be approved/rejected: it must
+// exist in the caller's tenant scope and be in draft, pending_review, or
+// approved. System skills and already-published/rejected/archived/deleted
+// skills are not reviewable.
+func (s *PGSkillStore) skillReviewable(ctx context.Context, id uuid.UUID) (bool, error) {
+	q := "SELECT is_system, status FROM skills WHERE id = $1"
+	args := []any{id}
+	if !store.IsCrossTenant(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid == uuid.Nil {
+			tid = store.MasterTenantID
+		}
+		q += " AND (is_system = true OR tenant_id = $2)"
+		args = append(args, tid)
+	}
+	var isSystem bool
+	var status string
+	err := s.db.QueryRowContext(ctx, q, args...).Scan(&isSystem, &status)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, store.ErrSkillNotReviewable
+		}
+		return false, err
+	}
+	if isSystem {
+		return false, nil
+	}
+	switch status {
+	case store.SkillStatusDraft, store.SkillStatusPendingReview, store.SkillStatusApproved:
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 // GetNextVersion returns the next version number for a skill slug, scoped to tenant.

@@ -73,13 +73,14 @@ func (s *PGSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 	s.mu.RUnlock()
 
 	// Cache miss or TTL expired → query DB
-	// Returns active + archived + system skills. Archived skills are shown dimmed in the UI
-	// so admins can see missing deps and re-activate after installing them.
+	// Returns published + archived + system skills. Archived skills are shown dimmed in the UI
+	// so admins can see missing deps and re-activate after installing them. Legacy "active"
+	// rows (pre-000105, seeded by system reconcilers) remain visible alongside "published".
 	// Tenant filter: system skills visible globally, custom skills scoped to tenant.
 	var scanned []skillInfoRowWithFrontmatter
 	if err := pkgSqlxDB.SelectContext(ctx, &scanned,
 		`SELECT id, name, slug, description, visibility, owner_id, tags, version, is_system, status, enabled, deps, frontmatter, file_path
-		 FROM skills WHERE (status IN ('active', 'archived') OR is_system = true) AND (is_system = true OR tenant_id = $1)
+		 FROM skills WHERE (status IN ('published', 'active', 'archived') OR is_system = true) AND (is_system = true OR tenant_id = $1)
 		 ORDER BY name`, tid); err != nil {
 		return nil
 	}

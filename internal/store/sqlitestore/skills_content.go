@@ -19,7 +19,7 @@ func (s *SQLiteSkillStore) LoadSkill(ctx context.Context, name string) (string, 
 	var slug string
 	var version int
 	var filePath *string
-	q := "SELECT slug, version, file_path FROM skills WHERE slug = ? AND status = 'active'"
+	q := "SELECT slug, version, file_path FROM skills WHERE slug = ? AND status IN ('published', 'active')"
 	args := []any{name}
 	if !store.IsCrossTenant(ctx) {
 		tid := store.TenantIDFromContext(ctx)
@@ -133,15 +133,16 @@ func (s *SQLiteSkillStore) GetSkill(ctx context.Context, name string) (*store.Sk
 
 	// "archived" means a system skill has missing dependencies (see seeder.go); it does not
 	// mean the skill is hidden from lookup. ListSkills() and GetSkillByID() both include
-	// active + archived skills, so name/slug lookup must match to avoid 404s on archived
-	// skills that are otherwise still enabled.
+	// published + archived skills, so name/slug lookup must match to avoid 404s on archived
+	// skills that are otherwise still enabled. Legacy "active" is accepted alongside
+	// "published" for pre-review rows.
 	if id, err := uuid.Parse(name); err == nil {
-		return scan(baseSelect+"id = ? AND status IN ('active', 'archived')"+scope, append([]any{id}, args...)...)
+		return scan(baseSelect+"id = ? AND status IN ('published', 'active', 'archived')"+scope, append([]any{id}, args...)...)
 	}
-	if info, ok := scan(baseSelect+"slug = ? AND status IN ('active', 'archived')"+scope, append([]any{name}, args...)...); ok {
+	if info, ok := scan(baseSelect+"slug = ? AND status IN ('published', 'active', 'archived')"+scope, append([]any{name}, args...)...); ok {
 		return info, true
 	}
-	return scan(baseSelect+"name = ? AND status IN ('active', 'archived')"+scope+" ORDER BY id LIMIT 1", append([]any{name}, args...)...)
+	return scan(baseSelect+"name = ? AND status IN ('published', 'active', 'archived')"+scope+" ORDER BY id LIMIT 1", append([]any{name}, args...)...)
 }
 
 func (s *SQLiteSkillStore) FilterSkills(ctx context.Context, allowList []string) []store.SkillInfo {
@@ -223,7 +224,7 @@ func (s *SQLiteSkillStore) GetSkillOwnerID(ctx context.Context, id uuid.UUID) (s
 }
 
 func (s *SQLiteSkillStore) GetSkillOwnerIDBySlug(ctx context.Context, slug string) (string, bool) {
-	q := "SELECT owner_id FROM skills WHERE slug = ? AND status = 'active'"
+	q := "SELECT owner_id FROM skills WHERE slug = ? AND status IN ('published', 'active')"
 	args := []any{slug}
 	if !store.IsCrossTenant(ctx) {
 		tid := store.TenantIDFromContext(ctx)

@@ -243,12 +243,20 @@ func (t *SkillManageTool) executeCreate(ctx context.Context, args map[string]any
 		ownerID = "system"
 	}
 	desc := description
+	// Skill review lifecycle (Phase 3 W1): public skills require admin approval
+	// before discovery (status pending_review); private skills are caller-only
+	// and go live immediately as published.
+	createStatus := store.SkillStatusPendingReview
+	if visibility == skills.VisibilityPrivate {
+		createStatus = store.SkillStatusPublished
+	}
 	id, err := t.skills.CreateSkillManaged(ctx, store.SkillCreateParams{
 		Name:        name,
 		Slug:        slug,
 		Description: &desc,
 		OwnerID:     ownerID,
 		Visibility:  visibility,
+		Status:      createStatus,
 		Version:     version,
 		FilePath:    destDir,
 		FileSize:    fileSize,

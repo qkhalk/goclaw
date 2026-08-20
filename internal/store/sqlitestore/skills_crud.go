@@ -4,6 +4,8 @@ package sqlitestore
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -104,7 +106,14 @@ func (s *SQLiteSkillStore) CreateSkillManaged(ctx context.Context, p store.Skill
 	}
 	status := p.Status
 	if status == "" {
-		status = "active"
+		status = store.SkillStatusLegacyActive
+	}
+	// Whitelist enforcement: reject out-of-lifecycle statuses before touching
+	// the DB. "active" (legacy alias for published) stays accepted so legacy
+	// callers (system reconciler, evolution_skill_apply, MCP crud, tests) keep
+	// working — the schema patch rewrote existing active rows to published.
+	if !store.IsValidSkillStatus(status) {
+		return uuid.Nil, fmt.Errorf("invalid skill status %q", status)
 	}
 
 	tenantID := store.TenantIDFromContext(ctx)
@@ -173,7 +182,7 @@ func (s *SQLiteSkillStore) CreateSkillManaged(ctx context.Context, p store.Skill
 }
 
 func (s *SQLiteSkillStore) GetSkillFilePath(ctx context.Context, id uuid.UUID) (filePath string, slug string, version int, isSystem bool, ok bool) {
-	q := "SELECT file_path, slug, version, is_system FROM skills WHERE id = ? AND status = 'active'"
+	q := "SELECT file_path, slug, version, is_system FROM skills WHERE id = ? AND status IN ('published', 'active')"
 	args := []any{id}
 	if !store.IsCrossTenant(ctx) {
 		tid := store.TenantIDFromContext(ctx)
@@ -185,6 +194,79 @@ func (s *SQLiteSkillStore) GetSkillFilePath(ctx context.Context, id uuid.UUID) (
 	}
 	err := s.db.QueryRowContext(ctx, q, args...).Scan(&filePath, &slug, &version, &isSystem)
 	return filePath, slug, version, isSystem, err == nil
+}
+
+// ApproveSkill transitions a pending skill to published and stamps the
+// reviewer identity (Phase 3 W1 skill review). Tenant-scoped via ctx.
+func (s *SQLiteSkillStore) ApproveSkill(ctx context.Context, id uuid.UUID, reviewedBy string) error {
+	if err := store.ValidateUserID(reviewedBy); err != nil {
+		return err
+	}
+	if ok, err := s.skillReviewable(ctx, id); err != nil || !ok {
+		if err != nil {
+			return err
+		}
+		return store.ErrSkillNotReviewable
+	}
+	return s.UpdateSkill(ctx, id, map[string]any{
+		"status":      store.SkillStatusPublished,
+		"reviewed_by": reviewedBy,
+		"reviewed_at": time.Now().UTC(),
+	})
+}
+
+// RejectSkill transitions a pending skill to rejected with a review note.
+// Tenant-scoped via ctx.
+func (s *SQLiteSkillStore) RejectSkill(ctx context.Context, id uuid.UUID, reviewedBy, note string) error {
+	if err := store.ValidateUserID(reviewedBy); err != nil {
+		return err
+	}
+	if ok, err := s.skillReviewable(ctx, id); err != nil || !ok {
+		if err != nil {
+			return err
+		}
+		return store.ErrSkillNotReviewable
+	}
+	return s.UpdateSkill(ctx, id, map[string]any{
+		"status":      store.SkillStatusRejected,
+		"reviewed_by": reviewedBy,
+		"reviewed_at": time.Now().UTC(),
+		"review_note": note,
+	})
+}
+
+// skillReviewable reports whether a skill may be approved/rejected. Mirrors the
+// PG implementation: must exist in the caller's tenant scope, not be a system
+// skill, and be in draft, pending_review, or approved.
+func (s *SQLiteSkillStore) skillReviewable(ctx context.Context, id uuid.UUID) (bool, error) {
+	q := "SELECT is_system, status FROM skills WHERE id = ?"
+	args := []any{id}
+	if !store.IsCrossTenant(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid == uuid.Nil {
+			tid = store.MasterTenantID
+		}
+		q += " AND (is_system = 1 OR tenant_id = ?)"
+		args = append(args, tid)
+	}
+	var isSystem bool
+	var status string
+	err := s.db.QueryRowContext(ctx, q, args...).Scan(&isSystem, &status)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, store.ErrSkillNotReviewable
+		}
+		return false, err
+	}
+	if isSystem {
+		return false, nil
+	}
+	switch status {
+	case store.SkillStatusDraft, store.SkillStatusPendingReview, store.SkillStatusApproved:
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 // GetSkillHashBySlug returns the file_hash and version of the latest non-deleted skill

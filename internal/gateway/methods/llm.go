@@ -21,8 +21,9 @@ import (
 // gateway's configured provider registry without writing provider-specific API
 // code or storing provider keys in cron payloads.
 type LLMMethods struct {
-	providers *providers.Registry
-	cfg       llmDefaults
+	providers    *providers.Registry
+	cfg          llmDefaults
+	policyStore  store.AgentPolicies // optional: tenant provider/model allowlist (Phase 4)
 }
 
 type llmDefaults struct {
@@ -39,6 +40,10 @@ func NewLLMMethods(providerReg *providers.Registry, defaultProvider, defaultMode
 		},
 	}
 }
+
+// SetTenantPolicies wires the per-tenant policy store for provider/model
+// allowlist enforcement on llm.complete. Nil-safe: unwired editions skip it.
+func (m *LLMMethods) SetTenantPolicies(ps store.AgentPolicies) { m.policyStore = ps }
 
 func (m *LLMMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodLLMComplete, m.handleComplete)
@@ -92,6 +97,15 @@ func (m *LLMMethods) handleComplete(ctx context.Context, client *gateway.Client,
 	if err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, err.Error()))
 		return
+	}
+
+	// Phase 4: enforce tenant provider/model allowlist on the resolved pair.
+	if m.policyStore != nil {
+		tid := store.TenantIDFromContext(ctx)
+		if fail := checkProviderModelAccess(ctx, m.policyStore, tid, prov.Name(), model, locale); fail != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrFailedPrecondition, fail.msg))
+			return
+		}
 	}
 
 	options := map[string]any{}

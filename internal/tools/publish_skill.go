@@ -147,12 +147,21 @@ func (t *PublishSkillTool) Execute(ctx context.Context, args map[string]any) *Re
 		ownerID = "system" // fallback for agent-only contexts
 	}
 	desc := description
+	// Skill review lifecycle (Phase 3 W1): a public skill must pass admin
+	// review before it becomes discoverable, so it lands in `pending_review`.
+	// A private skill is caller-only — no review needed, it goes live as
+	// `published` immediately (identical to the legacy `active` semantics).
+	createStatus := store.SkillStatusPendingReview
+	if visibility == skills.VisibilityPrivate {
+		createStatus = store.SkillStatusPublished
+	}
 	params := store.SkillCreateParams{
 		Name:        name,
 		Slug:        slug,
 		Description: &desc,
 		OwnerID:     ownerID,
 		Visibility:  visibility,
+		Status:      createStatus,
 		Version:     version,
 		FilePath:    destDir,
 		FileSize:    fileSize,
@@ -193,6 +202,11 @@ func (t *PublishSkillTool) Execute(ctx context.Context, args map[string]any) *Re
 
 	// Build result
 	result := fmt.Sprintf("Skill %q published successfully.\n- ID: %s\n- Slug: %s\n- Version: %d", name, id, slug, version)
+	if createStatus == store.SkillStatusPendingReview {
+		result += "\n- Status: pending_review — a public skill requires admin approval before it is discoverable."
+	} else {
+		result += "\n- Status: published (private skill — no admin review required)"
+	}
 	if agentID != uuid.Nil {
 		result += "\n- Granted to current agent"
 	}

@@ -35,6 +35,105 @@ func (m *SkillsMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodSkillsList, m.handleList)
 	router.Register(protocol.MethodSkillsGet, m.handleGet)
 	router.Register(protocol.MethodSkillsUpdate, m.handleUpdate)
+	router.Register(protocol.MethodSkillsApprove, m.handleApprove)
+	router.Register(protocol.MethodSkillsReject, m.handleReject)
+}
+
+// skillIDParam is the shared {id} resolver for approve/reject: accepts a DB
+// UUID, or falls back to a skill name/slug that resolves via GetSkill.
+func (m *SkillsMethods) resolveSkillID(ctx context.Context, idOrName string) (uuid.UUID, bool) {
+	if parsed, err := uuid.Parse(idOrName); err == nil {
+		return parsed, false
+	}
+	info, ok := m.store.GetSkill(ctx, idOrName)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if parsed, err := uuid.Parse(info.Path); err == nil {
+		return parsed, false
+	}
+	return uuid.Nil, false
+}
+
+func (m *SkillsMethods) handleApprove(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	// Only admins may approve/reject published skills (also enforced by
+	// isAdminMethod classification; double-check per handler).
+	if !permissions.HasMinRole(client.Role(), permissions.RoleAdmin) {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "skills.approve")))
+		return
+	}
+	var params struct {
+		Name string `json:"name"`
+		ID   string `json:"id"`
+	}
+	if req.Params != nil {
+		json.Unmarshal(req.Params, &params)
+	}
+	if params.Name == "" && params.ID == "" {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "name or id")))
+		return
+	}
+	id, found := m.resolveSkillID(ctx, params.ID)
+	if !found && params.Name != "" {
+		id, found = m.resolveSkillID(ctx, params.Name)
+	}
+	if !found || id == uuid.Nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "skill", params.Name)))
+		return
+	}
+
+	reviewer, ok := m.store.(store.SkillReviewer)
+	if !ok {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgSkillsUpdateNotSupported)))
+		return
+	}
+	if err := reviewer.ApproveSkill(ctx, id, client.UserID()); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		return
+	}
+	m.store.BumpVersion()
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]string{"ok": "true"}))
+}
+
+func (m *SkillsMethods) handleReject(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	if !permissions.HasMinRole(client.Role(), permissions.RoleAdmin) {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "skills.reject")))
+		return
+	}
+	var params struct {
+		Name string `json:"name"`
+		ID   string `json:"id"`
+		Note string `json:"note"`
+	}
+	if req.Params != nil {
+		json.Unmarshal(req.Params, &params)
+	}
+	if params.Name == "" && params.ID == "" {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "name or id")))
+		return
+	}
+	id, found := m.resolveSkillID(ctx, params.ID)
+	if !found && params.Name != "" {
+		id, found = m.resolveSkillID(ctx, params.Name)
+	}
+	if !found || id == uuid.Nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "skill", params.Name)))
+		return
+	}
+
+	reviewer, ok := m.store.(store.SkillReviewer)
+	if !ok {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgSkillsUpdateNotSupported)))
+		return
+	}
+	if err := reviewer.RejectSkill(ctx, id, client.UserID(), params.Note); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		return
+	}
+	m.store.BumpVersion()
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]string{"ok": "true"}))
 }
 
 func (m *SkillsMethods) handleList(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
@@ -130,11 +229,19 @@ func (m *SkillsMethods) handleGet(ctx context.Context, client *gateway.Client, r
 		return
 	}
 
-	// Visibility gate: hide private skills from non-owners (admins bypass).
-	if !permissions.HasMinRole(client.Role(), permissions.RoleAdmin) &&
-		!store.IsSkillVisibleTo(ctx, info.OwnerID, info.Visibility, info.IsSystem) {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "skill", params.Name)))
-		return
+	// Visibility + status gate: hide private skills and skills still in the
+	// review lifecycle (draft/pending_review/approved/rejected/suspended) from
+	// non-owners (admins bypass). A pending skill is only visible to its owner
+	// until an admin approves it into published.
+	if !permissions.HasMinRole(client.Role(), permissions.RoleAdmin) {
+		if !store.IsStatusDiscoverable(info.Status) && info.OwnerID != client.UserID() {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "skill", params.Name)))
+			return
+		}
+		if !store.IsSkillVisibleTo(ctx, info.OwnerID, info.Visibility, info.IsSystem) {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "skill", params.Name)))
+			return
+		}
 	}
 
 	content, ok := m.store.LoadSkill(ctx, info.Slug)
