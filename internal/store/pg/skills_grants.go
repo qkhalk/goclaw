@@ -440,7 +440,7 @@ func (s *PGSkillStore) ListAccessible(ctx context.Context, agentID uuid.UUID, us
 		`SELECT DISTINCT s.name, s.slug, s.description, s.version, s.file_path FROM skills s
 		LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = $1`+agentGrantTenantCond+`
 		LEFT JOIN skill_user_grants sug ON s.id = sug.skill_id AND (sug.user_id = $2 OR sug.user_id = $3)`+userGrantTenantCond+stcJoin+`
-		WHERE s.status = 'active'`+tenantCond+stcFilter+` AND (
+		WHERE s.status IN ('published', 'active')`+tenantCond+stcFilter+` AND (
 			s.is_system = true
 			OR s.visibility = 'public'
 			OR (s.visibility = 'private' AND (s.owner_id = $2 OR s.owner_id = $3))
@@ -494,7 +494,7 @@ func (s *PGSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid.UUI
 		        s.is_system
 		 FROM skills s
 		 LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = $1`+grantTenantCond+`
-		 WHERE s.status = 'active'`+tenantCond+`
+		 WHERE s.status IN ('published', 'active')`+tenantCond+`
 		 ORDER BY s.name`, append([]any{agentID}, tcArgs...)...)
 	if err != nil {
 		return nil, err
