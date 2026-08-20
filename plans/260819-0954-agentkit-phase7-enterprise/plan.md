@@ -1,7 +1,8 @@
 # Phase 7 — Enterprise (AgentKit Deep Integration Plan)
 
-**Status:** IN PROGRESS — Wave 1 (Phases 1–2) SHIPPED
+**Status:** DONE — Wave 1 (Phases 1–2) + Wave 2 (Phases 3–4) SHIPPED (PR #22 `53fe8f20` + PR #23 `5263d7e3`)
 **Created:** 2026-08-19
+**Updated:** 2026-08-20 (Wave 2 ticked)
 **Branch:** dev
 **Scope decision:** User chose "Toàn diện 8 khối" (all 8 Enterprise blocks).
 
@@ -16,6 +17,20 @@
 - Schema baseline after Wave 1: PG `RequiredSchemaVersion = 104`; SQLite `SchemaVersion = 67`.
 - Verify: Docker `go build ./...` + `-tags sqliteonly ./...` + `-tags otel ./...` + `go vet ./...` pass; PR #22 CI 3/3.
 - Wave 2 (Phases 3–4) NOT yet dispatched — requires migrations `000105–000108` + SQLite patches 68–71 per migration table.
+
+## Wave 2 shipped (PR #23 → merge `5263d7e3`)
+
+- **Phase 3** (skill registry approval/curation + signed packages) — W1 + W2 merged 2026-08-20, PR #23, merge `5263d7e3`; CI 3/3 green (go 6m59s, web 52s, release-versioning 7s).
+  - Schema: PG `000105_skill_review` + `000106_publisher_keys`; SQLite patches 68–69; `RequiredSchemaVersion`→108, SQLite `SchemaVersion`→71.
+  - Approval: `skill_reviews` review records + `published-gate` in skill discovery — only `approved` skills surface to tenants (`visibility_filter` + PG/SQLite impls).
+  - Signed packages: `PublisherStore` interface + PG/SQLite impls + ed25519 signature verification in `internal/crypto/signature.go`; `publish_skill` signs + submits review; `skill_manage` review-gated.
+- **Phase 4** (tenant policies + RBAC fine-grained) — W1 + W2 merged 2026-08-20, same PR, `5263d7e3`.
+  - Policy: `tenant_policies` table (PG `000107`; SQLite patch 70) — provider/model allowlists, max_agents/max_sessions/max_teams caps, suspension. `TenantPolicyStore` + compact `AgentPolicies` interface (narrow subset for handlers) + PG/SQLite + helper tests (17).
+  - RBAC: `tenant_roles` + `role_permissions` (PG `000108`; SQLite patch 71) — custom roles; `permissions` catalog + `EffectivePermissions` union of builtin role + per-tenant custom role grants; `RBACResolver` PG/SQLite.
+  - Enforcement: agents.create (cap + allowlist), teams.create (cap), chat.send (session cap on new sessions), llm.complete (allowlist), WS connect (suspension gate w/ master-scope bypass), `/v1/chat/completions` (suspension). WS methods roles.list/get/upsert/delete, tenant.policy.get/set, policies.list; HTTP `/v1/tenant/admin/...`.
+  - i18n: policy messages `${MsgPolicy*}` in keys + all 3 catalogs.
+- Schema baseline after Wave 2: PG `RequiredSchemaVersion = 108`; SQLite `SchemaVersion = 71`.
+- Verify: Docker `go build ./...` + `-tags sqliteonly ./...` + `go vet ./...` pass; unit tests (gateway/methods 17 new, permissions 32, store); PR #23 CI 3/3 green.
 
 ## Context
 
@@ -36,8 +51,8 @@ Vision §105 Phase 7 (last phase). 4 scout reports in `reports/`:
 |---|---|---|---|
 | 1 | ~~Approval queue persistence + Audit completeness~~ ✅ shipped (`53fe8f20`) | approval (persist/notif/RBAC/history) + audit (login, tenant_id, SQLite parity, retention, export) | none |
 | 2 | ~~Cost governance gaps + Observability gaps~~ ✅ shipped (`53fe8f20`) | SQLite UsageCapStore, budget overview, threshold alerts, session budget (optional), Prometheus, wire SLO alert, cost-in-OTel, OTel CI build | none |
-| 3 | Skill registry approval/curation + Signed packages | skills.status lifecycle (draft→published), approve/reject methods, package format, ed25519 signing + `publisher_keys` trust anchor | none — W2 pending (not dispatched) |
-| 4 | Tenant policies + RBAC fine-grained | tenant_policies table (quota/provider-allowlist/limits/suspension), custom roles + role_permissions, per-tenant permission resolution | none — W2 pending (not dispatched) |
+| 3 | ~~Skill registry approval/curation + Signed packages~~ ✅ shipped (`5263d7e3`) | skills.status lifecycle (draft→published), approve/reject methods, package format, ed25519 signing + `publisher_keys` trust anchor | none — shipped PR #23 |
+| 4 | ~~Tenant policies + RBAC fine-grained~~ ✅ shipped (`5263d7e3`) | tenant_policies table (quota/provider-allowlist/limits/suspension), custom roles + role_permissions, per-tenant permission resolution | none — shipped PR #23 |
 
 Execution: dispatch phase groups in waves (01 then 02 then 03 then 04 per controller review). Controller owns Docker build/test + commit + PR + CI follow + merge to dev. Workstreams own their code + CI.
 
@@ -54,7 +69,7 @@ Execution: dispatch phase groups in waves (01 then 02 then 03 then 04 per contro
 - [x] i18n key ordering: key + 3 catalogs added BEFORE handler code (runtime crash guard) — Phase 1/2 keys landed with catalogs in same commit.
 - [x] Reverse-mapping check: every new WS method lands in correct `isReadMethod`/`isWriteMethod`/`isAdminMethod` slice — PR #22 updated router slices + tests.
 
-Wave 2 (Phases 3–4) re-verifies these ACs on its own merge before ticking.
+Wave 2 (Phases 3–4) re-verified these ACs on its own merge before ticking (PR #23 `5263d7e3`): dual-DB migrations 000105–000108 + patches 68–71 + version bumps (108/71), i18n keys + 3 catalogs in same commits, parameterized queries, tenant-scope fail-closed, build + vet clean (Docker), store/method unit tests + 17 new policy-helper tests, reverse-mapping of new WS methods in router slices.
 
 ## Migration number assignments (avoid collision)
 
