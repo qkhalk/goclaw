@@ -106,15 +106,43 @@ func IsRetryableError(err error) bool {
 }
 
 // RetryDo executes fn with retry logic using exponential backoff and jitter.
+//
+// Between attempts it re-checks the shared rate-limit coordinator (and the
+// circuit breaker) for the target provider:model. When another run's 429 has
+// armed a cooldown that the planned delay cannot outlast, further attempts
+// would only burn quota against a known-closed window: RetryDoFor aborts
+// early with the last error instead of sleeping through its backoff into an
+// armed cooldown. A parsed Retry-After keeps being honoured verbatim by
+// computeDelay, so when it is longer than the remaining cooldown the loop
+// stays alive and lands its next attempt after the window closes.
 func RetryDo[T any](ctx context.Context, cfg RetryConfig, fn func() (T, error)) (T, error) {
+	return RetryDoFor(ctx, cfg, "", "", fn)
+}
+
+// RetryDoFor is RetryDo with an explicit provider:model target key. When both
+// are non-empty the reliability admission checks run between attempts; plain
+// RetryDo (empty target) keeps the historical per-call-only behavior.
+func RetryDoFor[T any](ctx context.Context, cfg RetryConfig, provider, model string, fn func() (T, error)) (T, error) {
 	if cfg.Attempts <= 0 {
 		cfg.Attempts = 1
 	}
+	tracked := provider != "" && model != ""
 
 	var lastErr error
 	var zero T
 
 	for attempt := 1; attempt <= cfg.Attempts; attempt++ {
+		// Mid-loop admission check: after a failure, if the shared coordinator
+		// has armed a cooldown (or the breaker is Open) for this target and the
+		// planned delay cannot outlast that block, further attempts would only
+		// burn quota against a known-closed window — abort with the last real
+		// error instead of sleeping into an armed cooldown. A Retry-After on
+		// the current error keeps being honoured verbatim by computeDelay, so
+		// when it is longer than the remaining block the loop stays alive.
+		if tracked && attempt > 1 && !outlastsBlock(cfg, attempt, lastErr, provider, model) {
+			return zero, lastErr
+		}
+
 		result, err := fn()
 		if err == nil {
 			return result, nil
@@ -163,6 +191,48 @@ func RetryDo[T any](ctx context.Context, cfg RetryConfig, fn func() (T, error)) 
 	}
 
 	return zero, lastErr
+}
+
+// outlastsBlock reports whether the loop's planned wait for this retry is long
+// enough to land its next attempt after the reliability layer would admit
+// traffic for provider:model again. It consults, nil-safely:
+//   - the shared rate-limit coordinator: a cooldown armed by any run's 429
+//     for the same provider:model;
+//   - the circuit breaker: an Open circuit with a future NextRetryAt.
+//
+// The candidate wait is computeDelay's result, which already honours a parsed
+// Retry-After verbatim — so a Retry-After LONGER than the remaining block
+// keeps the loop alive and the next attempt lands after the window closes.
+// A block shorter than the wait is harmless; anything longer means retrying
+// blind into a closed window.
+func outlastsBlock(cfg RetryConfig, attempt int, err error, provider, model string) bool {
+	blocked := time.Duration(0)
+	reg := reliability.Default()
+	if reg == nil {
+		return true
+	}
+	if reg.RateLimit != nil {
+		if remaining, ok := reg.RateLimit.CooldownFor(provider, model); ok && remaining > blocked {
+			blocked = remaining
+		}
+	}
+	if reg.Breaker != nil {
+		key := provider + ":" + model
+		// Read-only view: Allow() mutates breaker state (it consumes half-open
+		// probe slots), so derive blockage from State + NextRetryAt instead.
+		// An expired-but-still-Open circuit admits traffic on its next Allow,
+		// so only a future deadline counts as blocking here.
+		if reg.Breaker.State(key) == reliability.CircuitOpen {
+			if remaining := time.Until(reg.Breaker.NextRetryAt(key)); remaining > blocked {
+				blocked = remaining
+			}
+		}
+	}
+	if blocked <= 0 {
+		return true
+	}
+	wait := computeDelay(cfg, attempt, err)
+	return wait >= blocked
 }
 
 // computeDelay calculates the retry delay with exponential backoff, jitter, and Retry-After support.

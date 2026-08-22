@@ -3,446 +3,205 @@ package providers
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
-func TestRunWithFailoverFirstCandidateSucceeds(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-		},
-		Classifier: NewDefaultClassifier(),
-	}
+// The two-tier RunWithFailover engine (former failover.go) was removed:
+// ModelFallbackProvider.runOrdered is the single production failover
+// implementation. These tests keep its public contracts covered — ordered
+// candidate iteration, classification-driven fallback vs terminal stops,
+// cancellation, and the FailoverSummaryError message format consumed by
+// callers that surface an exhausted fallback chain.
 
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		return "success", nil
-	}
+func TestModelFallbackFirstCandidateSucceeds(t *testing.T) {
+	primary := &testFallbackProvider{name: "mf-first-primary", model: "gpt-4o"}
+	provider := NewModelFallbackProvider(FallbackCandidate{
+		ProviderName: "mf-first-primary",
+		Provider:     primary,
+		Model:        "gpt-4o",
+	}, nil, 1, false)
 
-	result, attempts, err := RunWithFailover(ctx, cfg, runFn)
-
+	resp, err := provider.Chat(context.Background(), ChatRequest{})
 	if err != nil {
-		t.Errorf("expected no error, got %v", err)
+		t.Fatalf("expected no error, got %v", err)
 	}
-	if result != "success" {
-		t.Errorf("expected success, got %s", result)
+	if resp.Content != "gpt-4o" {
+		t.Errorf("expected primary model content, got %s", resp.Content)
 	}
-	if callCount != 1 {
-		t.Errorf("expected 1 call, got %d", callCount)
-	}
-	if len(attempts) != 0 {
-		t.Errorf("expected 0 attempts recorded, got %d", len(attempts))
+	if primary.calls != 1 {
+		t.Errorf("expected 1 call, got %d", primary.calls)
 	}
 }
 
-func TestRunWithFailoverRateLimitRotatesProfile(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key2"},
-		},
-		Classifier: NewDefaultClassifier(),
+func TestModelFallbackRateLimitRotatesToBackup(t *testing.T) {
+	primary := &testFallbackProvider{
+		name:  "mf-rl-primary",
+		model: "primary-model",
+		err:   &HTTPError{Status: 429, Body: "Rate limit exceeded"},
+	}
+	backup := &testFallbackProvider{name: "mf-rl-backup", model: "backup-model"}
+	provider := NewModelFallbackProvider(FallbackCandidate{
+		ProviderName: "mf-rl-primary",
+		Provider:     primary,
+		Model:        "primary-model",
+	}, []FallbackCandidate{
+		{ProviderName: "mf-rl-backup", Provider: backup, Model: "backup-model"},
+	}, 2, false)
+
+	resp, err := provider.Chat(context.Background(), ChatRequest{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if resp.Content != "backup-model" {
+		t.Errorf("expected backup model content, got %s", resp.Content)
+	}
+	if primary.calls != 1 || backup.calls != 1 {
+		t.Fatalf("calls primary=%d backup=%d, want 1/1", primary.calls, backup.calls)
 	}
 
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		if callCount == 1 {
-			return "", &HTTPError{Status: 429, Body: "Rate limit exceeded"}
+	// The failed 429 attempt must be recorded for diagnostics.
+	diags := provider.LastAttempts()
+	found := false
+	for _, d := range diags {
+		if d.Candidate.ProviderName == "mf-rl-primary" && !d.Skipped {
+			found = true
 		}
-		return "success", nil
 	}
-
-	result, attempts, err := RunWithFailover(ctx, cfg, runFn)
-
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-	if result != "success" {
-		t.Errorf("expected success, got %s", result)
-	}
-	if callCount != 2 {
-		t.Errorf("expected 2 calls, got %d", callCount)
-	}
-	if len(attempts) != 1 {
-		t.Errorf("expected 1 attempt recorded, got %d", len(attempts))
-	}
-	if attempts[0].Classification.Reason != FailoverRateLimit {
-		t.Errorf("expected FailoverRateLimit, got %s", attempts[0].Classification.Reason)
+	if !found {
+		t.Errorf("expected a tried diagnostic for the rate-limited primary, got %+v", diags)
 	}
 }
 
-func TestRunWithFailoverAuthPermanentSkipsModel(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key1"},
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key2"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key3"},
-		},
-		Classifier: NewDefaultClassifier(),
+func TestModelFallbackAuthPermanentSkipsModel(t *testing.T) {
+	primary := &testFallbackProvider{
+		name:  "mf-auth-primary",
+		model: "claude-opus-4-6",
+		err:   &HTTPError{Status: 401, Body: "API key has been revoked"},
 	}
+	backup := &testFallbackProvider{name: "mf-auth-backup", model: "gpt-4o"}
+	provider := NewModelFallbackProvider(FallbackCandidate{
+		ProviderName: "mf-auth-primary",
+		Provider:     primary,
+		Model:        "claude-opus-4-6",
+	}, []FallbackCandidate{
+		{ProviderName: "mf-auth-backup", Provider: backup, Model: "gpt-4o"},
+	}, 2, false)
 
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		// First candidate fails with auth_permanent, should skip all claude models
-		if candidate.Model == "claude-opus-4-6" {
-			return "", &HTTPError{Status: 401, Body: "API key has been revoked"}
-		}
-		return "success", nil
-	}
-
-	result, attempts, err := RunWithFailover(ctx, cfg, runFn)
-
+	resp, err := provider.Chat(context.Background(), ChatRequest{})
 	if err != nil {
-		t.Errorf("expected no error, got %v", err)
+		t.Fatalf("expected no error, got %v", err)
 	}
-	if result != "success" {
-		t.Errorf("expected success, got %s", result)
+	if resp.Content != "gpt-4o" {
+		t.Errorf("expected success on the next model after auth_permanent, got %s", resp.Content)
 	}
-	// Should only try: first claude (fail), then skip to gpt (succeed)
-	// Total: 2 calls
-	if callCount != 2 {
-		t.Errorf("expected 2 calls (first claude fails, skip rest, try gpt), got %d", callCount)
-	}
-	if len(attempts) != 1 {
-		t.Errorf("expected 1 attempt, got %d", len(attempts))
-	}
-	if attempts[0].Classification.Reason != FailoverAuthPermanent {
-		t.Errorf("expected FailoverAuthPermanent, got %s", attempts[0].Classification.Reason)
+	if primary.calls != 1 || backup.calls != 1 {
+		t.Fatalf("calls primary=%d backup=%d, want 1/1", primary.calls, backup.calls)
 	}
 }
 
-func TestRunWithFailoverOverloadCapReached(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key2"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key3"},
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key4"},
-		},
-		Classifier:            NewDefaultClassifier(),
-		OverloadRotationLimit: 2, // Only allow 2 overload rotations before model fallback
+func TestModelFallbackAllExhausted(t *testing.T) {
+	primary := &testFallbackProvider{
+		name:  "mf-x-primary",
+		model: "model-a",
+		err:   &HTTPError{Status: 500, Body: "Internal server error"},
 	}
-
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		if candidate.Model == "gpt-4o" {
-			return "", &HTTPError{Status: 529, Body: "Service overloaded"}
-		}
-		return "success", nil
+	backup := &testFallbackProvider{
+		name:  "mf-x-backup",
+		model: "model-b",
+		err:   &HTTPError{Status: 500, Body: "Internal server error"},
 	}
+	provider := NewModelFallbackProvider(FallbackCandidate{
+		ProviderName: "mf-x-primary",
+		Provider:     primary,
+		Model:        "model-a",
+	}, []FallbackCandidate{
+		{ProviderName: "mf-x-backup", Provider: backup, Model: "model-b"},
+	}, 2, false)
 
-	result, _, err := RunWithFailover(ctx, cfg, runFn)
-
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-	if result != "success" {
-		t.Errorf("expected success, got %s", result)
-	}
-	// Should try: key1 (fail), key2 (fail), then skip to next model, try key4 (succeed)
-	// Total: 3 calls
-	if callCount != 3 {
-		t.Errorf("expected 3 calls (2 overload rotations then model fallback), got %d", callCount)
-	}
-}
-
-func TestRunWithFailoverAllExhausted(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key2"},
-		},
-		Classifier: NewDefaultClassifier(),
-	}
-
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		return "", &HTTPError{Status: 500, Body: "Internal server error"}
-	}
-
-	result, attempts, err := RunWithFailover(ctx, cfg, runFn)
-
+	resp, err := provider.Chat(context.Background(), ChatRequest{})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if result != "" {
-		t.Errorf("expected empty result, got %s", result)
+	if resp != nil {
+		t.Errorf("expected nil response, got %+v", resp)
 	}
 
 	var summaryErr *FailoverSummaryError
 	if !errors.As(err, &summaryErr) {
 		t.Fatalf("expected FailoverSummaryError, got %T", err)
 	}
-
-	if len(attempts) != 2 {
-		t.Errorf("expected 2 attempts, got %d", len(attempts))
+	if len(summaryErr.Attempts) != 2 {
+		t.Errorf("expected 2 attempts, got %d", len(summaryErr.Attempts))
+	}
+	if primary.calls != 1 || backup.calls != 1 {
+		t.Fatalf("calls primary=%d backup=%d, want 1/1", primary.calls, backup.calls)
 	}
 }
 
-func TestRunWithFailoverContextOverflowReturnsImmediately(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key2"},
-		},
-		Classifier: NewDefaultClassifier(),
+func TestModelFallbackContextOverflowReturnsImmediately(t *testing.T) {
+	primary := &testFallbackProvider{
+		name:  "mf-co-primary",
+		model: "gpt-4o",
+		err:   &HTTPError{Status: 400, Body: "Context length exceeded"},
 	}
+	backup := &testFallbackProvider{name: "mf-co-backup", model: "claude-opus-4-6"}
+	provider := NewModelFallbackProvider(FallbackCandidate{
+		ProviderName: "mf-co-primary",
+		Provider:     primary,
+		Model:        "gpt-4o",
+	}, []FallbackCandidate{
+		{ProviderName: "mf-co-backup", Provider: backup, Model: "claude-opus-4-6"},
+	}, 2, false)
 
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		return "", &HTTPError{Status: 400, Body: "Context length exceeded"}
-	}
-
-	result, attempts, err := RunWithFailover(ctx, cfg, runFn)
-
+	_, err := provider.Chat(context.Background(), ChatRequest{})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if result != "" {
-		t.Errorf("expected empty result, got %s", result)
+	// Context overflow stops immediately — no profile/model rotation.
+	var summaryErr *FailoverSummaryError
+	if errors.As(err, &summaryErr) {
+		t.Fatalf("context overflow must return the original error, got summary %v", err)
 	}
-	// Should stop after first context overflow, not try profile rotation
-	if callCount != 1 {
-		t.Errorf("expected 1 call (context overflow stops immediately), got %d", callCount)
+	var httpErr *HTTPError
+	if !errors.As(err, &httpErr) || httpErr.Status != 400 {
+		t.Fatalf("expected the original HTTPError, got %v", err)
 	}
-	if len(attempts) != 1 {
-		t.Errorf("expected 1 attempt, got %d", len(attempts))
-	}
-	if attempts[0].Classification.Kind != "context_overflow" {
-		t.Errorf("expected context_overflow kind, got %s", attempts[0].Classification.Kind)
+	if primary.calls != 1 || backup.calls != 0 {
+		t.Fatalf("calls primary=%d backup=%d, want 1/0 (no fallback on context overflow)", primary.calls, backup.calls)
 	}
 }
 
-func TestRunWithFailoverContextCancellation(t *testing.T) {
+func TestModelFallbackContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-		},
-		Classifier: NewDefaultClassifier(),
-	}
+	primary := &testFallbackProvider{name: "mf-cancel", model: "gpt-4o"}
+	provider := NewModelFallbackProvider(FallbackCandidate{
+		ProviderName: "mf-cancel",
+		Provider:     primary,
+		Model:        "gpt-4o",
+	}, nil, 1, false)
 
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		t.Error("runFn should not be called when context is cancelled")
-		return "", nil
-	}
-
-	result, _, err := RunWithFailover(ctx, cfg, runFn)
-
-	if err != context.Canceled {
+	_, err := provider.Chat(ctx, ChatRequest{})
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
-	if result != "" {
-		t.Errorf("expected empty result, got %s", result)
+	if primary.calls != 0 {
+		t.Errorf("candidate should not be called when context is cancelled, got %d calls", primary.calls)
 	}
 }
 
-func TestRunWithFailoverNoCandidates(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{},
-		Classifier: NewDefaultClassifier(),
-	}
-
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		t.Error("runFn should not be called with no candidates")
-		return "", nil
-	}
-
-	result, _, err := RunWithFailover(ctx, cfg, runFn)
-
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if result != "" {
-		t.Errorf("expected empty result, got %s", result)
-	}
-}
-
-func TestRunWithFailoverDefaultClassifier(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-		},
-		Classifier: nil, // Should use default
-	}
-
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		return "success", nil
-	}
-
-	result, _, err := RunWithFailover(ctx, cfg, runFn)
-
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-	if result != "success" {
-		t.Errorf("expected success, got %s", result)
-	}
-}
-
-func TestRunWithFailoverDefaultConfigDefaults(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key2"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key3"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key4"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key5"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key6"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key7"},
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key8"},
-		},
-		Classifier:            NewDefaultClassifier(),
-		OverloadRotationLimit: 0, // Should be set to default 3
-		MaxProfileRotations:   0, // Should be set to default 5
-	}
-
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		// Fail with overload for first 3 gpt models, then succeed
-		if callCount <= 3 && candidate.Model == "gpt-4o" {
-			return "", &HTTPError{Status: 529, Body: "Overloaded"}
-		}
-		// If more calls than expected (would happen if defaults weren't applied), fail obviously
-		if callCount > 100 {
-			t.Error("too many calls - defaults not applied properly")
-		}
-		return "success", nil
-	}
-
-	result, _, err := RunWithFailover(ctx, cfg, runFn)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if result != "success" {
-		t.Errorf("expected success, got %s", result)
-	}
-	// With default OverloadRotationLimit=3, after 3 overload rotations should escalate to next model
-	// callCount should be: 3 failed (gpt models) + 1 success (anthropic) = 4
-	if callCount != 4 {
-		t.Errorf("expected 4 calls (3 overload rotations + escalate), got %d", callCount)
-	}
-}
-
-func TestIsProfileRotatable(t *testing.T) {
-	tests := []struct {
-		reason   FailoverReason
-		expected bool
-	}{
-		{FailoverRateLimit, true},
-		{FailoverOverloaded, true},
-		{FailoverTimeout, true},
-		{FailoverAuth, true},
-		{FailoverAuthPermanent, false},
-		{FailoverBilling, false},
-		{FailoverFormat, false},
-		{FailoverModelNotFound, false},
-		{FailoverUnknown, false},
-	}
-
-	for _, test := range tests {
-		result := isProfileRotatable(test.reason)
-		if result != test.expected {
-			t.Errorf("isProfileRotatable(%s): expected %v, got %v", test.reason, test.expected, result)
-		}
-	}
-}
-
-func TestIsModelFallbackRequired(t *testing.T) {
-	tests := []struct {
-		reason   FailoverReason
-		expected bool
-	}{
-		{FailoverAuthPermanent, true},
-		{FailoverBilling, true},
-		{FailoverFormat, true},
-		{FailoverModelNotFound, true},
-		{FailoverRateLimit, false},
-		{FailoverOverloaded, false},
-		{FailoverTimeout, false},
-		{FailoverAuth, false},
-		{FailoverUnknown, false},
-	}
-
-	for _, test := range tests {
-		result := isModelFallbackRequired(test.reason)
-		if result != test.expected {
-			t.Errorf("isModelFallbackRequired(%s): expected %v, got %v", test.reason, test.expected, result)
-		}
-	}
-}
-
-func TestRunWithFailoverMaxProfileRotationsLimit(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key2"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key3"},
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key4"},
-		},
-		Classifier:            NewDefaultClassifier(),
-		OverloadRotationLimit: 10, // High limit so only max profile rotations matters
-		MaxProfileRotations:   2,
-	}
-
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		if candidate.Model == "gpt-4o" {
-			return "", &HTTPError{Status: 429, Body: "Rate limit"}
-		}
-		return "success", nil
-	}
-
-	result, _, err := RunWithFailover(ctx, cfg, runFn)
-
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-	if result != "success" {
-		t.Errorf("expected success, got %s", result)
-	}
-	// Should try: key1 (fail), key2 (fail), then skip to next model, try key4 (succeed)
-	// Total: 3 calls
-	if callCount != 3 {
-		t.Errorf("expected 3 calls (2 rotations then model fallback), got %d", callCount)
-	}
-}
-
-func TestRunWithFailoverFailoverSummaryErrorFormat(t *testing.T) {
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key2"},
-		},
-	}
-
+func TestFailoverSummaryErrorFormat(t *testing.T) {
 	summaryErr := &FailoverSummaryError{
 		Attempts: []FailoverAttempt{
 			{
-				Candidate:      cfg.Candidates[0],
+				Candidate:      ModelCandidate{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
 				Classification: FailoverClassification{Kind: "reason", Reason: FailoverRateLimit},
 				Err:            errors.New("rate limit"),
 			},
 			{
-				Candidate:      cfg.Candidates[1],
+				Candidate:      ModelCandidate{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key2"},
 				Classification: FailoverClassification{Kind: "reason", Reason: FailoverBilling},
 				Err:            errors.New("billing error"),
 			},
@@ -457,50 +216,13 @@ func TestRunWithFailoverFailoverSummaryErrorFormat(t *testing.T) {
 	if !contains(errMsg, "openai") || !contains(errMsg, "anthropic") {
 		t.Errorf("error message should contain provider names: %s", errMsg)
 	}
-}
-
-func TestRunWithFailoverMultipleModelsMultipleProfiles(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key2"},
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key3"},
-			{Provider: "anthropic", Model: "claude-opus-4-6", ProfileID: "key4"},
-		},
-		Classifier: NewDefaultClassifier(),
-	}
-
-	callCount := 0
-	attemptedProfiles := []string{}
-
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		attemptedProfiles = append(attemptedProfiles, candidate.ProfileID)
-		if callCount < 4 {
-			return "", &HTTPError{Status: 500, Body: "error"}
-		}
-		return "success", nil
-	}
-
-	result, _, err := RunWithFailover(ctx, cfg, runFn)
-
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-	if result != "success" {
-		t.Errorf("expected success, got %s", result)
-	}
-	if callCount != 4 {
-		t.Errorf("expected 4 calls, got %d", callCount)
-	}
-	if len(attemptedProfiles) != 4 {
-		t.Errorf("expected 4 profile attempts, got %d", len(attemptedProfiles))
+	if !strings.Contains(errMsg, "rate_limit") || !strings.Contains(errMsg, "billing") {
+		t.Errorf("error message should contain failure reasons: %s", errMsg)
 	}
 }
 
 func contains(s, substr string) bool {
-	for i := 0; i < len(s)-len(substr)+1; i++ {
+	for i := range len(s) - len(substr) + 1 {
 		if s[i:i+len(substr)] == substr {
 			return true
 		}
