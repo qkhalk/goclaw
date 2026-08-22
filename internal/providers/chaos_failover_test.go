@@ -105,24 +105,33 @@ func TestFailover_HTTP_5xxSeries_Rotates(t *testing.T) {
 	}
 }
 
-// TestFailover_HTTP_StreamedChunk_DoesNotFallback scripts the primary to emit a
-// single SSE data chunk then abruptly close the connection (no [DONE]). The
-// real OpenAI stream adapter delivers the chunk, then surfaces the mid-stream
-// failure wrapped in noFallbackAfterStreamError: the run must settle on that
-// error without ever calling the backup.
+// TestFailover_HTTP_StreamedChunk_DoesNotFallback scripts the primary to emit
+// a single SSE data chunk, pause mid-stream, and never send [DONE]. The test
+// cancels the request context during the inter-frame gap: the real OpenAI
+// stream adapter has already delivered the chunk, then surfaces the aborted
+// stream as a read error, which runOrdered wraps in noFallbackAfterStreamError.
+// The run must settle on that error without ever calling the backup.
 func TestFailover_HTTP_StreamedChunk_DoesNotFallback(t *testing.T) {
 	server := newFakeLLMServerEmpty(t)
 	server.script(responseStep{
-		Status:    http.StatusOK,
-		Headers:   http.Header{"Connection": []string{"close"}},
-		SSEFrames: []sseFrame{server.openAITextDelta("partial answer")},
-		// no SSEDone: the connection closes (Connection: close) mid-stream,
-		// after a chunk escaped, without a [DONE] terminator
+		Status:      http.StatusOK,
+		SSEFrames:   []sseFrame{server.openAITextDelta("partial answer")},
+		SSEFrameGap: 5 * time.Second,
+		// no SSEDone: the stream hangs after the first frame; the client-side
+		// cancellation below turns it into a read error once the chunk escaped
 	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		// Cancel while the server sits in SSEFrameGap — after "partial answer"
+		// was delivered but before any terminator.
+		time.Sleep(200 * time.Millisecond)
+		cancel()
+	}()
 
 	provider := newChaosFallbackProvider(t, server.URL(), 2)
 	var chunks int
-	resp, err := provider.ChatStream(context.Background(), ChatRequest{Model: "gpt-4o"}, func(StreamChunk) {
+	resp, err := provider.ChatStream(ctx, ChatRequest{Model: "gpt-4o"}, func(StreamChunk) {
 		chunks++
 	})
 
