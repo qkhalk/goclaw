@@ -157,9 +157,9 @@ func TestVerifierGateRecoversThenFallsThrough(t *testing.T) {
 // in-pipeline continuation gate just fired — both fall straight to fail.
 func TestVerifierGateRecoverRespectsFinalIteration(t *testing.T) {
 	for _, tc := range []struct {
-		name        string
-		iteration   int
-		gateFired   bool
+		name      string
+		iteration int
+		gateFired bool
 	}{
 		{"last-iteration", 4, false},
 		{"continuation-gate-already-fired", 0, true},
