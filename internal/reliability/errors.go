@@ -38,28 +38,28 @@ const (
 	ErrProviderContextOverflow ErrorCode = "provider.context_overflow"
 
 	// ---- Model errors ----
-	ErrModelEmptyOutput          ErrorCode = "model.empty_output"
-	ErrModelMalformedToolCall    ErrorCode = "model.malformed_tool_call"
-	ErrModelInvalidJSON          ErrorCode = "model.invalid_json"
-	ErrModelUnsupportedToolCall  ErrorCode = "model.unsupported_tool_call"
-	ErrModelRepeatedToolCall     ErrorCode = "model.repeated_tool_call"
-	ErrModelPrematureCompletion  ErrorCode = "model.premature_completion"
-	ErrModelLooping              ErrorCode = "model.looping"
-	ErrModelLowSignal            ErrorCode = "model.low_signal"
+	ErrModelEmptyOutput         ErrorCode = "model.empty_output"
+	ErrModelMalformedToolCall   ErrorCode = "model.malformed_tool_call"
+	ErrModelInvalidJSON         ErrorCode = "model.invalid_json"
+	ErrModelUnsupportedToolCall ErrorCode = "model.unsupported_tool_call"
+	ErrModelRepeatedToolCall    ErrorCode = "model.repeated_tool_call"
+	ErrModelPrematureCompletion ErrorCode = "model.premature_completion"
+	ErrModelLooping             ErrorCode = "model.looping"
+	ErrModelLowSignal           ErrorCode = "model.low_signal"
 
 	// ---- Runtime errors ----
-	ErrRunCancelled       ErrorCode = "runtime.run_cancelled"
-	ErrRunStalled         ErrorCode = "runtime.run_stalled"
-	ErrRunDeadline        ErrorCode = "runtime.run_deadline"
-	ErrRunRecoveryFailed  ErrorCode = "runtime.run_recovery_failed"
+	ErrRunCancelled      ErrorCode = "runtime.run_cancelled"
+	ErrRunStalled        ErrorCode = "runtime.run_stalled"
+	ErrRunDeadline       ErrorCode = "runtime.run_deadline"
+	ErrRunRecoveryFailed ErrorCode = "runtime.run_recovery_failed"
 
 	// ---- Tool errors ----
-	ErrToolTimeout         ErrorCode = "tool.timeout"
-	ErrToolUnavailable     ErrorCode = "tool.unavailable"
-	ErrToolInvalidArgs     ErrorCode = "tool.invalid_args"
+	ErrToolTimeout          ErrorCode = "tool.timeout"
+	ErrToolUnavailable      ErrorCode = "tool.unavailable"
+	ErrToolInvalidArgs      ErrorCode = "tool.invalid_args"
 	ErrToolPermissionDenied ErrorCode = "tool.permission_denied"
-	ErrToolTransient       ErrorCode = "tool.transient"
-	ErrToolPermanent       ErrorCode = "tool.permanent"
+	ErrToolTransient        ErrorCode = "tool.transient"
+	ErrToolPermanent        ErrorCode = "tool.permanent"
 )
 
 // Severity ranks how an error should surface to a user or operator.
@@ -187,12 +187,12 @@ var classes = map[ErrorCode]errorClass{
 	ErrRunRecoveryFailed: {retryable: false, severity: SeverityError},
 
 	// Tool
-	ErrToolTimeout:         {retryable: true, severity: SeverityWarning},
-	ErrToolUnavailable:     {retryable: true, severity: SeverityWarning},
-	ErrToolInvalidArgs:     {retryable: false, severity: SeverityWarning},
+	ErrToolTimeout:          {retryable: true, severity: SeverityWarning},
+	ErrToolUnavailable:      {retryable: true, severity: SeverityWarning},
+	ErrToolInvalidArgs:      {retryable: false, severity: SeverityWarning},
 	ErrToolPermissionDenied: {retryable: false, severity: SeverityError},
-	ErrToolTransient:       {retryable: true, severity: SeverityWarning},
-	ErrToolPermanent:       {retryable: false, severity: SeverityError},
+	ErrToolTransient:        {retryable: true, severity: SeverityWarning},
+	ErrToolPermanent:        {retryable: false, severity: SeverityError},
 }
 
 // New builds a ReliabilityError from a code and message, applying the
