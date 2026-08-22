@@ -2,11 +2,43 @@ package providers
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/nextlevelbuilder/goclaw/internal/reliability"
 )
+
+// ModelCandidate identifies one fallback candidate for attempt summaries.
+// Moved here from the removed failover.go — runOrdered still reports
+// attempts with it.
+type ModelCandidate struct {
+	Provider  string
+	Model     string
+	ProfileID string // opaque identifier (never raw API key)
+}
+
+// FailoverAttempt records one tried candidate and its outcome.
+type FailoverAttempt struct {
+	Candidate      ModelCandidate
+	Classification FailoverClassification
+	Err            error
+}
+
+// FailoverSummaryError aggregates every exhausted candidate attempt.
+type FailoverSummaryError struct {
+	Attempts []FailoverAttempt
+}
+
+func (e *FailoverSummaryError) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "all %d failover candidates exhausted:", len(e.Attempts))
+	for i, a := range e.Attempts {
+		fmt.Fprintf(&b, " [%d] %s/%s: %s (%v)", i+1, a.Candidate.Provider, a.Candidate.Model, a.Classification.Reason, a.Err)
+	}
+	return b.String()
+}
 
 // FallbackCandidate is one runtime provider/model fallback option.
 type FallbackCandidate struct {
@@ -235,11 +267,24 @@ func (p *ModelFallbackProvider) runOrdered(
 			if p.tracker != nil {
 				p.tracker.RecordSuccess(key)
 			}
+			// Reliability layer: healthy completion feeds the success path
+			// (health registry + breaker + metrics), mirroring the direct
+			// adapters.
+			observeSuccess(entry.ProviderName, entry.Model)
 			return resp, nil
 		}
 		if streamErr, ok := err.(noFallbackAfterStreamError); ok {
 			return nil, streamErr.err
 		}
+		// Reliability layer: failed attempt feeds breaker + health + metrics,
+		// and a 429 arms the shared rate-limit coordinator with the parsed
+		// Retry-After so concurrent runs for the same provider:model wait out
+		// the real window instead of storming the provider.
+		observeFailure(entry.ProviderName, entry.Model, err)
+		if isRateLimitedErr(err) {
+			record429Cooldown(entry.ProviderName, entry.Model, rateLimitRetryAfter(err))
+		}
+
 		classification := ClassifyHTTPError(p.classifier, err)
 		attempts = append(attempts, FailoverAttempt{
 			Candidate:      ModelCandidate{Provider: entry.ProviderName, Model: entry.Model, ProfileID: entry.ProviderName + "/" + entry.Model},
@@ -247,7 +292,7 @@ func (p *ModelFallbackProvider) runOrdered(
 			Err:            err,
 		})
 		if p.tracker != nil && classification.Kind == "reason" {
-			p.tracker.RecordFailure(key, classification.Reason)
+			p.tracker.RecordFailureRetryAfter(key, classification.Reason, rateLimitRetryAfter(err))
 		}
 		if classification.Kind == "context_overflow" || classification.Reason == FailoverUnknown {
 			return nil, err

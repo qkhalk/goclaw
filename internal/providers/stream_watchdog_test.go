@@ -479,45 +479,40 @@ func TestChatStreamWatchdogCleanStreamDoesNotFire(t *testing.T) {
 }
 
 // TestFailoverDoesNotFallbackAfterStreamedError verifies the failover settle
-// gate: a candidate outcome that already emitted chunks reports FailoverStreamed
-// and RunWithFailover returns it without trying the second candidate.
+// gate on the production fallback engine: a candidate that already delivered
+// stream chunks before failing settles the run (noFallbackAfterStreamError)
+// and the second candidate is never tried.
 func TestFailoverDoesNotFallbackAfterStreamedError(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key2"},
-		},
-		Classifier: NewDefaultClassifier(),
+	primary := &testFallbackProvider{
+		name:      "wd-stream-primary",
+		model:     "primary-model",
+		streamErr: &HTTPError{Status: 429, Body: "rate limited"},
 	}
+	backup := &testFallbackProvider{name: "wd-stream-backup", model: "backup-model"}
+	provider := NewModelFallbackProvider(FallbackCandidate{
+		ProviderName: "wd-stream-primary",
+		Provider:     primary,
+		Model:        "primary-model",
+	}, []FallbackCandidate{
+		{ProviderName: "wd-stream-backup", Provider: backup, Model: "backup-model"},
+	}, 2, false)
 
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		if callCount == 1 {
-			// First candidate emitted stream chunks then failed mid-stream.
-			return "partial", &FailoverStreamed{}
-		}
-		return "fallback-output", nil
-	}
-
-	result, attempts, err := RunWithFailover(ctx, cfg, runFn)
-
+	var chunks int
+	_, err := provider.ChatStream(context.Background(), ChatRequest{}, func(StreamChunk) {
+		chunks++
+	})
 	if err == nil {
 		t.Fatal("expected the streamed error to settle the run")
 	}
-	var streamedErr *FailoverStreamed
-	if !errors.As(err, &streamedErr) {
-		t.Fatalf("err type = %T, want *FailoverStreamed", err)
+	var httpErr *HTTPError
+	if !errors.As(err, &httpErr) || httpErr.Status != 429 {
+		t.Fatalf("err = %v, want the primary's original stream error", err)
 	}
-	if result != "partial" {
-		t.Errorf("result = %q, want partial from the first candidate", result)
+	if chunks != 1 {
+		t.Errorf("chunks = %d, want 1 (partial output escaped once)", chunks)
 	}
-	if callCount != 1 {
-		t.Errorf("calls = %d, want 1 (no fallback after streamed chunk)", callCount)
-	}
-	if len(attempts) != 0 {
-		t.Errorf("attempts = %d, want 0 (streamed errors are not classified)", len(attempts))
+	if backup.calls != 0 {
+		t.Errorf("backup calls = %d, want 0 (no fallback after streamed chunk)", backup.calls)
 	}
 }
 
@@ -525,32 +520,28 @@ func TestFailoverDoesNotFallbackAfterStreamedError(t *testing.T) {
 // path still rotates: an error without any emitted chunk falls through to the
 // next candidate as before.
 func TestFailoverErrorBeforeEmitStillFallsBack(t *testing.T) {
-	ctx := context.Background()
-	cfg := FailoverConfig{
-		Candidates: []ModelCandidate{
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key1"},
-			{Provider: "openai", Model: "gpt-4o", ProfileID: "key2"},
-		},
-		Classifier: NewDefaultClassifier(),
+	primary := &testFallbackProvider{
+		name:  "wd-preemit-primary",
+		model: "primary-model",
+		err:   &HTTPError{Status: 429, Body: "rate limited"},
 	}
+	backup := &testFallbackProvider{name: "wd-preemit-backup", model: "backup-model"}
+	provider := NewModelFallbackProvider(FallbackCandidate{
+		ProviderName: "wd-preemit-primary",
+		Provider:     primary,
+		Model:        "primary-model",
+	}, []FallbackCandidate{
+		{ProviderName: "wd-preemit-backup", Provider: backup, Model: "backup-model"},
+	}, 2, false)
 
-	callCount := 0
-	runFn := func(ctx context.Context, candidate ModelCandidate) (string, error) {
-		callCount++
-		if callCount == 1 {
-			return "", &HTTPError{Status: 429, Body: "rate limited"}
-		}
-		return "success", nil
-	}
-
-	result, _, err := RunWithFailover(ctx, cfg, runFn)
+	resp, err := provider.Chat(context.Background(), ChatRequest{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != "success" {
-		t.Errorf("result = %q, want success", result)
+	if resp.Content != "backup-model" {
+		t.Errorf("result = %q, want success on the backup model", resp.Content)
 	}
-	if callCount != 2 {
-		t.Errorf("calls = %d, want 2 (pre-output error still rotates)", callCount)
+	if primary.calls != 1 || backup.calls != 1 {
+		t.Fatalf("calls primary=%d backup=%d, want 1/1 (pre-output error still rotates)", primary.calls, backup.calls)
 	}
 }
