@@ -31,12 +31,33 @@ const (
 	KindArchitect CommandKind = "architect"
 	KindUIUX      CommandKind = "uiux"
 	KindMission   CommandKind = "mission"
+
+	// Control-plane kinds: answered with canned replies by the dispatcher's
+	// optional ResolveControl contract — no skill run, no direct state
+	// mutation from chat (WS-F Wave 1).
+	KindStatus  CommandKind = "status"
+	KindRuns    CommandKind = "runs"
+	KindDoctor  CommandKind = "doctor"
+	KindApprove CommandKind = "approve"
 )
 
 // knownKinds lists the recognized command kinds in a stable order.
 var knownKinds = []CommandKind{
 	KindPlan, KindFix, KindCook, KindReview,
 	KindTest, KindDebug, KindDocs, KindArchitect, KindUIUX, KindMission,
+	KindStatus, KindRuns, KindDoctor, KindApprove,
+}
+
+// controlPlaneKinds is the set of kinds answered by the dispatcher without a
+// skill run. Kept separate from knownKinds membership so tests can pin both.
+var controlPlaneKinds = map[CommandKind]struct{}{
+	KindStatus: {}, KindRuns: {}, KindDoctor: {}, KindApprove: {},
+}
+
+// IsControlPlane reports whether k is a control-plane command kind.
+func (k CommandKind) IsControlPlane() bool {
+	_, ok := controlPlaneKinds[k]
+	return ok
 }
 
 // gcFlagSet is the set of flags extracted from the input. Flags are surfaced
