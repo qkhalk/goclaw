@@ -31,6 +31,12 @@ type Runtime struct {
 	// pipeline's recovery policy engine. Zero value keeps the engine active
 	// with its built-in defaults.
 	Recovery RecoveryOptions
+
+	// CompletionVerifierMode carries the run-completion verifier terminal-gate
+	// mode ("advisory" | "recover" | "hard") plumbed from config at gateway
+	// startup via SetCompletionVerifier. Empty string = advisory (record-only,
+	// default behavior); consumers clamp via config.EffectiveVerifierModeOf.
+	CompletionVerifierMode string
 }
 
 // PrematureCompletionOptions configures the premature-completion gate that
@@ -176,6 +182,28 @@ func (r *Runtime) SetRecovery(opts RecoveryOptions) {
 		Stream:              r.Stream,
 		PrematureCompletion: r.PrematureCompletion,
 		Recovery:            opts,
+	}
+
+	mu.Lock()
+	curRuntime = next
+	mu.Unlock()
+}
+
+// SetCompletionVerifier atomically swaps the completion-verifier gate mode on
+// the current bundle. Consumers read it via
+// reliability.Default().CompletionVerifierMode; an empty value keeps advisory
+// (record-only) semantics. Mirrors the SetPrematureCompletion bundle-swap
+// pattern so Default() readers observe one consistent snapshot.
+func (r *Runtime) SetCompletionVerifier(mode string) {
+	next := &Runtime{
+		Breaker:                r.Breaker,
+		Health:                 r.Health,
+		RateLimit:              r.RateLimit,
+		Metrics:                r.Metrics,
+		Stream:                 r.Stream,
+		PrematureCompletion:    r.PrematureCompletion,
+		Recovery:               r.Recovery,
+		CompletionVerifierMode: mode,
 	}
 
 	mu.Lock()

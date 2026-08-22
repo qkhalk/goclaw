@@ -302,6 +302,11 @@ func runGateway() {
 		MaxRetryCount: recCfg.MaxRetryCount,
 		MaxRetryTime:  time.Duration(recCfg.MaxRetryTimeMs) * time.Millisecond,
 	})
+
+	// Completion-verifier terminal-gate mode (WS-E): the agent loop reads this
+	// via reliability.Default().CompletionVerifierMode (clamped by
+	// config.EffectiveVerifierModeOf). Empty/unset = advisory (record-only).
+	reliability.Default().SetCompletionVerifier(cfg.Reliability.EffectiveVerifierMode())
 	slog.Debug("reliability singleton configured",
 		"failure_threshold", relOpts.FailureThreshold,
 		"degraded_threshold", relOpts.DegradedThreshold,
