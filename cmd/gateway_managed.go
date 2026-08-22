@@ -207,6 +207,15 @@ func wireExtras(
 		sharedHookHandlers = handlers
 		slog.Info("agent hooks dispatcher wired", "handlers", "command,http,prompt")
 	}
+	// D1/D2 run-level watchdog: classifies live runs (stalled / looping /
+	// recovering-stuck) from the agent event stream and escalates through the
+	// recovery ladder (checkpoint → nudge → strategy-switch → fallback →
+	// safe-fail abort). Sweep runs on the heartbeat cadence in
+	// startCronAndHeartbeat; Observe hooks into the resolver's OnEvent fan-out.
+	var runWatchdog *agent.Watchdog
+	if agentRouter != nil {
+		runWatchdog = agent.NewWatchdog(agentRouter, agent.WatchdogConfig{})
+	}
 	timelineRecorder := agent.NewRunTimelineRecorder(stores.RunTimeline)
 	// Reconcile runs left mid-execution by a previous gateway stop. A run whose
 	// process was killed never emits its terminal run.status, so it would show as
@@ -218,6 +227,15 @@ func wireExtras(
 		} else if n > 0 {
 			slog.Info("run timeline: marked interrupted runs as failed on startup", "count", n)
 		}
+	}
+
+	// D4 — optional auto-resume of runs left paused by a previous process.
+	// Strictly opt-in via runtime.auto_resume_interrupted (default false) so a
+	// routine deploy never resurrects old work silently. Reuses the same
+	// resumer the WS runs.resume RPC path uses (makeRunResumer → Loop.ResumeRun)
+	// read-only; bounded to 2 concurrent resumes so startup is not flooded.
+	if appCfg.Runtime.AutoResumeInterrupted && stores.Runs != nil && agentRouter != nil {
+		go autoResumePausedRuns(stores.Runs, makeRunResumer(agentRouter, stores.Runs))
 	}
 
 	// /gc: command dispatcher (Workstream A's executor) wired into the agent
@@ -304,6 +322,12 @@ func wireExtras(
 			}
 		},
 		OnEvent: func(event agent.AgentEvent) {
+			// Feed the D1 classifier first — it reads only event identity,
+			// never payload content, and must see terminal events even when
+			// delivery-side signing fails.
+			if runWatchdog != nil {
+				runWatchdog.Observe(event, time.Now())
+			}
 			// Sign /v1/files/ and /v1/media/ URLs in content before delivery.
 			// Sessions store clean paths; signing happens only at delivery time.
 			secret := httpapi.FileSigningKey()
@@ -681,6 +705,7 @@ func wireExtras(
 			stores.Runs,
 			appCfg.Reliability.Runs.EffectiveStaleAfter(),
 			appCfg.Reliability.Runs.EffectiveSweepInterval(),
+			runWatchdog, // D2 ladder escalation on the heartbeat cadence
 		)
 	}
 
