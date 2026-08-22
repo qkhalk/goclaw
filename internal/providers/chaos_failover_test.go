@@ -123,7 +123,7 @@ func TestFailover_HTTP_StreamedChunk_DoesNotFallback(t *testing.T) {
 
 	provider := newChaosFallbackProvider(t, server.URL(), 2)
 	var chunks int
-	resp, err := provider.ChatStream(context.Background(), ChatRequest{Model: "gpt-4o"}, func(StreamChunk) {
+	_, err := provider.ChatStream(context.Background(), ChatRequest{Model: "gpt-4o"}, func(StreamChunk) {
 		chunks++
 	})
 
