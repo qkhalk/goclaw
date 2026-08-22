@@ -90,7 +90,8 @@ func (s Severity) String() string {
 
 // ReliabilityError is the canonical runtime error. It carries everything a
 // consumer needs: a stable code, retryability, severity, optional Retry-After
-// hint, and run context (runID/stage/attempt) populated as it travels up.
+// hint, and run context (runID/sessionKey/stage/attempt) populated as it
+// travels up.
 type ReliabilityError struct {
 	Code       ErrorCode
 	Message    string
@@ -99,9 +100,10 @@ type ReliabilityError struct {
 	Cause      error
 	RetryAfter time.Duration // >0 when Code is a rate_limit and the provider sent Retry-After
 
-	RunID   string
-	Stage   string
-	Attempt int
+	RunID      string
+	SessionKey string
+	Stage      string
+	Attempt    int
 }
 
 func (e *ReliabilityError) Error() string {
@@ -126,10 +128,20 @@ func (e *ReliabilityError) Unwrap() error { return e.Cause }
 func (e *ReliabilityError) IsRetryable() bool { return e.Retryable }
 
 // WithRunContext attaches run identity to the error and returns it for chaining.
+// sessionKey may be empty when the caller has no session context; use
+// WithRunSession to attach it separately.
 func (e *ReliabilityError) WithRunContext(runID, stage string, attempt int) *ReliabilityError {
 	e.RunID = runID
 	e.Stage = stage
 	e.Attempt = attempt
+	return e
+}
+
+// WithRunSession attaches the owning session key to the run context. Split from
+// WithRunContext so existing callers keep compiling and richer call sites can
+// populate both identifiers.
+func (e *ReliabilityError) WithRunSession(sessionKey string) *ReliabilityError {
+	e.SessionKey = sessionKey
 	return e
 }
 
