@@ -109,32 +109,24 @@ func TestFailover_HTTP_5xxSeries_Rotates(t *testing.T) {
 }
 
 // TestFailover_HTTP_StreamedChunk_DoesNotFallback drives the real HTTP SSE
-// read path: the primary emits one content delta (flushed), then goes silent
-// forever — no [DONE]. The test cancels the request context while the client
-// is blocked in the post-chunk read, so OpenAIProvider.ChatStream surfaces a
-// stream read error AFTER output escaped. runOrdered must wrap it in
-// noFallbackAfterStreamError and settle the run without calling the backup.
+// read path: the primary emits one content delta, then the server closes the
+// connection WITHOUT [DONE] (SSEDone=false + CloseAfterFrames). The scanner
+// sees an abrupt EOF after a frame already escaped through onChunk, so
+// OpenAIProvider.ChatStream returns a stream read error with partial content.
+// runOrdered must wrap it in noFallbackAfterStreamError and settle the run
+// without ever calling the backup. A 429-style retry would be wrong here:
+// replaying through another candidate would duplicate emitted output.
 func TestFailover_HTTP_StreamedChunk_DoesNotFallback(t *testing.T) {
-	closeCh := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		flusher := w.(http.Flusher)
-		flusher.Flush()
-		// One escaped content delta in the exact wire format openai_chat.go
-		// parses (choices[].delta.content), then hang until cleanup.
-		fmt.Fprint(w, `data: {"choices":[{"index":0,"delta":{"content":"partial answer"},"finish_reason":""}]}`+"\n\n")
-		flusher.Flush()
-		<-closeCh
-	}))
-	t.Cleanup(func() { close(closeCh); server.Close() })
+	server := newFakeLLMServerEmpty(t)
+	server.script(responseStep{
+		Status:           http.StatusOK,
+		SSEFrames:        []sseFrame{server.openAITextDelta("partial answer")},
+		CloseAfterFrames: true,
+	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(300*time.Millisecond, cancel) // cancel during the silent read
-
-	provider := newChaosFallbackProvider(t, server.URL, 2)
+	provider := newChaosFallbackProvider(t, server.URL(), 2)
 	var chunks int
-	resp, err := provider.ChatStream(ctx, ChatRequest{Model: "gpt-4o"}, func(StreamChunk) {
+	resp, err := provider.ChatStream(context.Background(), ChatRequest{Model: "gpt-4o"}, func(StreamChunk) {
 		chunks++
 	})
 
