@@ -189,13 +189,13 @@ var recoveryPolicies = map[reliability.ErrorCode]RecoveryPolicy{
 	},
 
 	// --- Runtime / verification classes -----------------------------------
-	reliability.ErrRunCancelled:         {Retryable: false},
-	reliability.ErrRunDeadline:          {Retryable: false},
-	reliability.ErrRunStalled:           {Retryable: true, MaxAttempts: 2, StrategySwitch: true},
-	reliability.ErrRunRecoveryFailed:    {Retryable: false},
+	reliability.ErrRunCancelled:      {Retryable: false},
+	reliability.ErrRunDeadline:       {Retryable: false},
+	reliability.ErrRunStalled:        {Retryable: true, MaxAttempts: 2, StrategySwitch: true},
+	reliability.ErrRunRecoveryFailed: {Retryable: false},
 	// Verification failures recover by CONTINUING the conversation (asking the
 	// model to finish), NOT by re-sending the request to the provider.
-	reliability.ErrModelLowSignal:       {Retryable: true, MaxAttempts: 1, StrategySwitch: true},
+	reliability.ErrModelLowSignal: {Retryable: true, MaxAttempts: 1, StrategySwitch: true},
 }
 
 // PolicyFor returns the recovery policy for an error code. Unknown codes get
@@ -404,13 +404,18 @@ func NewRecoveryEngine(cfgMaxAttempts, cfgMaxTimeMs int) *RecoveryEngine {
 // Budget exposes the underlying budget for gateway wiring and assertions.
 func (e *RecoveryEngine) Budget() *RecoveryBudget { return e.budget }
 
-// Reset clears per-run state (called by ThinkStage on a successful response so
-// a healthy iteration resets consecutive-class pressure like TruncRetries=0).
-func (e *RecoveryEngine) Reset() {
+// resetClasses clears per-class consecutive-attempt pressure for the given
+// codes without touching the global budget. ThinkStage mirrors its legacy
+// counters on a healthy response: truncation and overflow pressure reset,
+// empty-reply pressure deliberately PERSISTS (maxEmptyReplyRetries bounds
+// nudges per RUN, not consecutive ones).
+func (e *RecoveryEngine) resetClasses(codes ...reliability.ErrorCode) {
 	if e == nil {
 		return
 	}
-	e.classAttempts = make(map[reliability.ErrorCode]int)
+	for _, c := range codes {
+		delete(e.classAttempts, c)
+	}
 }
 
 // Evaluate classifies a failure code, consults the policy + both budgets, and

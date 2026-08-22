@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -30,11 +31,37 @@ const emptyReplyHint = "[System] Your response was empty. Give the user your fin
 type ThinkStage struct {
 	deps   *PipelineDeps
 	result StageResult
+	// recovery is the WS-C recovery engine instance for the current run.
+	// Lazily built on first Execute so tests can construct stages directly;
+	// per-run lifetime matches NewDefaultPipeline (one stage set per run).
+	// A pipeline resume constructs a fresh stage — and thus a fresh global
+	// budget — which restarts recovery spend; acceptable because resume also
+	// restarts the legacy counters today.
+	recovery *RecoveryEngine
 }
 
 // NewThinkStage creates a ThinkStage.
 func NewThinkStage(deps *PipelineDeps) *ThinkStage {
 	return &ThinkStage{deps: deps, result: Continue}
+}
+
+// recoveryEngine lazily resolves the run's RecoveryEngine from the reliability
+// runtime (reliability.recovery budget, published by gateway wiring via
+// SetRecovery). Zero-valued options resolve to production defaults
+// (8 attempts / 5 minutes). Nil-safe: no reliability runtime → default budget.
+func (s *ThinkStage) recoveryEngine() *RecoveryEngine {
+	if s.recovery != nil {
+		return s.recovery
+	}
+	maxAttempts, maxTimeMs := DefaultRecoveryMaxRetryCount, int(DefaultRecoveryMaxRetryTime/time.Millisecond)
+	if r := reliability.Default(); r != nil && r.Recovery.MaxRetryCount > 0 {
+		maxAttempts = r.Recovery.MaxRetryCount
+	}
+	if r := reliability.Default(); r != nil && r.Recovery.MaxRetryTime > 0 {
+		maxTimeMs = int(r.Recovery.MaxRetryTime / time.Millisecond)
+	}
+	s.recovery = NewRecoveryEngine(maxAttempts, maxTimeMs)
+	return s.recovery
 }
 
 func (s *ThinkStage) Name() string        { return "think" }
@@ -112,7 +139,7 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 		// Issue 958: Check for context overflow — attempt emergency compaction + retry
 		if isContextOverflowErr(err) {
 			if state.Think.OverflowRetries > 0 {
-				return fmt.Errorf("context overflow after compaction: %w", err)
+				return s.runFailure(state, reliability.ErrProviderContextOverflow, "context overflow after compaction", err)
 			}
 			if s.tryEmergencyCompaction(ctx, state, "context_overflow_error") {
 				// Same stale-response hazard as the budget path: no response was
@@ -121,7 +148,7 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 				return nil // Retry this iteration (Continue result)
 			}
 		}
-		return fmt.Errorf("llm call: %w", err)
+		return s.runFailure(state, classifyTransportError(err), "llm call", err)
 	}
 
 	// 5. Accumulate usage across turns and retain the usage snapshot for the
@@ -143,7 +170,7 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 
 	if isEmptyLengthResponse(resp) {
 		if state.Think.OverflowRetries > 0 {
-			return fmt.Errorf("llm response truncated before content after compaction")
+			return s.runFailure(state, reliability.ErrModelEmptyOutput, "llm response truncated before content after compaction", nil)
 		}
 		if s.tryEmergencyCompaction(ctx, state, "empty_length_response") {
 			// LastResponse has NOT yet been updated to this empty response, so it
@@ -152,7 +179,7 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 			state.Think.LastResponse = nil
 			return nil // Retry next iteration with compacted history.
 		}
-		return fmt.Errorf("llm response truncated before content")
+		return s.runFailure(state, reliability.ErrModelEmptyOutput, "llm response truncated before content", nil)
 	}
 
 	state.Think.LastResponse = resp
@@ -168,7 +195,15 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 	parseErr := !truncated && toolCallsHaveParseErrors(resp.ToolCalls)
 	if truncated || parseErr {
 		state.Think.TruncRetries++
-		if state.Think.TruncRetries >= maxTruncRetries {
+		code := reliability.ErrModelMalformedToolCall
+		if parseErr {
+			code = reliability.ErrModelInvalidJSON
+		}
+		// Single consumption point: Evaluate grants or denies this retry from
+		// both budgets. Class cap (3) mirrors maxTruncRetries, so with default
+		// config the two conditions agree exactly; the global run budget can
+		// only deny EARLIER when other classes already consumed it (C3).
+		if state.Think.TruncRetries >= maxTruncRetries || s.recoveryEngine().Evaluate(code, 0).Action == RecoveryGiveUp {
 			s.result = AbortRun
 			return nil
 		}
@@ -182,6 +217,10 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 	}
 	state.Think.TruncRetries = 0    // reset on success
 	state.Think.OverflowRetries = 0 // reset on success
+	// Mirror the legacy resets in the recovery engine: truncation/overflow
+	// pressure is consecutive-attempt scoped. EmptyReplyRetries deliberately
+	// persists (per-RUN bound), so its class is NOT reset here.
+	s.recoveryEngine().resetClasses(reliability.ErrModelMalformedToolCall, reliability.ErrModelInvalidJSON, reliability.ErrProviderContextOverflow)
 
 	// 7. Uniquify tool call IDs (OpenAI returns 400 on duplicates across iterations).
 	// Skip if raw content present (Anthropic thinking passback) to avoid desync.
@@ -202,8 +241,14 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 		// would never be answered and would pollute persisted history.
 		maxIter := s.deps.Config.MaxIterations
 		emptyFinal := strings.TrimSpace(resp.Content) == "" && !s.hasDeliverableOutput(state)
+		if emptyFinal {
+			// C5: classify the weak response so reliability health/metrics see
+			// empty vs low-signal ("...", "done") distinctly.
+			s.classifyWeakFinal(state, resp)
+		}
 		if emptyFinal &&
 			state.Think.EmptyReplyRetries < maxEmptyReplyRetries &&
+			s.recoveryEngine().Authorize(reliability.ErrModelEmptyOutput) && // global budget gate; class cap mirrors maxEmptyReplyRetries
 			state.Iteration+1 < maxIter {
 			state.Think.EmptyReplyRetries++
 			state.Messages.AppendPending(providers.Message{Role: "user", Content: emptyReplyHint, Transient: true})
@@ -332,6 +377,15 @@ func (s *ThinkStage) emitBudgetExceeded(state *RunState, estimate FinalRequestEs
 }
 
 func (s *ThinkStage) tryEmergencyCompaction(ctx context.Context, state *RunState, reason string) bool {
+	// Global recovery budget gate (C3): compaction is a recovery action and
+	// consumes budget even when the legacy counter would still allow it.
+	if !s.recoveryEngine().Authorize(reliability.ErrProviderContextOverflow) {
+		slog.Warn("recovery.budget_denied",
+			"run_id", state.RunID,
+			"action", "emergency_compaction",
+			"reason", reason)
+		return false
+	}
 	state.Think.OverflowRetries++
 	if s.deps.CompactMessages == nil {
 		return false
@@ -534,6 +588,13 @@ func (s *ThinkStage) hasDeliverableOutput(state *RunState) bool {
 // OverflowRetries so a stuck request eventually aborts. Returns true when some
 // reduction was applied and the iteration should retry.
 func (s *ThinkStage) reduceForBudgetExceeded(ctx context.Context, state *RunState) bool {
+	// Global recovery budget gate (C3): reduction is a recovery action.
+	if !s.recoveryEngine().Authorize(reliability.ErrProviderContextOverflow) {
+		slog.Warn("recovery.budget_denied",
+			"run_id", state.RunID,
+			"action", "budget_reduction")
+		return false
+	}
 	state.Think.OverflowRetries++
 
 	// Rebuild the estimate against current messages so pruning targets the
@@ -564,4 +625,77 @@ func (s *ThinkStage) reduceForBudgetExceeded(ctx context.Context, state *RunStat
 		}
 	}
 	return false
+}
+
+// runFailure wraps a stage failure in the canonical reliability classification
+// with full run context (C4): RunID/SessionKey/Stage/Attempt ride on every
+// ReliabilityError leaving ThinkStage so upstream handlers (retry loops,
+// telemetry, session resume) can correlate without re-deriving them.
+// cause may be nil for condition-only failures (e.g. truncated-before-content).
+func (s *ThinkStage) runFailure(state *RunState, code reliability.ErrorCode, msg string, cause error) error {
+	e := &reliability.ReliabilityError{
+		Code:      code,
+		Message:   msg,
+		Retryable: PolicyFor(code).Retryable,
+		Severity:  reliability.SeverityError,
+		Cause:     cause,
+		RunID:     state.RunID,
+		Stage:     "think",
+		Attempt:   state.Iteration,
+	}
+	if state.Input != nil {
+		e.SessionKey = state.Input.SessionKey
+	}
+	return fmt.Errorf("%s: %w", msg, e)
+}
+
+// classifyTransportError maps an unclassified provider transport failure onto
+// the taxonomy by message shape. ReliabilityError-carrying errors pass through
+// with their original code; string-matching is the fallback for plain errors
+// from callbacks that predate the reliability layer (mirrors
+// providers.ClassifyHTTPStatus granularity at the message level).
+func classifyTransportError(err error) reliability.ErrorCode {
+	var re *reliability.ReliabilityError
+	if errors.As(err, &re) {
+		return re.Code
+	}
+	switch {
+	case isContextOverflowErr(err):
+		return reliability.ErrProviderContextOverflow
+	case isRequestBudgetExceededErr(err):
+		return reliability.ErrProviderContextOverflow
+	case err != nil && strings.Contains(err.Error(), "context deadline exceeded"):
+		return reliability.ErrProviderTimeout
+	case err != nil && strings.Contains(err.Error(), "connection refused"):
+		return reliability.ErrProviderConnection
+	default:
+		return reliability.ErrProviderInvalidResponse
+	}
+}
+
+// classifyWeakFinal observes a weak final answer through the reliability
+// health layer (C5). Truly-empty replies are NOT re-observed here —
+// observeEmptyOutput owns that counter on the exhausted path to keep counts 1:1
+// with the legacy wire test. This function covers the remaining weak classes:
+// low-signal filler text ("...", "done") that legacy code delivered silently.
+func (s *ThinkStage) classifyWeakFinal(state *RunState, resp *providers.ChatResponse) {
+	if !isLowSignalReply(resp.Content) || strings.TrimSpace(resp.Content) == "" {
+		return // empty handled by observeEmptyOutput; non-weak content ignored
+	}
+	code := ClassifyWeakResponse(&weakResponseView{LowSignalText: true})
+	if code == "" {
+		return
+	}
+	if r := reliability.Default(); r != nil {
+		provider, model := "unknown", "unknown"
+		if state.Provider != nil {
+			provider = state.Provider.Name()
+		}
+		if state.Model != "" {
+			model = state.Model
+		}
+		if r.Health != nil {
+			r.Health.ObserveFailure(provider, model, code)
+		}
+	}
 }
