@@ -26,12 +26,29 @@ type Runtime struct {
 	// configuration consumed by the pipeline's continuation gate. Disabled by
 	// default (zero value) so the gate is off unless the operator enables it.
 	PrematureCompletion PrematureCompletionOptions
+
+	// Recovery carries the global recovery-engine budget consumed by the
+	// pipeline's recovery policy engine. Zero value keeps the engine active
+	// with its built-in defaults.
+	Recovery RecoveryOptions
 }
 
 // PrematureCompletionOptions configures the premature-completion gate that
 // runs after the think stage. A zero value keeps the gate disabled.
 type PrematureCompletionOptions struct {
 	Enabled bool
+}
+
+// RecoveryOptions carries the global recovery-engine budget consumed by the
+// pipeline's recovery policy engine (internal/pipeline recover.go). Zero values
+// keep the engine active with the production defaults (8 attempts / 5m).
+type RecoveryOptions struct {
+	// MaxRetryCount caps total recovery attempts (LLM re-asks, repairs,
+	// compactions) per run. <=0 means the engine falls back to its default.
+	MaxRetryCount int
+	// MaxRetryTime caps wall-clock time spent recovering per run. <=0 means
+	// the engine falls back to its default.
+	MaxRetryTime time.Duration
 }
 
 // StreamOptions are the streaming watchdog timeouts enforced by provider
@@ -138,6 +155,27 @@ func (r *Runtime) SetPrematureCompletion(opts PrematureCompletionOptions) {
 		Metrics:             r.Metrics,
 		Stream:              r.Stream,
 		PrematureCompletion: opts,
+	}
+
+	mu.Lock()
+	curRuntime = next
+	mu.Unlock()
+}
+
+// SetRecovery atomically swaps the recovery-engine budget on the current
+// bundle. Consumers read the budget via reliability.Default().Recovery; a zero
+// value keeps the engine active with its built-in defaults. Mirrors the
+// SetPrematureCompletion bundle-swap pattern so Default() readers observe one
+// consistent snapshot.
+func (r *Runtime) SetRecovery(opts RecoveryOptions) {
+	next := &Runtime{
+		Breaker:             r.Breaker,
+		Health:              r.Health,
+		RateLimit:           r.RateLimit,
+		Metrics:             r.Metrics,
+		Stream:              r.Stream,
+		PrematureCompletion: r.PrematureCompletion,
+		Recovery:            opts,
 	}
 
 	mu.Lock()
