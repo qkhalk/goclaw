@@ -293,6 +293,15 @@ func runGateway() {
 	reliability.Default().SetPrematureCompletion(reliability.PrematureCompletionOptions{
 		Enabled: premCfg.Enabled,
 	})
+
+	// Global recovery budget (WS-C): the pipeline's recovery engine reads this
+	// via reliability.Default().Recovery. Zero values keep the engine active
+	// with the production defaults (8 recovery actions / 5 minutes per run).
+	recCfg := cfg.Reliability.Recovery
+	reliability.Default().SetRecovery(reliability.RecoveryOptions{
+		MaxRetryCount: recCfg.MaxRetryCount,
+		MaxRetryTime:  time.Duration(recCfg.MaxRetryTimeMs) * time.Millisecond,
+	})
 	slog.Debug("reliability singleton configured",
 		"failure_threshold", relOpts.FailureThreshold,
 		"degraded_threshold", relOpts.DegradedThreshold,
@@ -303,6 +312,8 @@ func runGateway() {
 		"stream_idle_timeout", streamCfg.EffectiveStreamIdleTimeout().String(),
 		"stream_first_byte_timeout", streamCfg.EffectiveStreamFirstByteTimeout().String(),
 		"premature_completion_enabled", premCfg.Enabled,
+		"recovery_max_retry_count", recCfg.MaxRetryCount,
+		"recovery_max_retry_time_ms", recCfg.MaxRetryTimeMs,
 	)
 
 	// Create core components
