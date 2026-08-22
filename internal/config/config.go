@@ -155,6 +155,20 @@ func (r ReliabilityConfig) EffectiveVerifierMode() string {
 	}
 }
 
+// EffectiveVerifierModeOf clamps a raw completion-verifier mode string to a
+// valid value, defaulting to advisory when unset or invalid. The method form
+// (ReliabilityConfig.EffectiveVerifierMode) reads the configured field; this
+// free form lets consumers holding only a raw string (reliability runtime
+// field, Loop override) resolve with identical semantics.
+func EffectiveVerifierModeOf(mode string) string {
+	switch mode {
+	case VerifierModeRecover, VerifierModeHard:
+		return mode
+	default:
+		return VerifierModeAdvisory
+	}
+}
+
 // AlertingConfig tunes webhook alerting for SLO burn-rate + provider errors.
 type AlertingConfig struct {
 	Enabled            bool   `json:"enabled,omitempty"`
