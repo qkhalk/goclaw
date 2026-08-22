@@ -60,10 +60,12 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipel
 		return nil, err
 	}
 	result := convertRunResult(pResult)
-	// Completion verification (record-only): inspect the finished run state for
-	// L0 (content/deliverable) and L1 (tool-call completion) signals and attach
-	// the outcome to the result so the completed event + trace can surface it.
-	// The verifier never alters the pipeline result or the terminal decision.
+	// Completion verification: inspect the finished run state for L0
+	// (content/deliverable) and L1 (tool-call completion) signals and attach
+	// the outcome to the result so the terminal gate (loop_run.go, mode from
+	// reliability.completion_verifier.mode) can decide. The verifier itself
+	// never alters the pipeline result here — gating happens at the loop's
+	// terminal path so advisory mode stays byte-identical to record-only dev.
 	completion := verifyCompletion(result, state)
 	result.completion = &completion
 	return redactDelegationRunResult(&req, result), nil

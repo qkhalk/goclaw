@@ -145,6 +145,13 @@ func timelineKindForEvent(event AgentEvent) (string, string, bool) {
 	case protocol.AgentEventRunCancelled:
 		return store.RunTimelineItemTypeRunStatus, store.RunTimelineStatusCancelled, true
 	case protocol.AgentEventActivity:
+		// phase "verifying" marks the completion-verifier gate running
+		// (WS-E): surfaces as a verifying run.status item so operators see
+		// the terminal check between the last tool iteration and the final
+		// completed/failed event.
+		if payloadString(event.Payload, "phase") == "verifying" {
+			return store.RunTimelineItemTypeActivity, store.RunTimelineStatusVerifying, true
+		}
 		return store.RunTimelineItemTypeActivity, store.RunTimelineStatusRunning, true
 	case protocol.AgentEventBlockReply:
 		return store.RunTimelineItemTypeAssistantMessage, store.RunTimelineStatusCompleted, true

@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/pipeline"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
@@ -193,7 +196,28 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 				return nil
 			}
 		}
-		result, err := l.runViaPipeline(ctx, req, nil, checkpointWriter)
+		// Completion-verifier terminal gate (WS-E): advisory (default) runs the
+		// pipeline exactly once — byte-identical to dev. recover re-runs it at
+		// most once after an incomplete verdict; hard never re-runs.
+		mode := l.effectiveVerifierMode()
+		verifierContinued := map[string]bool{}
+		var result *RunResult
+		var err error
+		for {
+			result, err = l.runViaPipeline(ctx, req, nil, checkpointWriter)
+			if err != nil {
+				break
+			}
+			c := result.Completion()
+			if c == nil || c.Complete || mode == config.VerifierModeAdvisory {
+				break // pass: complete verdict or record-only advisory mode
+			}
+			decision := l.gateCompletion(mode, req.RunID, c, nil, emitRun, verifierContinued)
+			if decision == verifierContinue {
+				continue // one more full pipeline pass with ContinueAfterFinal set
+			}
+			break // verifierFail falls through to hard semantics below; verifierPass cannot happen for incomplete
+		}
 		// Tracing + events handled below via the same finalize path
 		if err != nil {
 			if agentSpanID != uuid.Nil {
@@ -289,6 +313,30 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 				"missing":    result.Completion().Missing,
 				"reason":     result.Completion().Reason,
 			}
+		}
+		// Terminal gate: in hard semantics (hard mode first pass, recover mode
+		// second pass) an incomplete verdict terminates the run as FAILED with
+		// a localized reason instead of COMPLETED. Advisory keeps today's
+		// unconditional completed path untouched (zero behavioral diff).
+		completion := result.Completion()
+		gateFailed := completion != nil && !completion.Complete && l.gateCompletion(mode, req.RunID, completion, nil, emitRun, verifierContinued) == verifierFail
+		if gateFailed {
+			reason := i18n.T(store.LocaleFromContext(ctx), i18n.MsgVerifierIncomplete, strings.Join(completion.Missing, ", "))
+			emitRun(AgentEvent{Type: protocol.AgentEventVerificationFailed, AgentID: l.id, RunID: req.RunID,
+				Payload: map[string]any{"reason": reason, "missing": completion.Missing}})
+			emitRun(AgentEvent{Type: protocol.AgentEventRunFailed, AgentID: l.id, RunID: req.RunID, Payload: map[string]string{"error": reason}})
+			runRecord.terminal(ctx, store.AgentRunStatusFailed, reason)
+			if !isChildTrace && l.traceCollector != nil && traceID != uuid.Nil {
+				traceFinalized = true
+				l.traceCollector.FinishTrace(ctx, traceID, store.TraceStatusError,
+					tracing.RedactText(ctx, "[completion: "+completion.Reason+"]"), "")
+			}
+			return result, nil
+		}
+		if completion != nil {
+			verdictEvent := protocol.AgentEventVerificationPassed
+			emitRun(AgentEvent{Type: verdictEvent, AgentID: l.id, RunID: req.RunID,
+				Payload: map[string]any{"complete": completion.Complete}})
 		}
 		emitRun(AgentEvent{Type: protocol.AgentEventRunCompleted, AgentID: l.id, RunID: req.RunID, Payload: completedPayload})
 		runRecord.terminal(ctx, store.AgentRunStatusCompleted, "")
@@ -386,7 +434,26 @@ func (l *Loop) ResumeRun(ctx context.Context, runID string) (*RunResult, error) 
 			return nil
 		}
 	}
-	result, err := l.runViaPipeline(ctx, req, state, checkpointWriter)
+	// Completion-verifier terminal gate on resume (parity with Run): hard ⇒
+	// failed instead of completed on an incomplete verdict; recover ⇒ one
+	// continuation pass then re-evaluate. Advisory never re-runs.
+	mode := l.effectiveVerifierMode()
+	verifierContinued := map[string]bool{}
+	var result *RunResult
+	for {
+		result, err = l.runViaPipeline(ctx, req, state, checkpointWriter)
+		if err != nil {
+			break
+		}
+		c := result.Completion()
+		if c == nil || c.Complete || mode == config.VerifierModeAdvisory {
+			break // pass: complete verdict or record-only advisory mode
+		}
+		if l.gateCompletion(mode, runID, c, state, nil, verifierContinued) == verifierContinue {
+			continue // state.Observe.ContinueAfterFinal was set; pipeline consumes it next pass
+		}
+		break
+	}
 	if err != nil {
 		// Finalize the resumed run: a re-failure that still holds a checkpoint
 		// stays resumable (compacting), otherwise it is terminal-failed.
@@ -397,6 +464,19 @@ func (l *Loop) ResumeRun(ctx context.Context, runID string) (*RunResult, error) 
 			resumeRecord.terminal(ctx, store.AgentRunStatusFailed, err.Error())
 		}
 		return nil, err
+	}
+	// Hard semantics on the resumed execution: incomplete verdict after the
+	// gate says fail ⇒ terminal FAILED with a localized reason, not completed.
+	completion := result.Completion()
+	if completion != nil && !completion.Complete &&
+		l.gateCompletion(mode, runID, completion, state, nil, verifierContinued) == verifierFail {
+		reason := i18n.T(store.LocaleFromContext(ctx), i18n.MsgVerifierIncomplete, strings.Join(completion.Missing, ", "))
+		if l.onEvent != nil && runID != "" {
+			l.emit(AgentEvent{Type: protocol.AgentEventVerificationFailed, AgentID: l.id, RunID: runID,
+				Payload: map[string]any{"reason": reason, "missing": completion.Missing}})
+		}
+		resumeRecord.terminal(ctx, store.AgentRunStatusFailed, reason)
+		return result, nil
 	}
 	resumeRecord.terminal(ctx, store.AgentRunStatusCompleted, "")
 	return result, nil

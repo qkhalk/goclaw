@@ -295,6 +295,12 @@ type Loop struct {
 	// LoopConfig.HookDispatcher during startup wiring.
 	hookDispatcher hooks.Dispatcher
 
+	// Completion-verifier terminal-gate mode override ("", "advisory",
+	// "recover", "hard"). Empty = read reliability.Default()
+	// .CompletionVerifierMode (plumbed from config at startup). Set from
+	// LoopConfig.VerifierMode; tests set it directly for mode parity checks.
+	verifierMode string
+
 	// Tool-call repair state (see toolcall_repair.go). repairCacheSet is the
 	// LRU of per (toolName, schemaHash) repair decisions; repairMu guards it.
 	// Lazily initialized on first repair; zero value is safe (repair simply
@@ -510,6 +516,11 @@ type LoopConfig struct {
 
 	// User identity resolver for credential lookups (maps channel contacts → tenant users)
 	UserResolver UserIdentityResolver
+
+	// VerifierMode overrides the completion-verifier terminal-gate mode
+	// ("advisory" | "recover" | "hard"). Empty = follow
+	// reliability.completion_verifier.mode via the reliability runtime.
+	VerifierMode string
 }
 
 const defaultMaxTokens = config.DefaultMaxTokens
@@ -573,6 +584,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		contextWindow:          cfg.ContextWindow,
 		maxTokens:              cfg.MaxTokens,
 		maxIterations:          cfg.MaxIterations,
+		verifierMode:           cfg.VerifierMode,
 		maxToolCalls:           cfg.MaxToolCalls,
 		workspace:              cfg.Workspace,
 		dataDir:                cfg.DataDir,
