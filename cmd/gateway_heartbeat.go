@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,11 +23,37 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
+// watchdogSweeper is the slice of the run-level watchdog the heartbeat needs:
+// classify live runs and escalate the recovery ladder. Optional so tests and
+// lite builds can run the sweep without a router.
+type watchdogSweeper interface {
+	Sweep(ctx context.Context, now time.Time) int
+}
+
+// autoResumeConcurrency bounds parallel Loop.ResumeRun calls during D4
+// startup auto-resume so a backlog of paused runs cannot flood the scheduler.
+const autoResumeConcurrency = 2
+
+// pausedRunLister is the optional store capability the reconciler prefers over
+// mark-failed: runs holding a durable checkpoint can pause instead of die.
+// Declared as an interface assertion (not an edit to RunsStore) so it compiles
+// against any backend that has not grown the query yet; nil capability ⇒ the
+// legacy terminal-fail path is used for every stale run.
+type pausedRunLister interface {
+	ListPausedRunsWithCheckpoint(ctx context.Context, limit int) ([]string, error)
+}
+
+// resumeFn resumes one interrupted run by ID (makeRunResumer shape).
+type resumeFn func(ctx context.Context, runID string) (*agent.RunResult, error)
+
 // runStaleRunsSweep periodically marks runs whose heartbeat has not advanced
-// within staleAfter as failed (cross-tenant). Runs on the caller's ctx until it
-// is cancelled. Non-fatal per iteration. Negativized zero args fall back to the
-// reliability.runs.* defaults (10s heartbeat → 60s stale → 30s sweep).
-func runStaleRunsSweep(runs store.RunsStore, staleAfter, interval time.Duration) {
+// within staleAfter as failed (cross-tenant), preferring pause-if-checkpoint
+// reconciliation: a stale run whose record carries a checkpoint is transitioned
+// to "paused" (resumable) instead of terminal-failed. When a watchdog is
+// supplied its per-cycle ladder escalation runs on the same cadence. Non-fatal
+// per iteration. Negativized zero args fall back to the reliability.runs.*
+// defaults (10s heartbeat → 60s stale → 30s sweep).
+func runStaleRunsSweep(runs store.RunsStore, staleAfter, interval time.Duration, wd watchdogSweeper) {
 	ctx := context.Background()
 	if staleAfter <= 0 {
 		staleAfter = (time.Duration(config.DefaultRunsStaleAfterMs) * time.Millisecond)
@@ -41,6 +68,13 @@ func runStaleRunsSweep(runs store.RunsStore, staleAfter, interval time.Duration)
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// D3 — pause-preferred reconciliation. Only when the store
+			// exposes the checkpoint-aware listing; otherwise skip straight
+			// to the legacy sweep below.
+			if lister, ok := runs.(pausedRunLister); ok && lister != nil {
+				reconcileStaleWithCheckpoint(ctx, runs, lister)
+			}
+
 			n, err := runs.RecoverStaleRuns(ctx, staleAfter)
 			if err != nil {
 				slog.Warn("runs.stale_sweep_failed", "error", err)
@@ -49,8 +83,87 @@ func runStaleRunsSweep(runs store.RunsStore, staleAfter, interval time.Duration)
 			if n > 0 {
 				slog.Info("runs.stale_sweep_marked_failed", "count", n)
 			}
+
+			// D2 — watchdog ladder on the heartbeat cadence.
+			if wd != nil {
+				if acted := wd.Sweep(ctx, time.Now()); acted > 0 {
+					slog.Warn("run.watchdog_sweep_acted", "count", acted)
+				}
+			}
 		}
 	}
+}
+
+// reconcileStaleWithCheckpoint transitions stale running rows that hold a
+// durable checkpoint to "paused" before RecoverStaleRuns terminal-fails them,
+// preserving resume capability across crashes. Best-effort: errors are logged
+// and never break the sweep loop.
+func reconcileStaleWithCheckpoint(ctx context.Context, runs store.RunsStore, lister pausedRunLister) {
+	const reconcileBatch = 50
+	ids, err := lister.ListPausedRunsWithCheckpoint(ctx, reconcileBatch)
+	if err != nil {
+		slog.Debug("runs.checkpoint_reconcile_unavailable", "error", err)
+		return
+	}
+	for _, id := range ids {
+		if err := runs.UpdateRunStatus(ctx, id, store.RunTimelineStatusPaused); err != nil {
+			slog.Warn("runs.pause_if_checkpoint_failed", "run_id", id, "error", err)
+		} else {
+			slog.Info("runs.paused_with_checkpoint", "run_id", id)
+		}
+	}
+}
+
+// autoResumePausedRuns resumes runs left in "paused" by a previous process,
+// bounded to autoResumeConcurrency goroutines. Runs once per process start
+// (called from the startup reconciliation block); each resume reuses the
+// WS runs.resume path so no resume logic is duplicated. Failures are logged
+// and skipped — a run that cannot resume stays paused and remains visible.
+func autoResumePausedRuns(runs store.RunsStore, resumer resumeFn) {
+	if resumer == nil {
+		return
+	}
+	ctx := context.Background()
+	// Prefer the checkpoint-aware listing when the backend has it; fall back
+	// to the generic status filter otherwise. Both are read-only.
+	var ids []string
+	if lister, ok := runs.(pausedRunLister); ok && lister != nil {
+		got, err := lister.ListPausedRunsWithCheckpoint(ctx, 100)
+		if err != nil {
+			slog.Warn("runs.auto_resume_list_failed", "error", err)
+			return
+		}
+		ids = got
+	} else {
+		rows, err := runs.ListRuns(ctx, store.RunListOpts{Status: store.RunTimelineStatusPaused, Limit: 100})
+		if err != nil {
+			slog.Warn("runs.auto_resume_list_failed", "error", err)
+			return
+		}
+		for _, r := range rows {
+			ids = append(ids, r.RunID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	slog.Info("runs.auto_resume_starting", "count", len(ids))
+	sem := make(chan struct{}, autoResumeConcurrency)
+	var wg sync.WaitGroup
+	for _, id := range ids {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(runID string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if _, err := resumer(ctx, runID); err != nil {
+				slog.Warn("runs.auto_resume_failed", "run_id", runID, "error", err)
+			} else {
+				slog.Info("runs.auto_resumed", "run_id", runID)
+			}
+		}(id)
+	}
+	wg.Wait()
 }
 
 // makeHeartbeatRunFn creates a function that routes a heartbeat run through the scheduler's cron lane.
@@ -102,22 +215,6 @@ func startCronAndHeartbeat(
 		server.BroadcastEvent(*protocol.NewEvent(protocol.EventHeartbeat, event))
 	})
 	heartbeatTicker.Start()
-
-	// Durable run records: periodic stale-run sweep. A run whose heartbeat has
-	// not advanced within staleness is marked failed so it cannot linger as
-	// "running" forever after a crash or hang. Non-fatal; runs on a detached
-	// context so it outlives the request lifecycle.
-	if pgStores.Runs != nil {
-		go runStaleRunsSweep(
-			pgStores.Runs,
-			cfg.Reliability.Runs.EffectiveStaleAfter(),
-			cfg.Reliability.Runs.EffectiveSweepInterval(),
-		)
-	}
-
-	// Wire heartbeat wake function to tool + RPC + cron wakeMode
-	heartbeatTool.SetWakeFn(heartbeatTicker.Wake)
-	heartbeatMethods.SetWakeFn(heartbeatTicker.Wake)
 	heartbeatMethods.SetAgentStore(pgStores.Agents)
 	heartbeatMethods.SetProviderStore(pgStores.Providers)
 	cronHeartbeatWakeFn = func(agentID string) {
