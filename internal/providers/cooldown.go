@@ -86,8 +86,17 @@ func CooldownKey(provider, model string) string {
 
 // RecordFailure records a provider error and enters cooldown with reason-appropriate duration.
 func (t *CooldownTracker) RecordFailure(key string, reason FailoverReason) {
+	t.RecordFailureRetryAfter(key, reason, 0)
+}
+
+// RecordFailureRetryAfter is RecordFailure with an explicit provider Retry-After
+// hint. Callers that parsed a Retry-After from the wire (429 responses) must
+// use this variant so the shared rate-limit coordinator honours the real
+// window instead of its default; the hint only affects the coordinator bridge
+// — the local tracker entry keeps the reason's standard duration.
+func (t *CooldownTracker) RecordFailureRetryAfter(key string, reason FailoverReason, retryAfter time.Duration) {
 	if t.bridgeEnabled() {
-		t.bridgeToRateLimitCoordinator(key, reason)
+		t.bridgeToRateLimitCoordinator(key, reason, retryAfter)
 	}
 	t.recordFailureLocal(key, reason)
 }
@@ -207,8 +216,9 @@ func splitCooldownKey(key string) (string, string) {
 // RateLimitCoordinator so concurrent runs for the same provider:model wait
 // together instead of retry-storming. It only bridges rate-limit failures (and
 // overloaded failures, which providers surface as 429 too); other reasons stay
-// local to this tracker.
-func (t *CooldownTracker) bridgeToRateLimitCoordinator(key string, reason FailoverReason) {
+// local to this tracker. retryAfter forwards the parsed Retry-After hint (0 =
+// absent, the coordinator then applies its own default window).
+func (t *CooldownTracker) bridgeToRateLimitCoordinator(key string, reason FailoverReason, retryAfter time.Duration) {
 	if reason != FailoverRateLimit && reason != FailoverOverloaded {
 		return
 	}
@@ -216,7 +226,7 @@ func (t *CooldownTracker) bridgeToRateLimitCoordinator(key string, reason Failov
 	if prov == "" || model == "" {
 		return
 	}
-	record429Cooldown(prov, model, 0)
+	record429Cooldown(prov, model, retryAfter)
 }
 
 // cleanupLocked removes entries older than stateTTL. Must hold mu.
