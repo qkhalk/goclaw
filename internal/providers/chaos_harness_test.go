@@ -36,6 +36,10 @@ type responseStep struct {
 	SSEFrames   []sseFrame
 	SSEDone     bool          // write data: [DONE] after the frames
 	SSEFrameGap time.Duration // delay between frames (0 = as fast as possible)
+	// CloseAfterFrames closes the client connection immediately after the SSE
+	// frames are flushed instead of returning cleanly — an abrupt EOF
+	// mid-stream even though the response already began (200 + headers).
+	CloseAfterFrames bool
 }
 
 // sseFrame is one SSE `data: {...}` line. Event is optional; when non-empty the
@@ -218,6 +222,24 @@ func (f *fakeLLMServer) fakeLLMServerHandler(w http.ResponseWriter, r *http.Requ
 		if step.SSEDone {
 			fmt.Fprint(w, "data: [DONE]\n\n")
 			flusher.Flush()
+		}
+		if step.CloseAfterFrames {
+			// Abrupt EOF mid-stream: hijack and drop the socket so the client's
+			// next read fails instead of seeing a clean end-of-body.
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				f.t.Error("hijack unsupported for CloseAfterFrames")
+				return
+			}
+			conn, buf, err := hj.Hijack()
+			if err != nil {
+				f.t.Errorf("hijack failed: %v", err)
+				return
+			}
+			if buf != nil {
+				buf.Flush()
+			}
+			conn.Close()
 		}
 		return
 	}
