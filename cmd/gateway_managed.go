@@ -255,6 +255,10 @@ func wireExtras(
 		gcRegistry.Register(gc.KindUIUX, "ui-ux-pro-max")
 		gcRegistry.Register(gc.KindMission, "mission")
 		gcDispatcher = gc.NewExecutor(skillsLoader, gcRegistry)
+		// Control-plane /gc: kinds (status/runs/doctor/approve) are handled by
+		// the executor's CommandDispatcher2 contract with canned replies; no
+		// registry entries — they never resolve to skills.
+		_ = gc.CommandDispatcher2(nil) // compile-time reference; executor implements it
 	}
 
 	resolver := agent.NewManagedResolver(agent.ResolverDeps{
