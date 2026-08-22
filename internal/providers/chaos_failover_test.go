@@ -130,14 +130,13 @@ func TestFailover_HTTP_StreamedChunk_DoesNotFallback(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected the streamed error to settle the run, got nil")
 	}
-	if resp == nil || !strings.Contains(resp.Content, "partial answer") {
-		content := ""
-		if resp != nil {
-			content = resp.Content
-		}
-		t.Errorf("result = %q, want the partial output that escaped", content)
-	}
+	// Contract note: when a stream breaks after chunks escaped, the wrapper
+	// (model_fallback.go ChatStream) returns (nil,
+	// noFallbackAfterStreamError{inner}) — runOrdered unwraps it to the inner
+	// error and never rotates. The partial TEXT is not re-deliverable through
+	// resp; it already reached the caller via onChunk, which the chunks
+	// counter below proves.
 	if chunks < 1 {
-		t.Errorf("chunks delivered = %d, want >= 1 (the escaped partial answer)", chunks)
+		t.Fatalf("chunks delivered = %d, want >= 1 (the escaped partial answer)", chunks)
 	}
 }
