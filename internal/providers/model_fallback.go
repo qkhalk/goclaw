@@ -2,11 +2,43 @@ package providers
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/nextlevelbuilder/goclaw/internal/reliability"
 )
+
+// ModelCandidate identifies one fallback candidate for attempt summaries.
+// Moved here from the removed failover.go — runOrdered still reports
+// attempts with it.
+type ModelCandidate struct {
+	Provider  string
+	Model     string
+	ProfileID string // opaque identifier (never raw API key)
+}
+
+// FailoverAttempt records one tried candidate and its outcome.
+type FailoverAttempt struct {
+	Candidate      ModelCandidate
+	Classification FailoverClassification
+	Err            error
+}
+
+// FailoverSummaryError aggregates every exhausted candidate attempt.
+type FailoverSummaryError struct {
+	Attempts []FailoverAttempt
+}
+
+func (e *FailoverSummaryError) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "all %d failover candidates exhausted:", len(e.Attempts))
+	for i, a := range e.Attempts {
+		fmt.Fprintf(&b, " [%d] %s/%s: %s (%v)", i+1, a.Candidate.Provider, a.Candidate.Model, a.Classification.Reason, a.Err)
+	}
+	return b.String()
+}
 
 // FallbackCandidate is one runtime provider/model fallback option.
 type FallbackCandidate struct {
