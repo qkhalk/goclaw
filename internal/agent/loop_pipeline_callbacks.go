@@ -322,11 +322,28 @@ func countMCPToolDefs(toolDefs []providers.ToolDefinition) int {
 // so we resolve the name to its canonical form before the lookup to avoid a
 // guaranteed miss on every prefixed call.
 func (l *Loop) makeAuthorizeToolCall() func(ctx context.Context, state *pipeline.RunState, tc providers.ToolCall) (bool, string) {
-	return func(_ context.Context, state *pipeline.RunState, tc providers.ToolCall) (bool, string) {
+	return func(ctx context.Context, state *pipeline.RunState, tc providers.ToolCall) (bool, string) {
 		allowed := state.Tool.AllowedTools
 		if allowed == nil {
 			// nil allowlist means no per-iteration restriction (e.g. BuildFilteredTools not wired).
 			return true, ""
+		}
+
+		// Runtime skill tool-permission enforcement: when this run was narrowed
+		// to specific skills (SkillFilter), intersect the policy-filtered
+		// allowlist with the union of those skills' allowed-tools declarations.
+		// Fails closed — an empty expansion denies every tool with an explicit
+		// detail. OptAllowedToolNames propagation (makeCallLLM) intentionally
+		// keeps using the un-narrowed policy-filtered set: the provider flag
+		// mirrors ThinkStage output while this gate enforces the stricter
+		// skill-scoped subset at execution time.
+		narrowed, denyDetail := l.narrowAllowedForSkill(ctx, state)
+		narrowActive := narrowed != nil
+		if narrowActive && len(narrowed) == 0 {
+			return false, "tool not allowed by skill permissions: " + denyDetail
+		}
+		if narrowActive {
+			allowed = narrowed
 		}
 
 		// Resolve to canonical name before allowlist lookup. AllowedTools is keyed
@@ -345,12 +362,101 @@ func (l *Loop) makeAuthorizeToolCall() func(ctx context.Context, state *pipeline
 			if l.toolPolicy != nil && l.toolPolicy.IsDenied(tools.ResolveConcreteRegistry(l.tools), name, l.agentToolPolicy) {
 				return false, "tool not allowed by policy: " + name
 			}
+			if narrowActive {
+				// Lazy activation must not bypass skill-declared permissions either.
+				return false, "tool not allowed by skill permissions: " + name + " (" + denyDetail + ")"
+			}
 			allowed[name] = true
 			return true, ""
 		}
-
+		if narrowActive {
+			return false, "tool not allowed by skill permissions: " + name + " (" + denyDetail + ")"
+		}
 		return false, "tool not allowed by policy: " + name
 	}
+}
+
+// narrowAllowedForSkill computes the skill-scoped execution allowlist for a
+// run narrowed via state.Input.SkillFilter. Each filtered skill's allowed-tools
+// frontmatter (parsed into skills.Info.AllowedTools by the skills loader) is
+// expanded to concrete canonical tool names; the union across filtered skills
+// is intersected with the policy-filtered per-iteration allowlist.
+//
+// Returns (nil, "") when narrowing does not apply — no SkillFilter, no skills
+// loader, or none of the filtered skills declares AllowedTools — leaving the
+// pre-existing authorization behavior completely untouched. When any filtered
+// skill DOES declare AllowedTools, the returned map is authoritative and fails
+// closed: an empty expansion yields an empty map (deny everything), paired
+// with denyDetail describing the scope for the denial message.
+func (l *Loop) narrowAllowedForSkill(ctx context.Context, state *pipeline.RunState) (map[string]bool, string) {
+	if state.Input == nil || len(state.Input.SkillFilter) == 0 || l.skillsLoader == nil {
+		return nil, ""
+	}
+
+	var (
+		declared bool
+		union    []string
+	)
+	for _, slug := range state.Input.SkillFilter {
+		info, ok := l.skillsLoader.GetSkill(ctx, slug)
+		if !ok || info == nil || len(info.AllowedTools) == 0 {
+			continue
+		}
+		declared = true
+		union = append(union, info.AllowedTools...)
+	}
+	if !declared {
+		return nil, ""
+	}
+
+	denyDetail := fmt.Sprintf("run narrowed to skills %q with allowed-tools %q", state.Input.SkillFilter, union)
+
+	narrowed := make(map[string]bool)
+	for _, name := range l.expandSkillToolEntries(union) {
+		if name != "" && state.Tool.AllowedTools[name] {
+			narrowed[name] = true
+		}
+	}
+	return narrowed, denyDetail
+}
+
+// expandSkillToolEntries expands skill allowed-tools entries into canonical
+// registry tool names. Entries with a "group:<name>" prefix and bare builtin
+// group names (fs, runtime, web, memory, …) resolve through the tool
+// registry's groups; every other entry is a canonical tool name, mapped
+// through tools.LegacyToolAliases first (e.g. bash→exec). Unknown groups and
+// unrecognized names contribute nothing, so undeclared capability fails
+// closed at the authorize gate.
+func (l *Loop) expandSkillToolEntries(entries []string) []string {
+	legacy := tools.LegacyToolAliases()
+	registry := tools.ResolveConcreteRegistry(l.tools)
+
+	out := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		name := strings.ToLower(strings.TrimSpace(entry))
+		if name == "" {
+			continue
+		}
+		if groupName, ok := strings.CutPrefix(name, "group:"); ok {
+			if registry != nil {
+				if members, found := registry.GetToolGroup(groupName); found {
+					out = append(out, members...)
+				}
+			}
+			continue
+		}
+		if registry != nil {
+			if members, found := registry.GetToolGroup(name); found {
+				out = append(out, members...)
+				continue
+			}
+		}
+		if canonical, aliased := legacy[name]; aliased {
+			name = canonical
+		}
+		out = append(out, name)
+	}
+	return out
 }
 
 // allowedToolNamesSlice converts a policy-filtered allowed-tool set into a
