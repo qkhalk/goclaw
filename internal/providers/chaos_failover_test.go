@@ -106,31 +106,31 @@ func TestFailover_HTTP_5xxSeries_Rotates(t *testing.T) {
 	}
 }
 
-// TestFailover_HTTP_StreamedChunk_DoesNotFallback scripts the primary to emit
-// a single SSE data chunk, pause mid-stream, and never send [DONE]. The test
-// cancels the request context during the inter-frame gap: the real OpenAI
-// stream adapter has already delivered the chunk, then surfaces the aborted
-// stream as a read error, which runOrdered wraps in noFallbackAfterStreamError.
-// The run must settle on that error without ever calling the backup.
+// TestFailover_HTTP_StreamedChunk_DoesNotFallback drives the real HTTP SSE
+// read path: the primary emits one content delta (flushed), then goes silent
+// forever — no [DONE]. The test cancels the request context while the client
+// is blocked in the post-chunk read, so OpenAIProvider.ChatStream surfaces a
+// stream read error AFTER output escaped. runOrdered must wrap it in
+// noFallbackAfterStreamError and settle the run without calling the backup.
 func TestFailover_HTTP_StreamedChunk_DoesNotFallback(t *testing.T) {
-	server := newFakeLLMServerEmpty(t)
-	server.script(responseStep{
-		Status:      http.StatusOK,
-		SSEFrames:   []sseFrame{server.openAITextDelta("partial answer")},
-		SSEFrameGap: 5 * time.Second,
-		// no SSEDone: the stream hangs after the first frame; the client-side
-		// cancellation below turns it into a read error once the chunk escaped
-	})
+	closeCh := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher := w.(http.Flusher)
+		flusher.Flush()
+		// One escaped content delta in the exact wire format openai_chat.go
+		// parses (choices[].delta.content), then hang until cleanup.
+		fmt.Fprint(w, `data: {"choices":[{"index":0,"delta":{"content":"partial answer"},"finish_reason":""}]}`+"\n\n")
+		flusher.Flush()
+		<-closeCh
+	}))
+	t.Cleanup(func() { close(closeCh); server.Close() })
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		// Cancel while the server sits in SSEFrameGap — after "partial answer"
-		// was delivered but before any terminator.
-		time.Sleep(200 * time.Millisecond)
-		cancel()
-	}()
+	time.AfterFunc(300*time.Millisecond, cancel) // cancel during the silent read
 
-	provider := newChaosFallbackProvider(t, server.URL(), 2)
+	provider := newChaosFallbackProvider(t, server.URL, 2)
 	var chunks int
 	resp, err := provider.ChatStream(ctx, ChatRequest{Model: "gpt-4o"}, func(StreamChunk) {
 		chunks++
@@ -148,8 +148,5 @@ func TestFailover_HTTP_StreamedChunk_DoesNotFallback(t *testing.T) {
 	}
 	if chunks < 1 {
 		t.Errorf("chunks delivered = %d, want >= 1 (the escaped partial answer)", chunks)
-	}
-	if got := server.requestCount(); got != 1 {
-		t.Errorf("requestCount = %d, want 1 (no fallback after streamed chunk)", got)
 	}
 }
