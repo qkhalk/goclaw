@@ -91,12 +91,19 @@ type RunTimelineListOpts struct {
 
 // AgentRunStatus enumerates the durable run-state machine statuses.
 const (
-	AgentRunStatusPending    = "pending"
-	AgentRunStatusRunning    = "running"
-	AgentRunStatusCompacting = "compacting"
-	AgentRunStatusCompleted  = "completed"
-	AgentRunStatusFailed     = "failed"
-	AgentRunStatusCancelled  = "cancelled"
+	AgentRunStatusPending         = "pending"
+	AgentRunStatusRunning         = "running"
+	AgentRunStatusCompacting      = "compacting"
+	AgentRunStatusCompleted       = "completed"
+	AgentRunStatusFailed          = "failed"
+	AgentRunStatusCancelled       = "cancelled"
+	// AgentRunStatusThinking/WaitingTool/WaitingProvider/Verifying are
+	// mid-pipeline phase statuses persisted while a run is actively working.
+	// They are non-terminal; AgentRunTerminal stays false for them.
+	AgentRunStatusThinking        = "thinking"
+	AgentRunStatusWaitingTool     = "waiting_tool"
+	AgentRunStatusWaitingProvider = "waiting_provider"
+	AgentRunStatusVerifying       = "verifying"
 )
 
 // AgentRunTerminal reports whether s is a terminal status.
@@ -113,7 +120,9 @@ func ValidAgentRunStatus(s string) bool {
 	switch s {
 	case AgentRunStatusPending, AgentRunStatusRunning, AgentRunStatusCompacting,
 		AgentRunStatusCompleted, AgentRunStatusFailed, AgentRunStatusCancelled,
-		RunTimelineStatusPaused:
+		RunTimelineStatusPaused,
+		AgentRunStatusThinking, AgentRunStatusWaitingTool,
+		AgentRunStatusWaitingProvider, AgentRunStatusVerifying:
 		return true
 	}
 	return false

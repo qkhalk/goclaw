@@ -60,6 +60,7 @@ type Config struct {
 	Cron      CronConfig      `json:"cron"`
 	Telemetry TelemetryConfig `json:"telemetry"`
 	Tailscale TailscaleConfig `json:"tailscale"`
+	Runtime    RuntimeConfig    `json:"runtime,omitempty"`
 	Reliability ReliabilityConfig `json:"reliability,omitempty"`
 	Bindings  []AgentBinding  `json:"bindings,omitempty"`
 	Hooks     HooksConfig     `json:"hooks"`
@@ -85,6 +86,15 @@ type ReliabilityConfig struct {
 	// Alerts tunes webhook alerting for SLO burn-rate and provider errors. When
 	// disabled, all alerting is a no-op.
 	Alerts AlertingConfig `json:"alerts,omitempty"`
+	// CompletionVerifier tunes the run-completion verifier terminal gate
+	// (internal/agent verifyCompletion). Mode "advisory" (default) records
+	// the verdict without changing run outcomes; "recover" gives an incomplete
+	// run one continuation pass before completing; "hard" blocks COMPLETED
+	// unless the verifier passes.
+	CompletionVerifier CompletionVerifierConfig `json:"completion_verifier,omitempty"`
+	// Recovery bounds the unified weak-model/error recovery engine
+	// (internal/pipeline recover stage). Zero values fall back to defaults.
+	Recovery RecoveryConfig `json:"recovery,omitempty"`
 }
 
 // SLOConfig tunes the config-driven reliability SLO (error budget).
@@ -92,6 +102,57 @@ type SLOConfig struct {
 	Enabled       bool    `json:"enabled,omitempty"`
 	TargetPercent float64 `json:"target_percent,omitempty"` // success-rate target, default 0.99
 	WindowSeconds int     `json:"window_seconds,omitempty"` // rolling window, default 3600
+}
+
+type CompletionVerifierConfig struct {
+	// Mode is one of "advisory" (default), "recover", or "hard".
+	Mode string `json:"mode,omitempty"`
+}
+
+// Verifier mode values for CompletionVerifierConfig.Mode.
+const (
+	VerifierModeAdvisory = "advisory"
+	VerifierModeRecover  = "recover"
+	VerifierModeHard     = "hard"
+)
+
+// RecoveryConfig bounds the unified recovery engine. A zero value keeps the
+// engine active with per-class defaults; explicit values cap total recovery
+// spend per run so weak-model repair loops cannot burn unbounded budget.
+type RecoveryConfig struct {
+	// MaxRetryCount caps total recovery attempts (LLM re-asks, repairs,
+	// fallbacks) per run. Default 8.
+	MaxRetryCount int `json:"max_retry_count,omitempty"`
+	// MaxRetryTimeMs caps wall-clock time spent recovering per run.
+	// Default 300000 (5m).
+	MaxRetryTimeMs int `json:"max_retry_time_ms,omitempty"`
+}
+
+const (
+	DefaultRecoveryMaxRetryCount = 8
+	DefaultRecoveryMaxRetryTimeMs = 300000 // 5m
+
+	DefaultRuntimeAutoResume = false // opt-in auto-resume of interrupted runs after restart
+)
+
+// RuntimeConfig tunes gateway runtime behavior that is not provider
+// reliability specific.
+type RuntimeConfig struct {
+	// AutoResumeInterrupted drives Loop.ResumeRun for runs left paused by a
+	// previous process after startup reconciliation completes. Opt-in
+	// (default false) so routine deploys do not resurrect old work silently.
+	AutoResumeInterrupted bool `json:"auto_resume_interrupted,omitempty"`
+}
+
+// EffectiveVerifierMode returns the completion-verifier mode, defaulting to
+// advisory when unset or invalid so behavior is unchanged out of the box.
+func (r ReliabilityConfig) EffectiveVerifierMode() string {
+	switch r.CompletionVerifier.Mode {
+	case VerifierModeRecover, VerifierModeHard:
+		return r.CompletionVerifier.Mode
+	default:
+		return VerifierModeAdvisory
+	}
 }
 
 // AlertingConfig tunes webhook alerting for SLO burn-rate + provider errors.
