@@ -146,6 +146,7 @@ const (
 	// pkg/protocol/run_events.go.
 	AgentEventRunPaused = "run.paused"
 	AgentEventRunWoken  = "run.woken"
+
 	AgentEventRunRetrying  = "run.retrying"
 	AgentEventToolCall     = "tool.call"
 	AgentEventToolResult   = "tool.result"
@@ -155,6 +156,14 @@ const (
 	AgentEventToolComplete = "tool.completed"
 	AgentEventBlockReply   = "block.reply"
 	AgentEventActivity     = "activity" // agent phase transitions: thinking, tool_exec, compacting
+
+	// Completion-verifier verdict events (terminal gate in internal/agent
+	// loop_run.go). Emitted as agent-stream subtypes next to the run.* events:
+	// verification.passed when the verifier accepts the finished run;
+	// verification.failed with a localized reason payload when it rejects it
+	// (hard mode, or recover mode after its one continuation still fails).
+	AgentEventVerificationPassed = "verification.passed"
+	AgentEventVerificationFailed = "verification.failed"
 )
 
 // block.reply payload source values.
