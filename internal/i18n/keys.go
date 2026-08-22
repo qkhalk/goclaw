@@ -61,7 +61,7 @@ const (
 	MsgConfigHashMismatch = "error.config_hash_mismatch" // "config has changed (hash mismatch)"
 
 	// --- Exec approval ---
-	MsgExecApprovalDisabled = "error.exec_approval_disabled" // "exec approval is not enabled"
+	MsgExecApprovalDisabled  = "error.exec_approval_disabled"  // "exec approval is not enabled"
 	MsgApprovalHistoryFailed = "error.approval_history_failed" // "failed to load approval history: %s"
 
 	// --- Pairing ---
@@ -167,18 +167,18 @@ const (
 	MsgFindTextNotFound            = "error.find_text_not_found"            // "find text not found in target file"
 
 	// --- Skill review lifecycle (Phase 3 W1) ---
-	MsgSkillPendingReview = "skill.pending_review"        // "skill is pending admin review and not yet discoverable"
-	MsgSkillRejected      = "skill.rejected"              // "skill was rejected: %s"
-	MsgSkillNotReviewable = "skill.not_reviewable"        // "skill is not in a reviewable state"
+	MsgSkillPendingReview = "skill.pending_review"                 // "skill is pending admin review and not yet discoverable"
+	MsgSkillRejected      = "skill.rejected"                       // "skill was rejected: %s"
+	MsgSkillNotReviewable = "skill.not_reviewable"                 // "skill is not in a reviewable state"
 	MsgSkillReviewDenied  = "error.permission_denied_skill_review" // "only admins can approve or reject skills"
 
 	// --- Tenant policies (Phase 4 W1) ---
-	MsgPolicyProviderDenied = "policy.provider_denied" // "provider %s is not allowed by this tenant policy"
-	MsgPolicyModelDenied    = "policy.model_denied"    // "model %s is not allowed by this tenant policy"
-	MsgPolicyLimitReached   = "policy.limit_reached"   // "tenant limit reached: %s (limit %d, existing %d)"
+	MsgPolicyProviderDenied  = "policy.provider_denied"  // "provider %s is not allowed by this tenant policy"
+	MsgPolicyModelDenied     = "policy.model_denied"     // "model %s is not allowed by this tenant policy"
+	MsgPolicyLimitReached    = "policy.limit_reached"    // "tenant limit reached: %s (limit %d, existing %d)"
 	MsgPolicyTenantSuspended = "policy.tenant_suspended" // "tenant is suspended"
-	MsgPolicyNotFound       = "policy.not_found"       // "tenant policy not found"
-	MsgPolicyUpdateFailed   = "policy.update_failed"   // "failed to update tenant policy"
+	MsgPolicyNotFound        = "policy.not_found"        // "tenant policy not found"
+	MsgPolicyUpdateFailed    = "policy.update_failed"    // "failed to update tenant policy"
 
 	// --- RBAC custom roles (Phase 4 W2) ---
 	MsgRoleNotFound          = "role.not_found"          // "role not found"
@@ -306,6 +306,11 @@ const (
 	// Empty reply fallback (user-facing) — shown when a run finishes with no text
 	// output and no deliverable media, replacing the old meaningless "...".
 	MsgEmptyReplyFallback = "chat.empty_reply_fallback"
+
+	// Completion-verifier gate (user-facing, run.failed reason in hard mode).
+	// %s is the verifier's machine-readable missing-signal list
+	// (e.g. "content", "deliverable", "loop_killed").
+	MsgVerifierIncomplete = "verifier.incomplete"
 
 	// Tool progress announcements (user-facing)
 	MsgToolAnnouncementSingle = "progress.tool_announcement.single" // "I'll use %s to handle the next step."
