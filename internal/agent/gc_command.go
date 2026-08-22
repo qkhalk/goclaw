@@ -21,6 +21,17 @@ func (l *Loop) applyGCCommand(ctx context.Context, req *RunRequest, message, ext
 	if l.gcDispatcher == nil {
 		return message, extraPrompt, skillFilter
 	}
+	// Control-plane kinds (status/runs/doctor/approve) answer with a canned
+	// system note and skip the skill pipeline entirely — no skillFilter
+	// narrowing, no SKILL.md resolution. The message is rewritten to a short
+	// acknowledgment so the turn still produces a normal assistant reply.
+	if ctrl, ok := l.gcDispatcher.(gc.CommandDispatcher2); ok {
+		if reply, handled := ctrl.ResolveControl(ctx, message); handled {
+			extraPrompt = appendExtraPrompt(extraPrompt, reply.Text)
+			message = "Answer the /gc: control-plane query using the injected report above. Do not run any tools."
+			return message, extraPrompt, skillFilter
+		}
+	}
 	d, ok := l.gcDispatcher.Resolve(ctx, message)
 	if !ok || d == nil {
 		return message, extraPrompt, skillFilter
