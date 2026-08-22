@@ -235,11 +235,24 @@ func (p *ModelFallbackProvider) runOrdered(
 			if p.tracker != nil {
 				p.tracker.RecordSuccess(key)
 			}
+			// Reliability layer: healthy completion feeds the success path
+			// (health registry + breaker + metrics), mirroring the direct
+			// adapters.
+			observeSuccess(entry.ProviderName, entry.Model)
 			return resp, nil
 		}
 		if streamErr, ok := err.(noFallbackAfterStreamError); ok {
 			return nil, streamErr.err
 		}
+		// Reliability layer: failed attempt feeds breaker + health + metrics,
+		// and a 429 arms the shared rate-limit coordinator with the parsed
+		// Retry-After so concurrent runs for the same provider:model wait out
+		// the real window instead of storming the provider.
+		observeFailure(entry.ProviderName, entry.Model, err)
+		if isRateLimitedErr(err) {
+			record429Cooldown(entry.ProviderName, entry.Model, rateLimitRetryAfter(err))
+		}
+
 		classification := ClassifyHTTPError(p.classifier, err)
 		attempts = append(attempts, FailoverAttempt{
 			Candidate:      ModelCandidate{Provider: entry.ProviderName, Model: entry.Model, ProfileID: entry.ProviderName + "/" + entry.Model},
@@ -247,7 +260,7 @@ func (p *ModelFallbackProvider) runOrdered(
 			Err:            err,
 		})
 		if p.tracker != nil && classification.Kind == "reason" {
-			p.tracker.RecordFailure(key, classification.Reason)
+			p.tracker.RecordFailureRetryAfter(key, classification.Reason, rateLimitRetryAfter(err))
 		}
 		if classification.Kind == "context_overflow" || classification.Reason == FailoverUnknown {
 			return nil, err
