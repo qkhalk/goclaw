@@ -103,6 +103,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Windows (amd64) — .zip for native Explorer "Extract All"
+          - goos: windows
+            goarch: amd64
+          # macOS (Apple silicon + Intel) — .tar.gz
+          - goos: darwin
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          # Linux (amd64 + arm64)
           - goos: linux
             goarch: amd64
           - goos: linux
@@ -137,15 +146,29 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           VERSION: ${{ needs.version.outputs.tag }}
         run: |
+          set -e
           CGO_ENABLED=0 go build -tags embedui \
             -ldflags="-s -w -X github.com/nextlevelbuilder/goclaw/cmd.Version=${VERSION}" \
             -o goclaw .
-          tar -czf "goclaw-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" goclaw migrations/ skills/
+          STAGE="pkg-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p "$STAGE"
+          cp -r migrations skills "$STAGE"/
+          if [ -f README.md ]; then cp README.md "$STAGE"/; fi
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            mv goclaw "$STAGE/goclaw.exe"
+            zip -qr "goclaw-${VERSION}-windows-${{ matrix.goarch }}.zip" "$STAGE"
+          else
+            mv goclaw "$STAGE/goclaw"
+            tar -czf "goclaw-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "$STAGE"
+          fi
+          rm -rf "$STAGE"
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: goclaw-*.tar.gz
+          path: |
+            goclaw-*.tar.gz
+            goclaw-*.zip
 
   publish_release:
     needs: [version, build_binaries]
@@ -172,7 +195,7 @@ jobs:
           TAG: ${{ needs.version.outputs.tag }}
           PRERELEASE: ${{ inputs.PRERELEASE }}
         run: |
-          (cd artifacts && sha256sum goclaw-*.tar.gz > CHECKSUMS.sha256)
+          (cd artifacts && sha256sum goclaw-*.tar.gz goclaw-*.zip > CHECKSUMS.sha256)
           flags=""
           if [[ "$PRERELEASE" == "true" ]]; then flags="--prerelease"; fi
           if gh release view "$TAG" >/dev/null 2>&1; then
