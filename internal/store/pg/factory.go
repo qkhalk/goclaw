@@ -84,6 +84,7 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 		TenantPolicies:         NewPGTenantPolicyStore(db),
 		TenantRoles:            NewPGTenantRoleStore(db),
 		PublisherKeys:          NewPGPublisherKeyStore(db),
+		NodeLeases:             NewPGNodeLeaseStore(db),
 	}
 	// Wire permStore into WorkstationStore so Create seeds allowlist atomically (H5 fix).
 	// Must happen after both stores are constructed.
