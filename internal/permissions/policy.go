@@ -418,6 +418,12 @@ func isWriteMethod(method string) bool {
 		protocol.MethodTasksCreate,
 		protocol.MethodTasksUpdateStatus,
 
+		// Memory fabric (Paseo Phase 5) — write/supersede/archive mutate
+		// durable semantic memory; get/search are reads below.
+		protocol.MethodMemoryWrite,
+		protocol.MethodMemorySupersede,
+		protocol.MethodMemoryArchive,
+
 		// Browser automation — performs side-effecting actions.
 		protocol.MethodBrowserAct,
 
@@ -480,6 +486,10 @@ func isReadMethod(method string) bool {
 		protocol.MethodJobsList,
 		protocol.MethodJobsGet,
 		protocol.MethodTasksTree,
+
+		// Memory fabric (Paseo Phase 5) — scoped retrieval reads.
+		protocol.MethodMemoryGet,
+		protocol.MethodMemorySearch,
 
 		// Skills read
 		protocol.MethodSkillsList,

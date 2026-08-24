@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 74
+const SchemaVersion = 75
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -315,6 +315,52 @@ var migrations = map[int]string{
 		ON task_graph (tenant_id, workspace_id);
 	CREATE INDEX IF NOT EXISTS idx_task_graph_parent ON task_graph (parent_id);
 	CREATE INDEX IF NOT EXISTS idx_task_graph_updated ON task_graph (updated_at DESC);`,
+	// Version 73 → 74: memories fabric (Paseo plan Phase 5; PG 000112).
+	// Scoped semantic memory records with provenance, confidence/authority,
+	// and a supersede/conflict model — distinct from file-based
+	// memory_documents/chunks and episodic summaries.
+	74: `CREATE TABLE IF NOT EXISTS memories (
+		id                TEXT PRIMARY KEY,
+		tenant_id         TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+		user_id           VARCHAR(255),
+		agent_id          TEXT,
+		workspace_id      TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		session_key       TEXT,
+		scope             TEXT NOT NULL
+		                  CHECK (scope IN ('global','user','agent','workspace',
+		                                   'project','session','thread')),
+		kind              TEXT NOT NULL
+		                  CHECK (kind IN ('fact','preference','decision',
+		                                  'instruction','constraint',
+		                                  'project_context','task_state',
+		                                  'conversation_summary','observation')),
+		content           TEXT NOT NULL,
+		source_type       TEXT NOT NULL DEFAULT 'manual'
+		                  CHECK (source_type IN ('session','manual',
+		                                         'consolidation','import')),
+		source_ref        TEXT,
+		confidence        REAL NOT NULL DEFAULT 0.8
+		                  CHECK (confidence >= 0 AND confidence <= 1),
+		authority         REAL NOT NULL DEFAULT 0.5
+		                  CHECK (authority >= 0 AND authority <= 1),
+		status            TEXT NOT NULL DEFAULT 'active'
+		                  CHECK (status IN ('active','superseded','archived')),
+		supersedes_id     TEXT REFERENCES memories(id) ON DELETE SET NULL,
+		contradicts_id    TEXT REFERENCES memories(id) ON DELETE SET NULL,
+		content_hash      TEXT,
+		embedding_version TEXT,
+		created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		updated_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+	);
+	CREATE INDEX IF NOT EXISTS idx_memories_scope_tuple
+		ON memories (tenant_id, user_id, agent_id, workspace_id, scope);
+	CREATE INDEX IF NOT EXISTS idx_memories_status_active
+		ON memories (status) WHERE status = 'active';
+	CREATE INDEX IF NOT EXISTS idx_memories_content_hash
+		ON memories (content_hash) WHERE content_hash IS NOT NULL;
+	CREATE INDEX IF NOT EXISTS idx_memories_supersedes
+		ON memories (supersedes_id) WHERE supersedes_id IS NOT NULL;
+	CREATE INDEX IF NOT EXISTS idx_memories_updated ON memories (updated_at DESC);`,
 	// Version 63 → 64: append-only checkpoint-snapshot history for durable agent
 	// runs. One row per versioned pipeline checkpoint so a paused run can be
 	// replayed ("time travel") from any earlier snapshot seq; the store layer
