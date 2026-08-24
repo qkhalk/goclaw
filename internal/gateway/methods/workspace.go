@@ -288,7 +288,6 @@ func (m *WorkspaceMethods) handleGet(ctx context.Context, client *gateway.Client
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, "not authenticated"))
 		return
 	}
-	locale := store.LocaleFromContext(ctx)
 	if m.wsStore == nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnavailable, "workspace store not wired"))
 		return
