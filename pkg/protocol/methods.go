@@ -60,6 +60,13 @@ const (
 	MethodRunsPause = "runs.pause"
 	MethodRunsWake  = "runs.wake"
 
+	// Node device leases (Paseo plan Phase 1): decouple connectivity from
+	// authentication and agent sessions. WS close never invalidates a lease;
+	// handlers live in internal/gateway/methods/node.go.
+	MethodNodeHello     = "node.hello"
+	MethodNodeHeartbeat = "node.heartbeat"
+	MethodNodeBye       = "node.bye"
+
 	// Missions (Mission Mode): a durable data model for named objectives with
 	// goals, milestones, and acceptance criteria. mission.create/get/list are
 	// synchronous store reads/writes; mission.pause transitions to paused;
