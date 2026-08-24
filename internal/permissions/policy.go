@@ -405,6 +405,13 @@ func isWriteMethod(method string) bool {
 		protocol.MethodNodeHeartbeat,
 		protocol.MethodNodeBye,
 
+		// Workspace domain (Paseo Phase 2) — create/update/delete mutate the
+		// workspace registry; list/get are reads but classified here would be
+		// wrong, so they live in isReadMethod below.
+		protocol.MethodWorkspaceCreate,
+		protocol.MethodWorkspaceUpdate,
+		protocol.MethodWorkspaceDelete,
+
 		// Browser automation — performs side-effecting actions.
 		protocol.MethodBrowserAct,
 
@@ -458,6 +465,10 @@ func isReadMethod(method string) bool {
 		protocol.MethodRunsList,
 		protocol.MethodRunsEvents,
 		protocol.MethodRunsCheckpointsList,
+
+		// Workspace domain (Paseo Phase 2) — registry reads.
+		protocol.MethodWorkspaceList,
+		protocol.MethodWorkspaceGet,
 
 		// Skills read
 		protocol.MethodSkillsList,
