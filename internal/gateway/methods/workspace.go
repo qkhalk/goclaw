@@ -17,18 +17,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-// WS method names for the workspace.* surface (Paseo plan Phase 2,
-// plans/GoClaw_Paseo_Web_Chat_Upgrade_Plan.md §23 subset). Declared locally
-// until the orchestrator relocates them verbatim into pkg/protocol/methods.go
-// next to the other Method* constants and classifies them in the RBAC policy.
-const (
-	MethodWorkspaceCreate = "workspace.create"
-	MethodWorkspaceList   = "workspace.list"
-	MethodWorkspaceGet    = "workspace.get"
-	MethodWorkspaceUpdate = "workspace.update"
-	MethodWorkspaceDelete = "workspace.delete"
-)
-
 // WorkspaceMethods implements the workspace.* WS surface: sandboxed working
 // directories bound to a tenant/user, optionally backed by a git repo or a
 // linked worktree (plan §41/§53).
@@ -46,11 +34,11 @@ func NewWorkspaceMethods(wsStore store.WorkspaceStore, basePath string) *Workspa
 
 // Register wires the workspace.* methods into the method router.
 func (m *WorkspaceMethods) Register(router *gateway.MethodRouter) {
-	router.Register(MethodWorkspaceCreate, m.handleCreate)
-	router.Register(MethodWorkspaceList, m.handleList)
-	router.Register(MethodWorkspaceGet, m.handleGet)
-	router.Register(MethodWorkspaceUpdate, m.handleUpdate)
-	router.Register(MethodWorkspaceDelete, m.handleDelete)
+	router.Register(protocol.MethodWorkspaceCreate, m.handleCreate)
+	router.Register(protocol.MethodWorkspaceList, m.handleList)
+	router.Register(protocol.MethodWorkspaceGet, m.handleGet)
+	router.Register(protocol.MethodWorkspaceUpdate, m.handleUpdate)
+	router.Register(protocol.MethodWorkspaceDelete, m.handleDelete)
 }
 
 // workspaceJSON is the camelCase wire form of store.Workspace.
