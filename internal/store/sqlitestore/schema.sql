@@ -2793,3 +2793,27 @@ CREATE INDEX IF NOT EXISTS idx_approval_requests_tenant_status
     ON approval_requests(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_approval_requests_agent
     ON approval_requests(agent_id);
+
+-- ============================================================
+-- Table: node_leases (PG 000109)
+-- Device connectivity leases, separate from auth and agent sessions.
+-- WS close -> RECONNECTING (never logout). TTL 60s, heartbeat 15s.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS node_leases (
+    id            TEXT NOT NULL PRIMARY KEY,
+    node_id       TEXT NOT NULL UNIQUE,
+    client_id     TEXT NOT NULL DEFAULT '',
+    user_id       VARCHAR(255) NOT NULL,
+    tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    resume_token  TEXT NOT NULL UNIQUE,
+    session_epoch INTEGER NOT NULL DEFAULT 1,
+    status        TEXT NOT NULL DEFAULT 'online'
+                  CHECK (status IN ('online','reconnecting','offline_grace','expired')),
+    issued_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_seen_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    expires_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_leases_expires_at ON node_leases(expires_at);
+CREATE INDEX IF NOT EXISTS idx_node_leases_tenant_user ON node_leases(tenant_id, user_id);
