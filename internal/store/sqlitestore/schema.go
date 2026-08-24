@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 72
+const SchemaVersion = 73
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -234,6 +234,33 @@ var migrations = map[int]string{
 	);
 	CREATE INDEX IF NOT EXISTS idx_node_leases_expires_at ON node_leases(expires_at);
 	CREATE INDEX IF NOT EXISTS idx_node_leases_tenant_user ON node_leases(tenant_id, user_id);`,
+	// Version 71 → 72: sandboxed workspaces (Paseo plan Phase 2; PG 000110).
+	// A workspace is a named sandboxed root directory owned by a user within a
+	// tenant scope, optionally bound to a git repository/branch and/or a linked
+	// git worktree checkout. tenant_id NULL = master/global scope; status is
+	// 'active' (default) or 'archived'.
+	72: `CREATE TABLE IF NOT EXISTS workspaces (
+		id            TEXT NOT NULL PRIMARY KEY,
+		tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+		owner_id      VARCHAR(255) NOT NULL,
+		name          TEXT NOT NULL,
+		root_path     TEXT NOT NULL,
+		description   TEXT,
+		status        TEXT NOT NULL DEFAULT 'active'
+		              CHECK (status IN ('active','archived')),
+		repo_url      TEXT,
+		branch        TEXT,
+		worktree_path TEXT,
+		created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+	);
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_tenant_owner_name ON workspaces (
+		COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'),
+		owner_id, name
+	);
+	CREATE INDEX IF NOT EXISTS idx_workspaces_tenant_owner_status
+		ON workspaces(tenant_id, owner_id, status);
+	CREATE INDEX IF NOT EXISTS idx_workspaces_updated ON workspaces(updated_at DESC);`,
 	// Version 63 → 64: append-only checkpoint-snapshot history for durable agent
 	// runs. One row per versioned pipeline checkpoint so a paused run can be
 	// replayed ("time travel") from any earlier snapshot seq; the store layer

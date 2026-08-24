@@ -67,6 +67,15 @@ const (
 	MethodNodeHeartbeat = "node.heartbeat"
 	MethodNodeBye       = "node.bye"
 
+	// Workspace domain (Paseo plan Phase 2): first-class workspace objects
+	// with canonical workspace_id, sandboxed root paths, and optional git
+	// binding. Handlers live in internal/gateway/methods/workspace.go.
+	MethodWorkspaceCreate = "workspace.create"
+	MethodWorkspaceList   = "workspace.list"
+	MethodWorkspaceGet    = "workspace.get"
+	MethodWorkspaceUpdate = "workspace.update"
+	MethodWorkspaceDelete = "workspace.delete"
+
 	// Missions (Mission Mode): a durable data model for named objectives with
 	// goals, milestones, and acceptance criteria. mission.create/get/list are
 	// synchronous store reads/writes; mission.pause transitions to paused;
@@ -100,16 +109,16 @@ const (
 	MethodTenantPoliciesUpdate = "tenant.policies.update"
 
 	// RBAC custom roles (Phase 4 W2) — tenant-admin sorted.
-	MethodRolesList            = "role.list"
-	MethodRolesGet             = "role.get"
-	MethodRolesCreate          = "role.create"
-	MethodRolesUpdate          = "role.update"
-	MethodRolesDelete          = "role.delete"
-	MethodRolePermissionsSet   = "role.permissions.set"
-	MethodRolePermissionsList  = "role.permissions.list"
-	MethodRoleAssign           = "role.assign"
-	MethodRoleRevoke           = "role.revoke"
-	MethodRoleEffectiveGet     = "role.effective.get"
+	MethodRolesList           = "role.list"
+	MethodRolesGet            = "role.get"
+	MethodRolesCreate         = "role.create"
+	MethodRolesUpdate         = "role.update"
+	MethodRolesDelete         = "role.delete"
+	MethodRolePermissionsSet  = "role.permissions.set"
+	MethodRolePermissionsList = "role.permissions.list"
+	MethodRoleAssign          = "role.assign"
+	MethodRoleRevoke          = "role.revoke"
+	MethodRoleEffectiveGet    = "role.effective.get"
 
 	MethodCronList   = "cron.list"
 	MethodCronCreate = "cron.create"

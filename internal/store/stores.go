@@ -94,4 +94,9 @@ type Stores struct {
 	// deliberately separate from auth and agent sessions: a WebSocket close
 	// marks the lease reconnecting, never a logout.
 	NodeLeases NodeLeaseStore
+
+	// Workspaces persists first-class workspace objects (Paseo plan Phase 2):
+	// named sandboxed root directories with optional git binding, scoped to
+	// owner + tenant. Runtime path resolution stays in internal/workspace.
+	Workspaces WorkspaceStore
 }
