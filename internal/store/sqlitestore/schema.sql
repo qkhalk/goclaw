@@ -2848,3 +2848,63 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_tenant_owner_name ON workspaces
 CREATE INDEX IF NOT EXISTS idx_workspaces_tenant_owner_status
     ON workspaces(tenant_id, owner_id, status);
 CREATE INDEX IF NOT EXISTS idx_workspaces_updated ON workspaces(updated_at DESC);
+
+-- ============================================================
+-- Tables: agent_jobs, task_graph (PG 000111)
+-- agent_jobs: durable execution lifecycle records kept separate from
+-- sessions (hot state lives in memory / agent_runs). task_graph:
+-- hierarchical task tree with dependencies per workspace.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_jobs (
+    id           TEXT PRIMARY KEY,
+    tenant_id    TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
+    session_key  TEXT NOT NULL DEFAULT '',
+    agent_id     TEXT,
+    kind         TEXT NOT NULL
+                 CHECK (kind IN ('run','delegation','consolidation')),
+    status       TEXT NOT NULL DEFAULT 'queued'
+                 CHECK (status IN ('queued','starting','running','waiting_input',
+                                   'waiting_approval','paused','completed',
+                                   'failed','cancelled')),
+    priority     INTEGER NOT NULL DEFAULT 0,
+    title        TEXT NOT NULL DEFAULT '',
+    result_ref   TEXT,
+    error        TEXT,
+    started_at   TEXT,
+    completed_at TEXT,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_jobs_tenant_ws_status
+    ON agent_jobs (tenant_id, workspace_id, status);
+CREATE INDEX IF NOT EXISTS idx_agent_jobs_session
+    ON agent_jobs (session_key) WHERE session_key <> '';
+CREATE INDEX IF NOT EXISTS idx_agent_jobs_active
+    ON agent_jobs (priority DESC, created_at DESC)
+    WHERE status NOT IN ('completed','failed','cancelled');
+
+CREATE TABLE IF NOT EXISTS task_graph (
+    id             TEXT PRIMARY KEY,
+    tenant_id      TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    workspace_id   TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    parent_id      TEXT REFERENCES task_graph(id) ON DELETE CASCADE,
+    owner_agent_id TEXT,
+    session_key    TEXT,
+    title          TEXT NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending','running','blocked','done',
+                                     'failed','cancelled')),
+    priority       INTEGER NOT NULL DEFAULT 0,
+    depends_on     TEXT NOT NULL DEFAULT '[]',
+    result_ref     TEXT,
+    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_graph_tenant_ws
+    ON task_graph (tenant_id, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_task_graph_parent ON task_graph (parent_id);
+CREATE INDEX IF NOT EXISTS idx_task_graph_updated ON task_graph (updated_at DESC);

@@ -99,4 +99,12 @@ type Stores struct {
 	// named sandboxed root directories with optional git binding, scoped to
 	// owner + tenant. Runtime path resolution stays in internal/workspace.
 	Workspaces WorkspaceStore
+
+	// AgentJobs persists the restart-surviving subset of agent execution
+	// lifecycle (Paseo plan §21): queued/running/waiting states, results,
+	// and errors. Hot runtime state stays in agent_runs + memory.
+	AgentJobs AgentJobStore
+	// TaskGraph persists the lightweight parent/child task tree with
+	// dependencies per workspace (Paseo plan §22).
+	TaskGraph TaskGraphStore
 }
