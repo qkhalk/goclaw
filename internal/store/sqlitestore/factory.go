@@ -98,6 +98,8 @@ func NewSQLiteStores(cfg store.StoreConfig) (*store.Stores, error) {
 		PublisherKeys:          NewSQLitePublisherKeyStore(db),
 		NodeLeases:             NewSQLiteNodeLeaseStore(db),
 		Workspaces:             NewSQLiteWorkspaceStore(db),
+		AgentJobs:              NewSQLiteAgentJobStore(db),
+		TaskGraph:              NewSQLiteTaskGraphStore(db),
 	}
 	// Wire permStore into WorkstationStore so Create seeds allowlist atomically (H5 fix).
 	sqliteStores.Workstations.(*SQLiteWorkstationStore).SetPermStore(sqliteStores.WorkstationPermissions)
