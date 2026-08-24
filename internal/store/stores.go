@@ -85,9 +85,13 @@ type Stores struct {
 	// TenantRoles persists per-tenant custom roles + role_permissions for
 	// fine-grained RBAC (Phase 4). Builtin roles stay legacy tier anchors.
 	TenantRoles TenantRoleStore
-
 	// PublisherKeys manages ed25519 trust anchors for signed skill packages
 	// (Phase 3 W2). A published skill's manifest signature must verify against
 	// an active key here or the skill is rejected on install/import.
 	PublisherKeys PublisherKeystore
+
+	// NodeLeases persists device connectivity leases (Paseo plan Phase 1),
+	// deliberately separate from auth and agent sessions: a WebSocket close
+	// marks the lease reconnecting, never a logout.
+	NodeLeases NodeLeaseStore
 }

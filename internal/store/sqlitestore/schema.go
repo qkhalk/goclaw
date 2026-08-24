@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 71
+const SchemaVersion = 72
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -215,6 +215,25 @@ var migrations = map[int]string{
 		ON member_role_assignments(tenant_id, user_id, role_id);
 	CREATE INDEX IF NOT EXISTS idx_member_role_assignments_role
 		ON member_role_assignments(role_id);`,
+	// Version 70 → 71: device connectivity node leases (PG 000109). Separates
+	// identity/auth/connection/lease (Paseo plan Phase 1): WS close marks the
+	// lease reconnecting, never a logout. TTL 60s, heartbeat 15s.
+	71: `CREATE TABLE IF NOT EXISTS node_leases (
+		id            TEXT NOT NULL PRIMARY KEY,
+		node_id       TEXT NOT NULL UNIQUE,
+		client_id     TEXT NOT NULL DEFAULT '',
+		user_id       VARCHAR(255) NOT NULL,
+		tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+		resume_token  TEXT NOT NULL UNIQUE,
+		session_epoch INTEGER NOT NULL DEFAULT 1,
+		status        TEXT NOT NULL DEFAULT 'online'
+		              CHECK (status IN ('online','reconnecting','offline_grace','expired')),
+		issued_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		last_seen_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		expires_at    TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_node_leases_expires_at ON node_leases(expires_at);
+	CREATE INDEX IF NOT EXISTS idx_node_leases_tenant_user ON node_leases(tenant_id, user_id);`,
 	// Version 63 → 64: append-only checkpoint-snapshot history for durable agent
 	// runs. One row per versioned pipeline checkpoint so a paused run can be
 	// replayed ("time travel") from any earlier snapshot seq; the store layer
