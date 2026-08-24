@@ -1,7 +1,19 @@
 import { generateId } from "@/lib/utils";
+import { extractResumeToken, loadNodeSession, saveNodeSession } from "@/lib/node-session";
 import type { ErrorShape, EventFrame, ResponseFrame } from "./protocol";
 import { PROTOCOL_VERSION } from "./protocol";
 import { ApiError } from "./errors";
+
+/** Response payload of the node.hello lease handshake. */
+interface NodeHelloResult {
+  lease?: {
+    nodeId?: string;
+    expiresAt?: number | string | null;
+    ttlSeconds?: number | null;
+  } | null;
+  replayed?: boolean;
+  snapshotRequired?: boolean;
+}
 
 type EventListener = (payload: unknown, seq?: number) => void;
 
@@ -11,7 +23,12 @@ interface PendingRequest {
   timeout: ReturnType<typeof setTimeout>;
 }
 
-export type ConnectionState = "disconnected" | "connecting" | "connected";
+export type ConnectionState =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  /** Socket dropped but a reconnect cycle is scheduled/underway; node lease keeps server state alive. */
+  | "reconnecting";
 
 export class WsClient {
   private ws: WebSocket | null = null;
@@ -41,6 +58,17 @@ export class WsClient {
   private readonly maxReconnectDelay = 30_000;
   private readonly baseReconnectDelay = 1_000;
   private readonly defaultTimeout = 30_000;
+  private readonly heartbeatIntervalMs = 15_000;
+
+  /** Node-lease session (persisted across reloads via lib/node-session). */
+  private nodeId = "";
+  private clientId = "";
+  private resumeToken = "";
+  private lastSeenSeq = 0;
+  /** Set when the gateway answers node.* with "unknown method" (legacy build): lease upkeep skipped. */
+  private leaseUnsupported = false;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private consecutiveHeartbeatFailures = 0;
 
   onAuthFailure: (() => void) | null = null;
 
@@ -57,8 +85,11 @@ export class WsClient {
   connect(): void {
     if (this.ws) return;
 
-    this.intentionalClose = false;
-    this.onStateChange("connecting");
+    // Distinguishing "connecting" (first ever attempt) from "reconnecting"
+    // (a previous connection dropped) lets the UI show a Reconnecting banner
+    // instead of a full offline state.
+    const state = this.reconnectAttempts > 0 ? "reconnecting" : "connecting";
+    this.onStateChange(state);
 
     const wsUrl = this.buildWsUrl();
     const socket = new WebSocket(wsUrl);
@@ -78,10 +109,11 @@ export class WsClient {
     socket.onclose = () => {
       if (this.ws !== socket) return;
 
+      this.stopHeartbeat();
       this.ws = null;
       this.authenticated = false;
-      this.onStateChange("disconnected");
       this.rejectAllPending("Connection closed");
+      this.onStateChange(this.intentionalClose ? "disconnected" : "reconnecting");
 
       if (!this.intentionalClose) {
         this.scheduleReconnect();
@@ -100,7 +132,18 @@ export class WsClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.stopHeartbeat();
     if (this.ws) {
+      // Best-effort goodbye so the gateway can release the lease immediately
+      // instead of waiting for TTL expiry. Fire-and-forget with a hard timeout;
+      // call() throws synchronously when the socket is already gone.
+      try {
+        if (this.nodeId && !this.leaseUnsupported) {
+          void this.call("node.bye", { nodeId: this.nodeId }, 500).catch(() => {});
+        }
+      } catch {
+        // socket already closing — nothing to release server-side
+      }
       const socket = this.ws;
       this.ws = null;
       socket.close();
@@ -256,6 +299,10 @@ export class WsClient {
       this.edition = res?.edition ?? "standard";
       this.serverVersion = res?.server?.version ?? "";
       this.onStateChange("connected");
+
+      // Lease handshake runs AFTER the connection is usable: an older gateway
+      // without node.* methods must not break login, so failures are swallowed.
+      this.startNodeLease(generation);
     } catch (e) {
       if (this.connectGeneration === generation) {
         // Tenant access revoked → force logout instead of reconnect
@@ -269,6 +316,107 @@ export class WsClient {
         this.ws?.close();
       }
     }
+  }
+
+  /**
+   * Node-lease handshake. Runs after authentication succeeds on every
+   * connection (fresh or resumed). Sends the persisted nodeId/resumeToken and
+   * lastSeenSeq so the gateway can resume the lease and replay missed events.
+   * Best-effort: gateways without node.* support simply ignore it.
+   */
+  private async startNodeLease(generation: number): Promise<void> {
+    if (this.leaseUnsupported) return;
+
+    const clientId = this.getUserId();
+    if (!this.nodeId || this.clientId !== clientId) {
+      const session = loadNodeSession(clientId);
+      this.nodeId = session.nodeId;
+      this.clientId = clientId;
+      this.resumeToken = session.resumeToken;
+      this.lastSeenSeq = session.lastSeenSeq;
+    }
+
+    try {
+      const res = await this.call<NodeHelloResult>("node.hello", {
+        nodeId: this.nodeId,
+        clientId,
+        resumeToken: this.resumeToken,
+        lastSeenSeq: this.lastSeenSeq,
+      });
+      if (this.connectGeneration !== generation) return;
+
+      // Accept a server-echoed token when present; keep ours otherwise.
+      const echoed = extractResumeToken(res);
+      if (echoed && echoed !== this.resumeToken) {
+        this.resumeToken = echoed;
+        this.persistNodeSession();
+      }
+    } catch (e) {
+      if (this.connectGeneration !== generation) return;
+      // Legacy gateway without node.* methods: mark unsupported so we don't
+      // hammer it with hello/heartbeat and force reconnect cycles forever.
+      if (e instanceof ApiError && e.code === "INVALID_REQUEST") {
+        this.leaseUnsupported = true;
+        return;
+      }
+      // Any other error is transient — the lease stays advisory; heartbeat
+      // failures below will escalate to a reconnect if the socket is wedged.
+    } finally {
+      if (this.connectGeneration === generation) {
+        this.startHeartbeat(generation);
+      }
+    }
+  }
+
+  /** Periodic lease renewal; repeated failures force an immediate reconnect cycle. */
+  private startHeartbeat(generation: number): void {
+    this.stopHeartbeat();
+    if (this.leaseUnsupported || !this.nodeId) return;
+    this.consecutiveHeartbeatFailures = 0;
+    this.heartbeatTimer = setInterval(() => {
+      if (this.connectGeneration !== generation || !this.ws) {
+        this.stopHeartbeat();
+        return;
+      }
+      void this.call<{ expiresAt?: number | string | null; ttlSeconds?: number | null }>(
+        "node.heartbeat",
+        { nodeId: this.nodeId },
+        10_000,
+      )
+        .then(() => {
+          if (this.connectGeneration !== generation) return;
+          this.consecutiveHeartbeatFailures = 0;
+        })
+        .catch(() => {
+          if (this.connectGeneration !== generation) return;
+          this.consecutiveHeartbeatFailures += 1;
+          if (this.consecutiveHeartbeatFailures > 2) {
+            this.consecutiveHeartbeatFailures = 0;
+            // The socket is likely wedged: tear down and let scheduleReconnect
+            // rebuild it with a fresh node.hello + event replay.
+            this.ws?.close();
+          }
+        });
+    }, this.heartbeatIntervalMs);
+  }
+
+  /** Clear the heartbeat timer (safe to call repeatedly). */
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  /** Write current lease identity through to localStorage (best-effort). */
+  private persistNodeSession(): void {
+    saveNodeSession({
+      v: 1,
+      nodeId: this.nodeId,
+      clientId: this.clientId,
+      resumeToken: this.resumeToken,
+      lastSeenSeq: this.lastSeenSeq,
+    });
   }
 
   private handleMessage(data: string): void {
@@ -330,6 +478,14 @@ export class WsClient {
           // ignore
         }
       }
+    }
+
+    const seq = frame.seq;
+    if (typeof seq === "number" && Number.isFinite(seq) && seq > this.lastSeenSeq) {
+      this.lastSeenSeq = seq;
+      // Persisted so a page reload can resume the lease with an accurate
+      // lastSeenSeq; the blob is tiny, write-through is fine at event rates.
+      this.persistNodeSession();
     }
   }
 
