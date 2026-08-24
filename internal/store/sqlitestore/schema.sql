@@ -2817,3 +2817,34 @@ CREATE TABLE IF NOT EXISTS node_leases (
 
 CREATE INDEX IF NOT EXISTS idx_node_leases_expires_at ON node_leases(expires_at);
 CREATE INDEX IF NOT EXISTS idx_node_leases_tenant_user ON node_leases(tenant_id, user_id);
+
+-- ============================================================
+-- Table: workspaces (PG 000110)
+-- Sandboxed workspace roots owned by a user within a tenant scope,
+-- optionally bound to a git repo/branch and/or a linked worktree.
+-- tenant_id NULL = master/global scope.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS workspaces (
+    id            TEXT NOT NULL PRIMARY KEY,
+    tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    owner_id      VARCHAR(255) NOT NULL,
+    name          TEXT NOT NULL,
+    root_path     TEXT NOT NULL,
+    description   TEXT,
+    status        TEXT NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active','archived')),
+    repo_url      TEXT,
+    branch        TEXT,
+    worktree_path TEXT,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_tenant_owner_name ON workspaces (
+    COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'),
+    owner_id, name
+);
+CREATE INDEX IF NOT EXISTS idx_workspaces_tenant_owner_status
+    ON workspaces(tenant_id, owner_id, status);
+CREATE INDEX IF NOT EXISTS idx_workspaces_updated ON workspaces(updated_at DESC);
