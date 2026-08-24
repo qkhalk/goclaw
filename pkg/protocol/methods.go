@@ -76,6 +76,20 @@ const (
 	MethodWorkspaceUpdate = "workspace.update"
 	MethodWorkspaceDelete = "workspace.delete"
 
+	// Agent jobs (Paseo plan Phase 2 / §21): execution lifecycle separate
+	// from sessions — only restart-surviving state is persisted; hot runtime
+	// state stays in agent_runs. Handlers live in internal/gateway/methods/jobs.go.
+	MethodJobsList   = "jobs.list"
+	MethodJobsGet    = "jobs.get"
+	MethodJobsCancel = "jobs.cancel"
+
+	// Task graph (Paseo plan Phase 2 / §22): lightweight parent/child task
+	// tree with dependencies per workspace. Handlers live in
+	// internal/gateway/methods/tasks.go.
+	MethodTasksTree         = "tasks.tree"
+	MethodTasksCreate       = "tasks.create"
+	MethodTasksUpdateStatus = "tasks.updateStatus"
+
 	// Missions (Mission Mode): a durable data model for named objectives with
 	// goals, milestones, and acceptance criteria. mission.create/get/list are
 	// synchronous store reads/writes; mission.pause transitions to paused;
