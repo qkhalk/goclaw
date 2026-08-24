@@ -1,3 +1,5 @@
+//go:build sqlite || sqliteonly
+
 package sqlitestore
 
 import (
@@ -29,12 +31,18 @@ func scanNodeLease(row interface{ Scan(...any) error }) (*store.NodeLease, error
 	var l store.NodeLease
 	var tenantID sql.NullString
 	var epoch int
+	// Timestamps are stored as TEXT; scan through sqliteTime because
+	// modernc.org/sqlite hands strings back, which cannot Scan into time.Time.
+	var issuedAt, lastSeenAt, expiresAt sqliteTime
 	if err := row.Scan(&l.ID, &l.NodeID, &l.ClientID, &l.UserID, &tenantID,
-		&l.ResumeToken, &epoch, &l.Status, &l.IssuedAt, &l.LastSeenAt, &l.ExpiresAt); err != nil {
+		&l.ResumeToken, &epoch, &l.Status, &issuedAt, &lastSeenAt, &expiresAt); err != nil {
 		return nil, err
 	}
 	l.TenantID = tenantID.String
 	l.SessionEpoch = epoch
+	l.IssuedAt = issuedAt.Time
+	l.LastSeenAt = lastSeenAt.Time
+	l.ExpiresAt = expiresAt.Time
 	return &l, nil
 }
 
