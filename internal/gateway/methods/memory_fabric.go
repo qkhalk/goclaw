@@ -119,13 +119,14 @@ func clamp01(v float64) float64 {
 // memoryWriteParams is the shared parameter block of memory.write and the
 // write-shaped portion of memory.supersede.
 type memoryWriteParams struct {
-	Content    string   `json:"content"`
-	Scope      string   `json:"scope"`
-	Kind       string   `json:"kind"`
-	SessionKey string   `json:"sessionId"`
-	SourceRef  string   `json:"sourceRef"`
-	Confidence *float64 `json:"confidence"`
-	Authority  *float64 `json:"authority"`
+	Content     string   `json:"content"`
+	Scope       string   `json:"scope"`
+	Kind        string   `json:"kind"`
+	WorkspaceID string   `json:"workspaceId"`
+	SessionKey  string   `json:"sessionId"`
+	SourceRef   string   `json:"sourceRef"`
+	Confidence  *float64 `json:"confidence"`
+	Authority   *float64 `json:"authority"`
 }
 
 // buildMemory validates the shared write params and constructs the store
@@ -175,6 +176,10 @@ func (m *MemoryFabricMethods) buildMemory(ctx context.Context, client *gateway.C
 	if p.SessionKey != "" {
 		sk := p.SessionKey
 		mem.SessionKey = &sk
+	}
+	if p.WorkspaceID != "" {
+		wid := p.WorkspaceID
+		mem.WorkspaceID = &wid
 	}
 	if p.SourceRef != "" {
 		sr := p.SourceRef
