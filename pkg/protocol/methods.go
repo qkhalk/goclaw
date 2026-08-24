@@ -90,6 +90,16 @@ const (
 	MethodTasksCreate       = "tasks.create"
 	MethodTasksUpdateStatus = "tasks.updateStatus"
 
+	// Memory fabric (Paseo plan Phase 2 / §7.1): semantic memory records
+	// with strict scope, provenance, confidence/authority, and a
+	// supersede/conflict model. Handlers live in
+	// internal/gateway/methods/memory_fabric.go.
+	MethodMemoryWrite     = "memory.write"
+	MethodMemoryGet       = "memory.get"
+	MethodMemorySearch    = "memory.search"
+	MethodMemorySupersede = "memory.supersede"
+	MethodMemoryArchive   = "memory.archive"
+
 	// Missions (Mission Mode): a durable data model for named objectives with
 	// goals, milestones, and acceptance criteria. mission.create/get/list are
 	// synchronous store reads/writes; mission.pause transitions to paused;
