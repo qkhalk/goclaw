@@ -107,4 +107,8 @@ type Stores struct {
 	// TaskGraph persists the lightweight parent/child task tree with
 	// dependencies per workspace (Paseo plan §22).
 	TaskGraph TaskGraphStore
+	// MemoryFabric persists scoped semantic memory records with provenance,
+	// confidence/authority, and a supersede/conflict model (Paseo plan
+	// §7.1). Distinct from file-based MemoryStore and episodic summaries.
+	MemoryFabric MemoryFabricStore
 }
