@@ -399,6 +399,12 @@ func isWriteMethod(method string) bool {
 		protocol.MethodRunsPause,
 		protocol.MethodRunsWake,
 
+		// Node device leases (Paseo Phase 1) — heartbeat/bye mutate lease
+		// state; hello creates one scoped to the authenticated user.
+		protocol.MethodNodeHello,
+		protocol.MethodNodeHeartbeat,
+		protocol.MethodNodeBye,
+
 		// Browser automation — performs side-effecting actions.
 		protocol.MethodBrowserAct,
 
