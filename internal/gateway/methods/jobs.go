@@ -2,7 +2,9 @@ package methods
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -191,8 +193,9 @@ func (m *JobsMethods) handleCancel(ctx context.Context, client *gateway.Client, 
 		return
 	}
 	err := m.jobs.CancelJob(ctx, params.JobID)
-	if err == store.ErrNotFound {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "job", params.JobID)))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		slog.Warn("jobs.cancel_failed", "job_id", params.JobID, "error", err)
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgInternalError, "cancel job")))
 		return
 	}
 	if err != nil {

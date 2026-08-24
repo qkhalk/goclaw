@@ -2,10 +2,13 @@ package methods
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"github.com/google/uuid"
+	"errors"
 	"log/slog"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -202,7 +205,7 @@ func (m *TasksMethods) handleUpdateStatus(ctx context.Context, client *gateway.C
 		return
 	}
 	if err := m.tasks.UpdateTaskStatus(ctx, params.TaskID, params.Status, params.ResultRef); err != nil {
-		if err == store.ErrNotFound {
+		if errors.Is(err, sql.ErrNoRows) {
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "task", params.TaskID)))
 			return
 		}
@@ -228,5 +231,29 @@ func (m *TasksMethods) fetchTask(ctx context.Context, client *gateway.Client, re
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "task", id)))
 		return nil, false
 	}
+
 	return task, true
+}
+
+// toTaskJSON renders a task node with camelCase wire keys.
+func toTaskJSON(t *store.TaskNode) taskJSON {
+	dependsOn := t.DependsOn
+	if dependsOn == nil {
+		dependsOn = []string{}
+	}
+	return taskJSON{
+		ID:           t.ID,
+		TenantID:     t.TenantID,
+		WorkspaceID:  t.WorkspaceID,
+		ParentID:     t.ParentID,
+		OwnerAgentID: t.OwnerAgentID,
+		SessionKey:   t.SessionKey,
+		Title:        t.Title,
+		Status:       t.Status,
+		Priority:     t.Priority,
+		DependsOn:    dependsOn,
+		ResultRef:    t.ResultRef,
+		CreatedAt:    t.CreatedAt,
+		UpdatedAt:    t.UpdatedAt,
+	}
 }
