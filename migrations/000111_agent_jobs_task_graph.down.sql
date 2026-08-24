@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS task_graph;
+DROP TABLE IF EXISTS agent_jobs;

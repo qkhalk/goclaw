@@ -412,6 +412,12 @@ func isWriteMethod(method string) bool {
 		protocol.MethodWorkspaceUpdate,
 		protocol.MethodWorkspaceDelete,
 
+		// Agent jobs + task graph (Paseo Phase 2) — cancel and status
+		// transitions mutate durable lifecycle records.
+		protocol.MethodJobsCancel,
+		protocol.MethodTasksCreate,
+		protocol.MethodTasksUpdateStatus,
+
 		// Browser automation — performs side-effecting actions.
 		protocol.MethodBrowserAct,
 
@@ -469,6 +475,11 @@ func isReadMethod(method string) bool {
 		// Workspace domain (Paseo Phase 2) — registry reads.
 		protocol.MethodWorkspaceList,
 		protocol.MethodWorkspaceGet,
+
+		// Agent jobs + task graph (Paseo Phase 2) — lifecycle reads.
+		protocol.MethodJobsList,
+		protocol.MethodJobsGet,
+		protocol.MethodTasksTree,
 
 		// Skills read
 		protocol.MethodSkillsList,
