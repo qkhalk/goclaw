@@ -30,5 +30,61 @@
     "title": "Select an agent",
     "description": "Choose an agent to start chatting"
   },
-  "imageGenDownloadName": "generated-{{timestamp}}.png"
+  "imageGenDownloadName": "generated-{{timestamp}}.png",
+  "workspacePicker": {
+    "title": "Workspace",
+    "none": "No workspace",
+    "empty": "No workspaces available",
+    "loading": "Loading workspaces…",
+    "archived": "Archived"
+  },
+  "fileExplorer": {
+    "title": "Files",
+    "emptyTitle": "Empty folder",
+    "emptyHint": "This folder has no files yet.",
+    "emptyDir": "This folder is empty",
+    "truncated": "Too many entries — the list has been truncated.",
+    "refresh": "Refresh",
+    "close": "Close",
+    "closeFile": "Close file",
+    "loading": "Loading…",
+    "loadingFile": "Loading file…",
+    "viewing": "Viewing {{path}}",
+    "loadingError": "Failed to load files: {{message}}",
+    "binaryFile": "Binary file — preview is not available.",
+    "noWorkspace": "Select a workspace to browse its files"
+  },
+  "jobsPanel": {
+    "title": "Jobs & Tasks",
+    "tabJobs": "Jobs",
+    "tabTasks": "Tasks",
+    "empty": "No jobs yet",
+    "cancel": "Cancel",
+    "cancelled": "Job cancelled",
+    "cancelFailed": "Failed to cancel job",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "noWorkspace": "Select a workspace to see its jobs",
+    "status": {
+      "queued": "Queued",
+      "starting": "Starting",
+      "running": "Running",
+      "waiting_input": "Waiting for input",
+      "waiting_approval": "Waiting for approval",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "toast": {
+      "cancelled": "Job cancelled",
+      "cancelFailed": "Failed to cancel job"
+    }
+  },
+  "taskTree": {
+    "empty": "No tasks yet",
+    "priority": "Priority",
+    "loading": "Loading tasks…",
+    "refresh": "Refresh"
+  }
 }

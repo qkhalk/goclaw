@@ -30,5 +30,61 @@
     "title": "Chọn agent",
     "description": "Chọn agent để bắt đầu trò chuyện"
   },
-  "imageGenDownloadName": "generated-{{timestamp}}.png"
+  "imageGenDownloadName": "generated-{{timestamp}}.png",
+  "workspacePicker": {
+    "loading": "Đang tải workspace…",
+    "archived": "Đã lưu trữ",
+    "title": "Workspace",
+    "none": "Không có workspace",
+    "empty": "Chưa có workspace nào"
+  },
+  "fileExplorer": {
+    "title": "Tệp",
+    "emptyTitle": "Thư mục trống",
+    "emptyHint": "Thư mục này chưa có tệp nào.",
+    "emptyDir": "Thư mục này trống",
+    "truncated": "Quá nhiều mục — danh sách đã bị cắt bớt.",
+    "refresh": "Làm mới",
+    "close": "Đóng",
+    "closeFile": "Đóng tệp",
+    "loading": "Đang tải…",
+    "loadingFile": "Đang tải tệp…",
+    "viewing": "Đang xem {{path}}",
+    "loadingError": "Không thể tải tệp: {{message}}",
+    "binaryFile": "Tệp nhị phân — không xem trước được.",
+    "noWorkspace": "Chọn một workspace để xem tệp của nó"
+  },
+  "jobsPanel": {
+    "title": "Jobs & Tasks",
+    "tabJobs": "Jobs",
+    "tabTasks": "Tasks",
+    "empty": "Chưa có công việc nào",
+    "cancel": "Hủy",
+    "cancelled": "Đã hủy công việc",
+    "cancelFailed": "Hủy công việc thất bại",
+    "refresh": "Làm mới",
+    "loading": "Đang tải…",
+    "noWorkspace": "Chọn một workspace để xem công việc của nó",
+    "status": {
+      "queued": "Đang chờ",
+      "starting": "Đang khởi động",
+      "running": "Đang chạy",
+      "waiting_input": "Chờ nhập liệu",
+      "waiting_approval": "Chờ phê duyệt",
+      "paused": "Tạm dừng",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy"
+    },
+    "toast": {
+      "cancelled": "Đã hủy job",
+      "cancelFailed": "Hủy job thất bại"
+    }
+  },
+  "taskTree": {
+    "empty": "Chưa có nhiệm vụ nào",
+    "priority": "Ưu tiên",
+    "loading": "Đang tải nhiệm vụ…",
+    "refresh": "Làm mới"
+  }
 }
