@@ -2960,3 +2960,31 @@ CREATE INDEX IF NOT EXISTS idx_memories_content_hash
 CREATE INDEX IF NOT EXISTS idx_memories_supersedes
     ON memories (supersedes_id) WHERE supersedes_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_memories_updated ON memories (updated_at DESC);
+
+-- ============================================================
+-- Table: terminal_sessions (PG 000113)
+-- Web terminal (Paseo plan Phase 4 / §25): one row per terminal tab.
+-- Only metadata + lifecycle is durable; raw PTY output lives in an
+-- in-memory ring buffer and is never persisted.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS terminal_sessions (
+    id           TEXT PRIMARY KEY,
+    tenant_id    TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id      VARCHAR(255) NOT NULL,
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    cwd          TEXT NOT NULL DEFAULT '',
+    shell        TEXT NOT NULL DEFAULT '',
+    status       TEXT NOT NULL DEFAULT 'running'
+                 CHECK (status IN ('running','exited','closed')),
+    exit_code    INT,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_tenant_user
+    ON terminal_sessions (tenant_id, user_id, status);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_workspace
+    ON terminal_sessions (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_updated
+    ON terminal_sessions (updated_at DESC);

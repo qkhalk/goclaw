@@ -111,4 +111,9 @@ type Stores struct {
 	// confidence/authority, and a supersede/conflict model (Paseo plan
 	// §7.1). Distinct from file-based MemoryStore and episodic summaries.
 	MemoryFabric MemoryFabricStore
+
+	// Terminals persists web-terminal tab metadata (Paseo plan §25); raw
+	// PTY output stays in an in-memory ring buffer and is never written
+	// here.
+	Terminals TerminalStore
 }
