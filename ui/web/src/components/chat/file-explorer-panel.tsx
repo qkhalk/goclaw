@@ -35,6 +35,7 @@ export function FileExplorerPanel({ open, onClose, workspaceId }: FileExplorerPa
   const ws = useWs();
   const tree = useFileTree(workspaceId);
   const [file, setFile] = useState<LoadedFile | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
 
   if (!open) return null;

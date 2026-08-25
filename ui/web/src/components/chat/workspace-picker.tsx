@@ -16,6 +16,7 @@ interface WorkspacePickerProps {
 export function WorkspacePicker({ value, onChange, className }: WorkspacePickerProps) {
   const { t } = useTranslation("chat");
   const { workspaces, loading, refresh } = useWorkspaces();
+  const selected = workspaces.find((ws) => ws.id === value);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
