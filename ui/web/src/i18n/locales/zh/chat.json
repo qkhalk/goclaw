@@ -55,9 +55,9 @@
     "noWorkspace": "选择一个工作区以浏览其文件"
   },
   "jobsPanel": {
-    "title": "动态",
-    "tabJobs": "任务作业",
-    "tabTasks": "任务列表",
+    "title": "任务与作业",
+    "tabJobs": "作业",
+    "tabTasks": "任务",
     "empty": "暂无作业",
     "cancel": "取消",
     "cancelled": "作业已取消",
@@ -70,11 +70,15 @@
       "starting": "启动中",
       "running": "运行中",
       "waiting_input": "等待输入",
-      "waiting_approval": "等待审批",
+      "waiting_approval": "等待批准",
       "paused": "已暂停",
       "completed": "已完成",
       "failed": "失败",
       "cancelled": "已取消"
+    },
+    "toast": {
+      "cancelled": "作业已取消",
+      "cancelFailed": "取消作业失败"
     }
   },
   "taskTree": {

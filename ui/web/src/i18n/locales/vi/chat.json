@@ -55,9 +55,9 @@
     "noWorkspace": "Chọn một workspace để xem tệp của nó"
   },
   "jobsPanel": {
-    "title": "Hoạt động",
-    "tabJobs": "Công việc",
-    "tabTasks": "Nhiệm vụ",
+    "title": "Jobs & Tasks",
+    "tabJobs": "Jobs",
+    "tabTasks": "Tasks",
     "empty": "Chưa có công việc nào",
     "cancel": "Hủy",
     "cancelled": "Đã hủy công việc",
@@ -75,6 +75,10 @@
       "completed": "Hoàn thành",
       "failed": "Thất bại",
       "cancelled": "Đã hủy"
+    },
+    "toast": {
+      "cancelled": "Đã hủy job",
+      "cancelFailed": "Hủy job thất bại"
     }
   },
   "taskTree": {
