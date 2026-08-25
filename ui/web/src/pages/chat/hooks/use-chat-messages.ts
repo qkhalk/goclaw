@@ -40,7 +40,8 @@ function timelineItemToAgentEvent(item: RunTimelineItem): AgentEventPayload | nu
     case "tool.started": {
       if (!item.content) return null;
       try {
-        const entry = JSON.parse(item.content) as { name?: string; raw_name?: string; id?: string };
+        const entry = JSON.parse(item.content) as { name?: string; id?: string };
+        payload = { name: entry.name ?? "", id: entry.id ?? "" };
       } catch { return null; }
       break;
     }
