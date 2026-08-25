@@ -74,6 +74,25 @@ export class WsClient {
 
   onPairingRequired: ((code: string, senderID: string) => void) | null = null;
 
+  /**
+   * Fired once per successful (re)connect AFTER the node-lease handshake
+   * settles. Lets the chat layer resync in-flight runs via runs.events.
+   */
+  private reconnectListeners = new Set<() => void>();
+
+  /** Subscribe to post-handshake (re)connect notifications; returns unsubscribe. */
+  onReconnected(listener: () => void): () => void {
+    this.reconnectListeners.add(listener);
+    return () => { this.reconnectListeners.delete(listener); };
+  }
+
+  /** Fan out the (re)connect notification; one failing listener never blocks others. */
+  private notifyReconnected(): void {
+    for (const fn of this.reconnectListeners) {
+      try { fn(); } catch { /* ignore */ }
+    }
+  }
+
   constructor(
     private url: string,
     private getToken: () => string,
@@ -325,8 +344,12 @@ export class WsClient {
    * Best-effort: gateways without node.* support simply ignore it.
    */
   private async startNodeLease(generation: number): Promise<void> {
-    if (this.leaseUnsupported) return;
-
+    if (this.leaseUnsupported) {
+      // Legacy gateway (node.* unknown): no handshake, but the socket is live
+      // and runs.* methods may still exist — resync must still fire.
+      this.notifyReconnected();
+      return;
+    }
     const clientId = this.getUserId();
     if (!this.nodeId || this.clientId !== clientId) {
       const session = loadNodeSession(clientId);
@@ -364,6 +387,9 @@ export class WsClient {
     } finally {
       if (this.connectGeneration === generation) {
         this.startHeartbeat(generation);
+        // Handshake settled (success, legacy-skip or transient failure) and
+        // the socket is live: notify the chat layer to resync in-flight runs.
+        this.notifyReconnected();
       }
     }
   }

@@ -80,6 +80,8 @@ export const Methods = {
   SESSIONS_DELETE: "sessions.delete",
   SESSIONS_RESET: "sessions.reset",
   RUN_TIMELINE_GET: "run.timeline.get",
+  RUNS_GET: "runs.get",
+  RUNS_EVENTS: "runs.events",
 
   // Workspace registry (Paseo Phase 2) + file explorer (Phase 3 / §24)
   WORKSPACE_LIST: "workspace.list",
