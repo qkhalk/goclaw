@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/format";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import type { AgentJob, TaskNode } from "@/types/workspace";
+import type { AgentJob } from "@/types/workspace";
 import { useJobs } from "@/pages/chat/hooks/use-jobs";
 import { useTaskTree, type TaskTreeNode } from "@/pages/chat/hooks/use-task-tree";
 
