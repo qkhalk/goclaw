@@ -362,3 +362,16 @@ const (
 	MethodMultiAgentJury      = "multiagent.jury"
 	MethodMultiAgentNegotiate = "multiagent.negotiate"
 )
+
+// Web terminal (Paseo plan Phase 4 / §25): one PTY per terminal tab,
+// streamed over WS events with a bounded in-memory ring buffer for replay.
+// Raw output is never persisted; handlers live in
+// internal/gateway/methods/terminal.go.
+const (
+	MethodTerminalCreate = "terminal.create"
+	MethodTerminalList   = "terminal.list"
+	MethodTerminalAttach = "terminal.attach"
+	MethodTerminalInput  = "terminal.input"
+	MethodTerminalResize = "terminal.resize"
+	MethodTerminalClose  = "terminal.close"
+)

@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 75
+const SchemaVersion = 76
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -361,6 +361,28 @@ var migrations = map[int]string{
 	CREATE INDEX IF NOT EXISTS idx_memories_supersedes
 		ON memories (supersedes_id) WHERE supersedes_id IS NOT NULL;
 	CREATE INDEX IF NOT EXISTS idx_memories_updated ON memories (updated_at DESC);`,
+	// Version 74 → 75: web terminal session metadata (Paseo plan Phase 4 /
+	// §25; PG 000113). One row per terminal tab; only metadata + lifecycle
+	// is durable, raw PTY output never lands here.
+	75: `CREATE TABLE IF NOT EXISTS terminal_sessions (
+	id           TEXT PRIMARY KEY,
+	tenant_id    TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+	user_id      VARCHAR(255) NOT NULL,
+	workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+	cwd          TEXT NOT NULL DEFAULT '',
+	shell        TEXT NOT NULL DEFAULT '',
+	status       TEXT NOT NULL DEFAULT 'running'
+	             CHECK (status IN ('running','exited','closed')),
+	exit_code    INT,
+	created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_tenant_user
+	ON terminal_sessions (tenant_id, user_id, status);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_workspace
+	ON terminal_sessions (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_updated
+	ON terminal_sessions (updated_at DESC);`,
 	// Version 63 → 64: append-only checkpoint-snapshot history for durable agent
 	// runs. One row per versioned pipeline checkpoint so a paused run can be
 	// replayed ("time travel") from any earlier snapshot seq; the store layer
