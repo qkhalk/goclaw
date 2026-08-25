@@ -42,11 +42,17 @@
     "title": "Tệp",
     "emptyTitle": "Thư mục trống",
     "emptyHint": "Thư mục này chưa có tệp nào.",
+    "emptyDir": "Thư mục này trống",
     "truncated": "Quá nhiều mục — danh sách đã bị cắt bớt.",
     "refresh": "Làm mới",
     "close": "Đóng",
+    "closeFile": "Đóng tệp",
+    "loading": "Đang tải…",
+    "loadingFile": "Đang tải tệp…",
+    "viewing": "Đang xem {{path}}",
     "loadingError": "Không thể tải tệp: {{message}}",
-    "binaryFile": "Tệp nhị phân — không xem trước được."
+    "binaryFile": "Tệp nhị phân — không xem trước được.",
+    "noWorkspace": "Chọn một workspace để xem tệp của nó"
   },
   "jobsPanel": {
     "title": "Hoạt động",
@@ -57,10 +63,24 @@
     "cancelled": "Đã hủy công việc",
     "cancelFailed": "Hủy công việc thất bại",
     "refresh": "Làm mới",
-    "noWorkspace": "Chọn một workspace để xem công việc của nó"
+    "loading": "Đang tải…",
+    "noWorkspace": "Chọn một workspace để xem công việc của nó",
+    "status": {
+      "queued": "Đang chờ",
+      "starting": "Đang khởi động",
+      "running": "Đang chạy",
+      "waiting_input": "Chờ nhập liệu",
+      "waiting_approval": "Chờ phê duyệt",
+      "paused": "Tạm dừng",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy"
+    }
   },
   "taskTree": {
     "empty": "Chưa có nhiệm vụ nào",
-    "priority": "Ưu tiên"
+    "priority": "Ưu tiên",
+    "loading": "Đang tải nhiệm vụ…",
+    "refresh": "Làm mới"
   }
 }

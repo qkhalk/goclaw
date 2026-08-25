@@ -42,11 +42,17 @@
     "title": "Files",
     "emptyTitle": "Empty folder",
     "emptyHint": "This folder has no files yet.",
+    "emptyDir": "This folder is empty",
     "truncated": "Too many entries — the list has been truncated.",
     "refresh": "Refresh",
     "close": "Close",
+    "closeFile": "Close file",
+    "loading": "Loading…",
+    "loadingFile": "Loading file…",
+    "viewing": "Viewing {{path}}",
     "loadingError": "Failed to load files: {{message}}",
-    "binaryFile": "Binary file — preview is not available."
+    "binaryFile": "Binary file — preview is not available.",
+    "noWorkspace": "Select a workspace to browse its files"
   },
   "jobsPanel": {
     "title": "Activity",
@@ -57,10 +63,24 @@
     "cancelled": "Job cancelled",
     "cancelFailed": "Failed to cancel job",
     "refresh": "Refresh",
-    "noWorkspace": "Select a workspace to see its jobs"
+    "loading": "Loading…",
+    "noWorkspace": "Select a workspace to see its jobs",
+    "status": {
+      "queued": "Queued",
+      "starting": "Starting",
+      "running": "Running",
+      "waiting_input": "Waiting for input",
+      "waiting_approval": "Waiting for approval",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    }
   },
   "taskTree": {
     "empty": "No tasks yet",
-    "priority": "Priority"
+    "priority": "Priority",
+    "loading": "Loading tasks…",
+    "refresh": "Refresh"
   }
 }
