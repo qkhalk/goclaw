@@ -32,6 +32,8 @@
   },
   "imageGenDownloadName": "generated-{{timestamp}}.png",
   "workspacePicker": {
+    "loading": "正在加载工作区…",
+    "archived": "已归档",
     "title": "工作区",
     "none": "无工作区",
     "empty": "暂无可用工作区"

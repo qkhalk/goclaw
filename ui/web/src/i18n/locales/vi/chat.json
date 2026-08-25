@@ -32,6 +32,8 @@
   },
   "imageGenDownloadName": "generated-{{timestamp}}.png",
   "workspacePicker": {
+    "loading": "Đang tải workspace…",
+    "archived": "Đã lưu trữ",
     "title": "Workspace",
     "none": "Không có workspace",
     "empty": "Chưa có workspace nào"
