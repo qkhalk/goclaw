@@ -137,8 +137,9 @@ func (m *WorkspaceFilesMethods) resolveForFiles(ctx context.Context, client *gat
 		return "", "", false
 	}
 	root = ws.RootPath
-	if ws.WorktreePath != "" {
-		root = ws.WorktreePath
+	if ws.WorktreePath != nil && *ws.WorktreePath != "" {
+		// An active worktree checkout supersedes the registry rootPath.
+		root = *ws.WorktreePath
 	}
 	abs, err = safeJoin(root, p.Path)
 	if err != nil {
