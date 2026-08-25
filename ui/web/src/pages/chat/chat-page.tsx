@@ -253,6 +253,8 @@ export function ChatPage() {
             filesPanelOpen={filesPanelOpen}
             onToggleJobsTasks={() => setJobsPanelOpen((v) => !v)}
             jobsTasksPanelOpen={jobsPanelOpen}
+            workspaceId={workspaceId}
+            onWorkspaceChange={setWorkspaceId}
           />
         </div>
 
