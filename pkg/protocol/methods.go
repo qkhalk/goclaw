@@ -90,6 +90,15 @@ const (
 	MethodTasksCreate       = "tasks.create"
 	MethodTasksUpdateStatus = "tasks.updateStatus"
 
+	// Workspace file explorer (Paseo plan Phase 3 / §24): lazy directory
+	// listing and file reads scoped to a workspace root. Handlers live in
+	// internal/gateway/methods/workspace_files.go.
+	MethodWorkspaceFilesList   = "workspace.files.list"
+	MethodWorkspaceFilesRead   = "workspace.files.read"
+	MethodWorkspaceFilesWrite  = "workspace.files.write"
+	MethodWorkspaceFilesDelete = "workspace.files.delete"
+	MethodWorkspaceFilesMkdir  = "workspace.files.mkdir"
+
 	// Memory fabric (Paseo plan Phase 2 / §7.1): semantic memory records
 	// with strict scope, provenance, confidence/authority, and a
 	// supersede/conflict model. Handlers live in
