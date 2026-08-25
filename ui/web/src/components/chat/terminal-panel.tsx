@@ -113,7 +113,7 @@ function TerminalView({
   const xtermRef = useRef<Terminal | null>(null);
   // Latest live session; drops output events from superseded sessions.
   const sessionIdRef = useRef<string | null>(null);
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resizeTimerRef = useRef<number | undefined>(undefined);
 
   // Stream output chunks into the viewport. terminal.output carries base64
   // because arbitrary binary can appear; atob → bytes keeps it lossless.
@@ -169,7 +169,7 @@ function TerminalView({
       }
       // Debounced so window/panel drags don't spam terminal.resize RPCs.
       clearTimeout(resizeTimerRef.current);
-      resizeTimerRef.current = setTimeout(reportSize, 250);
+      resizeTimerRef.current = window.setTimeout(reportSize, 250);
     });
     ro.observe(el);
 
