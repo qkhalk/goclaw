@@ -101,6 +101,7 @@ func NewSQLiteStores(cfg store.StoreConfig) (*store.Stores, error) {
 		AgentJobs:              NewSQLiteAgentJobStore(db),
 		TaskGraph:              NewSQLiteTaskGraphStore(db),
 		MemoryFabric:           NewSQLiteMemoryFabricStore(db),
+		Terminals:              NewSQLiteTerminalStore(db),
 	}
 	// Wire permStore into WorkstationStore so Create seeds allowlist atomically (H5 fix).
 	sqliteStores.Workstations.(*SQLiteWorkstationStore).SetPermStore(sqliteStores.WorkstationPermissions)
