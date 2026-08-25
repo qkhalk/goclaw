@@ -17,15 +17,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-// NOTE(orchestrator): these method-name constants are declared locally for the
-// phase 2 wave 2 cutover and will be relocated to pkg/protocol (same flow as
-// workspace.go in wave 1).
-const (
-	MethodTasksTree         = "tasks.tree"
-	MethodTasksCreate       = "tasks.create"
-	MethodTasksUpdateStatus = "tasks.updateStatus"
-)
-
 // validTaskStatuses is the closed set accepted by tasks.updateStatus.
 var validTaskStatuses = map[string]bool{
 	"pending":   true,
@@ -49,9 +40,9 @@ func NewTasksMethods(tasks store.TaskGraphStore) *TasksMethods {
 
 // Register wires the tasks.* methods into the method router.
 func (m *TasksMethods) Register(router *gateway.MethodRouter) {
-	router.Register(MethodTasksTree, m.handleTree)
-	router.Register(MethodTasksCreate, m.handleCreate)
-	router.Register(MethodTasksUpdateStatus, m.handleUpdateStatus)
+	router.Register(protocol.MethodTasksTree, m.handleTree)
+	router.Register(protocol.MethodTasksCreate, m.handleCreate)
+	router.Register(protocol.MethodTasksUpdateStatus, m.handleUpdateStatus)
 }
 
 // taskJSON is the camelCase wire form of store.TaskNode.

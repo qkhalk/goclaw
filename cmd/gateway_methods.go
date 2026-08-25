@@ -64,6 +64,12 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	if workspaceStore != nil {
 		methods.NewWorkspaceMethods(workspaceStore, workspace).Register(router)
 	}
+	// Workspace file explorer (Paseo plan Phase 3 / §24): lazy directory
+	// listing and bounded reads/writes inside a workspace root. Shares the
+	// workspace store's nil-safety.
+	if workspaceStore != nil {
+		methods.NewWorkspaceFilesMethods(workspaceStore).Register(router)
+	}
 	// Agent jobs + task graph (Paseo plan Phase 2): jobs.list/get/cancel and
 	// tasks.tree/create/updateStatus. Nil-safe without their stores.
 	if agentJobStore != nil {
