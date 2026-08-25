@@ -25,6 +25,14 @@ on:
         description: "Re-cut an existing tag (e.g. 3.16.0-fork.1). Leave empty for auto-increment."
         required: false
         default: ""
+      TAG_MODE:
+        description: "Tag style: fork = v3.16.0-fork.N (auto), plain = clean v3.16.0"
+        required: false
+        default: "fork"
+        type: choice
+        options:
+          - fork
+          - plain
       PRERELEASE:
         description: "Mark as GitHub prerelease"
         required: false
@@ -39,6 +47,7 @@ env:
   GHCR_IMAGE: ghcr.io/qkhalk/goclaw
   FORK_BASE: ${{ inputs.FORK_BASE }}
   VERSION_OVERRIDE: ${{ inputs.VERSION_OVERRIDE }}
+  TAG_MODE: ${{ inputs.TAG_MODE }}
   PRERELEASE_ID: fork
 
 jobs:
