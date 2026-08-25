@@ -81,6 +81,15 @@
       "cancelFailed": "Hủy job thất bại"
     }
   },
+  "terminal": {
+    "title": "Terminal",
+    "newTab": "Tab mới",
+    "closeTab": "Đóng tab",
+    "noWorkspace": "Chọn một workspace để mở terminal",
+    "ended": "Phiên đã kết thúc",
+    "connecting": "Đang kết nối…",
+    "failed": "Terminal gặp lỗi: {{message}}"
+  },
   "taskTree": {
     "empty": "Chưa có nhiệm vụ nào",
     "priority": "Ưu tiên",

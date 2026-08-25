@@ -101,6 +101,15 @@ export const Methods = {
   TASKS_CREATE: "tasks.create",
   TASKS_UPDATE_STATUS: "tasks.updateStatus",
 
+  // Web terminal (Paseo plan Phase 4 / §25): one PTY per terminal tab,
+  // streamed over WS events with a bounded in-memory replay buffer.
+  TERMINAL_CREATE: "terminal.create",
+  TERMINAL_LIST: "terminal.list",
+  TERMINAL_ATTACH: "terminal.attach",
+  TERMINAL_INPUT: "terminal.input",
+  TERMINAL_RESIZE: "terminal.resize",
+  TERMINAL_CLOSE: "terminal.close",
+
   // Phase 2 - NEEDED
   SKILLS_LIST: "skills.list",
   SKILLS_GET: "skills.get",
@@ -278,6 +287,10 @@ export const Events = {
 
   // Workspace
   WORKSPACE_FILE_CHANGED: "workspace.file.changed",
+
+  // Web terminal (Paseo plan Phase 4 / §25)
+  TERMINAL_OUTPUT: "terminal.output",
+  TERMINAL_EXIT: "terminal.exit",
 
   // Agent links
   AGENT_LINK_CREATED: "agent_link.created",

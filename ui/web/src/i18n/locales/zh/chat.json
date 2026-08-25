@@ -81,6 +81,15 @@
       "cancelFailed": "取消作业失败"
     }
   },
+  "terminal": {
+    "title": "终端",
+    "newTab": "新建标签页",
+    "closeTab": "关闭标签页",
+    "noWorkspace": "选择一个工作区以打开终端",
+    "ended": "会话已结束",
+    "connecting": "正在连接…",
+    "failed": "终端出错：{{message}}"
+  },
   "taskTree": {
     "empty": "暂无任务",
     "priority": "优先级",
