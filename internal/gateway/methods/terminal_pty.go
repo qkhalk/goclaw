@@ -177,6 +177,9 @@ func (m *ptyManager) pump(sess *ptySession, broadcast func(event string, payload
 			break
 		}
 	}
+	// Reap the child so ProcessState is populated (real exit code) and no
+	// zombie lingers; Wait also releases the PTY's controlling-terminal side.
+	_ = sess.cmd.Wait()
 	exitCode := -1
 	if sess.cmd.ProcessState != nil {
 		exitCode = sess.cmd.ProcessState.ExitCode()

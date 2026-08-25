@@ -397,6 +397,11 @@ func (m *TerminalMethods) handleResize(ctx context.Context, client *gateway.Clie
 		client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{}))
 		return
 	}
+	// Same owner-or-admin rule as input: a live PTY belongs to its creator.
+	if sess.userID != client.UserID() && !permissions.HasMinRole(client.Role(), permissions.RoleAdmin) {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "terminal session", params.TerminalID)))
+		return
+	}
 	if err := sess.resize(uint16(cols), uint16(rows)); err != nil {
 		slog.Debug("terminal.resize_failed", "session_id", params.TerminalID, "error", err)
 	}
