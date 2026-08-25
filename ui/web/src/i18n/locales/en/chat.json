@@ -34,7 +34,9 @@
   "workspacePicker": {
     "title": "Workspace",
     "none": "No workspace",
-    "empty": "No workspaces available"
+    "empty": "No workspaces available",
+    "loading": "Loading workspaces…",
+    "archived": "Archived"
   },
   "fileExplorer": {
     "title": "Files",
