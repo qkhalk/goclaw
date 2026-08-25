@@ -17,6 +17,9 @@ import { useChatSend } from "./hooks/use-chat-send";
 import { isOwnSession, parseSessionKey } from "@/lib/session-key";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { TaskPanel } from "@/components/chat/task-panel";
+import { WorkspacePicker } from "@/components/chat/workspace-picker";
+import { FileExplorerPanel } from "@/components/chat/file-explorer-panel";
+import { JobsTasksPanel } from "@/components/chat/jobs-tasks-panel";
 
 export function ChatPage() {
   const { t } = useTranslation("chat");
@@ -153,6 +156,10 @@ export function ChatPage() {
   useVirtualKeyboard();
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
+  // Paseo Phase 3 console panels: workspace selection + right-side tools.
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [filesPanelOpen, setFilesPanelOpen] = useState(false);
+  const [jobsPanelOpen, setJobsPanelOpen] = useState(false);
 
   // Auto-open task panel when first task appears, auto-close when all done.
   const prevTaskCountRef = useRef(0);
@@ -243,6 +250,10 @@ export function ChatPage() {
             onToggleTaskPanel={() => setTaskPanelOpen((v) => !v)}
             taskPanelOpen={taskPanelOpen}
             session={sessions.find((s) => s.key === sessionKey) ?? null}
+            onToggleFiles={() => setFilesPanelOpen((v) => !v)}
+            filesPanelOpen={filesPanelOpen}
+            onToggleJobsTasks={() => setJobsPanelOpen((v) => !v)}
+            jobsTasksPanelOpen={jobsPanelOpen}
           />
         </div>
 
@@ -293,8 +304,28 @@ export function ChatPage() {
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setTaskPanelOpen(false)} />
       )}
 
+      {/* Paseo Phase 3 console panels — one open at a time */}
+      {filesPanelOpen && !jobsPanelOpen && !taskPanelOpen && isMobile && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setFilesPanelOpen(false)} />
+      )}
+      {jobsPanelOpen && !taskPanelOpen && isMobile && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setJobsPanelOpen(false)} />
+      )}
+
       {/* Task panel — toggleable sidebar on the right */}
-      <TaskPanel tasks={teamTasks} open={taskPanelOpen} onClose={() => setTaskPanelOpen(false)} />
+      {!filesPanelOpen && !jobsPanelOpen && (
+        <TaskPanel tasks={teamTasks} open={taskPanelOpen} onClose={() => setTaskPanelOpen(false)} />
+      )}
+      <FileExplorerPanel
+        open={filesPanelOpen}
+        onClose={() => setFilesPanelOpen(false)}
+        workspaceId={workspaceId}
+      />
+      <JobsTasksPanel
+        open={jobsPanelOpen}
+        onClose={() => setJobsPanelOpen(false)}
+        workspaceId={workspaceId}
+      />
     </div>
   );
 }
