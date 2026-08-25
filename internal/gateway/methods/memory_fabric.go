@@ -31,6 +31,10 @@ type MemoryFabricMethods struct {
 	memories store.MemoryFabricStore
 }
 
+func NewMemoryFabricMethods(memories store.MemoryFabricStore) *MemoryFabricMethods {
+	return &MemoryFabricMethods{memories: memories}
+}
+
 // Register wires the memory.* methods into the method router.
 func (m *MemoryFabricMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodMemoryWrite, m.handleWrite)
