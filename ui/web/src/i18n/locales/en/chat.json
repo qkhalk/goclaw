@@ -55,7 +55,7 @@
     "noWorkspace": "Select a workspace to browse its files"
   },
   "jobsPanel": {
-    "title": "Activity",
+    "title": "Jobs & Tasks",
     "tabJobs": "Jobs",
     "tabTasks": "Tasks",
     "empty": "No jobs yet",
@@ -75,6 +75,10 @@
       "completed": "Completed",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "toast": {
+      "cancelled": "Job cancelled",
+      "cancelFailed": "Failed to cancel job"
     }
   },
   "taskTree": {
