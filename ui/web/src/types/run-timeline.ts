@@ -5,6 +5,9 @@ export type RunTimelineItemType =
   | "tool.result"
   | "run.status";
 
+/** Stream-resync item types returned by runs.events (not part of the display union). */
+export type RunTimelineReplayItemType = RunTimelineItemType | "tool.started" | "chunk" | "thinking";
+
 export interface RunTimelineItem {
   id: string;
   tenant_id?: string;
@@ -14,11 +17,13 @@ export interface RunTimelineItem {
   user_id?: string;
   channel?: string;
   chat_id?: string;
+  item_type: RunTimelineReplayItemType;
   seq: number;
-  item_type: RunTimelineItemType;
   status?: "started" | "running" | "completed" | "failed" | "cancelled" | string;
   title?: string;
   preview?: string;
+  /** Full persisted content — chunk/thinking deltas and tool.started JSON. */
+  content?: string;
   tool_name?: string;
   tool_call_id?: string;
   trace_id?: string;

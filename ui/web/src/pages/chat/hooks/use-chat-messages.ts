@@ -9,11 +9,81 @@ import { transformHistoryMessages } from "@/adapters/chat-message.adapter";
 import { useChatTeamTasks } from "./use-chat-team-tasks";
 import { useChatMessagesStore } from "@/stores/use-chat-messages-store";
 import { appendFilteredThinkingChunk, createThinkTagStreamFilterState } from "@/lib/think-tag-stream";
-import { shouldProcessRunEvent, type RunSeqMap } from "@/lib/event-seq-dedup";
+import { shouldProcessRunEvent, runSeqKey, type RunSeqMap } from "@/lib/event-seq-dedup";
+import type { RunTimelineItem } from "@/types/run-timeline";
 
 // Stable empty array — avoids creating a new reference on every render inside
 // Zustand selectors, which would trigger an infinite re-render loop (React #185).
 const EMPTY_MESSAGES: ChatMessage[] = [];
+
+/**
+ * Replays a durable run-timeline item back through handleAgentEvent after a
+ * reconnect. The recorder stamps every persisted item with the originating
+ * event type in metadata.event_type (internal/agent/run_timeline_recorder.go),
+ * so we can reconstruct the exact AgentEventPayload shape the live "agent"
+ * event carried — same handler, same dedup gate.
+ */
+function timelineItemToAgentEvent(item: RunTimelineItem): AgentEventPayload | null {
+  // metadata carries the raw agent_key when AgentID wasn't a UUID; prefer it —
+  // the live handler compares against agentIdRef which holds keys, not UUIDs.
+  const meta = (item.metadata ?? {}) as { event_type?: string; run_kind?: string; is_error?: boolean; agent_key?: string };
+  const eventType = meta.event_type;
+  if (!eventType) return null;
+
+  let payload: AgentEventPayload["payload"];
+  switch (item.item_type) {
+    case "chunk":
+    case "thinking":
+      // Stream deltas persist full content in the content column.
+      payload = { content: item.content ?? "" };
+      break;
+    case "tool.started": {
+      if (!item.content) return null;
+      try {
+        const entry = JSON.parse(item.content) as { name?: string; raw_name?: string; id?: string };
+        payload = { name: entry.name, id: entry.id };
+      } catch { return null; }
+      break;
+    }
+    case "tool.call":
+      // arguments were persisted as a preview JSON string.
+      let args: Record<string, unknown> | undefined;
+      if (item.preview) {
+        try { args = JSON.parse(item.preview) as Record<string, unknown>; } catch { /* leave undefined */ }
+      }
+      payload = { name: item.tool_name ?? "", id: item.tool_call_id ?? "", arguments: args };
+      break;
+    case "tool.result":
+      payload = {
+        id: item.tool_call_id ?? "",
+        name: item.tool_name ?? "",
+        result: item.preview,
+        is_error: meta.is_error || item.status === "failed",
+      };
+      break;
+    case "run.status":
+      payload = eventType === "run.failed"
+        ? { error: item.preview }
+        : eventType === "run.completed" || eventType === "block.reply"
+          ? { content: item.preview }
+          : {};
+      break;
+    case "activity":
+      payload = {};
+      break;
+    default:
+      return null;
+  }
+  return {
+    type: eventType,
+    runId: item.run_id,
+    sessionKey: item.session_key,
+    agentId: meta.agent_key ?? item.agent_id ?? "",
+    ...(meta.run_kind ? { runKind: meta.run_kind } : {}),
+    channel: "ws",
+    payload,
+  };
+}
 
 /**
  * Manages chat message history and real-time streaming for a session.
@@ -52,10 +122,16 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   agentIdRef.current = agentId;
   const sessionKeyRef = useRef(sessionKey);
   sessionKeyRef.current = sessionKey;
-  const activityRef = useRef<RunActivity | null>(null);
-  const blockRepliesRef = useRef<ChatMessage[]>([]);
   const rafPendingRef = useRef(false);
   const rafHandleRef = useRef(0);
+  const activityRef = useRef<RunActivity | null>(null);
+  const blockRepliesRef = useRef<ChatMessage[]>([]);
+
+  // While a resync replay is in flight, run-scoped live frames are queued here
+  // (they may interleave with replay pages) and drained in order afterwards;
+  // the dedup gate drops whatever the replay already covered.
+  const resyncingRef = useRef(false);
+  const resyncQueueRef = useRef<Array<{ event: AgentEventPayload; seq?: number }>>([]);
 
   // Add a local message optimistically.
   // `key` is optional: callers that know the target session key (e.g. new-chat
@@ -156,6 +232,13 @@ export function useChatMessages(sessionKey: string, agentId: string) {
       if (event.sessionKey && event.sessionKey !== sessionKeyRef.current) return;
 
       // Dedup single gate for all run-scoped frames (chunk/thinking/tool/status).
+      // While a resync replay is in flight, run-scoped live frames are queued
+      // and re-run through this handler after the replay drains — ordering is
+      // preserved and the dedup gate drops overlap.
+      if (resyncingRef.current && event.runId && event.runId === runIdRef.current) {
+        resyncQueueRef.current.push({ event, seq });
+        return;
+      }
       if (!shouldProcessRunEvent(
         seenSeqRef.current, event.runId, event.sessionKey ?? sessionKeyRef.current,
         event.type, seq, !!runIdRef.current,
@@ -362,6 +445,73 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   );
 
   useWsEvent(Events.AGENT, handleAgentEvent);
+
+  // Reconnect resync: when the socket drops mid-run, the run keeps emitting
+  // frames we never see. On (re)connect — notified by the ws layer once its
+  // handshake settles — CHAT_SESSION_STATUS restores the runId and runs.events
+  // replays everything after our per-run seq cursor through the same handler
+  // + dedup gate as live frames.
+  useEffect(() => {
+    let cancelled = false;
+    const resync = () => {
+      const sessionKey = sessionKeyRef.current;
+      if (!sessionKey) return;
+      const prevRunId = runIdRef.current;
+      ws.call<{ isRunning?: boolean; runId?: string }>(Methods.CHAT_SESSION_STATUS, { sessionKey })
+        .then((res) => {
+          if (cancelled) return;
+          if (!res.isRunning || !res.runId) {
+            // The run finished while we were disconnected: its final frames are
+            // gone for good (no live seq cursor to continue from), so rebuild
+            // from history instead. Skip when nothing was in flight — idle
+            // tabs must not refetch on every network blip.
+            if (prevRunId) {
+              runIdRef.current = null;
+              setSessionRunning(sessionKey, false);
+              setSessionStream(sessionKey, null);
+              setSessionThinking(sessionKey, null);
+              setToolStream([]);
+              void loadHistory();
+            }
+            return;
+          }
+          // Must precede the replay: with a known runId the dedup gate tracks
+          // every replayed frame's seq instead of passing it untracked.
+          runIdRef.current = res.runId;
+          resyncingRef.current = true;
+          resyncQueueRef.current = [];
+          const drainQueue = () => {
+            const queued = resyncQueueRef.current;
+            resyncQueueRef.current = [];
+            resyncingRef.current = false;
+            for (const { event, seq: qseq } of queued) handleAgentEvent(event, qseq);
+          };
+          const finish = () => { try { drainQueue(); } catch (e) { console.error("[useChatMessages] resync drain failed:", e); } };
+          const fetchFrom = (afterSeq: number): Promise<void> =>
+            ws.call<{ items?: RunTimelineItem[]; nextAfter?: number }>(Methods.RUNS_EVENTS, {
+              runId: res.runId, afterSeq, limit: 500,
+            }).then((page) => {
+              if (cancelled) return;
+              for (const item of page.items ?? []) handleAgentEvent(timelineItemToAgentEvent(item), item.seq);
+              const next = page.nextAfter ?? afterSeq;
+              if ((page.items?.length ?? 0) > 0 && next > afterSeq) return fetchFrom(next);
+            });
+          return fetchFrom(seenSeqRef.current.get(runSeqKey(res.runId, sessionKey)) ?? 0)
+            .catch((err) => console.error("[useChatMessages] run replay failed:", err))
+            .finally(() => { if (!cancelled) finish(); });
+        })
+        .catch((err) => console.error("[useChatMessages] reconnect status failed:", err));
+    };
+    const unsubscribe = ws.onReconnected(resync);
+    // An aborted replay must release the queue gate, or live frames would
+    // pile up undelivered after a session switch mid-resync.
+    return () => {
+      cancelled = true;
+      resyncingRef.current = false;
+      resyncQueueRef.current = [];
+      unsubscribe();
+    };
+  }, [ws, handleAgentEvent, setSessionRunning, loadHistory]);
 
   // Leader processing: backend emits when announce queue drains
   const handleLeaderProcessing = useCallback((payload: unknown) => {
