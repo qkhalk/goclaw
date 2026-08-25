@@ -30,5 +30,35 @@
     "title": "Chọn agent",
     "description": "Chọn agent để bắt đầu trò chuyện"
   },
-  "imageGenDownloadName": "generated-{{timestamp}}.png"
+  "imageGenDownloadName": "generated-{{timestamp}}.png",
+  "workspacePicker": {
+    "title": "Workspace",
+    "none": "Không có workspace",
+    "empty": "Chưa có workspace nào"
+  },
+  "fileExplorer": {
+    "title": "Tệp",
+    "emptyTitle": "Thư mục trống",
+    "emptyHint": "Thư mục này chưa có tệp nào.",
+    "truncated": "Quá nhiều mục — danh sách đã bị cắt bớt.",
+    "refresh": "Làm mới",
+    "close": "Đóng",
+    "loadingError": "Không thể tải tệp: {{message}}",
+    "binaryFile": "Tệp nhị phân — không xem trước được."
+  },
+  "jobsPanel": {
+    "title": "Hoạt động",
+    "tabJobs": "Công việc",
+    "tabTasks": "Nhiệm vụ",
+    "empty": "Chưa có công việc nào",
+    "cancel": "Hủy",
+    "cancelled": "Đã hủy công việc",
+    "cancelFailed": "Hủy công việc thất bại",
+    "refresh": "Làm mới",
+    "noWorkspace": "Chọn một workspace để xem công việc của nó"
+  },
+  "taskTree": {
+    "empty": "Chưa có nhiệm vụ nào",
+    "priority": "Ưu tiên"
+  }
 }

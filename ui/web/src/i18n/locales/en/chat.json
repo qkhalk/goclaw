@@ -30,5 +30,35 @@
     "title": "Select an agent",
     "description": "Choose an agent to start chatting"
   },
-  "imageGenDownloadName": "generated-{{timestamp}}.png"
+  "imageGenDownloadName": "generated-{{timestamp}}.png",
+  "workspacePicker": {
+    "title": "Workspace",
+    "none": "No workspace",
+    "empty": "No workspaces available"
+  },
+  "fileExplorer": {
+    "title": "Files",
+    "emptyTitle": "Empty folder",
+    "emptyHint": "This folder has no files yet.",
+    "truncated": "Too many entries — the list has been truncated.",
+    "refresh": "Refresh",
+    "close": "Close",
+    "loadingError": "Failed to load files: {{message}}",
+    "binaryFile": "Binary file — preview is not available."
+  },
+  "jobsPanel": {
+    "title": "Activity",
+    "tabJobs": "Jobs",
+    "tabTasks": "Tasks",
+    "empty": "No jobs yet",
+    "cancel": "Cancel",
+    "cancelled": "Job cancelled",
+    "cancelFailed": "Failed to cancel job",
+    "refresh": "Refresh",
+    "noWorkspace": "Select a workspace to see its jobs"
+  },
+  "taskTree": {
+    "empty": "No tasks yet",
+    "priority": "Priority"
+  }
 }
