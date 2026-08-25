@@ -208,9 +208,9 @@ jobs:
           flags=""
           if [[ "$PRERELEASE" == "true" ]]; then flags="--prerelease"; fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "GoClaw $TAG" --notes-file release-notes/release-notes.md $flags
+            gh release edit "$TAG" --title "$TAG" --notes-file release-notes/release-notes.md $flags
           else
-            gh release create "$TAG" --title "GoClaw $TAG" --notes-file release-notes/release-notes.md $flags
+            gh release create "$TAG" --title "$TAG" --notes-file release-notes/release-notes.md $flags
           fi
           gh release upload "$TAG" artifacts/* --clobber
 
