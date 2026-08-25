@@ -41,11 +41,10 @@ function timelineItemToAgentEvent(item: RunTimelineItem): AgentEventPayload | nu
       if (!item.content) return null;
       try {
         const entry = JSON.parse(item.content) as { name?: string; raw_name?: string; id?: string };
-        payload = { name: entry.name, id: entry.id };
       } catch { return null; }
       break;
     }
-    case "tool.call":
+    case "tool.call": {
       // arguments were persisted as a preview JSON string.
       let args: Record<string, unknown> | undefined;
       if (item.preview) {
@@ -53,6 +52,7 @@ function timelineItemToAgentEvent(item: RunTimelineItem): AgentEventPayload | nu
       }
       payload = { name: item.tool_name ?? "", id: item.tool_call_id ?? "", arguments: args };
       break;
+    }
     case "tool.result":
       payload = {
         id: item.tool_call_id ?? "",
