@@ -13,13 +13,15 @@
 //   PRERELEASE_ID    prerelease id, default "fork"
 //   VERSION_OVERRIDE if set, tag is pinned to this (e.g. "3.16.0-fork.1") —
 //                    for re-cuts / manual fixes of an existing tag.
+//   TAG_MODE         "fork" (default) appends -fork.N; "plain" emits a clean
+//                    semver tag v{FORK_BASE} with no suffix.
 import { execFileSync } from "node:child_process";
 import { writeFileSync, appendFileSync } from "node:fs";
 
 const base = process.env.FORK_BASE || "3.16.0";
 const prerelease = process.env.PRERELEASE_ID || "fork";
 const override = process.env.VERSION_OVERRIDE || "";
-
+const plainMode = (process.env.TAG_MODE || "fork") === "plain";
 function git(args, opts) {
   return execFileSync("git", args, { encoding: "utf8", ...opts }).trim();
 }
@@ -114,7 +116,16 @@ try {
 
 // Compute the tag.
 let tag;
-if (override) {
+if (plainMode) {
+  // Plain mode: clean semver tag with no -fork.N suffix (v3.16.0). The tag
+  // must not already exist — plain releases are never force-pushed.
+  const [major, minor, patch] = base.split(".").map(Number);
+  if (![major, minor, patch].every(Number.isFinite)) {
+    writeNoRelease(`FORK_BASE '${base}' is not valid semver for plain mode.`);
+    process.exit(0);
+  }
+  tag = `v${versionText(major, minor, patch)}`;
+} else if (override) {
   const parsed = parseForkVersion(override);
   if (!parsed) {
     writeNoRelease(`VERSION_OVERRIDE '${override}' is not a valid fork tag (vX.Y.Z-fork.N).`);
