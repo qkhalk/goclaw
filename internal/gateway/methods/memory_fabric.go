@@ -15,17 +15,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-// NOTE(orchestrator): these method-name constants are declared locally for the
-// paseo phase 5 wave cutover and will be relocated to pkg/protocol (same flow
-// as jobs.go in phase 2).
-const (
-	MethodMemoryWrite     = "memory.write"
-	MethodMemoryGet       = "memory.get"
-	MethodMemorySearch    = "memory.search"
-	MethodMemorySupersede = "memory.supersede"
-	MethodMemoryArchive   = "memory.archive"
-)
-
 // Defaults applied when the caller omits the optional scoring parameters,
 // mirroring the store.Memory field defaults (plan §7.1).
 const (
@@ -42,17 +31,13 @@ type MemoryFabricMethods struct {
 	memories store.MemoryFabricStore
 }
 
-func NewMemoryFabricMethods(memories store.MemoryFabricStore) *MemoryFabricMethods {
-	return &MemoryFabricMethods{memories: memories}
-}
-
 // Register wires the memory.* methods into the method router.
 func (m *MemoryFabricMethods) Register(router *gateway.MethodRouter) {
-	router.Register(MethodMemoryWrite, m.handleWrite)
-	router.Register(MethodMemoryGet, m.handleGet)
-	router.Register(MethodMemorySearch, m.handleSearch)
-	router.Register(MethodMemorySupersede, m.handleSupersede)
-	router.Register(MethodMemoryArchive, m.handleArchive)
+	router.Register(protocol.MethodMemoryWrite, m.handleWrite)
+	router.Register(protocol.MethodMemoryGet, m.handleGet)
+	router.Register(protocol.MethodMemorySearch, m.handleSearch)
+	router.Register(protocol.MethodMemorySupersede, m.handleSupersede)
+	router.Register(protocol.MethodMemoryArchive, m.handleArchive)
 }
 
 // memoryJSON is the camelCase wire form of store.Memory.

@@ -15,15 +15,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-// NOTE(orchestrator): these method-name constants are declared locally for the
-// phase 2 wave 2 cutover and will be relocated to pkg/protocol (same flow as
-// workspace.go in wave 1).
-const (
-	MethodJobsList   = "jobs.list"
-	MethodJobsGet    = "jobs.get"
-	MethodJobsCancel = "jobs.cancel"
-)
-
 // JobsMethods implements the jobs.* WS surface over the agent-job lifecycle
 // store (plan §21): listing/getting/cancelling persisted execution jobs.
 type JobsMethods struct {
@@ -36,9 +27,9 @@ func NewJobsMethods(jobs store.AgentJobStore) *JobsMethods {
 
 // Register wires the jobs.* methods into the method router.
 func (m *JobsMethods) Register(router *gateway.MethodRouter) {
-	router.Register(MethodJobsList, m.handleList)
-	router.Register(MethodJobsGet, m.handleGet)
-	router.Register(MethodJobsCancel, m.handleCancel)
+	router.Register(protocol.MethodJobsList, m.handleList)
+	router.Register(protocol.MethodJobsGet, m.handleGet)
+	router.Register(protocol.MethodJobsCancel, m.handleCancel)
 }
 
 // jobJSON is the camelCase wire form of store.AgentJob.

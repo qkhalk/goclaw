@@ -424,6 +424,12 @@ func isWriteMethod(method string) bool {
 		protocol.MethodMemorySupersede,
 		protocol.MethodMemoryArchive,
 
+		// Workspace file explorer (Paseo Phase 3 / §24) — content mutations
+		// inside a workspace root; list/read are reads below.
+		protocol.MethodWorkspaceFilesWrite,
+		protocol.MethodWorkspaceFilesDelete,
+		protocol.MethodWorkspaceFilesMkdir,
+
 		// Browser automation — performs side-effecting actions.
 		protocol.MethodBrowserAct,
 
@@ -490,6 +496,11 @@ func isReadMethod(method string) bool {
 		// Memory fabric (Paseo Phase 5) — scoped retrieval reads.
 		protocol.MethodMemoryGet,
 		protocol.MethodMemorySearch,
+
+		// Workspace file explorer (Paseo Phase 3 / §24) — lazy listing and
+		// bounded content reads.
+		protocol.MethodWorkspaceFilesList,
+		protocol.MethodWorkspaceFilesRead,
 
 		// Skills read
 		protocol.MethodSkillsList,
