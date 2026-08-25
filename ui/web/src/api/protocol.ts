@@ -81,6 +81,26 @@ export const Methods = {
   SESSIONS_RESET: "sessions.reset",
   RUN_TIMELINE_GET: "run.timeline.get",
 
+  // Workspace registry (Paseo Phase 2) + file explorer (Phase 3 / §24)
+  WORKSPACE_LIST: "workspace.list",
+  WORKSPACE_GET: "workspace.get",
+  WORKSPACE_CREATE: "workspace.create",
+  WORKSPACE_UPDATE: "workspace.update",
+  WORKSPACE_DELETE: "workspace.delete",
+  WORKSPACE_FILES_LIST: "workspace.files.list",
+  WORKSPACE_FILES_READ: "workspace.files.read",
+  WORKSPACE_FILES_WRITE: "workspace.files.write",
+  WORKSPACE_FILES_DELETE: "workspace.files.delete",
+  WORKSPACE_FILES_MKDIR: "workspace.files.mkdir",
+
+  // Agent jobs + task graph (Paseo Phase 2 / §21-§22)
+  JOBS_LIST: "jobs.list",
+  JOBS_GET: "jobs.get",
+  JOBS_CANCEL: "jobs.cancel",
+  TASKS_TREE: "tasks.tree",
+  TASKS_CREATE: "tasks.create",
+  TASKS_UPDATE_STATUS: "tasks.updateStatus",
+
   // Phase 2 - NEEDED
   SKILLS_LIST: "skills.list",
   SKILLS_GET: "skills.get",

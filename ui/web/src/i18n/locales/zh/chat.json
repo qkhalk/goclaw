@@ -30,5 +30,61 @@
     "title": "选择Agent",
     "description": "选择Agent开始对话"
   },
-  "imageGenDownloadName": "generated-{{timestamp}}.png"
+  "imageGenDownloadName": "generated-{{timestamp}}.png",
+  "workspacePicker": {
+    "loading": "正在加载工作区…",
+    "archived": "已归档",
+    "title": "工作区",
+    "none": "无工作区",
+    "empty": "暂无可用工作区"
+  },
+  "fileExplorer": {
+    "title": "文件",
+    "emptyTitle": "空文件夹",
+    "emptyHint": "此文件夹中还没有文件。",
+    "emptyDir": "此文件夹为空",
+    "truncated": "条目过多 — 列表已被截断。",
+    "refresh": "刷新",
+    "close": "关闭",
+    "closeFile": "关闭文件",
+    "loading": "加载中…",
+    "loadingFile": "正在加载文件…",
+    "viewing": "正在查看 {{path}}",
+    "loadingError": "加载文件失败：{{message}}",
+    "binaryFile": "二进制文件 — 无法预览。",
+    "noWorkspace": "选择一个工作区以浏览其文件"
+  },
+  "jobsPanel": {
+    "title": "任务与作业",
+    "tabJobs": "作业",
+    "tabTasks": "任务",
+    "empty": "暂无作业",
+    "cancel": "取消",
+    "cancelled": "作业已取消",
+    "cancelFailed": "取消作业失败",
+    "refresh": "刷新",
+    "loading": "加载中…",
+    "noWorkspace": "选择一个工作区以查看其作业",
+    "status": {
+      "queued": "排队中",
+      "starting": "启动中",
+      "running": "运行中",
+      "waiting_input": "等待输入",
+      "waiting_approval": "等待批准",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
+    "toast": {
+      "cancelled": "作业已取消",
+      "cancelFailed": "取消作业失败"
+    }
+  },
+  "taskTree": {
+    "empty": "暂无任务",
+    "priority": "优先级",
+    "loading": "正在加载任务…",
+    "refresh": "刷新"
+  }
 }
