@@ -430,6 +430,17 @@ func isWriteMethod(method string) bool {
 		protocol.MethodWorkspaceFilesDelete,
 		protocol.MethodWorkspaceFilesMkdir,
 
+		// Web terminal (Paseo plan Phase 4 / §25) — spawning shells and
+		// driving PTYs is operator-only; viewers get no terminal access.
+		// All six methods classify here, including list/attach, so the
+		// surface stays behind the operator floor.
+		protocol.MethodTerminalCreate,
+		protocol.MethodTerminalList,
+		protocol.MethodTerminalAttach,
+		protocol.MethodTerminalInput,
+		protocol.MethodTerminalResize,
+		protocol.MethodTerminalClose,
+
 		// Browser automation — performs side-effecting actions.
 		protocol.MethodBrowserAct,
 

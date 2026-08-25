@@ -81,6 +81,15 @@
       "cancelFailed": "Failed to cancel job"
     }
   },
+  "terminal": {
+    "title": "Terminal",
+    "newTab": "New tab",
+    "closeTab": "Close tab",
+    "noWorkspace": "Select a workspace to open a terminal",
+    "ended": "Session ended",
+    "connecting": "Connecting…",
+    "failed": "Terminal failed: {{message}}"
+  },
   "taskTree": {
     "empty": "No tasks yet",
     "priority": "Priority",

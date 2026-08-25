@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Bot, Users, PanelRightOpen, PanelRightClose, FolderOpen, ListTree } from "lucide-react";
+import { Loader2, Bot, Users, PanelRightOpen, PanelRightClose, FolderOpen, ListTree, SquareTerminal } from "lucide-react";
 import { useHttp } from "@/hooks/use-ws";
 import { useAuthStore } from "@/stores/use-auth-store";
 import type { RunActivity, ActiveTeamTask } from "@/types/chat";
@@ -23,6 +23,9 @@ interface ChatTopBarProps {
   filesPanelOpen?: boolean;
   onToggleJobsTasks?: () => void;
   jobsTasksPanelOpen?: boolean;
+  /** Paseo Phase 4 (§25): web terminal panel toggle. */
+  onToggleTerminal?: () => void;
+  termPanelOpen?: boolean;
   /** Selected workspace id + change callback for the picker. */
   workspaceId?: string | null;
   onWorkspaceChange?: (id: string | null) => void;
@@ -38,7 +41,7 @@ const phaseLabels: Record<RunActivity["phase"], string> = {
   leader_processing: "Processing team results…",
 };
 
-export function ChatTopBar({ agentId, isRunning, isBusy, activity, teamTasks, onToggleTaskPanel, taskPanelOpen, session, onToggleFiles, filesPanelOpen, onToggleJobsTasks, jobsTasksPanelOpen, workspaceId, onWorkspaceChange }: ChatTopBarProps) {
+export function ChatTopBar({ agentId, isRunning, isBusy, activity, teamTasks, onToggleTaskPanel, taskPanelOpen, session, onToggleFiles, filesPanelOpen, onToggleJobsTasks, jobsTasksPanelOpen, onToggleTerminal, termPanelOpen, workspaceId, onWorkspaceChange }: ChatTopBarProps) {
   const http = useHttp();
   const { t } = useTranslation("chat");
   const connected = useAuthStore((s) => s.connected);
@@ -140,6 +143,16 @@ export function ChatTopBar({ agentId, isRunning, isBusy, activity, teamTasks, on
           title={jobsTasksPanelOpen ? "Close jobs/tasks panel" : "Open jobs/tasks panel"}
         >
           <ListTree className="h-4 w-4" />
+        </button>
+        {/* Web terminal toggle (Paseo Phase 4 / §25) — needs a selected workspace */}
+        <button
+          type="button"
+          onClick={onToggleTerminal}
+          disabled={!workspaceId}
+          className={`rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 ${termPanelOpen ? "bg-accent text-accent-foreground" : ""}`}
+          title={!workspaceId ? t("terminal.noWorkspace") : termPanelOpen ? "Close terminal panel" : "Open terminal panel"}
+        >
+          <SquareTerminal className="h-4 w-4" />
         </button>
         {isRunning ? (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

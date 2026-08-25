@@ -19,6 +19,7 @@ import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { TaskPanel } from "@/components/chat/task-panel";
 import { FileExplorerPanel } from "@/components/chat/file-explorer-panel";
 import { JobsTasksPanel } from "@/components/chat/jobs-tasks-panel";
+import { TerminalPanel } from "@/components/chat/terminal-panel";
 
 export function ChatPage() {
   const { t } = useTranslation("chat");
@@ -159,6 +160,8 @@ export function ChatPage() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [filesPanelOpen, setFilesPanelOpen] = useState(false);
   const [jobsPanelOpen, setJobsPanelOpen] = useState(false);
+  // Paseo Phase 4 (§25): web terminal side panel.
+  const [termOpen, setTermOpen] = useState(false);
 
   // Auto-open task panel when first task appears, auto-close when all done.
   const prevTaskCountRef = useRef(0);
@@ -253,6 +256,8 @@ export function ChatPage() {
             filesPanelOpen={filesPanelOpen}
             onToggleJobsTasks={() => setJobsPanelOpen((v) => !v)}
             jobsTasksPanelOpen={jobsPanelOpen}
+            onToggleTerminal={() => setTermOpen((v) => !v)}
+            termPanelOpen={termOpen}
             workspaceId={workspaceId}
             onWorkspaceChange={setWorkspaceId}
           />
@@ -312,6 +317,9 @@ export function ChatPage() {
       {jobsPanelOpen && !taskPanelOpen && isMobile && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setJobsPanelOpen(false)} />
       )}
+      {termOpen && !filesPanelOpen && !jobsPanelOpen && !taskPanelOpen && isMobile && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setTermOpen(false)} />
+      )}
 
       {/* Task panel — toggleable sidebar on the right */}
       {!filesPanelOpen && !jobsPanelOpen && (
@@ -325,6 +333,11 @@ export function ChatPage() {
       <JobsTasksPanel
         open={jobsPanelOpen}
         onClose={() => setJobsPanelOpen(false)}
+        workspaceId={workspaceId}
+      />
+      <TerminalPanel
+        open={termOpen}
+        onClose={() => setTermOpen(false)}
         workspaceId={workspaceId}
       />
     </div>

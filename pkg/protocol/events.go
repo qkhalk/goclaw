@@ -126,6 +126,13 @@ const (
 	// Payload: MCPOAuthCompletePayload.
 	EventMCPOAuthComplete = "mcp.oauth_complete"
 
+	// Terminal output stream (Paseo plan Phase 4 / §25). Payload: map with
+	// terminalId, userId, and data (base64 UTF-8 bytes chunk).
+	EventTerminalOutput = "terminal.output"
+	// EventTerminalExit is emitted when the shell process exits.
+	// Payload: { terminalId, userId, exitCode }.
+	EventTerminalExit = "terminal.exit"
+
 	// Multi-agent collaboration events (jury verdicts, negotiation state,
 	// formation routing). Payloads: MultiAgentEventPayload variants in
 	// pkg/protocol/team_events.go.

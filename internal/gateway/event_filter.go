@@ -147,6 +147,15 @@ func clientCanReceiveEvent(c *Client, event bus.Event) bool {
 		return true
 	}
 
+	// Terminal output events (Paseo plan Phase 4 / §25): scoped to the
+	// owning user via payload userId. Fail-closed when no owner recorded.
+	if strings.HasPrefix(event.Name, "terminal.") {
+		if uid := extractMapField(event.Payload, "userId"); uid != "" {
+			return uid == c.userID
+		}
+		return false
+	}
+
 	// Default: deny unknown events to non-admin (fail-closed).
 	return false
 }
