@@ -48,6 +48,7 @@ export function ChatTopBar({ agentId, isRunning, isBusy, activity, teamTasks, on
   useEffect(() => {
     if (!connected || !agentId) return;
     setAgent(null);
+    http
       .get<{ agents: AgentData[] }>("/v1/agents")
       .then((res) => {
         const found = (res.agents ?? []).find((a) => a.agent_key === agentId);

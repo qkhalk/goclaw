@@ -17,7 +17,6 @@ import { useChatSend } from "./hooks/use-chat-send";
 import { isOwnSession, parseSessionKey } from "@/lib/session-key";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { TaskPanel } from "@/components/chat/task-panel";
-import { WorkspacePicker } from "@/components/chat/workspace-picker";
 import { FileExplorerPanel } from "@/components/chat/file-explorer-panel";
 import { JobsTasksPanel } from "@/components/chat/jobs-tasks-panel";
 
