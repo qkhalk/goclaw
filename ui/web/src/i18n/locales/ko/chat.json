@@ -29,5 +29,11 @@
   "selectAgent": {
     "title": "에이전트 선택",
     "description": "채팅할 에이전트를 선택하세요"
+  },
+  "palette": {
+    "commands": "명령어",
+    "skills": "스킬",
+    "noResults": "일치하는 명령어나 스킬이 없습니다",
+    "gcHint": "GoClaw 워크플로 명령어"
   }
 }

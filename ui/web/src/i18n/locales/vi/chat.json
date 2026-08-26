@@ -95,5 +95,11 @@
     "priority": "Ưu tiên",
     "loading": "Đang tải nhiệm vụ…",
     "refresh": "Làm mới"
+  },
+  "palette": {
+    "commands": "Lệnh",
+    "skills": "Kỹ năng",
+    "noResults": "Không tìm thấy lệnh hoặc kỹ năng nào",
+    "gcHint": "Lệnh quy trình GoClaw"
   }
 }

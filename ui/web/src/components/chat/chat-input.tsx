@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback, useLayoutEffect, type KeyboardEvent } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Send, Square, Paperclip, X, Mic } from "lucide-react";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
+import { CommandPalette, slashTokenQuery } from "./command-palette";
 
 export interface AttachedFile {
   file: File;
@@ -31,6 +32,21 @@ export function ChatInput({
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Slash-command palette: open while the draft is a single "/token" being typed.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    setPaletteOpen(slashTokenQuery(value) !== null);
+  }, [value]);
+  const paletteQuery = slashTokenQuery(value) ?? "";
+
+  const handleSelectToken = useCallback(
+    (token: string) => {
+      setValue(`/${token} `);
+      textareaRef.current?.focus();
+    },
+    [],
+  );
   const voiceRecorder = useVoiceRecorder();
 
   const formatDuration = (seconds: number) => {
@@ -67,12 +83,25 @@ export function ChatInput({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      // IME safety: never intercept keystrokes during composition.
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+      if (paletteOpen) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setPaletteOpen(false);
+          return;
+        }
+        if ((e.key === "Enter" && !e.shiftKey) || e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          return;
+        }
+      }
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSend();
       }
     },
-    [handleSend],
+    [handleSend, paletteOpen],
   );
 
   const handleInput = useCallback(() => {
@@ -138,6 +167,14 @@ export function ChatInput({
         multiple
         onChange={handleFileChange}
         className="hidden"
+      />
+
+      {/* Slash-command palette floats above the input container */}
+      <CommandPalette
+        open={paletteOpen}
+        query={paletteQuery}
+        onSelect={handleSelectToken}
+        onClose={() => setPaletteOpen(false)}
       />
 
       {/* Input container — attach + textarea + send/stop inside one rounded box.
