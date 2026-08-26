@@ -68,7 +68,7 @@ func TestToolsInvoke_BodyOverConfiguredCapRejected(t *testing.T) {
 func TestToolsInvoke_BodyOverDefaultCapRejected(t *testing.T) {
 	send := invokeCapHarness(t, 0) // no override: DefaultInvokeMaxBodyBytes
 
-	big := strings.Repeat("a", DefaultInvokeMaxBodyBytes+1024)
+	big := strings.Repeat("a", int(DefaultInvokeMaxBodyBytes)+1024)
 	rec := send(`{"tool":"echo","args":{"pad":"` + big + `"}}`)
 
 	if rec.Code != http.StatusRequestEntityTooLarge {
