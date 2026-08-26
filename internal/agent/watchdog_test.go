@@ -199,3 +199,46 @@ func TestWatchdogNilSafe(t *testing.T) {
 		t.Errorf("nil Sweep acted on %d runs, want 0", n)
 	}
 }
+
+// --- B2: max-age eviction --------------------------------------------------
+
+func TestWatchdogSweepMaxAgeEviction(t *testing.T) {
+	w := NewWatchdog(nil, WatchdogConfig{MaxRunDuration: 10 * time.Minute})
+	now := time.Now()
+
+	// Observe a run that started 20 minutes ago (exceeds MaxRunDuration).
+	w.Observe(AgentEvent{RunID: "old-run", SessionKey: "s"}, now.Add(-20*time.Minute))
+
+	// Advance clock and observe more events to keep it alive.
+	w.ObserveAssistantOutput("old-run", "s", "hello", now.Add(-1*time.Minute))
+
+	// Sweep at now (20 min after start > 10 min max).
+	acted := w.Sweep(context.Background(), now)
+	if acted != 1 {
+		t.Errorf("Sweep acted on %d runs, want 1 (age eviction)", acted)
+	}
+
+	// Run should be removed from tracking.
+	if got := w.Classify("old-run", now); got != VerdictHealthy {
+		// After eviction, Classify returns VerdictHealthy (entry not found).
+		t.Errorf("Classify after eviction = %q, want healthy (entry removed)", got)
+	}
+}
+
+func TestWatchdogSweepMaxAgeSkipsYoung(t *testing.T) {
+	w := NewWatchdog(nil, WatchdogConfig{MaxRunDuration: 60 * time.Minute})
+	now := time.Now()
+
+	// Fresh run — 5 minutes old, well within 60 min limit.
+	w.Observe(AgentEvent{RunID: "fresh", SessionKey: "s"}, now.Add(-5*time.Minute))
+
+	acted := w.Sweep(context.Background(), now)
+	if acted != 0 {
+		t.Errorf("Sweep acted on %d runs, want 0 (young run kept)", acted)
+	}
+
+	// Run still tracked.
+	if got := w.Classify("fresh", now); got != VerdictStalled && got != VerdictHealthy {
+		t.Errorf("Classify after sweep = %q, want stalled or healthy (still tracked)", got)
+	}
+}
