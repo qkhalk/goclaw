@@ -23,7 +23,7 @@ func TestReapIdleSessions_VerifiesJanitorSweep(t *testing.T) {
 
 	// Enqueue and immediately complete so the queue is idle+empty.
 	ctx := context.Background()
-	out := s.Schedule(ctx, "agent:a:web:dm:u1", "test", agent.RunRequest{Message: "hi"})
+	out := s.Schedule(ctx, "main", agent.RunRequest{SessionKey: "agent:a:web:dm:u1", Message: "hi"})
 	<-out
 
 	// Wait past the threshold.
@@ -41,28 +41,23 @@ func TestReapIdleSessions_SkipsActiveSession(t *testing.T) {
 	cfg := DefaultQueueConfig()
 	cfg.SessionIdleEvictMs = 1
 
-	block := make(chan struct{})
-	slowFn := func(ctx context.Context, req agent.RunRequest) <-chan agent.RunOutcome {
-		ch := make(chan agent.RunOutcome, 1)
-		go func() {
-			<-block
-			ch <- agent.RunOutcome{Result: &agent.RunResult{Response: "ok"}}
-		}()
-		return ch
+	slowFn := func(ctx context.Context, req agent.RunRequest) (*agent.RunResult, error) {
+		// Block until context is cancelled.
+		<-ctx.Done()
+		return &agent.RunResult{Content: "slow"}, ctx.Err()
 	}
 	s := NewScheduler(nil, cfg, slowFn)
 	defer s.Stop()
 
 	ctx := context.Background()
-	_ = s.Schedule(ctx, "agent:b:web:dm:u1", "slow", agent.RunRequest{Message: "go"})
+	_ = s.Schedule(ctx, "main", agent.RunRequest{SessionKey: "agent:b:web:dm:u1", Message: "go"})
 
 	// Give the run time to start, then reap — active run must survive.
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	reaped := s.ReapIdleSessions(1 * time.Millisecond)
 	if reaped != 0 {
 		t.Fatal("expected ReapIdleSessions to reap 0 (active run must survive)")
 	}
-	close(block) // unblock
 }
 
 // TestReapIdleSessions_SkipsNonIdle verifies that a session with a recent
@@ -78,7 +73,7 @@ func TestReapIdleSessions_SkipsNonIdle(t *testing.T) {
 	defer s.Stop()
 
 	ctx := context.Background()
-	out := s.Schedule(ctx, "agent:c:web:dm:u1", "test", agent.RunRequest{Message: "hi"})
+	out := s.Schedule(ctx, "main", agent.RunRequest{SessionKey: "agent:c:web:dm:u1", Message: "hi"})
 	<-out
 
 	reaped := s.ReapIdleSessions(60_000 * time.Millisecond)
