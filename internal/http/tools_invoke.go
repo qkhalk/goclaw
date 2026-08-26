@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
+	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // ToolsInvokeHandler handles POST /v1/tools/invoke (direct tool invocation).
@@ -96,7 +98,14 @@ func (h *ToolsInvokeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, cap)
 
 	var req toolsInvokeRequest
-	if !bindJSON(w, r, locale, &req) {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// MaxBytesReader trips produce "request body too large" — surface as
+		// 413 rather than the generic invalid-request 400.
+		status := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "request body too large") {
+			status = http.StatusRequestEntityTooLarge
+		}
+		writeError(w, status, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, err.Error()))
 		return
 	}
 

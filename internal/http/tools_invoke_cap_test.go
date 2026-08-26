@@ -90,8 +90,8 @@ func TestToolsInvoke_BodyUnderCapPasses(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("response not JSON: %v", err)
 	}
-	if resp["tool"] != "echo" {
-		t.Fatalf("dry-run response missing tool field: %v", resp)
+	if resp["tool"] != "echo" || resp["dryRun"] != true {
+		t.Fatalf("unexpected dry-run response: %v", resp)
 	}
 }
 
