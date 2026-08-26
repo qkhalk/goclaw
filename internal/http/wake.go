@@ -1,12 +1,12 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
@@ -18,13 +18,20 @@ import (
 // WakeHandler handles POST /v1/agents/{id}/wake — external trigger API.
 // Allows orchestrators (Paperclip, n8n, etc.) to trigger agent runs via HTTP.
 type WakeHandler struct {
-	agents   *agent.Router
-	postTurn tools.PostTurnProcessor
+	agents      *agent.Router
+	postTurn    tools.PostTurnProcessor
+	policyStore store.AgentPolicies // optional: tenant suspension gate (nil = skip check)
 }
 
 // SetPostTurnProcessor sets the post-turn processor for team task dispatch.
 func (h *WakeHandler) SetPostTurnProcessor(pt tools.PostTurnProcessor) {
 	h.postTurn = pt
+}
+
+// SetTenantPolicies wires the per-tenant policy store so a suspended tenant is
+// blocked at the wake entry point, mirroring /v1/chat/completions.
+func (h *WakeHandler) SetTenantPolicies(ps store.AgentPolicies) {
+	h.policyStore = ps
 }
 
 // NewWakeHandler creates a handler for the wake endpoint.
@@ -45,8 +52,8 @@ type wakeRequest struct {
 }
 
 type wakeResponse struct {
-	Content string   `json:"content"`
-	RunID   string   `json:"run_id"`
+	Content string     `json:"content"`
+	RunID   string     `json:"run_id"`
 	Usage   *wakeUsage `json:"usage,omitempty"`
 }
 
@@ -99,27 +106,47 @@ func (h *WakeHandler) handleWake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Tenant policy gate: a suspended tenant must not burn provider quota via
+	// wake. Master scope bypasses (system operators may wake any tenant's
+	// agent for diagnostics), mirroring the chat completions entry point.
+	if h.policyStore != nil && !store.IsMasterScope(r.Context()) {
+		if tid := store.TenantIDFromContext(r.Context()); tid != uuid.Nil {
+			if err := h.policyStore.CheckTenantActive(r.Context(), tid); err != nil {
+				if errors.Is(err, store.ErrTenantSuspended) {
+					slog.Warn("security.wake_tenant_suspended", "tenant_id", tid, "agent_id", agentID)
+					writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgPolicyTenantSuspended)})
+					return
+				}
+				slog.Error("wake.tenant policy check failed", "tenant_id", tid, "error", err)
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgInternalError, err.Error())})
+				return
+			}
+		}
+	}
+
 	// Build session key
 	sessionKey := req.SessionKey
 	if sessionKey == "" {
 		sessionKey = sessions.SessionKey(agentID, "wake-"+uuid.NewString()[:8])
 	}
 
-	// Body user_id override: allowed only when API key has no bound owner (prevents impersonation).
+	// Body user_id override: master scope only. A tenant-scoped or owner-bound
+	// key must never impersonate another user; previously any unbound key
+	// could. Blocked attempts are logged as security events.
 	userID := store.UserIDFromContext(r.Context())
 	ctx := r.Context()
 	if req.UserID != "" && req.UserID != userID {
-		if auth.KeyData != nil && auth.KeyData.OwnerID != "" {
-			slog.Warn("security.wake_owner_override_blocked",
+		if !store.IsMasterScope(ctx) {
+			slog.Warn("security.wake_user_override_blocked",
 				"req_user_id", req.UserID,
-				"owner_id", auth.KeyData.OwnerID,
+				"auth_user_id", userID,
 			)
-		} else {
-			userID = req.UserID
-			ctx = store.WithUserID(ctx, req.UserID)
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "user_id override requires master scope"})
+			return
 		}
+		userID = req.UserID
+		ctx = store.WithUserID(ctx, req.UserID)
 	}
-
 	runID := uuid.NewString()
 	slog.Info("wake request", "agent", agentID, "user", userID, "session", sessionKey)
 
