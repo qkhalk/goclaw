@@ -22,7 +22,7 @@ interface CommandPaletteProps {
  */
 export function slashTokenQuery(value: string): string | null {
   const m = /^\/([a-zA-Z0-9:_-]*)$/.exec(value);
-  return m ? m[1] : null;
+  return m ? (m[1] ?? "") : null;
 }
 
 interface PaletteItem {
@@ -146,11 +146,13 @@ export function CommandPalette({ open, query, onSelect, onClose }: CommandPalett
           e.stopPropagation();
           setActiveIndex((current - 1 + items.length) % items.length);
           break;
-        case "Enter":
+        case "Enter": {
           e.preventDefault();
           e.stopPropagation();
-          selectItem(items[current]);
+          const item = items[current];
+          if (item) selectItem(item);
           break;
+        }
         case "Escape":
           e.preventDefault();
           e.stopPropagation();
