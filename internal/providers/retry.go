@@ -76,6 +76,9 @@ func (e *streamEmittedError) Unwrap() error { return e.err }
 // StreamEmitted wraps err so IsRetryableError returns false. Use inside a
 // RetryDoFor fn when chatStreamOnce reports that chunks already escaped.
 func StreamEmitted(err error) error {
+	if err == nil {
+		return nil
+	}
 	return &streamEmittedError{err: err}
 }
 
