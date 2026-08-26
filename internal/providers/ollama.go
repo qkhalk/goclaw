@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	ollamaapi "github.com/ollama/ollama/api"
 
@@ -191,7 +190,9 @@ func (p *OllamaProvider) Chat(ctx context.Context, req ChatRequest) (*ChatRespon
 }
 
 // ChatStream sends a streaming chat request to Ollama, calling onChunk for each
-// content delta, and returns the accumulated final response.
+// content delta, and returns the accumulated final response. Uses RetryDoFor
+// so reliability admission (cooldown checks) runs between attempts; user-
+// visible output after the first escaped chunk is never retried.
 func (p *OllamaProvider) ChatStream(ctx context.Context, req ChatRequest, onChunk func(StreamChunk)) (*ChatResponse, error) {
 	model := req.Model
 	if model == "" {
@@ -209,44 +210,29 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req ChatRequest, onChun
 		}
 	})
 
-	var lastErr error
-	var lastResult *ChatResponse
-	cfg := p.retryConfig
-	if cfg.Attempts <= 0 {
-		cfg.Attempts = 1
-	}
-	for attempt := 1; attempt <= cfg.Attempts; attempt++ {
-		result, emitted, err := p.chatStreamOnce(ctx, req, model, onChunk)
-		if err == nil {
+	var partial *ChatResponse
+	result, err := RetryDoFor(ctx, p.retryConfig, p.name, model, func() (*ChatResponse, error) {
+		r, emitted, callErr := p.chatStreamOnce(ctx, req, model, onChunk)
+		if callErr == nil {
 			observeSuccess(p.name, model)
-			return result, nil
+			return r, nil
 		}
-		lastErr = err
-		lastResult = result
-
-		// If any user-visible chunk already escaped, do not replay the run:
-		// retrying could duplicate streamed text/thinking. Only connection-phase
-		// failures (before the first chunk) are safe to retry, matching the
-		// stream semantics of the other providers.
-		if emitted || !IsRetryableError(err) || attempt == cfg.Attempts {
-			observeFailure(p.name, model, err)
-			return result, err
+		if r != nil {
+			partial = r
 		}
-
-		delay := computeDelay(cfg, attempt, err)
-		if hook := retryHookFromContext(ctx); hook != nil {
-			hook(attempt, cfg.Attempts, err)
+		if emitted {
+			return nil, StreamEmitted(callErr)
 		}
-		select {
-		case <-ctx.Done():
-			observeFailure(p.name, model, err)
-			return result, ctx.Err()
-		case <-time.After(delay):
+		return nil, callErr
+	})
+	if err != nil {
+		observeFailure(p.name, model, err)
+		if result == nil {
+			result = partial
 		}
+		return result, err
 	}
-
-	observeFailure(p.name, model, lastErr)
-	return lastResult, lastErr
+	return result, nil
 }
 
 // chatStreamOnce performs a single streaming chat attempt against Ollama. It

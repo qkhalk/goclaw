@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 76
+const SchemaVersion = 77
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1437,6 +1437,12 @@ UPDATE mcp_servers
                    SELECT a.tenant_id FROM agents a WHERE a.id = channel_instances.agent_id
                )
         );`,
+	// 76 → 77: partial index for the webhook reclaim sweep (ReclaimStale
+	// filters running rows by last_heartbeat_at). Mirrors PG migration
+	// 000085. CREATE INDEX IF NOT EXISTS is idempotent.
+	76: `CREATE INDEX IF NOT EXISTS idx_webhook_calls_running_heartbeat
+        ON webhook_calls (status, last_heartbeat_at)
+        WHERE status = 'running';`,
 }
 
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.

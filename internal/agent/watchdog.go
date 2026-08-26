@@ -78,6 +78,12 @@ type WatchdogConfig struct {
 	// SameOutputRepeatThreshold byte-identical final-content repetitions that
 	// classify looping. Default 3.
 	SameOutputRepeatThreshold int
+	// MaxRunDuration is the hard upper bound on run lifetime. Entries older
+	// than this are silently evicted from watchdog tracking (no abort). This
+	// catches zombie entries whose terminal event never arrived, preventing
+	// the re-abort loop that the D2 ladder would otherwise trigger forever.
+	// Default 30m. Set to a negative value to disable.
+	MaxRunDuration time.Duration
 }
 
 // Watchdog defaults. SameToolRepeatThreshold sits above the tool-loop
@@ -88,6 +94,7 @@ const (
 	DefaultWatchdogSlowAfter           = 10 * time.Minute
 	DefaultWatchdogSameToolRepeat      = 4
 	DefaultWatchdogSameOutputRepeat    = 3
+	DefaultWatchdogMaxRunDuration      = 30 * time.Minute
 	defaultWatchdogSweepInterval       = 30 * time.Second
 	defaultWatchdogNudgeCooldown       = 2 * time.Minute
 	defaultWatchdogLadderEscalateAfter = 2 // observations per rung before escalating
@@ -107,12 +114,16 @@ func (c WatchdogConfig) Effective() WatchdogConfig {
 	if c.SameOutputRepeatThreshold <= 0 {
 		c.SameOutputRepeatThreshold = DefaultWatchdogSameOutputRepeat
 	}
+	if c.MaxRunDuration == 0 {
+		c.MaxRunDuration = DefaultWatchdogMaxRunDuration
+	}
 	return c
 }
 
 // runWatchdogState accumulates per-run signals from the agent event stream.
 // All fields are guarded by the Watchdog mutex; entries live exactly as long
-// as their run (created by Observe, removed by Forget).
+// as their run (created by Observe, removed by forgetLocked on terminal
+// events or max-age eviction in Sweep).
 type runWatchdogState struct {
 	sessionKey string
 
@@ -314,8 +325,24 @@ func (w *Watchdog) Sweep(ctx context.Context, now time.Time) int {
 	}
 	var actions []action
 
+	type eviction struct {
+		runID, sessionKey string
+		age               time.Duration
+	}
+
 	w.mu.Lock()
+
+	// Age-based eviction: silently drop entries that exceeded MaxRunDuration.
+	// This catches zombie entries whose terminal event never arrived (e.g.
+	// lost under high load, crash before terminal emit). Without this the
+	// D2 ladder would re-abort the same dead entry every sweep forever.
+	var evictions []eviction
 	for id, st := range w.runs {
+		if w.cfg.MaxRunDuration > 0 && now.Sub(st.startedAt) >= w.cfg.MaxRunDuration {
+			evictions = append(evictions, eviction{id, st.sessionKey, now.Sub(st.startedAt)})
+			w.forgetLocked(id)
+			continue
+		}
 		v := st.verdict(w.cfg, now)
 		if v == VerdictHealthy {
 			continue
@@ -326,7 +353,16 @@ func (w *Watchdog) Sweep(ctx context.Context, now time.Time) int {
 	}
 	w.mu.Unlock()
 
-	actuated := 0
+	for _, e := range evictions {
+		slog.Warn("run.watchdog_max_age_evicted",
+			"run_id", e.runID,
+			"session", e.sessionKey,
+			"age", e.age,
+			"max", w.cfg.MaxRunDuration,
+		)
+	}
+
+	actuated := len(evictions)
 	for _, a := range actions {
 		if w.applyLadder(ctx, a.runID, a.sessionKey, a.verdict, a.depth, now) {
 			actuated++

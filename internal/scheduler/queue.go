@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
@@ -33,6 +34,13 @@ const (
 	DropNew DropPolicy = "new" // reject incoming message
 )
 
+// DefaultSessionIdleEvictMs is the default idle threshold (ms) after which a
+// scheduler session queue with no active runs and no pending messages is
+// reaped from the in-memory registry. Bounds memory growth for long-lived
+// gateways that accumulate session keys per agent:channel:chat. 0 disables
+// eviction (the scheduler janitor never starts).
+const DefaultSessionIdleEvictMs = 3_600_000 // 1 hour
+
 // QueueConfig configures per-session message queuing.
 type QueueConfig struct {
 	Mode          QueueMode  `json:"mode"`
@@ -40,16 +48,21 @@ type QueueConfig struct {
 	Drop          DropPolicy `json:"drop"`
 	DebounceMs    int        `json:"debounce_ms"`
 	MaxConcurrent int        `json:"max_concurrent"` // 0 or 1 = serial (default)
+	// SessionIdleEvictMs evicts a session queue (no active runs, no pending
+	// messages) idle for this many milliseconds. 0 disables eviction. The
+	// scheduler janitor drives this via ReapIdleSessions.
+	SessionIdleEvictMs int `json:"session_idle_evict_ms"`
 }
 
 // DefaultQueueConfig returns sensible defaults.
 func DefaultQueueConfig() QueueConfig {
 	return QueueConfig{
-		Mode:          QueueModeQueue,
-		Cap:           10,
-		Drop:          DropOld,
-		DebounceMs:    800,
-		MaxConcurrent: 1,
+		Mode:               QueueModeQueue,
+		Cap:                10,
+		Drop:               DropOld,
+		DebounceMs:         800,
+		MaxConcurrent:      1,
+		SessionIdleEvictMs: DefaultSessionIdleEvictMs,
 	}
 }
 
@@ -83,14 +96,25 @@ type activeRunEntry struct {
 // SessionQueue manages agent runs for a single session key.
 // Supports configurable concurrency: 1 (serial) or N (concurrent).
 type SessionQueue struct {
-	key      string
-	config   QueueConfig
-	runFn    RunFunc
+	key     string
+	config  QueueConfig
+	runFn   RunFunc
 	laneMgr *LaneManager
-	lane     string
+	lane    string
 
-	mu              sync.Mutex
-	queue           []*PendingRequest
+	mu    sync.Mutex
+	queue []*PendingRequest
+	// lastActivity is the monotonic timestamp of the last enqueue, run
+	// completion, or drain. The scheduler janitor reaps a queue idle (no
+	// active runs, no pending messages) for longer than the configured
+	// threshold since this stamp. Guarded by mu.
+	lastActivity time.Time
+	// evicted is set atomically when the janitor removes this queue from the
+	// scheduler registry, so a concurrent Enqueue can re-attach it.
+	evicted atomic.Bool
+	// sched back-pointer (nil for standalone/test queues) used to re-insert
+	// the queue into the registry after the janitor evicts it mid-Enqueue.
+	sched           *Scheduler
 	activeRuns      map[string]activeRunEntry // runID → entry (with generation)
 	activeOrder     []string                  // FIFO order of active runIDs
 	maxConcurrent   int                       // effective limit (from config or per-session override)
@@ -100,6 +124,20 @@ type SessionQueue struct {
 	generation      uint64                    // bumped on Reset() to ignore stale completions
 
 	tokenEstimateFn TokenEstimateFunc // optional: for adaptive throttle
+}
+
+// touchLocked stamps lastActivity as now. Caller must hold sq.mu.
+func (sq *SessionQueue) touchLocked() {
+	sq.lastActivity = time.Now()
+}
+
+// idleForReap reports whether the queue has no active runs, no pending
+// messages, and has been idle for at least idleFor. Safe for concurrent use.
+func (sq *SessionQueue) idleForReap(now time.Time, idleFor time.Duration) bool {
+	sq.mu.Lock()
+	defer sq.mu.Unlock()
+	return len(sq.activeRuns) == 0 && len(sq.queue) == 0 &&
+		!sq.lastActivity.IsZero() && now.Sub(sq.lastActivity) >= idleFor
 }
 
 // NewSessionQueue creates a queue for a specific session.
@@ -163,6 +201,15 @@ func (sq *SessionQueue) Enqueue(ctx context.Context, req agent.RunRequest) <-cha
 
 	sq.mu.Lock()
 	defer sq.mu.Unlock()
+
+	// Re-attach to the scheduler registry if the janitor evicted this queue
+	// between lookup and this Enqueue. Under the lock the registry re-check
+	// is atomic; if a newer queue already owns the key we keep processing on
+	// this (orphaned) object — its result channel still resolves.
+	sq.touchLocked()
+	if sq.sched != nil && sq.evicted.Load() {
+		sq.sched.reattach(sq)
+	}
 
 	// Store parent context for spawning future runs
 	if sq.parentCtx == nil {
@@ -321,6 +368,10 @@ func (sq *SessionQueue) executeRun(ctx context.Context, runID string, runGenerat
 	if entry, ok := sq.activeRuns[runID]; ok && entry.generation == sq.generation {
 		delete(sq.activeRuns, runID)
 		sq.removeFromOrder(runID)
+		// Run finished and (if no pending work) the queue is idle again.
+		if len(sq.activeRuns) == 0 && len(sq.queue) == 0 {
+			sq.touchLocked()
+		}
 	} else if runGeneration != sq.generation {
 		// Stale completion from old generation — skip cleanup.
 		sq.mu.Unlock()
@@ -384,6 +435,8 @@ func (sq *SessionQueue) drainQueue(outcome RunOutcome) {
 		close(p.ResultCh)
 	}
 	sq.queue = nil
+	// Queue emptied — idle stamp advances (a subsequent Janitor call may reap).
+	sq.touchLocked()
 }
 
 // CancelOne stops the oldest active run (FIFO).
@@ -468,4 +521,5 @@ func (sq *SessionQueue) Reset() {
 	sq.activeRuns = make(map[string]activeRunEntry)
 	sq.activeOrder = nil
 	sq.drainQueue(RunOutcome{Err: ErrLaneCleared})
+	sq.touchLocked()
 }

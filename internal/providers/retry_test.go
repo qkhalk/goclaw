@@ -391,3 +391,26 @@ func TestHTTPError_ErrorString(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+// --- B4: StreamEmitted sentinel ------------------------------------------
+
+func TestStreamEmittedPreventsRetry(t *testing.T) {
+	cause := errors.New("partial stream failure")
+	wrapped := StreamEmitted(cause)
+
+	// StreamEmitted must be non-retryable.
+	if IsRetryableError(wrapped) {
+		t.Error("StreamEmitted should be non-retryable")
+	}
+
+	// Unwrap preserves the original error.
+	if !errors.Is(wrapped, cause) {
+		t.Error("StreamEmitted should wrap the cause")
+	}
+}
+
+func TestStreamEmittedNilSafe(t *testing.T) {
+	if got := StreamEmitted(nil); got != nil {
+		t.Errorf("StreamEmitted(nil) = %v, want nil", got)
+	}
+}

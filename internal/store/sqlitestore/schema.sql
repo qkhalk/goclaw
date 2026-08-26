@@ -2437,6 +2437,9 @@ CREATE INDEX IF NOT EXISTS idx_webhook_calls_status_attempt
 CREATE UNIQUE INDEX IF NOT EXISTS uq_webhook_calls_idempotency
     ON webhook_calls (webhook_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_webhook_calls_running_heartbeat
+    ON webhook_calls (status, last_heartbeat_at)
+    WHERE status = 'running';
 
 -- ============================================================
 -- Table: workstations (migration 000062)
