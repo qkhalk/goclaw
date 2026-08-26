@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
@@ -185,59 +184,77 @@ func (s *SQLiteAgentStore) MigrateUserDataOnMerge(ctx context.Context, oldUserID
 
 	uuid := `lower(hex(randomblob(4))||'-'||hex(randomblob(2))||'-'||hex(randomblob(2))||'-'||hex(randomblob(2))||'-'||hex(randomblob(6)))`
 
+	// Single transaction: a merge that fails halfway must roll back, or the
+	// user identity is silently split across tables (data loss). Fail-fast
+	// error propagation mirrors the PostgreSQL implementation.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("merge: begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
 	// DO NOTHING on conflict — existing tenant user data always wins.
-	migrate := func(insertQ, deleteQ string) {
-		if _, err := s.db.ExecContext(ctx, insertQ, baseArgs...); err != nil {
-			slog.Warn("merge.migrate", "error", err)
+	migrate := func(insertQ, deleteQ string) error {
+		if _, err := tx.ExecContext(ctx, insertQ, baseArgs...); err != nil {
+			return fmt.Errorf("merge.migrate: %w", err)
 		}
-		if _, err := s.db.ExecContext(ctx, deleteQ, delArgs...); err != nil {
-			slog.Warn("merge.cleanup", "error", err)
+		if _, err := tx.ExecContext(ctx, deleteQ, delArgs...); err != nil {
+			return fmt.Errorf("merge.cleanup: %w", err)
 		}
+		return nil
 	}
 
 	// 1. user_context_files
-	migrate(
+	if err := migrate(
 		fmt.Sprintf(`INSERT INTO user_context_files (id, agent_id, user_id, file_name, content, updated_at, tenant_id)
 			SELECT %s, agent_id, ?, file_name, content, updated_at, tenant_id
 			FROM user_context_files WHERE user_id IN (%s)%s
 			ON CONFLICT (agent_id, user_id, file_name) DO NOTHING`, uuid, inClause, tClause),
 		fmt.Sprintf(`DELETE FROM user_context_files WHERE user_id IN (%s)%s`, inClause, tClause),
-	)
+	); err != nil {
+		return err
+	}
 
 	// 2. user_agent_overrides
-	migrate(
+	if err := migrate(
 		fmt.Sprintf(`INSERT INTO user_agent_overrides (id, agent_id, user_id, provider, model, settings, created_at, updated_at, tenant_id)
 			SELECT %s, agent_id, ?, provider, model, settings, created_at, updated_at, tenant_id
 			FROM user_agent_overrides WHERE user_id IN (%s)%s
 			ON CONFLICT (agent_id, user_id) DO NOTHING`, uuid, inClause, tClause),
 		fmt.Sprintf(`DELETE FROM user_agent_overrides WHERE user_id IN (%s)%s`, inClause, tClause),
-	)
+	); err != nil {
+		return err
+	}
 
 	// 3. user_agent_profiles
-	migrate(
+	if err := migrate(
 		fmt.Sprintf(`INSERT INTO user_agent_profiles (agent_id, user_id, workspace, first_seen_at, last_seen_at, metadata, tenant_id)
 			SELECT agent_id, ?, workspace, first_seen_at, last_seen_at, metadata, tenant_id
 			FROM user_agent_profiles WHERE user_id IN (%s)%s
 			ON CONFLICT (agent_id, user_id) DO NOTHING`, inClause, tClause),
 		fmt.Sprintf(`DELETE FROM user_agent_profiles WHERE user_id IN (%s)%s`, inClause, tClause),
-	)
+	); err != nil {
+		return err
+	}
 
 	// 4. memory_documents
-	migrate(
+	if err := migrate(
 		fmt.Sprintf(`INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash, updated_at, created_at, tenant_id)
 			SELECT %s, agent_id, ?, path, content, hash, updated_at, created_at, tenant_id
 			FROM memory_documents WHERE user_id IN (%s)%s
 			ON CONFLICT (agent_id, COALESCE(user_id,''), path) DO NOTHING`, uuid, inClause, tClause),
 		fmt.Sprintf(`DELETE FROM memory_documents WHERE user_id IN (%s)%s`, inClause, tClause),
-	)
+	); err != nil {
+		return err
+	}
 
 	// 5. memory_chunks: re-point remaining chunks.
 	repoint := fmt.Sprintf(`UPDATE memory_chunks SET user_id = ? WHERE user_id IN (%s)%s`, inClause, tClause)
-	if _, err := s.db.ExecContext(ctx, repoint, baseArgs...); err != nil {
-		slog.Warn("merge.migrate_chunks", "error", err)
+	if _, err := tx.ExecContext(ctx, repoint, baseArgs...); err != nil {
+		return fmt.Errorf("merge.migrate_chunks: %w", err)
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // --- User-Agent Profiles ---
@@ -325,7 +342,7 @@ func (s *SQLiteAgentStore) ListUserInstances(ctx context.Context, agentID uuid.U
 	if subTenantFilter != "" {
 		queryArgs = append(queryArgs, tArgs[0]) // subquery: tenant_id = ?
 	}
-	queryArgs = append(queryArgs, agentID) // main WHERE: p.agent_id = ?
+	queryArgs = append(queryArgs, agentID)  // main WHERE: p.agent_id = ?
 	queryArgs = append(queryArgs, tArgs...) // scope clause args
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT p.user_id,

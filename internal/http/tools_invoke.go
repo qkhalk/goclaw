@@ -13,8 +13,27 @@ import (
 
 // ToolsInvokeHandler handles POST /v1/tools/invoke (direct tool invocation).
 type ToolsInvokeHandler struct {
-	registry   *tools.Registry
-	agentStore store.AgentStore // nil if not configured
+	registry     *tools.Registry
+	agentStore   store.AgentStore  // nil if not configured
+	maxBodyBytes int64             // request body cap; 0 => DefaultInvokeMaxBodyBytes
+	rateLimiter  func(string) bool // nil = no limit
+}
+
+// SetRateLimiter injects the gateway limiter (per IP / bearer token) so the
+// invoke endpoint throttles like chat completions.
+func (h *ToolsInvokeHandler) SetRateLimiter(fn func(string) bool) { h.rateLimiter = fn }
+
+// DefaultInvokeMaxBodyBytes caps the /v1/tools/invoke request body. Matches
+// the 1 MiB convention of sibling JSON endpoints; override via
+// tools.invoke_max_body_bytes when a tool legitimately consumes larger docs.
+const DefaultInvokeMaxBodyBytes int64 = 1 << 20
+
+// SetMaxBodyBytes overrides the request body cap (bytes). Non-positive values
+// are ignored so a misconfigured gateway cannot disable the DoS guard.
+func (h *ToolsInvokeHandler) SetMaxBodyBytes(n int64) {
+	if n > 0 {
+		h.maxBodyBytes = n
+	}
 }
 
 // NewToolsInvokeHandler creates a handler for the tools invoke endpoint.
@@ -55,8 +74,26 @@ func (h *ToolsInvokeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Inject tenant, role, user, and locale into context for downstream stores/tools.
-	r = r.WithContext(enrichContext(r.Context(), r, auth))
+	// Rate limit check (per IP or bearer token), same policy as chat completions.
+	if h.rateLimiter != nil {
+		key := r.RemoteAddr
+		if token := extractBearerToken(r); token != "" {
+			key = "token:" + token
+		}
+		if !h.rateLimiter(key) {
+			w.Header().Set("Retry-After", "60")
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": i18n.T(locale, i18n.MsgRateLimitExceeded)})
+			return
+		}
+	}
+
+	// Cap request body BEFORE decode: this endpoint reaches the tool registry
+	// (including exec-class tools) — an unbounded decode is a DoS vector.
+	cap := h.maxBodyBytes
+	if cap <= 0 {
+		cap = DefaultInvokeMaxBodyBytes
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, cap)
 
 	var req toolsInvokeRequest
 	if !bindJSON(w, r, locale, &req) {

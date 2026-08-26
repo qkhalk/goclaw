@@ -18,10 +18,15 @@ import (
 
 // ResponsesHandler handles POST /v1/responses (OpenResponses protocol).
 type ResponsesHandler struct {
-	agents   *agent.Router
-	sessions store.SessionStore
-	postTurn tools.PostTurnProcessor
+	agents      *agent.Router
+	sessions    store.SessionStore
+	postTurn    tools.PostTurnProcessor
+	rateLimiter func(string) bool // nil = no limit
 }
+
+// SetRateLimiter injects the gateway limiter (per IP / bearer token), matching
+// the chat completions endpoint so all OpenAI-compatible surfaces throttle.
+func (h *ResponsesHandler) SetRateLimiter(fn func(string) bool) { h.rateLimiter = fn }
 
 // SetPostTurnProcessor sets the post-turn processor for team task dispatch.
 func (h *ResponsesHandler) SetPostTurnProcessor(pt tools.PostTurnProcessor) {
@@ -63,6 +68,19 @@ func (h *ResponsesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Inject tenant, role, user, and locale into context for downstream stores/tools.
 	r = r.WithContext(enrichContext(r.Context(), r, auth))
 	locale := extractLocale(r)
+
+	// Rate limit check (per IP or bearer token), same policy as chat completions.
+	if h.rateLimiter != nil {
+		key := r.RemoteAddr
+		if token := extractBearerToken(r); token != "" {
+			key = "token:" + token
+		}
+		if !h.rateLimiter(key) {
+			w.Header().Set("Retry-After", "60")
+			http.Error(w, `{"error":{"message":"rate limit exceeded","type":"rate_limit_error"}}`, http.StatusTooManyRequests)
+			return
+		}
+	}
 
 	// Limit request body size to prevent DoS
 	const maxRequestBodySize = 1 << 20 // 1MB

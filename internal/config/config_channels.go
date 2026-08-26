@@ -472,10 +472,11 @@ type ToolsConfig struct {
 	ExecApproval            ExecApprovalCfg               `json:"execApproval"`                      // exec command approval settings
 	WebFetch                WebFetchPolicyConfig          `json:"web_fetch"`                         // domain policy for URL fetching
 	Browser                 BrowserToolConfig             `json:"browser"`
-	RateLimitPerHour        int                           `json:"rate_limit_per_hour,omitempty"` // max tool executions per hour per session (0 = disabled)
-	ScrubCredentials        *bool                         `json:"scrub_credentials,omitempty"`   // auto-redact API keys/tokens in tool output (default true)
-	McpServers              map[string]*MCPServerConfig   `json:"mcp_servers,omitempty"`         // external MCP server connections
-	DocumentParser          DocumentParserConfig          `json:"document_parser"`               // local-first document text extraction
+	RateLimitPerHour        int                           `json:"rate_limit_per_hour,omitempty"`   // max tool executions per hour per session (0 = disabled)
+	InvokeMaxBodyBytes      int64                         `json:"invoke_max_body_bytes,omitempty"` // /v1/tools/invoke request body cap in bytes; 0 => 1 MiB default
+	ScrubCredentials        *bool                         `json:"scrub_credentials,omitempty"`     // auto-redact API keys/tokens in tool output (default true)
+	McpServers              map[string]*MCPServerConfig   `json:"mcp_servers,omitempty"`           // external MCP server connections
+	DocumentParser          DocumentParserConfig          `json:"document_parser"`                 // local-first document text extraction
 }
 
 // DocumentParserConfig controls local-first document text extraction in the
