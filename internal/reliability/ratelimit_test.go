@@ -97,3 +97,49 @@ func TestWaitCancellationLeavesCooldown(t *testing.T) {
 		t.Errorf("cooldown should remain after a cancelled waiter gives up")
 	}
 }
+
+// --- B4: maxPending enforcement -------------------------------------------
+
+func TestMaxPendingEnforcement(t *testing.T) {
+	now, _ := fakeClock(t)
+	// Create coordinator with maxPending = 2.
+	r := NewRateLimitCoordinator(2)
+	r.nowFn = now
+	// Plant a long cooldown so Wait blocks.
+	r.Record429("pv", "m", 60*time.Second)
+
+	// Start two waiters — both should block.
+	ctx1, cancel1 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel1()
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel2()
+
+	err1 := make(chan error, 1)
+	err2 := make(chan error, 1)
+	go func() { err1 <- r.Wait(ctx1, "pv", "m") }()
+	go func() { err2 <- r.Wait(ctx2, "pv", "m") }()
+
+	// Give them time to enter the pending state.
+	time.Sleep(50 * time.Millisecond)
+
+	// Third waiter should be rejected immediately (maxPending exceeded).
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel3()
+	err := r.Wait(ctx3, "pv", "m")
+	if err == nil {
+		t.Fatal("third Waiter should have been rejected (maxPending exceeded)")
+	}
+
+	cancel1()
+	cancel2()
+}
+
+func TestPendingWaitersCount(t *testing.T) {
+	now, _ := fakeClock(t)
+	r := NewRateLimitCoordinator(0) // unlimited
+	r.nowFn = now
+
+	if got := r.PendingWaiters(); got != 0 {
+		t.Errorf("PendingWaiters() = %d, want 0 (no active waiters)", got)
+	}
+}

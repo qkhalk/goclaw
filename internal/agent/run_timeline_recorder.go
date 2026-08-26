@@ -17,23 +17,161 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-const runTimelinePreviewLimit = 2000
+const (
+	runTimelinePreviewLimit = 2000
+	// runTimelineFlushDelay is the window after the first buffered delta before
+	// the drain goroutine flushes a coalesced row. Keeps per-run writes
+	// sequential (no ordering drift) while collapsing rapid deltas.
+	runTimelineFlushDelay = 250 * time.Millisecond
+	// runTimelineOrphanReapInterval is how often the background reap goroutine
+	// sweeps for stale per-run write states left behind by missed terminal events.
+	runTimelineOrphanReapInterval = 10 * time.Minute
+	// runTimelineOrphanMaxAge is the maximum idle duration before an orphaned
+	// per-run write state is discarded (lost deltas on orphaned streams are
+	// acceptable for a background persistence path).
+	runTimelineOrphanMaxAge = 1 * time.Hour
+)
 
-// RunTimelineRecorder persists display-safe run events without blocking delivery.
+// isCoalesceableTimelineType reports whether the given item type is a
+// stream-delta that should be merged with adjacent same-type items before
+// being persisted. Currently chunk and thinking deltas are merged; all other
+// types are persisted per-event.
+func isCoalesceableTimelineType(itemType string) bool {
+	return itemType == store.RunTimelineItemTypeChunk || itemType == store.RunTimelineItemTypeThinking
+}
+
+// runWriteState is the per-run write queue and coalescing buffer. Each run
+// that has at least one item enqueued gets a state; the drain goroutine
+// processes items sequentially preserving arrival order. Adjacent same-type
+// stream deltas (chunk, thinking) are coalesced into a single DB row with
+// concatenated content to bound row amplification from long LLM streams.
+type runWriteState struct {
+	mu        sync.Mutex
+	queue     []store.RunTimelineItem
+	flushing  bool
+	nextSeq   int
+	lastWrite time.Time // last time drain wrote to store (for orphan reap)
+}
+
+func (rs *runWriteState) enqueue(item store.RunTimelineItem) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	item.Seq = rs.nextSeq
+	rs.nextSeq++
+	rs.queue = append(rs.queue, item)
+}
+
+// writeItem persists one item to the store. Timeout context prevents
+// indefinite blocking on a slow store. Errors are logged, not propagated
+// (the next item proceeds regardless).
+func (rs *runWriteState) writeItem(ctx context.Context, s store.RunTimelineStore, item store.RunTimelineItem) {
+	wCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	wCtx = store.WithTenantID(wCtx, item.TenantID)
+	if err := s.AppendRunTimelineItem(wCtx, &item); err != nil {
+		slog.Warn("run_timeline.persist_failed",
+			"run_id", item.RunID,
+			"item_type", item.ItemType,
+			"error", err,
+		)
+	}
+}
+
+// flush coalesces adjacent same-type stream deltas and persists the resulting
+// items to the store, then marks the run as no longer flushing. If a terminal
+// event is present it is always the last item flushed. Must not be called
+// while rs.mu is held.
+func (rs *runWriteState) flush(ctx context.Context, s store.RunTimelineStore) {
+	for {
+		rs.mu.Lock()
+		items := rs.queue
+		rs.queue = nil
+		rs.flushing = false
+		rs.mu.Unlock()
+
+		if len(items) == 0 {
+			return
+		}
+
+		merged := coalesceTimelineItems(items)
+		for _, item := range merged {
+			rs.writeItem(ctx, s, item)
+		}
+		rs.mu.Lock()
+		rs.lastWrite = time.Now()
+		rs.mu.Unlock()
+
+		// Re-check: if more items arrived during flush, drain again.
+		rs.mu.Lock()
+		empty := len(rs.queue) == 0
+		if !empty && !rs.flushing {
+			rs.flushing = true
+			rs.mu.Unlock()
+			continue
+		}
+		rs.mu.Unlock()
+		return
+	}
+}
+
+// coalesceTimelineItems merges adjacent same-type stream deltas (chunk, chunk
+// → single merged chunk; thinking, thinking → single merged thinking) while
+// leaving all other items unmerged. Adjacent but differently-typed deltas
+// (chunk → thinking) are flushed as separate rows. Returns a new slice; the
+// input is not modified.
+func coalesceTimelineItems(items []store.RunTimelineItem) []store.RunTimelineItem {
+	if len(items) == 0 {
+		return nil
+	}
+
+	var out []store.RunTimelineItem
+	i := 0
+	for i < len(items) {
+		item := items[i]
+		if !isCoalesceableTimelineType(item.ItemType) {
+			out = append(out, item)
+			i++
+			continue
+		}
+		// Coalesce consecutive same-type stream items.
+		merged := item
+		var buf strings.Builder
+		buf.WriteString(item.Content)
+		i++
+		for i < len(items) && items[i].ItemType == item.ItemType {
+			buf.WriteString(items[i].Content)
+			i++
+		}
+		merged.Content = buf.String()
+		// Preview: tail of merged content (truncated).
+		merged.Preview = sanitizeTimelinePreview(merged.Content)
+		out = append(out, merged)
+	}
+	return out
+}
+
+// RunTimelineRecorder persists display-safe run events without blocking
+// delivery. Adjacent chunk/thinking deltas are coalesced into single rows
+// by a per-run drain goroutine to bound row amplification from long LLM
+// streams. All public methods are safe for concurrent use.
 type RunTimelineRecorder struct {
 	store   store.RunTimelineStore
 	timeout time.Duration
 
 	mu      sync.Mutex
 	nextSeq map[string]int
+	runs    map[string]*runWriteState
 }
 
 func NewRunTimelineRecorder(timelineStore store.RunTimelineStore) *RunTimelineRecorder {
-	return &RunTimelineRecorder{
+	r := &RunTimelineRecorder{
 		store:   timelineStore,
 		timeout: 2 * time.Second,
 		nextSeq: make(map[string]int),
+		runs:    make(map[string]*runWriteState),
 	}
+	go r.orphanReap()
+	return r
 }
 
 func (r *RunTimelineRecorder) Record(event AgentEvent) {
@@ -46,30 +184,35 @@ func (r *RunTimelineRecorder) Record(event AgentEvent) {
 	if _, _, ok := timelineKindForEvent(event); !ok {
 		return
 	}
+
 	seq := r.reserveSeq(event.RunID)
 	item, ok := runTimelineItemFromEvent(event, seq)
 	if !ok {
 		return
 	}
+
 	if isTerminalRunTimelineEvent(event.Type) {
+		// Opportunistic cleanup: best-effort removal of seq state when
+		// the terminal event fires. The authoritative cleanup is in the
+		// drain goroutine, which runs after enqueue; this covers the
+		// case where no drain was started (e.g. only terminal events
+		// were recorded for this run).
 		defer r.forgetRun(event.RunID)
 	}
-	if item.ItemType == store.RunTimelineItemTypeChunk || item.ItemType == store.RunTimelineItemTypeThinking {
-		// Stream items are persisted one row per emitted delta. A long LLM stream
-		// can emit hundreds of chunk deltas, so per-delta rows are a DB-write
-		// amplification risk for large streams. Phase 2 keeps the stream durable
-		// (replay consumers exist), and deferred coalescing (batch-merge per
-		// iteration or interval) is tracked as follow-up to bound row counts.
-		slog.Debug("run_timeline.persist_stream_item", "run_id", event.RunID, "item_type", item.ItemType)
+
+	rs := r.getOrCreateRunState(event.RunID)
+	rs.enqueue(item)
+
+	rs.mu.Lock()
+	alreadyFlushing := rs.flushing
+	if !alreadyFlushing {
+		rs.flushing = true
 	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
-		defer cancel()
-		ctx = store.WithTenantID(ctx, item.TenantID)
-		if err := r.store.AppendRunTimelineItem(ctx, &item); err != nil {
-			slog.Warn("run_timeline.persist_failed", "run_id", event.RunID, "event", event.Type, "error", err)
-		}
-	}()
+	rs.mu.Unlock()
+
+	if !alreadyFlushing {
+		go rs.flush(context.Background(), r.store)
+	}
 }
 
 func (r *RunTimelineRecorder) reserveSeq(runID string) int {
@@ -83,6 +226,40 @@ func (r *RunTimelineRecorder) forgetRun(runID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.nextSeq, runID)
+}
+
+func (r *RunTimelineRecorder) getOrCreateRunState(runID string) *runWriteState {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rs, ok := r.runs[runID]
+	if !ok {
+		rs = &runWriteState{lastWrite: time.Now()}
+		r.runs[runID] = rs
+	}
+	return rs
+}
+
+// orphanReap periodically removes per-run write states that have not been
+// written to for longer than runTimelineOrphanMaxAge. This catches runs
+// whose terminal event was lost (crash, bug) and prevents unbounded map
+// growth. Runs once per 10 minutes; exits when the process does.
+func (r *RunTimelineRecorder) orphanReap() {
+	ticker := time.NewTicker(runTimelineOrphanReapInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		r.mu.Lock()
+		now := time.Now()
+		for id, rs := range r.runs {
+			rs.mu.Lock()
+			idle := now.Sub(rs.lastWrite) > runTimelineOrphanMaxAge
+			empty := len(rs.queue) == 0
+			rs.mu.Unlock()
+			if idle && empty {
+				delete(r.runs, id)
+			}
+		}
+		r.mu.Unlock()
+	}
 }
 
 func isTerminalRunTimelineEvent(eventType string) bool {
@@ -127,9 +304,6 @@ func runTimelineItemFromEvent(event AgentEvent, seq int) (store.RunTimelineItem,
 		SpanID:     spanID,
 		Metadata:   mustJSON(metadata),
 	}
-	// Content-carrying types (chunk/thinking/tool.started) persist their full
-	// payload so stream replay reconstructs the raw stream. Legacy types leave
-	// Content empty; the store strips it to '' on write.
 	item.Content = timelineContent(event, itemType)
 	return item, true
 }
@@ -145,10 +319,6 @@ func timelineKindForEvent(event AgentEvent) (string, string, bool) {
 	case protocol.AgentEventRunCancelled:
 		return store.RunTimelineItemTypeRunStatus, store.RunTimelineStatusCancelled, true
 	case protocol.AgentEventActivity:
-		// phase "verifying" marks the completion-verifier gate running
-		// (WS-E): surfaces as a verifying run.status item so operators see
-		// the terminal check between the last tool iteration and the final
-		// completed/failed event.
 		if payloadString(event.Payload, "phase") == "verifying" {
 			return store.RunTimelineItemTypeActivity, store.RunTimelineStatusVerifying, true
 		}
