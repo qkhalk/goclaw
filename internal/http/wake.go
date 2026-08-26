@@ -100,15 +100,9 @@ func (h *WakeHandler) handleWake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	loop, err := h.agents.Get(r.Context(), agentID)
-	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "agent", agentID)})
-		return
-	}
-
-	// Tenant policy gate: a suspended tenant must not burn provider quota via
-	// wake. Master scope bypasses (system operators may wake any tenant's
-	// agent for diagnostics), mirroring the chat completions entry point.
+	// Tenant policy gate BEFORE any work: a suspended tenant must not burn
+	// provider quota via wake. Master scope bypasses (system operators may
+	// wake any tenant's agent for diagnostics), mirroring chat completions.
 	if h.policyStore != nil && !store.IsMasterScope(r.Context()) {
 		if tid := store.TenantIDFromContext(r.Context()); tid != uuid.Nil {
 			if err := h.policyStore.CheckTenantActive(r.Context(), tid); err != nil {
@@ -122,6 +116,12 @@ func (h *WakeHandler) handleWake(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+
+	loop, err := h.agents.Get(r.Context(), agentID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "agent", agentID)})
+		return
 	}
 
 	// Build session key
