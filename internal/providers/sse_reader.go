@@ -3,10 +3,21 @@ package providers
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"sync"
 )
+
+// ErrSSELineTooLarge is returned when a single SSE line exceeds
+// SSELineMaxBytes. Legitimate streams never approach this: image-generation
+// base64 frames top out in the low MBs. The cap exists so a broken or hostile
+// upstream cannot make ReadString buffer without bound (OOM vector).
+var ErrSSELineTooLarge = errors.New("sse line exceeds maximum size")
+
+// SSELineMaxBytes caps one SSE line (event or data) before the scanner gives
+// up with ErrSSELineTooLarge.
+const SSELineMaxBytes = 32 << 20 // 32MB
 
 // SSEScanner reads an SSE (Server-Sent Events) stream line by line,
 // extracting data payloads. Shared by OpenAI, Anthropic, and Codex providers.
@@ -16,6 +27,7 @@ type SSEScanner struct {
 	eventType string
 	err       error
 	done      bool
+	lineLen   int // bytes accumulated for the current line
 }
 
 // NewSSEScanner creates an SSE scanner.
@@ -37,11 +49,20 @@ func (s *SSEScanner) Next() bool {
 	}
 	for {
 		line, err := s.reader.ReadString('\n')
+		s.lineLen += len(line)
+		if s.lineLen > SSELineMaxBytes {
+			s.err = ErrSSELineTooLarge
+			s.done = true
+			return false
+		}
+		if len(line) > 0 && strings.HasSuffix(line, "\n") {
+			s.lineLen = 0 // line complete: reset for the next one
+		}
 		if len(line) > 0 {
-			// Trim the trailing newline ("\n" or "\r\n").
+			// Trim the trailing newline ("\n" or "\r\n") so payloads like
+			// "[DONE]" match exactly.
 			line = strings.TrimSuffix(line, "\n")
 			line = strings.TrimSuffix(line, "\r")
-
 			if after, ok := strings.CutPrefix(line, "event: "); ok {
 				s.eventType = after
 			} else if after, ok := strings.CutPrefix(line, "event:"); ok {

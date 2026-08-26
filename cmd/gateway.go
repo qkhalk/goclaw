@@ -806,6 +806,9 @@ func runGateway() {
 
 	// External wake/trigger API
 	wakeH := httpapi.NewWakeHandler(agentRouter)
+	if pgStores != nil && pgStores.TenantPolicies != nil {
+		wakeH.SetTenantPolicies(pgStores.TenantPolicies)
+	}
 	if postTurn != nil {
 		wakeH.SetPostTurnProcessor(postTurn)
 	}
