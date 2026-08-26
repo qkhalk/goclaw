@@ -95,5 +95,11 @@
     "priority": "Priority",
     "loading": "Loading tasks…",
     "refresh": "Refresh"
+  },
+  "palette": {
+    "commands": "Commands",
+    "skills": "Skills",
+    "noResults": "No matching commands or skills",
+    "gcHint": "GoClaw workflow commands"
   }
 }
