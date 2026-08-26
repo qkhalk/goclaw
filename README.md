@@ -69,18 +69,18 @@ Single binary. Production-tested. Agents that orchestrate for you.
 | Error taxonomy | `internal/reliability/errors.go` | Canonical `ErrorCode` (`provider.*`, `model.*`, `runtime.*`, `tool.*`) với retryability + severity. `ReliabilityError`, `ClassifyError` (HTTP status/body → code), `IsRetryable` |
 | Circuit breaker | `internal/reliability/circuitbreaker.go` | State machine per provider:model (Healthy → Degraded → Open → HalfOpen), consecutive-failure counting, cooldown, `ProbeTimeout` giải phóng stale half-open probe |
 | Health registry | `internal/reliability/health.go` | Per-key runtime reliability scoring (success ratio − stall/tool-error penalties) |
-| Rate-limit coordinator | `internal/reliability/ratelimit.go` | Single-flight cooldown chống retry storms; stale waiter không xóa newer cooldown |
+| Rate-limit coordinator | `internal/reliability/ratelimit.go` | Single-flight cooldown chống retry storms; fail-closed `ErrMaxPendingWaiters` khi waiter cap exceeded; stale waiter không xóa newer cooldown. Dead API `ShouldWait`/`BeginWait`/`Waiters` đã xóa |
 | Metrics | `internal/reliability/metrics.go` | `atomic` counters + `Snapshot`, global swap-safe `Sink`, `Flush` drain per-counter |
 
-**AgentKit phases (fork delta so với upstream):** các feature mỗi release ghi ở mục **Release** bên dưới. Fork theo dõi upstream thủ công; mỗi tag `v3.16.0-fork.*` ghi rõ chính xác những gì khác upstream, kèm image GHCR.
+**AgentKit phases (fork delta so với upstream):** các feature mỗi release ghi ở mục **Release** bên dưới. Fork theo dõi upstream thủ công; mỗi tag ghi rõ chính xác những gì khác upstream, kèm image GHCR.
 
 ### Releases
 
-Release fork được tạo manual (`release-fork.yaml`, workflow_dispatch) — build binaries (linux/amd64 + arm64, web embedded), Docker image `ghcr.io/qkhalk/goclaw:{tag}` (+ `-full`, alias `:fork`) và GitHub Release. **Fork delta** (khác upstream) được ghi trong từng release:
+Release fork được tạo manual (`release-fork.yaml`, workflow_dispatch) — build binaries (5 platforms, web embedded), Docker image `ghcr.io/qkhalk/goclaw:{tag}` (+ `-full`, alias `:fork`) và GitHub Release. **Fork delta** (khác upstream) được ghi trong từng release:
 
 | Tag | Kiểu | Fork delta (so với upstream) | Docker (`ghcr.io/qkhalk/goclaw`) |
 |-----|------|-------------------------------|----------------------------------|
-| `v3.16.0-fork.1` | fork release | Reliability layer; CI enabled; AgentKit Phase 1–7 Enterprise (approval persistence, audit completeness, cost governance, Prometheus/SLO, skill review + signed packages, tenant policies + RBAC); goclaw-docs | `:v3.16.0-fork.1`, `:v3.16.0-fork.1-full`, `:fork` |
+| `v3.16.1` | stable release | **Phase B — Resource leak & retry hardening:** B1 scheduler session eviction (janitor idle reaping, configurable `SessionIdleEvictMs`), B2 watchdog age-based eviction (`MaxRunDuration` 30m, prevents re-abort loops), B3 timeline delta coalescing (adjacent chunk/thinking merged into single DB rows), B4 retry admission hardening (Codex/Ollama migrated to `RetryDoFor`, fail-closed `ErrMaxPendingWaiters`, dead `ShouldWait`/`BeginWait`/`Waiters` removed). **C3** SQLite partial index `idx_webhook_calls_running_heartbeat` for `ReclaimStale`. 17 files, +757/-198. **Phase A** (PR #41): security P0 fixes + slash command palette (PR #42). Reliability layer; CI enabled; AgentKit Phase 1–7 Enterprise | `:v3.16.1`, `:v3.16.1-full`, `:fork` |
 
 > Cách build ảnh cho installed: `docker pull ghcr.io/qkhalk/goclaw:fork` rồi dùng cùng cấu hình như upstream image (xem [docker-compose.yml](docker-compose.yml)).
 
@@ -279,6 +279,13 @@ When `GOCLAW_*_API_KEY` environment variables are set, the gateway auto-onboards
 > | `latest-full` | All runtimes + skill dependencies pre-installed |
 > | `latest-otel` | Latest + OpenTelemetry tracing |
 > | `goclaw-web` | Standalone nginx + React SPA (for custom reverse proxy) |
+>
+> **Fork images** (`ghcr.io/qkhalk/goclaw`):
+> | Image | Description |
+> |-------|-------------|
+> | `v3.16.1` | Fork latest stable — Phase B resource leak fixes + retry hardening |
+> | `v3.16.1-full` | Fork + all runtimes + skill dependencies |
+> | `fork` / `fork-full` | Alias指向 latest fork tag |
 >
 > For custom builds (Tailscale, Redis): `docker build --build-arg ENABLE_TSNET=true ...`
 > See the [Deployment Guide](https://docs.goclaw.sh/#deploy-docker-compose) for details.
