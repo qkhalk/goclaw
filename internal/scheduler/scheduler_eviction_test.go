@@ -15,10 +15,8 @@ func TestReapIdleSessions_VerifiesJanitorSweep(t *testing.T) {
 	cfg := DefaultQueueConfig()
 	cfg.SessionIdleEvictMs = 1 // 1 ms threshold
 
-	noopFn := func(ctx context.Context, req agent.RunRequest) <-chan agent.RunOutcome {
-		ch := make(chan agent.RunOutcome, 1)
-		ch <- agent.RunOutcome{Result: &agent.RunResult{Response: "ok"}}
-		return ch
+	noopFn := func(ctx context.Context, req agent.RunRequest) (*agent.RunResult, error) {
+		return &agent.RunResult{Response: "ok"}, nil
 	}
 	s := NewScheduler(nil, cfg, noopFn)
 	defer s.Stop()
@@ -73,10 +71,8 @@ func TestReapIdleSessions_SkipsNonIdle(t *testing.T) {
 	cfg := DefaultQueueConfig()
 	cfg.SessionIdleEvictMs = 60_000 // 60 s threshold — no way to be idle in a test
 
-	noopFn := func(ctx context.Context, req agent.RunRequest) <-chan agent.RunOutcome {
-		ch := make(chan agent.RunOutcome, 1)
-		ch <- agent.RunOutcome{Result: &agent.RunResult{Response: "ok"}}
-		return ch
+	noopFn := func(ctx context.Context, req agent.RunRequest) (*agent.RunResult, error) {
+		return &agent.RunResult{Response: "ok"}, nil
 	}
 	s := NewScheduler(nil, cfg, noopFn)
 	defer s.Stop()
