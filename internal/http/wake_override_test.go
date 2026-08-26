@@ -1,19 +1,19 @@
 package http
 
 import (
+	"github.com/google/uuid"
+	"github.com/nextlevelbuilder/goclaw/internal/agent"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // A2: a body user_id different from the authenticated user must be rejected
 // for non-master-scope callers instead of silently impersonating.
 func TestWake_UserOverrideBlockedForTenantScope(t *testing.T) {
-	h := NewWakeHandler(nil)
+	h := NewWakeHandler(agent.NewRouter())
 
 	body := `{"message":"hi","user_id":"victim-user"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/agents/a1/wake", strings.NewReader(body))
@@ -40,9 +40,9 @@ func TestWake_UserOverrideBlockedForTenantScope(t *testing.T) {
 }
 
 // Master-scope callers bypass the override gate (they proceed past it; with
-// no agent router the run fails later, but never at the override check).
+// an empty agent router the lookup 404s later, but never at the override check).
 func TestWake_UserOverrideAllowedForMasterScope(t *testing.T) {
-	h := NewWakeHandler(nil)
+	h := NewWakeHandler(agent.NewRouter())
 
 	body := `{"message":"hi","user_id":"other-user"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/agents/a1/wake", strings.NewReader(body))
