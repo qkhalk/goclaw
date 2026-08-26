@@ -1,53 +1,97 @@
 package http
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
-// A1: the invoke endpoint must reject bodies larger than the cap (default
-// 1 MiB) with 413 instead of decoding them into the tool registry.
-func TestToolsInvoke_BodyOverCapRejected(t *testing.T) {
-	h := NewToolsInvokeHandler(nil, nil)
-	big := strings.Repeat("a", int(DefaultInvokeMaxBodyBytes)+1024)
-	req := httptest.NewRequest(http.MethodPost, "/v1/tools/invoke", strings.NewReader(big))
-	req.Header.Set("Content-Type", "application/json")
-	// resolveAuth runs before body decode; an unauthenticated request returns
-	// 401 before reaching the cap — so authenticate as a gateway token.
-	req.Header.Set("Authorization", "Bearer test-token")
+// echoTool is a minimal read-only Tool for exercising the invoke handler
+// without touching exec/network surfaces.
+type echoTool struct{}
 
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
+func (echoTool) Name() string        { return "echo" }
+func (echoTool) Description() string { return "echoes its input" }
+func (echoTool) Parameters() map[string]any {
+	return map[string]any{"type": "object", "properties": map[string]any{}}
+}
+func (echoTool) Execute(_ context.Context, args map[string]any) *tools.Result {
+	out, _ := json.Marshal(args)
+	return &tools.Result{ForLLM: string(out), ForUser: string(out)}
+}
 
-	if rec.Code == 0 {
-		t.Fatal("no response recorded")
+// invokeCapHarness builds a handler with a registry containing the echo tool,
+// authenticates via the gateway token (set once per test), and returns
+// send(body) -> recorder.
+func invokeCapHarness(t *testing.T, maxBody int64) func(string) *httptest.ResponseRecorder {
+	t.Helper()
+	if pkgGatewayToken == "" {
+		InitGatewayToken("test-gw-token")
+		t.Cleanup(func() { InitGatewayToken("") })
 	}
-	// The cap must prevent unbounded decode. With auth resolved via gateway
-	// token the request reaches bindJSON and fails there; without auth it
-	// never reaches the cap. Assert we did NOT get a successful tool run.
-	if rec.Code == http.StatusOK {
-		t.Fatalf("oversized body accepted: got 200, want >= 400")
+	reg := tools.NewRegistry()
+	reg.Register(echoTool{})
+
+	h := NewToolsInvokeHandler(reg, nil)
+	h.SetMaxBodyBytes(maxBody)
+
+	return func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/v1/tools/invoke", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer test-gw-token")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
 	}
 }
 
-// The configured setter must be honored: a small explicit cap rejects a body
-// that fits under the default.
-func TestToolsInvoke_SetMaxBodyBytes_SmallCapRejected(t *testing.T) {
-	h := NewToolsInvokeHandler(nil, nil)
-	h.SetMaxBodyBytes(64)
+// A1: a body over the configured cap must be rejected before the tool runs.
+func TestToolsInvoke_BodyOverConfiguredCapRejected(t *testing.T) {
+	send := invokeCapHarness(t, 64)
 
-	body := `{"tool":"x","args":{}}` // ~21 bytes of JSON but padded over cap
-	padded := body + strings.Repeat(" ", 100)
-	req := httptest.NewRequest(http.MethodPost, "/v1/tools/invoke", strings.NewReader(padded))
-	req.Header.Set("Authorization", "Bearer test-token")
+	// Valid JSON with tool name — would execute if the cap were not enforced.
+	body := `{"tool":"echo","args":{"x":"` + strings.Repeat("a", 200) + `"}}`
+	rec := send(body)
 
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("body over 64-byte cap: got %d (%s), want 413", rec.Code, rec.Body.String())
+	}
+}
 
-	if rec.Code == http.StatusOK {
-		t.Fatalf("body over explicit 64-byte cap accepted: got 200")
+// A1: default cap (1 MiB) applies when no override is set — an oversized body
+// is rejected even though the JSON is valid and the tool exists.
+func TestToolsInvoke_BodyOverDefaultCapRejected(t *testing.T) {
+	send := invokeCapHarness(t, 0) // no override: DefaultInvokeMaxBodyBytes
+
+	big := strings.Repeat("a", DefaultInvokeMaxBodyBytes+1024)
+	rec := send(`{"tool":"echo","args":{"pad":"` + big + `"}}`)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("body over default 1 MiB cap: got %d (%s), want 413", rec.Code, rec.Body.String())
+	}
+}
+
+// Under-cap bodies still reach the handler normally (no false positives from
+// the MaxBytesReader wrap).
+func TestToolsInvoke_BodyUnderCapPasses(t *testing.T) {
+	send := invokeCapHarness(t, 4096)
+
+	rec := send(`{"tool":"echo","dry_run":true}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("under-cap dry-run invoke: got %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response not JSON: %v", err)
+	}
+	if resp["tool"] != "echo" {
+		t.Fatalf("dry-run response missing tool field: %v", resp)
 	}
 }
 
