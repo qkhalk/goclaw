@@ -81,7 +81,7 @@ func TestToolsInvoke_BodyOverDefaultCapRejected(t *testing.T) {
 func TestToolsInvoke_BodyUnderCapPasses(t *testing.T) {
 	send := invokeCapHarness(t, 4096)
 
-	rec := send(`{"tool":"echo","dry_run":true}`)
+	rec := send(`{"tool":"echo","dryRun":true}`)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("under-cap dry-run invoke: got %d (%s), want 200", rec.Code, rec.Body.String())
@@ -90,6 +90,7 @@ func TestToolsInvoke_BodyUnderCapPasses(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("response not JSON: %v", err)
 	}
+	// Dry-run returns the tool schema envelope, not an execution result.
 	if resp["tool"] != "echo" || resp["dryRun"] != true {
 		t.Fatalf("unexpected dry-run response: %v", resp)
 	}
