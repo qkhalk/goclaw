@@ -139,6 +139,11 @@ func coalesceTimelineItems(items []store.RunTimelineItem) []store.RunTimelineIte
 		buf.WriteString(item.Content)
 		i++
 		for i < len(items) && items[i].ItemType == item.ItemType {
+			prev := buf.String()
+			if len(prev) > 0 && prev[len(prev)-1] != ' ' && prev[len(prev)-1] != '\n' &&
+				len(items[i].Content) > 0 && items[i].Content[0] != ' ' && items[i].Content[0] != '\n' {
+				buf.WriteByte(' ')
+			}
 			buf.WriteString(items[i].Content)
 			i++
 		}

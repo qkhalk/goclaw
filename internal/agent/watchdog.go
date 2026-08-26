@@ -362,7 +362,7 @@ func (w *Watchdog) Sweep(ctx context.Context, now time.Time) int {
 		)
 	}
 
-	actuated := 0
+	actuated := len(evictions)
 	for _, a := range actions {
 		if w.applyLadder(ctx, a.runID, a.sessionKey, a.verdict, a.depth, now) {
 			actuated++

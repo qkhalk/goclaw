@@ -2,9 +2,15 @@ package reliability
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
+
+// ErrMaxPendingWaiters is returned by Wait when the total in-flight waiter
+// count has reached the configured cap. The caller should abort the request
+// rather than queue behind a full waiting room.
+var ErrMaxPendingWaiters = errors.New("rate limit: max pending waiters exceeded")
 
 // RateLimitCoordinator provides a shared, single-flight view of provider
 // cooldowns. Multiple concurrent runs using the same provider:model must not
@@ -88,9 +94,9 @@ func (r *RateLimitCoordinator) ClearCooldown(provider, model string) {
 // Wait blocks until the cooldown for a key expires or the context is done.
 // It is a convenience that combines cooldown check with a cancellable sleep and
 // writes a pessimistic wait registration so the cancellation path can't leak.
-// When the total in-flight waiter count reaches maxPending the registration is
-// skipped and the call proceeds immediately (fail-open) to prevent starvation
-// from a leaked counter.
+// When the total in-flight waiter count reaches maxPending the call is
+// rejected with ErrMaxPendingWaiters to prevent starvation from a leaked
+// counter.
 func (r *RateLimitCoordinator) Wait(ctx context.Context, provider, model string) error {
 	r.mu.Lock()
 	k := r.key(provider, model)
@@ -98,10 +104,10 @@ func (r *RateLimitCoordinator) Wait(ctx context.Context, provider, model string)
 	registered := false
 	if ok {
 		if r.maxPending > 0 && r.pendingTotal >= r.maxPending {
-			// Pending cap reached: skip registration and proceed
-			// immediately rather than block indefinitely.
+			// Pending cap reached: reject the caller rather than
+			// queue behind a full waiting room.
 			r.mu.Unlock()
-			return nil
+			return ErrMaxPendingWaiters
 		}
 		r.waiters[k]++
 		r.pendingTotal++
