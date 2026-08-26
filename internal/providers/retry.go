@@ -62,10 +62,32 @@ func (e *HTTPError) Error() string {
 	return fmt.Sprintf("HTTP %d: %s", e.Status, e.Body)
 }
 
+// streamEmittedError wraps a stream failure that occurred after user-visible
+// output already escaped to the caller. Retrying would duplicate streamed text,
+// tool calls, or images — it is never retryable regardless of the underlying
+// error type.
+type streamEmittedError struct {
+	err error
+}
+
+func (e *streamEmittedError) Error() string { return e.err.Error() }
+func (e *streamEmittedError) Unwrap() error { return e.err }
+
+// StreamEmitted wraps err so IsRetryableError returns false. Use inside a
+// RetryDoFor fn when chatStreamOnce reports that chunks already escaped.
+func StreamEmitted(err error) error {
+	return &streamEmittedError{err: err}
+}
+
 // IsRetryableError checks if an error is retryable.
 // Retryable: 429 (rate limit), 500, 502, 503, 504, connection errors, timeouts.
 func IsRetryableError(err error) bool {
 	if err == nil {
+		return false
+	}
+	// Stream-emitted failures are never retryable (would duplicate output).
+	var emErr *streamEmittedError
+	if errors.As(err, &emErr) {
 		return false
 	}
 

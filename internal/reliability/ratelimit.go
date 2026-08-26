@@ -15,20 +15,22 @@ import (
 // CooldownTracker: that tracker handles a run's local decision about *its own*
 // requests; this coordinator deduplicates the wait across concurrent runs.
 type RateLimitCoordinator struct {
-	mu        sync.Mutex
-	cooldowns map[string]time.Time
-	waiters   map[string]int
-	maxPending int
-	nowFn     func() time.Time
+	mu           sync.Mutex
+	cooldowns    map[string]time.Time
+	waiters      map[string]int
+	maxPending   int // cap on total in-flight waiters; <=0 disables enforcement
+	pendingTotal int // sum of waiters across all keys
+	nowFn        func() time.Time
 }
 
-// NewRateLimitCoordinator builds a coordinator with the given cap on pending
-// waiter tracking. maxPending <= 0 disables the pending cap.
+// NewRateLimitCoordinator builds a coordinator with the given cap on total
+// in-flight waiters. maxPending <= 0 disables the pending cap.
 func NewRateLimitCoordinator(maxPending int) *RateLimitCoordinator {
 	return &RateLimitCoordinator{
-		cooldowns: make(map[string]time.Time),
-		waiters:   make(map[string]int),
-		nowFn:     time.Now,
+		cooldowns:  make(map[string]time.Time),
+		waiters:    make(map[string]int),
+		maxPending: maxPending,
+		nowFn:      time.Now,
 	}
 }
 
@@ -66,47 +68,12 @@ func (r *RateLimitCoordinator) CooldownFor(provider, model string) (time.Duratio
 	return remaining, true
 }
 
-// ShouldWait reports how long the caller should wait before issuing a request
-// for a provider:model. It also counts the caller as a waiter so callers can
-// be discouraged from piling onto an already-saturated key.
-func (r *RateLimitCoordinator) ShouldWait(provider, model string) time.Duration {
-	k := r.key(provider, model)
+// PendingWaiters returns the number of runs currently blocked in Wait
+// across all keys. Returns 0 when maxPending is disabled.
+func (r *RateLimitCoordinator) PendingWaiters() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	until, ok := r.cooldowns[k]
-	if ok {
-		remaining := until.Sub(r.nowFn())
-		if remaining > 0 {
-			r.waiters[k]++
-			return remaining
-		}
-		delete(r.cooldowns, k)
-	}
-	return 0
-}
-
-// BeginWait removes a waiter for the key. Callers should invoke it after the
-// wait computed by ShouldWait completes (defer-style), so the waiter counter
-// does not leak.
-func (r *RateLimitCoordinator) BeginWait(provider, model string) {
-	k := r.key(provider, model)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.waiters[k] > 0 {
-		r.waiters[k]--
-		if r.waiters[k] == 0 {
-			delete(r.waiters, k)
-		}
-	}
-}
-
-// Waiters reports how many runs are currently waiting on a key.
-func (r *RateLimitCoordinator) Waiters(provider, model string) int {
-	k := r.key(provider, model)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.waiters[k]
+	return r.pendingTotal
 }
 
 // ClearCooldown removes any active cooldown for the key (e.g. after a
@@ -119,20 +86,40 @@ func (r *RateLimitCoordinator) ClearCooldown(provider, model string) {
 }
 
 // Wait blocks until the cooldown for a key expires or the context is done.
-// It is a convenience that combines ShouldWait with a cancellable sleep and
+// It is a convenience that combines cooldown check with a cancellable sleep and
 // writes a pessimistic wait registration so the cancellation path can't leak.
+// When the total in-flight waiter count reaches maxPending the registration is
+// skipped and the call proceeds immediately (fail-open) to prevent starvation
+// from a leaked counter.
 func (r *RateLimitCoordinator) Wait(ctx context.Context, provider, model string) error {
 	r.mu.Lock()
 	k := r.key(provider, model)
 	until, ok := r.cooldowns[k]
+	registered := false
 	if ok {
+		if r.maxPending > 0 && r.pendingTotal >= r.maxPending {
+			// Pending cap reached: skip registration and proceed
+			// immediately rather than block indefinitely.
+			r.mu.Unlock()
+			return nil
+		}
 		r.waiters[k]++
+		r.pendingTotal++
+		registered = true
 	}
 	r.mu.Unlock()
-	if !ok {
+	if !registered {
 		return nil
 	}
-	defer r.BeginWait(provider, model)
+	defer func() {
+		r.mu.Lock()
+		r.pendingTotal--
+		r.waiters[k]--
+		if r.waiters[k] <= 0 {
+			delete(r.waiters, k)
+		}
+		r.mu.Unlock()
+	}()
 
 	d := until.Sub(r.nowFn())
 	if d <= 0 {

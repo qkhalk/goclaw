@@ -237,3 +237,49 @@ func recorderSeq(r *RunTimelineRecorder, runID string) int {
 	defer r.mu.Unlock()
 	return r.nextSeq[runID]
 }
+
+// --- B3: timeline delta coalescing ----------------------------------------
+
+func TestCoalesceAdjacentChunks_MergesContent(t *testing.T) {
+	items := []store.RunTimelineItem{
+		{RunID: "r1", Seq: 1, Type: store.RunTimelineItemTypeChunk, Content: "hello"},
+		{RunID: "r1", Seq: 2, Type: store.RunTimelineItemTypeChunk, Content: " world"},
+		{RunID: "r1", Seq: 3, Type: store.RunTimelineItemTypeToolCall, Content: "tool:read"},
+	}
+	merged := coalesceTimelineItems(items)
+	if len(merged) != 2 {
+		t.Fatalf("expected 2 coalesced items, got %d", len(merged))
+	}
+	if merged[0].Content != "hello world" {
+		t.Errorf("merged content = %q, want %q", merged[0].Content, "hello world")
+	}
+	if merged[1].Type != store.RunTimelineItemTypeToolCall {
+		t.Errorf("tool call type preserved = %v, want tool_call", merged[1].Type)
+	}
+}
+
+func TestCoalesceAdjacentThinking_MergesContent(t *testing.T) {
+	items := []store.RunTimelineItem{
+		{RunID: "r1", Seq: 1, Type: store.RunTimelineItemTypeThinking, Content: "thinking a"},
+		{RunID: "r1", Seq: 2, Type: store.RunTimelineItemTypeThinking, Content: "thinking b"},
+	}
+	merged := coalesceTimelineItems(items)
+	if len(merged) != 1 {
+		t.Fatalf("expected 1 merged item, got %d", len(merged))
+	}
+	if merged[0].Content != "thinking a thinking b" {
+		t.Errorf("content = %q", merged[0].Content)
+	}
+}
+
+func TestCoalesceMixedTypes_PreservesBoundaries(t *testing.T) {
+	items := []store.RunTimelineItem{
+		{RunID: "r1", Seq: 1, Type: store.RunTimelineItemTypeChunk, Content: "A"},
+		{RunID: "r1", Seq: 2, Type: store.RunTimelineItemTypeThinking, Content: "B"},
+		{RunID: "r1", Seq: 3, Type: store.RunTimelineItemTypeChunk, Content: "C"},
+	}
+	merged := coalesceTimelineItems(items)
+	if len(merged) != 3 {
+		t.Fatalf("expected 3 items (no merging across types), got %d", len(merged))
+	}
+}
