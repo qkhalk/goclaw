@@ -75,6 +75,11 @@ func (h *ToolsInvokeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgPermissionDenied, r.URL.Path)})
 		return
 	}
+	// Inject tenant, role, user, and locale into context for downstream
+	// stores/tools. Must run before any tool execution — registry consumers
+	// (delegate, media chain, MCP credentials, exec approval) read identity
+	// from the request context.
+	r = r.WithContext(enrichContext(r.Context(), r, auth))
 
 	// Rate limit check (per IP or bearer token), same policy as chat completions.
 	if h.rateLimiter != nil {

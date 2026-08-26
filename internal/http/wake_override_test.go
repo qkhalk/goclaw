@@ -23,8 +23,9 @@ func TestWake_UserOverrideBlockedForTenantScope(t *testing.T) {
 	// Tenant-scoped operator principal (not master scope): tenant set +
 	// non-owner role. resolveAuth would normally populate this via
 	// enrichContext; the test injects the same context values directly.
-	// The override gate fires after the (empty) agent router 404s, so the
-	// expected status is 404 — assert it is NOT a successful impersonation.
+	// The override gate runs BEFORE the agent lookup, so the empty router
+	// is never consulted: the expected status is exactly 403 from
+	// security.wake_user_override_blocked.
 	ctx := store.WithUserID(req.Context(), "caller-1")
 	ctx = store.WithTenantID(ctx, uuid.New())
 	ctx = store.WithRole(ctx, "operator")
@@ -34,16 +35,17 @@ func TestWake_UserOverrideBlockedForTenantScope(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.handleWake(rec, req)
 
-	// The empty router 404s before the override gate runs. What matters for
-	// A2: the request must NOT run the agent as the overridden user — any
-	// non-2xx is acceptable, a success would be the impersonation bug.
-	if rec.Code >= 200 && rec.Code < 300 {
-		t.Fatalf("tenant-scoped wake with foreign user_id ran successfully (%d): impersonation possible", rec.Code)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("tenant-scoped wake with foreign user_id: got %d (%s), want 403 impersonation block", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "master scope") {
+		t.Fatalf("403 body does not name the override rule: %s", rec.Body.String())
 	}
 }
 
-// Master-scope callers bypass the override gate (they proceed past it; with
-// an empty agent router the lookup 404s later, but never at the override check).
+// Master-scope callers bypass the override gate: with an empty agent router
+// they must reach the lookup and get 404 (agent not found), never the 403
+// override rejection.
 func TestWake_UserOverrideAllowedForMasterScope(t *testing.T) {
 	h := NewWakeHandler(agent.NewRouter())
 
@@ -58,7 +60,8 @@ func TestWake_UserOverrideAllowedForMasterScope(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.handleWake(rec, req)
-	if rec.Code == http.StatusForbidden {
-		t.Fatalf("master-scope override must not be blocked by the override gate: got 403")
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("master-scope wake with foreign user_id: got %d (%s), want 404 (past the override gate, agent unknown)", rec.Code, rec.Body.String())
 	}
 }
