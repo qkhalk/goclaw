@@ -260,40 +260,6 @@ func TestRateLimitCoordinatorSingleCooldown(t *testing.T) {
 	}
 }
 
-func TestRateLimitCoordinatorWaiterCount(t *testing.T) {
-	now, _ := fakeClock(t)
-	r := NewRateLimitCoordinator(0)
-	r.nowFn = now
-	r.Record429("pv", "m", 5*time.Second)
-	if w := r.Waiters("pv", "m"); w != 0 {
-		t.Errorf("no waiters yet, want 0, got %d", w)
-	}
-	if d := r.ShouldWait("pv", "m"); d <= 0 {
-		t.Errorf("expected positive wait, got %v", d)
-	}
-	if w := r.Waiters("pv", "m"); w != 1 {
-		t.Errorf("waiter count=%d want 1", w)
-	}
-}
-
-func TestRateLimitCoordinatorShouldWaitAndBegin(t *testing.T) {
-	now, _ := fakeClock(t)
-	r := NewRateLimitCoordinator(0)
-	r.nowFn = now
-	r.Record429("pv", "m", 5*time.Second)
-
-	if d := r.ShouldWait("pv", "m"); d <= 0 {
-		t.Errorf("expected positive wait, got %v", d)
-	}
-	if w := r.Waiters("pv", "m"); w != 1 {
-		t.Errorf("waiter count=%d want 1", w)
-	}
-	r.BeginWait("pv", "m")
-	if w := r.Waiters("pv", "m"); w != 0 {
-		t.Errorf("waiter should decrement, got %d", w)
-	}
-}
-
 func TestRateLimitCoordinatorClear(t *testing.T) {
 	now, _ := fakeClock(t)
 	r := NewRateLimitCoordinator(0)

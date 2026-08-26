@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/nextlevelbuilder/goclaw/internal/agent"
 )
 
 // TestReapIdleSessions_VerifiesJanitorSweep tests that ReapIdleSessions reaps

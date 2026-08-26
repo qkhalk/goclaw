@@ -242,9 +242,9 @@ func recorderSeq(r *RunTimelineRecorder, runID string) int {
 
 func TestCoalesceAdjacentChunks_MergesContent(t *testing.T) {
 	items := []store.RunTimelineItem{
-		{RunID: "r1", Seq: 1, Type: store.RunTimelineItemTypeChunk, Content: "hello"},
-		{RunID: "r1", Seq: 2, Type: store.RunTimelineItemTypeChunk, Content: " world"},
-		{RunID: "r1", Seq: 3, Type: store.RunTimelineItemTypeToolCall, Content: "tool:read"},
+		{RunID: "r1", Seq: 1, ItemType: store.RunTimelineItemTypeChunk, Content: "hello"},
+		{RunID: "r1", Seq: 2, ItemType: store.RunTimelineItemTypeChunk, Content: " world"},
+		{RunID: "r1", Seq: 3, ItemType: store.RunTimelineItemTypeToolCall, Content: "tool:read"},
 	}
 	merged := coalesceTimelineItems(items)
 	if len(merged) != 2 {
@@ -253,15 +253,15 @@ func TestCoalesceAdjacentChunks_MergesContent(t *testing.T) {
 	if merged[0].Content != "hello world" {
 		t.Errorf("merged content = %q, want %q", merged[0].Content, "hello world")
 	}
-	if merged[1].Type != store.RunTimelineItemTypeToolCall {
-		t.Errorf("tool call type preserved = %v, want tool_call", merged[1].Type)
+	if merged[1].ItemType != store.RunTimelineItemTypeToolCall {
+		t.Errorf("tool call type preserved = %v, want tool_call", merged[1].ItemType)
 	}
 }
 
 func TestCoalesceAdjacentThinking_MergesContent(t *testing.T) {
 	items := []store.RunTimelineItem{
-		{RunID: "r1", Seq: 1, Type: store.RunTimelineItemTypeThinking, Content: "thinking a"},
-		{RunID: "r1", Seq: 2, Type: store.RunTimelineItemTypeThinking, Content: "thinking b"},
+		{RunID: "r1", Seq: 1, ItemType: store.RunTimelineItemTypeThinking, Content: "thinking a"},
+		{RunID: "r1", Seq: 2, ItemType: store.RunTimelineItemTypeThinking, Content: "thinking b"},
 	}
 	merged := coalesceTimelineItems(items)
 	if len(merged) != 1 {
@@ -274,9 +274,9 @@ func TestCoalesceAdjacentThinking_MergesContent(t *testing.T) {
 
 func TestCoalesceMixedTypes_PreservesBoundaries(t *testing.T) {
 	items := []store.RunTimelineItem{
-		{RunID: "r1", Seq: 1, Type: store.RunTimelineItemTypeChunk, Content: "A"},
-		{RunID: "r1", Seq: 2, Type: store.RunTimelineItemTypeThinking, Content: "B"},
-		{RunID: "r1", Seq: 3, Type: store.RunTimelineItemTypeChunk, Content: "C"},
+		{RunID: "r1", Seq: 1, ItemType: store.RunTimelineItemTypeChunk, Content: "A"},
+		{RunID: "r1", Seq: 2, ItemType: store.RunTimelineItemTypeThinking, Content: "B"},
+		{RunID: "r1", Seq: 3, ItemType: store.RunTimelineItemTypeChunk, Content: "C"},
 	}
 	merged := coalesceTimelineItems(items)
 	if len(merged) != 3 {
