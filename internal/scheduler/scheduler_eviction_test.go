@@ -23,7 +23,7 @@ func TestReapIdleSessions_VerifiesJanitorSweep(t *testing.T) {
 
 	// Enqueue and immediately complete so the queue is idle+empty.
 	ctx := context.Background()
-	out := s.Schedule(ctx, "agent:a:web:dm:u1", "test", agent.RunRequest{Input: "hi"})
+	out := s.Schedule(ctx, "agent:a:web:dm:u1", "test", agent.RunRequest{Message: "hi"})
 	<-out
 
 	// Wait past the threshold.
@@ -54,7 +54,7 @@ func TestReapIdleSessions_SkipsActiveSession(t *testing.T) {
 	defer s.Stop()
 
 	ctx := context.Background()
-	_ = s.Schedule(ctx, "agent:b:web:dm:u1", "slow", agent.RunRequest{Input: "go"})
+	_ = s.Schedule(ctx, "agent:b:web:dm:u1", "slow", agent.RunRequest{Message: "go"})
 
 	// Give the run time to start, then reap — active run must survive.
 	time.Sleep(10 * time.Millisecond)
@@ -78,7 +78,7 @@ func TestReapIdleSessions_SkipsNonIdle(t *testing.T) {
 	defer s.Stop()
 
 	ctx := context.Background()
-	out := s.Schedule(ctx, "agent:c:web:dm:u1", "test", agent.RunRequest{Input: "hi"})
+	out := s.Schedule(ctx, "agent:c:web:dm:u1", "test", agent.RunRequest{Message: "hi"})
 	<-out
 
 	reaped := s.ReapIdleSessions(60_000 * time.Millisecond)
