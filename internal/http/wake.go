@@ -118,21 +118,10 @@ func (h *WakeHandler) handleWake(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	loop, err := h.agents.Get(r.Context(), agentID)
-	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "agent", agentID)})
-		return
-	}
-
-	// Build session key
-	sessionKey := req.SessionKey
-	if sessionKey == "" {
-		sessionKey = sessions.SessionKey(agentID, "wake-"+uuid.NewString()[:8])
-	}
-
 	// Body user_id override: master scope only. A tenant-scoped or owner-bound
 	// key must never impersonate another user; previously any unbound key
-	// could. Blocked attempts are logged as security events.
+	// could. Blocked attempts are logged as security events. Runs before the
+	// agent lookup so a blocked caller learns nothing about agent existence.
 	userID := store.UserIDFromContext(r.Context())
 	ctx := r.Context()
 	if req.UserID != "" && req.UserID != userID {
@@ -146,6 +135,18 @@ func (h *WakeHandler) handleWake(w http.ResponseWriter, r *http.Request) {
 		}
 		userID = req.UserID
 		ctx = store.WithUserID(ctx, req.UserID)
+	}
+
+	loop, err := h.agents.Get(r.Context(), agentID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "agent", agentID)})
+		return
+	}
+
+	// Build session key
+	sessionKey := req.SessionKey
+	if sessionKey == "" {
+		sessionKey = sessions.SessionKey(agentID, "wake-"+uuid.NewString()[:8])
 	}
 	runID := uuid.NewString()
 	slog.Info("wake request", "agent", agentID, "user", userID, "session", sessionKey)
