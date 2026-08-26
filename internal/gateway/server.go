@@ -52,9 +52,9 @@ type Server struct {
 	handlers []routeRegistrar
 
 	// Non-handler dependencies (don't implement RegisterRoutes)
-	policyEngine    *permissions.PolicyEngine
-	tenantPolicies  store.AgentPolicies // optional: tenant suspension gate on /v1/chat/completions (Phase 4)
-	pairingService  store.PairingStore
+	policyEngine   *permissions.PolicyEngine
+	tenantPolicies store.AgentPolicies // optional: tenant suspension gate on /v1/chat/completions (Phase 4)
+	pairingService store.PairingStore
 	apiKeyStore    store.APIKeyStore   // for API key auth lookup
 	agentStore     store.AgentStore    // for context injection in tools_invoke
 	skillStore     store.SkillStore    // for the CRUD MCP server (/api/mcp/) skill tools
@@ -218,6 +218,9 @@ func (s *Server) BuildMux() *http.ServeMux {
 
 	// OpenResponses protocol
 	responsesHandler := httpapi.NewResponsesHandler(s.agents, s.sessions)
+	if s.rateLimiter.Enabled() {
+		responsesHandler.SetRateLimiter(s.rateLimiter.Allow)
+	}
 	if s.postTurn != nil {
 		responsesHandler.SetPostTurnProcessor(s.postTurn)
 	}
@@ -226,6 +229,10 @@ func (s *Server) BuildMux() *http.ServeMux {
 	// Direct tool invocation
 	if s.tools != nil {
 		toolsHandler := httpapi.NewToolsInvokeHandler(s.tools, s.agentStore)
+		toolsHandler.SetMaxBodyBytes(s.cfg.Tools.InvokeMaxBodyBytes)
+		if s.rateLimiter.Enabled() {
+			toolsHandler.SetRateLimiter(s.rateLimiter.Allow)
+		}
 		mux.Handle("/v1/tools/invoke", toolsHandler)
 	}
 
@@ -559,11 +566,12 @@ func (s *Server) Start(ctx context.Context) error {
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Gateway.Host, s.cfg.Gateway.Port)
 	s.httpServer = &http.Server{
-		Addr:         addr,
-		Handler:      handler,
-		ReadTimeout:  3600 * time.Second, // 1h: allow large uploads, long-running reads
-		WriteTimeout: 3600 * time.Second, // 1h: allow streaming responses, slow clients
-		IdleTimeout:  30 * time.Second,   // 30s: close idle connections
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 15 * time.Second,   // slowloris guard: only the HEADERS; body reads use ReadTimeout
+		ReadTimeout:       3600 * time.Second, // 1h: allow large uploads, long-running reads
+		WriteTimeout:      3600 * time.Second, // 1h: allow streaming responses, slow clients
+		IdleTimeout:       30 * time.Second,   // 30s: close idle connections
 	}
 
 	slog.Info("gateway starting", "addr", addr)
@@ -1177,6 +1185,9 @@ func StartTestServer(s *Server, ctx context.Context) (addr string, start func())
 	mux.Handle("/v1/chat/completions", chatHandler)
 
 	responsesHandler := httpapi.NewResponsesHandler(s.agents, s.sessions)
+	if s.rateLimiter.Enabled() {
+		responsesHandler.SetRateLimiter(s.rateLimiter.Allow)
+	}
 	if s.postTurn != nil {
 		responsesHandler.SetPostTurnProcessor(s.postTurn)
 	}
@@ -1184,9 +1195,12 @@ func StartTestServer(s *Server, ctx context.Context) (addr string, start func())
 
 	if s.tools != nil {
 		toolsHandler := httpapi.NewToolsInvokeHandler(s.tools, s.agentStore)
+		toolsHandler.SetMaxBodyBytes(s.cfg.Tools.InvokeMaxBodyBytes)
+		if s.rateLimiter.Enabled() {
+			toolsHandler.SetRateLimiter(s.rateLimiter.Allow)
+		}
 		mux.Handle("/v1/tools/invoke", toolsHandler)
 	}
-
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic("listen: " + err.Error())
