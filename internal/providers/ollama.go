@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	ollamaapi "github.com/ollama/ollama/api"
 
