@@ -89,7 +89,7 @@ func (e *Executor) Resolve(ctx context.Context, msg string) (*Dispatch, bool) {
 		Kind:      cmd.Kind,
 		Skill:     slug,
 		Content:   content,
-		Remaining: cmd.Remaining,
+		Remaining: cmd.Input,
 		Flags:     cmd.Flags,
 	}
 	// When skillExecutor is wired, also resolve the structured SkillSpec
