@@ -16,7 +16,7 @@ function Exit-WithPause {
     try { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { Start-Sleep -Seconds 5 }
     exit $Code
 }
-$Repo = "nextlevelbuilder/goclaw"
+$Repo = "qkhalk/goclaw"
 $InstallDir = Join-Path $env:LOCALAPPDATA "GoClaw Lite"
 
 # ── Resolve version ──
