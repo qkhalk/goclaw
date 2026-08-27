@@ -1,38 +1,37 @@
 name: Fork Release (manual)
 
 # Manual release of a qkhalk/goclaw fork build. Records the fork delta versus
-# upstream in the release notes, publishes godot binaries + web UI, and pushes
-# Docker images to ghcr.io/qkhalk/goclaw. Does NOT auto-trigger on push — the
-# beta flow (dev-beta-release.yaml) already covers dev branches.
+# upstream in the release notes, publishes binaries + web UI, and pushes
+# Docker images to ghcr.io/qkhalk/goclaw. Does NOT auto-trigger on push.
 #
 # Usage: Actions → "Fork Release (manual)" → Run workflow.
-#    FORK_BASE          base semver (default 3.16.0) — tag becomes v3.16.0-fork.N
-#    VERSION_OVERRIDE   optional re-cut for an existing tag (e.g. 3.16.0-fork.1)
+#    FORK_BASE          base semver (default 3.17.0) — tag becomes vX.Y.Z
+#    VERSION_OVERRIDE   optional re-cut for an existing tag (e.g. 3.17.1)
+#    TAG_MODE           plain = clean semver (default), fork = vX.Y.Z-fork.N
 #    PRERELEASE         mark the GitHub Release as a prerelease (default true)
 #
-# Pushes to ghcr.io/qkhalk/goclaw (the fork's own registry). Check docker-compose
-# and install-lite keep pointing at upstream images; this fork publishes
-# ghcr.io/qkhalk/goclaw as a self-hosted image channel.
+# Tag naming: plain mode auto-increments patch (v3.17.0 → v3.17.1 → v3.17.2).
+# The FORK_BASE is the starting point; if the tag already exists, patch bumps.
 
 on:
   workflow_dispatch:
     inputs:
       FORK_BASE:
-        description: "Base semver for the fork release (default 3.16.0)"
+        description: "Base semver for the release (default 3.17.0). Auto-increments if tag exists."
         required: false
-        default: "3.16.0"
+        default: "3.17.0"
       VERSION_OVERRIDE:
-        description: "Re-cut an existing tag (e.g. 3.16.0-fork.1). Leave empty for auto-increment."
+        description: "Pin to exact version (e.g. 3.17.1). Leave empty for auto."
         required: false
         default: ""
       TAG_MODE:
-        description: "Tag style: fork = v3.16.0-fork.N (auto), plain = clean v3.16.0"
+        description: "Tag style: plain = clean semver (default), fork = vX.Y.Z-fork.N"
         required: false
-        default: "fork"
+        default: "plain"
         type: choice
         options:
-          - fork
           - plain
+          - fork
       PRERELEASE:
         description: "Mark as GitHub prerelease"
         required: false
