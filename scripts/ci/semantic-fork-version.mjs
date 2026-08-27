@@ -1,20 +1,19 @@
 #!/usr/bin/env node
-// Compute the next fork release tag (v{base}-fork.N) and build release notes
-// that record the exact fork delta versus upstream (nextlevelbuilder/goclaw).
+// Compute the next release tag and build release notes that record the exact
+// fork delta versus upstream (nextlevelbuilder/goclaw).
 //
 // Outputs (GITHUB_OUTPUT):
 //   released   "true" | "false"
-//   version    e.g. "3.16.0-fork.1"
-//   tag        e.g. "v3.16.0-fork.1"
+//   version    e.g. "3.17.0" (plain) or "3.16.0-fork.1" (fork)
+//   tag        e.g. "v3.17.0" (plain) or "v3.16.0-fork.1" (fork)
 //   notes_path path to the generated release-notes.md
 //
 // Env:
-//   FORK_BASE        base semver, default "3.16.0"
+//   FORK_BASE        base semver, default "3.17.0"
 //   PRERELEASE_ID    prerelease id, default "fork"
-//   VERSION_OVERRIDE if set, tag is pinned to this (e.g. "3.16.0-fork.1") —
-//                    for re-cuts / manual fixes of an existing tag.
-//   TAG_MODE         "fork" (default) appends -fork.N; "plain" emits a clean
-//                    semver tag v{FORK_BASE} with no suffix.
+//   VERSION_OVERRIDE if set, tag is pinned to this — for re-cuts / manual fixes.
+//   TAG_MODE         "plain" (default) auto-increments patch (v3.17.0 → v3.17.1);
+//                    "fork" appends -fork.N.
 import { execFileSync } from "node:child_process";
 import { writeFileSync, appendFileSync } from "node:fs";
 
@@ -117,14 +116,26 @@ try {
 // Compute the tag.
 let tag;
 if (plainMode) {
-  // Plain mode: clean semver tag with no -fork.N suffix (v3.16.0). The tag
-  // must not already exist — plain releases are never force-pushed.
-  const [major, minor, patch] = base.split(".").map(Number);
+  // Plain mode: clean semver tag with no suffix (v3.17.0). Auto-increments
+  // patch if the tag already exists (v3.17.0 → v3.17.1 → v3.17.2).
+  let [major, minor, patch] = base.split(".").map(Number);
   if (![major, minor, patch].every(Number.isFinite)) {
     writeNoRelease(`FORK_BASE '${base}' is not valid semver for plain mode.`);
     process.exit(0);
   }
-  tag = `v${versionText(major, minor, patch)}`;
+  // Auto-bump until we find an unused tag
+  for (let tries = 0; tries < 100; tries++) {
+    const candidate = `v${versionText(major, minor, patch)}`;
+    if (!git(["tag", "--list", candidate])) {
+      tag = candidate;
+      break;
+    }
+    patch++;
+  }
+  if (!tag) {
+    writeNoRelease(`Could not find unused tag after 100 increments from v${base}.`);
+    process.exit(0);
+  }
 } else if (override) {
   const parsed = parseForkVersion(override);
   if (!parsed) {
