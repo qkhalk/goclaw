@@ -47,7 +47,7 @@ func (e HookEvent) IsBlocking() bool {
 	case EventUserPromptSubmit, EventPreToolUse, EventSubagentStart, EventPostModelResponse:
 		return true
 	default:
-		return false
+		return isBlockingExtended(e)
 	}
 }
 
