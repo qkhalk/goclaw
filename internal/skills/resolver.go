@@ -30,6 +30,9 @@ func NewSkillResolver(loader *Loader) *SkillResolver {
 // Resolve loads a skill by slug and returns its structured SkillSpec.
 // Returns (nil, error) if the skill is not found or cannot be parsed.
 func (r *SkillResolver) Resolve(ctx context.Context, slug string) (*SkillSpec, error) {
+	if r.loader == nil {
+		return nil, fmt.Errorf("skill resolver: no loader configured")
+	}
 	r.mu.RLock()
 	ver := r.loader.Version()
 	if r.cacheVer == ver {
