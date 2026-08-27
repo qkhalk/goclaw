@@ -10,9 +10,8 @@ Single binary. Production-tested. Agents that orchestrate for you.
 </p>
 
 <p align="center">
-  <a href="https://docs.goclaw.sh">Documentation</a> •
-  <a href="https://docs.goclaw.sh/#quick-start">Quick Start</a> •
-  <a href="https://x.com/nlb_io">Twitter / X</a>
+  <a href="https://github.com/qkhalk/goclaw/releases">Releases</a> •
+  <a href="https://github.com/qkhalk/goclaw#quick-start">Quick Start</a>
 </p>
 
 <p align="center">
@@ -26,73 +25,7 @@ Single binary. Production-tested. Agents that orchestrate for you.
   <img src="https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey?style=flat-square" alt="License: CC BY-NC 4.0" />
 </p>
 
-🌐 **Languages:**
-[🇻🇳 Tiếng Việt](_readmes/README.vi.md) ·
-[🇨🇳 简体中文](_readmes/README.zh-CN.md) ·
-[🇯🇵 日本語](_readmes/README.ja.md) ·
-[🇰🇷 한국어](_readmes/README.ko.md) ·
-[🇵🇭 Tagalog](_readmes/README.tl.md) ·
-[🇪🇸 Español](_readmes/README.es.md) ·
-[🇧🇷 Português](_readmes/README.pt.md) ·
-[🇮🇹 Italiano](_readmes/README.it.md) ·
-[🇩🇪 Deutsch](_readmes/README.de.md) ·
-[🇫🇷 Français](_readmes/README.fr.md) ·
-[🇸🇦 العربية](_readmes/README.ar.md) ·
-[🇮🇳 हिन्दी](_readmes/README.hi.md) ·
-[🇷🇺 Русский](_readmes/README.ru.md) ·
-[🇧🇩 বাংলা](_readmes/README.bn.md) ·
-[🇮🇱 עברית](_readmes/README.he.md) ·
-[🇵🇱 Polski](_readmes/README.pl.md) ·
-[🇨🇿 Čeština](_readmes/README.cs.md) ·
-[🇳🇱 Nederlands](_readmes/README.nl.md) ·
-[🇹🇷 Türkçe](_readmes/README.tr.md) ·
-[🇺🇦 Українська](_readmes/README.uk.md) ·
-[🇮🇩 Bahasa Indonesia](_readmes/README.id.md) ·
-[🇹🇭 ไทย](_readmes/README.th.md) ·
-[🇵🇰 اردو](_readmes/README.ur.md) ·
-[🇷🇴 Română](_readmes/README.ro.md) ·
-[🇸🇪 Svenska](_readmes/README.sv.md) ·
-[🇬🇷 Ελληνικά](_readmes/README.el.md) ·
-[🇭🇺 Magyar](_readmes/README.hu.md) ·
-[🇫🇮 Suomi](_readmes/README.fi.md) ·
-[🇩🇰 Dansk](_readmes/README.da.md) ·
-[🇳🇴 Norsk](_readmes/README.nb.md)
-
-## Fork Features
-
-> Fork **`qkhalk/goclaw`** — bản nhánh cá nhân của upstream [`nextlevelbuilder/goclaw`](https://github.com/nextlevelbuilder/goclaw), kèm các cải tiến reliability và cấu hình CI riêng.
-
-**Reliability Layer** (`internal/reliability/`) — bổ sung thống nhất, có unit tests, không phá vỡ public contracts:
-
-| Module | File | Nội dung |
-|--------|------|----------|
-| Error taxonomy | `internal/reliability/errors.go` | Canonical `ErrorCode` (`provider.*`, `model.*`, `runtime.*`, `tool.*`) với retryability + severity. `ReliabilityError`, `ClassifyError` (HTTP status/body → code), `IsRetryable` |
-| Circuit breaker | `internal/reliability/circuitbreaker.go` | State machine per provider:model (Healthy → Degraded → Open → HalfOpen), consecutive-failure counting, cooldown, `ProbeTimeout` giải phóng stale half-open probe |
-| Health registry | `internal/reliability/health.go` | Per-key runtime reliability scoring (success ratio − stall/tool-error penalties) |
-| Rate-limit coordinator | `internal/reliability/ratelimit.go` | Single-flight cooldown chống retry storms; fail-closed `ErrMaxPendingWaiters` khi waiter cap exceeded; stale waiter không xóa newer cooldown. Dead API `ShouldWait`/`BeginWait`/`Waiters` đã xóa |
-| Metrics | `internal/reliability/metrics.go` | `atomic` counters + `Snapshot`, global swap-safe `Sink`, `Flush` drain per-counter |
-
-**AgentKit phases (fork delta so với upstream):** các feature mỗi release ghi ở mục **Release** bên dưới. Fork theo dõi upstream thủ công; mỗi tag ghi rõ chính xác những gì khác upstream, kèm image GHCR.
-
-### Releases
-
-Release fork được tạo manual (`release-fork.yaml`, workflow_dispatch) — build binaries (5 platforms, web embedded), Docker image `ghcr.io/qkhalk/goclaw:{tag}` (+ `-full`, alias `:fork`) và GitHub Release. **Fork delta** (khác upstream) được ghi trong từng release:
-
-| Tag | Kiểu | Fork delta (so với upstream) | Docker (`ghcr.io/qkhalk/goclaw`) |
-|-----|------|-------------------------------|----------------------------------|
-| `v3.16.1` | stable release | **Phase B — Resource leak & retry hardening:** B1 scheduler session eviction (janitor idle reaping, configurable `SessionIdleEvictMs`), B2 watchdog age-based eviction (`MaxRunDuration` 30m, prevents re-abort loops), B3 timeline delta coalescing (adjacent chunk/thinking merged into single DB rows), B4 retry admission hardening (Codex/Ollama migrated to `RetryDoFor`, fail-closed `ErrMaxPendingWaiters`, dead `ShouldWait`/`BeginWait`/`Waiters` removed). **C3** SQLite partial index `idx_webhook_calls_running_heartbeat` for `ReclaimStale`. 17 files, +757/-198. **Phase A** (PR #41): security P0 fixes + slash command palette (PR #42). Reliability layer; CI enabled; AgentKit Phase 1–7 Enterprise | `:v3.16.1`, `:v3.16.1-full`, `:fork` |
-
-> Cách build ảnh cho installed: `docker pull ghcr.io/qkhalk/goclaw:fork` rồi dùng cùng cấu hình như upstream image (xem [docker-compose.yml](docker-compose.yml)).
-
-**Repo & CI cấu hình**:
-- Source đã un-nest về repo root (module path giữ nguyên `github.com/nextlevelbuilder/goclaw` → merge upstream không vỡ imports).
-- `ci.yaml` enabled (trigger `main` + `dev` + PR) — build, vet, unit + invariant + integration tests, web lint/build.
-- Auto-deploy (`dev-beta-release.yaml`) chuyển **manual-only** (`workflow_dispatch`) — không tự deploy production khi push `dev`.
-- Upstream `.github/workflows` còn lại giữ disabled (`.github.disabled/`) — không auto-release.
-
-**Cải tiến khác**: docs `10-tracing-observability.md` §9 — reliability layer. Xem [`README-fork.md`](README-fork.md) cho quy trình merge upstream thủ công.
-
-## Quick Start
+## Features
 
 - **8-Stage Agent Pipeline** — context → history → prompt → think → act → observe → memory → summarize. Pluggable stages, always-on execution
 - **4-Mode Prompt System** — Full / Task / Minimal / None with section gating, cache boundary optimization, and per-session mode resolution
@@ -101,26 +34,44 @@ Release fork được tạo manual (`release-fork.yaml`, workflow_dispatch) — 
 - **Agent Teams & Orchestration** — Shared task boards, inter-agent delegation (sync/async), 3 orchestration modes (auto/explicit/manual)
 - **Self-Evolution** — Metrics → suggestions → auto-adapt with guardrails. Agents refine their own communication style
 - **Multi-Tenant PostgreSQL** — Per-user workspaces, per-user context files, encrypted API keys (AES-256-GCM), RBAC, isolated sessions
-- **20+ LLM Providers** — Anthropic (native HTTP+SSE with prompt caching), OpenAI, OpenRouter, Groq, DeepSeek, Gemini, Mistral, xAI, MiniMax, DashScope, Claude CLI, Codex, ACP, and any OpenAI-compatible endpoint
+- **20+ LLM Providers** — Anthropic (native HTTP+SSE with prompt caching), OpenAI, OpenRouter, Groq, DeepSeek, Gemini, Mistral, xAI, MiniMax, DashScope, Claude CLI, Codex, ACP, Parallel web search, and any OpenAI-compatible endpoint
 - **7 Messaging Channels** — Telegram, Discord, Slack, Zalo OA, Zalo Personal, Feishu/Lark, WhatsApp
 - **Production Security** — 5-layer permission system, rate limiting, prompt injection detection, SSRF protection, AES-256-GCM encryption
 - **Single Binary** — ~25 MB static Go binary, no Node.js runtime, <1s startup, runs on a $5 VPS
 - **Observability** — Built-in LLM call tracing with spans and prompt cache metrics, optional OpenTelemetry OTLP export
 
+## Reliability Layer
+
+**`internal/reliability/`** — unified reliability infrastructure with unit tests:
+
+| Module | File | Description |
+|--------|------|-------------|
+| Error taxonomy | `errors.go` | Canonical `ErrorCode` (`provider.*`, `model.*`, `runtime.*`, `tool.*`) with retryability + severity. `ReliabilityError`, `ClassifyError` (HTTP status/body → code), `IsRetryable` |
+| Circuit breaker | `circuitbreaker.go` | State machine per provider:model (Healthy → Degraded → Open → HalfOpen), consecutive-failure counting, cooldown, `ProbeTimeout` |
+| Health registry | `health.go` | Per-key runtime reliability scoring (success ratio − stall/tool-error penalties) |
+| Rate-limit coordinator | `ratelimit.go` | Single-flight cooldown against retry storms; fail-closed `ErrMaxPendingWaiters` when waiter cap exceeded; stale waiter cannot delete newer cooldown |
+| Metrics | `metrics.go` | `atomic` counters + `Snapshot`, global swap-safe `Sink`, `Flush` drain per-counter |
+
+## Releases
+
+Releases are created manually via GitHub Actions (`release-fork.yaml`) — builds binaries for 5 platforms (linux/amd64 + arm64, darwin/amd64 + arm64, windows/amd64) with embedded web UI, Docker images (`ghcr.io/qkhalk/goclaw:{tag}` + `-full`), and GitHub Releases.
+
+| Tag | Type | Changes | Docker |
+|-----|------|---------|--------|
+| `v3.16.1` | stable | **Phase B — Resource leak & retry hardening:** B1 scheduler session eviction (janitor idle reaping, configurable `SessionIdleEvictMs`), B2 watchdog age-based eviction (`MaxRunDuration` 30m, prevents re-abort loops), B3 timeline delta coalescing (adjacent chunk/thinking merged into single DB rows), B4 retry admission hardening (Codex/Ollama migrated to `RetryDoFor`, fail-closed `ErrMaxPendingWaiters`, dead `ShouldWait`/`BeginWait`/`Waiters` removed). **C3** SQLite partial index `idx_webhook_calls_running_heartbeat` for `ReclaimStale`. 17 files, +757/-198. **Phase A:** security P0 fixes + slash command palette. Reliability layer; AgentKit Phase 1–7 Enterprise. **Parallel web search provider** (11 files) | `ghcr.io/qkhalk/goclaw:v3.16.1`, `:v3.16.1-full` |
+
 ## Desktop Edition (GoClaw Lite)
 
 A native desktop app for local AI agents — no Docker, no PostgreSQL, no infrastructure.
 
-> ⚠️ **GoClaw Lite (Desktop) là sản phẩm của upstream** — fork này chưa build lite binaries, install scripts trỏ release desktop của upstream.
-
 **macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install-lite.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qkhalk/goclaw/dev/scripts/install-lite.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install-lite.ps1 | iex
+irm https://raw.githubusercontent.com/qkhalk/goclaw/dev/scripts/install-lite.ps1 | iex
 ```
 
 ### What's Included
@@ -184,8 +135,6 @@ git tag lite-v0.1.0 && git push origin lite-v0.1.0
 
 ### Install (one-liner)
 
-> ⚠️ Yêu cầu fork đã có **GitHub Release** đầu tiên (binary tải từ Releases). Khi release chưa tồn tại, dùng **From Source** bên dưới.
-
 ```bash
 # macOS / Linux / WSL
 curl -fsSL https://github.com/qkhalk/goclaw/raw/dev/scripts/install.sh | bash
@@ -206,8 +155,6 @@ make build
 ./goclaw onboard        # Interactive setup wizard
 source .env.local && ./goclaw
 ```
-
-> **Note:** Fork's default branch is `dev` (active development). To track the upstream stable `main`, clone from `https://github.com/nextlevelbuilder/goclaw.git` with `-b main`.
 
 ### With Docker
 
@@ -274,18 +221,10 @@ When `GOCLAW_*_API_KEY` environment variables are set, the gateway auto-onboards
 > **Docker image variants:**
 > | Image | Description |
 > |-------|-------------|
-> | `latest` | Backend + embedded web UI + Python (**recommended**) |
-> | `latest-base` | Backend API-only, no web UI, no runtimes |
-> | `latest-full` | All runtimes + skill dependencies pre-installed |
-> | `latest-otel` | Latest + OpenTelemetry tracing |
-> | `goclaw-web` | Standalone nginx + React SPA (for custom reverse proxy) |
->
-> **Fork images** (`ghcr.io/qkhalk/goclaw`):
-> | Image | Description |
-> |-------|-------------|
-> | `v3.16.1` | Fork latest stable — Phase B resource leak fixes + retry hardening |
-> | `v3.16.1-full` | Fork + all runtimes + skill dependencies |
-> | `fork` / `fork-full` | Alias指向 latest fork tag |
+> | `ghcr.io/qkhalk/goclaw:v3.16.1` | Backend + embedded web UI + Python (**recommended**) |
+> | `ghcr.io/qkhalk/goclaw:v3.16.1-base` | Backend API-only, no web UI, no runtimes |
+> | `ghcr.io/qkhalk/goclaw:v3.16.1-full` | All runtimes + skill dependencies pre-installed |
+> | `ghcr.io/qkhalk/goclaw:latest` | Alias指向 latest stable tag |
 >
 > For custom builds (Tailscale, Redis): `docker build --build-arg ENABLE_TSNET=true ...`
 > See the [Deployment Guide](https://docs.goclaw.sh/#deploy-docker-compose) for details.
@@ -359,7 +298,7 @@ Typed domain events power the consolidation pipeline — session summaries, know
 |----------|-------|-------------|
 | **Filesystem** | `read_file`, `write_file`, `edit_file`, `list_files`, `search`, `glob` | File operations with virtual FS routing |
 | **Runtime** | `exec`, `browser` | Shell commands (approval workflow) + browser automation |
-| **Web** | `web_search`, `web_fetch` | Search (Brave, DuckDuckGo) + content extraction |
+| **Web** | `web_search`, `web_fetch`, `parallel_search` | Search (Brave, DuckDuckGo, Parallel) + content extraction |
 | **Memory** | `memory_search`, `memory_get`, `knowledge_graph_search` | 3-tier memory + KG traversal |
 | **Media** | `create_image`, `create_audio`, `create_video`, `read_*`, `tts` | Generation + analysis (multi-provider) |
 | **Skills** | `skill_search`, `use_skill`, `skill_manage` | BM25 + semantic hybrid search |
@@ -394,7 +333,7 @@ See **[docs/webhooks.md](docs/webhooks.md)** for the full reference: auth, async
 
 ## Documentation
 
-Full documentation at **[docs.goclaw.sh](https://docs.goclaw.sh)** — or browse the source in [`goclaw-docs/`](https://github.com/nextlevelbuilder/goclaw-docs)
+Full documentation at **[docs.goclaw.sh](https://docs.goclaw.sh)**
 
 | Section | Topics |
 |---------|--------|
@@ -418,10 +357,6 @@ go test -v ./tests/integration/ -timeout 120s    # Integration tests (requires r
 ## Project Status
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed feature status including what's been tested in production and what's still in progress.
-
-## Acknowledgments
-
-GoClaw was originally inspired by the [OpenClaw](https://github.com/openclaw/openclaw) project architecture.
 
 ## License
 

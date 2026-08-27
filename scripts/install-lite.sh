@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-REPO="nextlevelbuilder/goclaw"
+REPO="qkhalk/goclaw"
 INSTALL_DIR="/Applications"
 VERSION=""
 
