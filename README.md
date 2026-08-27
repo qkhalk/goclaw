@@ -58,7 +58,7 @@ Releases are created manually via GitHub Actions (`release-fork.yaml`) — build
 
 | Tag | Type | Changes | Docker |
 |-----|------|---------|--------|
-| `v3.16.1` | stable | **Phase B — Resource leak & retry hardening:** B1 scheduler session eviction (janitor idle reaping, configurable `SessionIdleEvictMs`), B2 watchdog age-based eviction (`MaxRunDuration` 30m, prevents re-abort loops), B3 timeline delta coalescing (adjacent chunk/thinking merged into single DB rows), B4 retry admission hardening (Codex/Ollama migrated to `RetryDoFor`, fail-closed `ErrMaxPendingWaiters`, dead `ShouldWait`/`BeginWait`/`Waiters` removed). **C3** SQLite partial index `idx_webhook_calls_running_heartbeat` for `ReclaimStale`. 17 files, +757/-198. **Phase A:** security P0 fixes + slash command palette. Reliability layer; AgentKit Phase 1–7 Enterprise. **Parallel web search provider** (11 files) | `ghcr.io/qkhalk/goclaw:v3.16.1`, `:v3.16.1-full` |
+| `v3.16.1` | stable | **Phase B — Resource leak & retry hardening:** B1 scheduler session eviction (janitor idle reaping, configurable `SessionIdleEvictMs`), B2 watchdog age-based eviction (`MaxRunDuration` 30m, prevents re-abort loops), B3 timeline delta coalescing (adjacent chunk/thinking merged into single DB rows), B4 retry admission hardening (Codex/Ollama migrated to `RetryDoFor`, fail-closed `ErrMaxPendingWaiters`, dead `ShouldWait`/`BeginWait`/`Waiters` removed). **C3** SQLite partial index `idx_webhook_calls_running_heartbeat` for `ReclaimStale`. 17 files, +757/-198. **Phase A:** security P0 fixes + slash command palette. Reliability layer; `/gc:` command system (plan/fix/cook/review + 7-phase kit infrastructure). **Parallel web search provider** (11 files) | `ghcr.io/qkhalk/goclaw:v3.16.1`, `:v3.16.1-full` |
 
 ## Desktop Edition (GoClaw Lite)
 
@@ -364,10 +364,10 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed feature status including what's be
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=nextlevelbuilder%2Fgoclaw&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=qkhalk%2Fgoclaw&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=nextlevelbuilder/goclaw&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=nextlevelbuilder/goclaw&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=nextlevelbuilder/goclaw&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=qkhalk/goclaw&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=qkhalk/goclaw&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=qkhalk/goclaw&type=date&legend=top-left" />
  </picture>
 </a>
