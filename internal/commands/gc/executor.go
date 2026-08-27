@@ -27,6 +27,9 @@ type Dispatch struct {
 	Content   string   // full SKILL.md content loaded via skills.Loader.LoadSkill
 	Remaining string   // input after the command word + flags
 	Flags     []string // extracted --flags from the input
+	// SkillSpec is the structured spec when skillExecutor is wired.
+	// Nil in legacy mode (no skillExecutor set).
+	SkillSpec *skills.SkillSpec
 }
 
 // Executor resolves /gc: commands to their kit skill and builds the
@@ -37,6 +40,9 @@ type Executor struct {
 	// statusSnapshot optionally renders the /gc:status canned reply from live
 	// state (scheduler lanes, run counts). Nil ⇒ static fallback text.
 	statusSnapshot func() string
+	// skillExecutor provides structured skill execution (permissions, gates,
+	// artifacts). Nil ⇒ legacy prompt-only execution (backward compatible).
+	skillExecutor *skills.SkillExecutor
 }
 
 // NewExecutor creates an executor backed by the given skills loader and
@@ -48,6 +54,14 @@ func NewExecutor(loader *skills.Loader, reg *Registry) *Executor {
 
 // SetStatusSnapshot wires the live renderer used by /gc:status. Optional.
 func (e *Executor) SetStatusSnapshot(fn func() string) { e.statusSnapshot = fn }
+
+// SetSkillExecutor wires the structured skill executor. When set, Resolve
+// also returns a SkillSpec for the resolved skill, enabling permission
+// enforcement and quality gate tracking. Optional — nil = legacy mode.
+func (e *Executor) SetSkillExecutor(se *skills.SkillExecutor) { e.skillExecutor = se }
+
+// SkillExecutor returns the wired skill executor, or nil if not set.
+func (e *Executor) SkillExecutor() *skills.SkillExecutor { return e.skillExecutor }
 
 // Resolve parses msg as a /gc: command, looks up the mapped skill slug, and
 // loads the skill content. Returns a Dispatch when the command is recognized
@@ -71,13 +85,22 @@ func (e *Executor) Resolve(ctx context.Context, msg string) (*Dispatch, bool) {
 	if !ok {
 		return nil, false
 	}
-	return &Dispatch{
+	d := &Dispatch{
 		Kind:      cmd.Kind,
 		Skill:     slug,
 		Content:   content,
-		Remaining: cmd.Input,
+		Remaining: cmd.Remaining,
 		Flags:     cmd.Flags,
-	}, true
+	}
+	// When skillExecutor is wired, also resolve the structured SkillSpec
+	if e.skillExecutor != nil {
+		if resolver := e.skillExecutor.Resolver(); resolver != nil {
+			if spec, err := resolver.Resolve(ctx, slug); err == nil {
+				d.SkillSpec = spec
+			}
+		}
+	}
+	return d, true
 }
 
 // BuildSystemPrompt builds the system-prompt section that instructs the agent
@@ -98,6 +121,7 @@ func (e *Executor) BuildSystemPrompt(d *Dispatch) string {
 	}
 	return b.String()
 }
+
 // ControlReply is a canned control-plane answer: the text injected into the
 // turn and whether this dispatcher handled the kind.
 type ControlReply struct {
