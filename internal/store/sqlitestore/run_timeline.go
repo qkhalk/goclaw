@@ -361,12 +361,38 @@ func scanAgentRunRow(scan func(dest ...any) error, r *agentRunRow) error {
 // RecoverStaleRuns marks runs whose heartbeat has not advanced within staleAfter
 // as failed, unless the run carries a valid checkpoint — such runs are paused
 // (resumable) instead of terminal-failed. Cross-tenant (startup + periodic).
+// Returns the number of swept rows (including checkpoint-paused runs).
 func (s *SQLiteRunStore) RecoverStaleRuns(ctx context.Context, staleAfter time.Duration) (int64, error) {
-	runs, err := s.RecoverStaleRunsWithDetail(ctx, staleAfter)
+	deadline := time.Now().Add(-staleAfter)
+	// Paused (resumable) runs keep completed_at NULL — only terminal-failed runs
+	// get it stamped so the run record reads as recoverable.
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE agent_runs
+		 SET status = CASE
+		         WHEN checkpoint IS NOT NULL THEN ?
+		         ELSE ?
+		       END,
+		     error = CASE
+		         WHEN checkpoint IS NOT NULL THEN ?
+		         ELSE ?
+		       END,
+		     completed_at = CASE
+		         WHEN checkpoint IS NOT NULL THEN completed_at
+		         ELSE COALESCE(completed_at, ?)
+		       END,
+		     updated_at = ?
+		 WHERE status IN ('pending', 'running', 'compacting')
+		   AND heartbeat_at < ?`,
+		store.RunTimelineStatusPaused,
+		store.AgentRunStatusFailed,
+		"run paused: heartbeat expired, checkpoint available",
+		"run stalled: heartbeat expired",
+		deadline, deadline, deadline)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("recover stale runs: %w", err)
 	}
-	return int64(len(runs)), nil
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 // RecoverStaleRunsWithDetail is RecoverStaleRuns returning the terminal-failed
