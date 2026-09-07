@@ -362,11 +362,22 @@ func scanAgentRunRow(scan func(dest ...any) error, r *agentRunRow) error {
 // as failed, unless the run carries a valid checkpoint — such runs are paused
 // (resumable) instead of terminal-failed. Cross-tenant (startup + periodic).
 func (s *SQLiteRunStore) RecoverStaleRuns(ctx context.Context, staleAfter time.Duration) (int64, error) {
+	runs, err := s.RecoverStaleRunsWithDetail(ctx, staleAfter)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(runs)), nil
+}
+
+// RecoverStaleRunsWithDetail is RecoverStaleRuns returning the terminal-failed
+// run records so the sweep caller can emit run.failed events to subscribers.
+// Checkpoint-paused rows are excluded — they remain resumable, not failed.
+func (s *SQLiteRunStore) RecoverStaleRunsWithDetail(ctx context.Context, staleAfter time.Duration) ([]store.AgentRun, error) {
 	deadline := time.Now().Add(-staleAfter)
 	// Paused (resumable) runs keep completed_at NULL — only terminal-failed runs
 	// get it stamped so the run record reads as recoverable.
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE agent_runs
+	rows, err := s.db.QueryContext(ctx, `
+		UPDATE agent_runs
 		 SET status = CASE
 		         WHEN checkpoint IS NOT NULL THEN ?
 		         ELSE ?
@@ -381,17 +392,60 @@ func (s *SQLiteRunStore) RecoverStaleRuns(ctx context.Context, staleAfter time.D
 		       END,
 		     updated_at = ?
 		 WHERE status IN ('pending', 'running', 'compacting')
-		   AND heartbeat_at < ?`,
+		   AND heartbeat_at < ?
+		RETURNING tenant_id, run_id, session_key, agent_id, user_id, channel, chat_id, status, error`,
 		store.RunTimelineStatusPaused,
 		store.AgentRunStatusFailed,
 		"run paused: heartbeat expired, checkpoint available",
 		"run stalled: heartbeat expired",
 		deadline, deadline, deadline)
 	if err != nil {
-		return 0, fmt.Errorf("recover stale runs: %w", err)
+		return nil, fmt.Errorf("recover stale runs: %w", err)
 	}
-	n, _ := res.RowsAffected()
-	return n, nil
+	defer rows.Close()
+	var failed []store.AgentRun
+	for rows.Next() {
+		var (
+			tenantID   uuid.UUID
+			runID      string
+			sessionKey string
+			agentID    *uuid.UUID
+			userID     *string
+			channel    *string
+			chatID     *string
+			status     string
+			errStr     *string
+		)
+		if err := rows.Scan(&tenantID, &runID, &sessionKey, &agentID, &userID, &channel, &chatID, &status, &errStr); err != nil {
+			return nil, fmt.Errorf("recover stale runs: scan: %w", err)
+		}
+		// RETURNING yields every swept row; keep only terminal failures so the
+		// caller notifies exactly the sessions whose runs actually died.
+		if status != store.AgentRunStatusFailed {
+			continue
+		}
+		r := store.AgentRun{
+			TenantID:   tenantID,
+			RunID:      runID,
+			SessionKey: sessionKey,
+			AgentID:    agentID,
+			Status:     status,
+		}
+		if userID != nil {
+			r.UserID = *userID
+		}
+		if channel != nil {
+			r.Channel = *channel
+		}
+		if chatID != nil {
+			r.ChatID = *chatID
+		}
+		if errStr != nil {
+			r.Error = *errStr
+		}
+		failed = append(failed, r)
+	}
+	return failed, rows.Err()
 }
 
 // buildSQLiteRunWhere scopes a single-record read. Fails closed (WHERE 1=0) when

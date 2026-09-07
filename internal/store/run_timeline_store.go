@@ -191,6 +191,15 @@ type RunsStore interface {
 	RecoverStaleRuns(ctx context.Context, staleAfter time.Duration) (int64, error)
 }
 
+// StaleRunDetailer is the optional RunsStore capability returning the
+// terminal-failed run records from the stale sweep (run id, session key,
+// routing context, error) so callers can notify subscribers the run ended.
+// Declared as an interface assertion (not a RunsStore method) so existing
+// fake implementations keep compiling; nil capability ⇒ the count-only path.
+type StaleRunDetailer interface {
+	RecoverStaleRunsWithDetail(ctx context.Context, staleAfter time.Duration) ([]AgentRun, error)
+}
+
 // RunTimelineStore appends and lists archived agent run timeline entries.
 type RunTimelineStore interface {
 	AppendRunTimelineItem(ctx context.Context, item *RunTimelineItem) error
