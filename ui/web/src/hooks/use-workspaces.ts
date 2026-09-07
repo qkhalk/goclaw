@@ -46,5 +46,19 @@ export function useWorkspaces() {
     refresh();
   }, [refresh]);
 
-  return { workspaces, loading, refresh };
+  /** Creates a workspace via workspace.create; throws the WS error on failure. */
+  const create = useCallback(
+    async (name: string): Promise<WorkspaceInfo | null> => {
+      if (!connected) return null;
+      const res = await ws.call<{ workspace: WorkspaceInfo }>(
+        Methods.WORKSPACE_CREATE,
+        { name },
+      );
+      await refresh();
+      return res.workspace ?? null;
+    },
+    [ws, connected, refresh],
+  );
+
+  return { workspaces, loading, refresh, create };
 }

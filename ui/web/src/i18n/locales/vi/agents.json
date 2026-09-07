@@ -925,7 +925,9 @@
       "downgrade": "Giảm cấp",
       "downgradeDesc": "Chuẩn hóa xuống mức thấp hơn gần nhất được hỗ trợ hoặc mức thấp nhất được hỗ trợ nếu cần",
       "provider_default": "Dùng mặc định model",
-      "provider_defaultDesc": "Không ép mức cụ thể và để provider/model tự chọn mặc định"
+      "provider_defaultDesc": "Không ép mức cụ thể và để provider/model tự chọn mặc định",
+      "adaptive": "Tự động (thích ứng)",
+      "adaptiveDesc": "Gateway tự chọn mức suy nghĩ theo độ phức tạp tin nhắn"
     },
     "otherConfig": {
       "title": "Cấu hình khác",

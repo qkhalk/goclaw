@@ -36,7 +36,12 @@
     "archived": "Đã lưu trữ",
     "title": "Workspace",
     "none": "Không có workspace",
-    "empty": "Chưa có workspace nào"
+    "empty": "Chưa có workspace nào",
+    "create": "Tạo workspace",
+    "createPlaceholder": "Tên workspace",
+    "createConfirm": "Tạo",
+    "createCancel": "Hủy",
+    "createFailed": "Không thể tạo workspace: {{message}}"
   },
   "fileExplorer": {
     "title": "Tệp",

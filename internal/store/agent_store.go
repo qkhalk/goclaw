@@ -180,6 +180,15 @@ func (a *AgentData) ParseThinkingLevel() string {
 
 // ParseReasoningConfig reads advanced reasoning settings from the dedicated
 // reasoning_config column with ThinkingLevel as legacy fallback.
+// normalizeAgentReasoningEffort accepts provider-facing efforts plus the
+// agent-level "adaptive" sentinel (resolved per-request by the agent loop).
+func normalizeAgentReasoningEffort(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), providers.ReasoningEffortAdaptive) {
+		return providers.ReasoningEffortAdaptive
+	}
+	return normalizeReasoningEffort(value)
+}
+
 func (a *AgentData) ParseReasoningConfig() AgentReasoningConfig {
 	cfg := AgentReasoningConfig{
 		OverrideMode: ReasoningOverrideInherit,
@@ -200,7 +209,7 @@ func (a *AgentData) ParseReasoningConfig() AgentReasoningConfig {
 		} else {
 			cfg.OverrideMode = ReasoningOverrideCustom
 			cfg.Source = ReasoningSourceAdvanced
-			if effort := normalizeReasoningEffort(reasoning.Effort); effort != "" {
+			if effort := normalizeAgentReasoningEffort(reasoning.Effort); effort != "" {
 				cfg.Effort = effort
 			}
 			cfg.Fallback = normalizeReasoningFallback(reasoning.Fallback)
@@ -208,7 +217,7 @@ func (a *AgentData) ParseReasoningConfig() AgentReasoningConfig {
 	}
 
 	if !explicitInherit && a.ThinkingLevel != "" {
-		if effort := normalizeReasoningEffort(a.ThinkingLevel); effort != "" {
+		if effort := normalizeAgentReasoningEffort(a.ThinkingLevel); effort != "" {
 			if cfg.Source == ReasoningSourceUnset {
 				cfg.OverrideMode = ReasoningOverrideCustom
 				cfg.Source = ReasoningSourceLegacy

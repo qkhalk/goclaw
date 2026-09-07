@@ -35,5 +35,12 @@
     "skills": "스킬",
     "noResults": "일치하는 명령어나 스킬이 없습니다",
     "gcHint": "GoClaw 워크플로 명령어"
+  },
+  "workspacePicker": {
+    "create": "워크스페이스 생성",
+    "createPlaceholder": "워크스페이스 이름",
+    "createConfirm": "생성",
+    "createCancel": "취소",
+    "createFailed": "워크스페이스 생성 실패: {{message}}"
   }
 }

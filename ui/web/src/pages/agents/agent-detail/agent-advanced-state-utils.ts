@@ -23,7 +23,7 @@ import {
 import { buildDraftRouting } from "./codex-pool-routing-draft-utils";
 import type { ProviderData } from "@/pages/providers/hooks/use-providers";
 
-const SIMPLE_REASONING_LEVELS = new Set(["off", "low", "medium", "high"]);
+const SIMPLE_REASONING_LEVELS = new Set(["adaptive", "off", "low", "medium", "high"]);
 
 export interface AdvancedDialogState {
   reasoningMode: ReasoningOverrideMode;
