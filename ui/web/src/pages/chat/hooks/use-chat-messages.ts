@@ -127,6 +127,9 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   const rafHandleRef = useRef(0);
   const activityRef = useRef<RunActivity | null>(null);
   const blockRepliesRef = useRef<ChatMessage[]>([]);
+  // Timestamp of the last processed run event — drives the stuck-run self-heal
+  // poll (a missed terminal event leaves the typing indicator up forever).
+  const lastRunEventAtRef = useRef(Date.now());
 
   // While a resync replay is in flight, run-scoped live frames are queued here
   // (they may interleave with replay pages) and drained in order afterwards;
@@ -263,6 +266,7 @@ export function useChatMessages(sessionKey: string, agentId: string) {
       }
 
       if (!runIdRef.current || event.runId !== runIdRef.current) return;
+      lastRunEventAtRef.current = Date.now();
 
       switch (event.type) {
         case "thinking": {
@@ -523,6 +527,42 @@ export function useChatMessages(sessionKey: string, agentId: string) {
     }
   }, []);
   useWsEvent(Events.TEAM_LEADER_PROCESSING, handleLeaderProcessing);
+
+  // Stuck-run self-heal: a missed terminal event (dropped WS frame, or the
+  // run failed server-side without an event reaching this client) leaves
+  // isRunning true forever and the typing indicator never clears. When no run
+  // event has arrived for a while, ask the server: if it no longer considers
+  // the run active (or a different run owns the session), flush the local
+  // streaming state and rebuild from history.
+  useEffect(() => {
+    if (!isRunning) return;
+    const idleThresholdMs = 90_000;
+    const checkIntervalMs = 15_000;
+    const h = setInterval(() => {
+      if (Date.now() - lastRunEventAtRef.current < idleThresholdMs) return;
+      ws.call<{ isRunning?: boolean; runId?: string }>(Methods.CHAT_SESSION_STATUS, { sessionKey: sessionKeyRef.current })
+        .then((res) => {
+          if (res.isRunning && (!res.runId || res.runId === runIdRef.current)) return;
+          cancelAnimationFrame(rafHandleRef.current);
+          rafPendingRef.current = false;
+          runIdRef.current = null;
+          setSessionRunning(sessionKeyRef.current, false);
+          setSessionStream(sessionKeyRef.current, null);
+          setSessionThinking(sessionKeyRef.current, null);
+          setToolStream([]);
+          streamRef.current = "";
+          thinkingRef.current = "";
+          streamFilterRef.current = createThinkTagStreamFilterState();
+          toolStreamRef.current = [];
+          activityRef.current = null;
+          setActivity(null);
+          lastRunEventAtRef.current = Date.now();
+          void loadHistory();
+        })
+        .catch(() => { /* retried on the next tick */ });
+    }, checkIntervalMs);
+    return () => clearInterval(h);
+  }, [isRunning, ws, loadHistory, setSessionRunning, setSessionStream, setSessionThinking]);
 
   const isBusy = isRunning || teamTasks.length > 0 || activity?.phase === "leader_processing";
 
