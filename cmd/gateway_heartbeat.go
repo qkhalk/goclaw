@@ -54,6 +54,14 @@ type resumeFn func(ctx context.Context, runID string) (*agent.RunResult, error)
 // per iteration. Negativized zero args fall back to the reliability.runs.*
 // defaults (10s heartbeat → 60s stale → 30s sweep).
 func runStaleRunsSweep(runs store.RunsStore, staleAfter, interval time.Duration, wd watchdogSweeper) {
+	runStaleRunsSweepWithNotify(runs, staleAfter, interval, wd, nil)
+}
+
+// runStaleRunsSweepWithNotify is runStaleRunsSweep plus a per-failed-run
+// callback. The gateway wires this to broadcast run.failed agent events so
+// clients watching a swept run clear their streaming state instead of showing
+// a stuck "agent is typing" indicator forever.
+func runStaleRunsSweepWithNotify(runs store.RunsStore, staleAfter, interval time.Duration, wd watchdogSweeper, notify func(store.AgentRun)) {
 	ctx := context.Background()
 	if staleAfter <= 0 {
 		staleAfter = (time.Duration(config.DefaultRunsStaleAfterMs) * time.Millisecond)
@@ -68,28 +76,50 @@ func runStaleRunsSweep(runs store.RunsStore, staleAfter, interval time.Duration,
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// D3 — pause-preferred reconciliation. Only when the store
-			// exposes the checkpoint-aware listing; otherwise skip straight
-			// to the legacy sweep below.
-			if lister, ok := runs.(pausedRunLister); ok && lister != nil {
-				reconcileStaleWithCheckpoint(ctx, runs, lister)
-			}
+			sweepStaleRunsOnce(ctx, runs, staleAfter, wd, notify)
+		}
+	}
+}
 
-			n, err := runs.RecoverStaleRuns(ctx, staleAfter)
-			if err != nil {
-				slog.Warn("runs.stale_sweep_failed", "error", err)
-				continue
-			}
-			if n > 0 {
-				slog.Info("runs.stale_sweep_marked_failed", "count", n)
-			}
+// sweepStaleRunsOnce runs one sweep cycle. Terminal-failed runs are handed to
+// notify (when set) after the store marks them failed.
+func sweepStaleRunsOnce(ctx context.Context, runs store.RunsStore, staleAfter time.Duration, wd watchdogSweeper, notify func(store.AgentRun)) {
+	// D3 — pause-preferred reconciliation. Only when the store
+	// exposes the checkpoint-aware listing; otherwise skip straight
+	// to the legacy sweep below.
+	if lister, ok := runs.(pausedRunLister); ok && lister != nil {
+		reconcileStaleWithCheckpoint(ctx, runs, lister)
+	}
 
-			// D2 — watchdog ladder on the heartbeat cadence.
-			if wd != nil {
-				if acted := wd.Sweep(ctx, time.Now()); acted > 0 {
-					slog.Warn("run.watchdog_sweep_acted", "count", acted)
-				}
+	var marked int
+	if detailer, ok := runs.(store.StaleRunDetailer); ok && detailer != nil {
+		failed, err := detailer.RecoverStaleRunsWithDetail(ctx, staleAfter)
+		if err != nil {
+			slog.Warn("runs.stale_sweep_failed", "error", err)
+			return
+		}
+		marked = len(failed)
+		if notify != nil {
+			for _, r := range failed {
+				notify(r)
 			}
+		}
+	} else {
+		n, err := runs.RecoverStaleRuns(ctx, staleAfter)
+		if err != nil {
+			slog.Warn("runs.stale_sweep_failed", "error", err)
+			return
+		}
+		marked = int(n)
+	}
+	if marked > 0 {
+		slog.Info("runs.stale_sweep_marked_failed", "count", marked)
+	}
+
+	// D2 — watchdog ladder on the heartbeat cadence.
+	if wd != nil {
+		if acted := wd.Sweep(ctx, time.Now()); acted > 0 {
+			slog.Warn("run.watchdog_sweep_acted", "count", acted)
 		}
 	}
 }
