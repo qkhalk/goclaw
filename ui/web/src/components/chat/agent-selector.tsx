@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Bot, ChevronDown } from "lucide-react";
 import { useHttp } from "@/hooks/use-ws";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
+import { stripLeadingEmoji } from "@/lib/agent-emoji";
 import { useAuthStore } from "@/stores/use-auth-store";
 import type { AgentData } from "@/types/agent";
 
@@ -72,7 +73,7 @@ export function AgentSelector({ value, onChange }: AgentSelectorProps) {
           <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
         )}
         <span className="flex-1 truncate text-left font-medium">
-          {selected?.display_name ?? selected?.agent_key ?? (value || t("selectAgent"))}
+          {stripLeadingEmoji(selectedEmoji, selected?.display_name ?? selected?.agent_key ?? (value || t("selectAgent")))}
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
       </button>
@@ -106,7 +107,7 @@ export function AgentSelector({ value, onChange }: AgentSelectorProps) {
                   <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}
                 <span className="flex-1 truncate text-left">
-                  {agent.display_name || agent.agent_key}
+                  {stripLeadingEmoji(emoji, agent.display_name || agent.agent_key)}
                 </span>
                 {agent.is_default && (
                   <span className="text-xs text-muted-foreground">{t("default")}</span>
