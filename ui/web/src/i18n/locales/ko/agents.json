@@ -897,7 +897,9 @@
       "downgrade": "다운그레이드",
       "downgradeDesc": "가장 가까운 지원 낮은 수준으로 정규화하거나, 필요 시 가장 낮은 지원 수준으로",
       "provider_default": "모델 기본값 사용",
-      "provider_defaultDesc": "명시적 노력을 강제하지 않고 공급자/모델이 기본값을 선택하도록 함"
+      "provider_defaultDesc": "명시적 노력을 강제하지 않고 공급자/모델이 기본값을 선택하도록 함",
+      "adaptive": "자동 (적응형)",
+      "adaptiveDesc": "게이트웨이가 메시지 복잡도에 따라 추론 강도를 선택"
     },
     "otherConfig": {
       "title": "기타 설정",

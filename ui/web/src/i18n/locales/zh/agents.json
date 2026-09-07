@@ -925,7 +925,9 @@
       "downgrade": "降级",
       "downgradeDesc": "规范化到最近的受支持较低级别，必要时使用最低受支持级别",
       "provider_default": "使用模型默认值",
-      "provider_defaultDesc": "不强制指定 effort，让 provider/model 使用其默认设置"
+      "provider_defaultDesc": "不强制指定 effort，让 provider/model 使用其默认设置",
+      "adaptive": "自动（自适应）",
+      "adaptiveDesc": "网关根据消息复杂度自动选择思考强度"
     },
     "otherConfig": {
       "title": "其他配置",

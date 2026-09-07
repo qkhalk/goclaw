@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, FolderOpen } from "lucide-react";
+import { Check, ChevronDown, FolderOpen, FolderPlus, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
 import { useWorkspaces } from "@/hooks/use-workspaces";
@@ -15,12 +15,41 @@ interface WorkspacePickerProps {
 
 export function WorkspacePicker({ value, onChange, className }: WorkspacePickerProps) {
   const { t } = useTranslation("chat");
-  const { workspaces, loading, refresh } = useWorkspaces();
+  const { workspaces, loading, refresh, create } = useWorkspaces();
   const selected = workspaces.find((ws) => ws.id === value);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  // Inline create form state: without this the picker is a dead end when no
+  // workspace exists (terminal/files panels need one).
+  const [creating, setCreating] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (creating) nameInputRef.current?.focus();
+  }, [creating]);
+
+  const submitCreate = async () => {
+    const name = nameValue.trim();
+    if (!name || submitting) return;
+    setSubmitting(true);
+    setCreateError(null);
+    try {
+      const ws = await create(name);
+      if (ws) onChange(ws.id);
+      setOpen(false);
+      setCreating(false);
+      setNameValue("");
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useLayoutEffect(() => {
     if (!open || !containerRef.current) return;
@@ -123,6 +152,70 @@ export function WorkspacePicker({ value, onChange, className }: WorkspacePickerP
               </button>
             );
           })}
+          {/* Create workspace inline — prevents the picker dead end when no
+              workspace exists (terminal/files panels require one). */}
+          <div className="mt-1 border-t pt-1">
+            {creating ? (
+              <div className="flex items-center gap-1.5 px-1.5 py-1.5">
+                <input
+                  ref={nameInputRef}
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void submitCreate();
+                    } else if (e.key === "Escape") {
+                      setCreating(false);
+                      setCreateError(null);
+                    }
+                  }}
+                  placeholder={t("workspacePicker.createPlaceholder")}
+                  maxLength={80}
+                  aria-label={t("workspacePicker.createPlaceholder")}
+                  className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => void submitCreate()}
+                  disabled={!nameValue.trim() || submitting}
+                  aria-label={t("workspacePicker.createConfirm")}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCreating(false); setCreateError(null); setNameValue(""); }}
+                  aria-label={t("workspacePicker.createCancel")}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-accent"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { setCreating(true); setCreateError(null); }}
+                className="flex min-h-[44px] w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <FolderPlus className="h-4 w-4 shrink-0" />
+                <span className="flex-1 truncate text-left">
+                  {t("workspacePicker.create")}
+                </span>
+              </button>
+            )}
+            {createError && (
+              <p className="px-3 pb-1.5 text-xs text-destructive">
+                {t("workspacePicker.createFailed", { message: createError })}
+              </p>
+            )}
+          </div>
         </div>,
         document.body,
       )}

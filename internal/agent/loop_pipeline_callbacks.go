@@ -530,9 +530,26 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 		}
 
 		// Reasoning decision: resolve effort level for thinking models (o3, DeepSeek-R1, Kimi).
+		// "adaptive" agents estimate a concrete effort per request from the
+		// latest user message and run depth; everything else uses the fixed config.
+		effort := l.reasoningConfig.Effort
+		if effort == providers.ReasoningEffortAdaptive {
+			adaptive := EstimateAdaptiveEffort(AdaptiveSignals{
+				UserMessage: lastUserMessage(chatReq.Messages),
+				Iteration:   state.Iteration,
+				ChannelType: req.ChannelType,
+			})
+			slog.Info("adaptive thinking effort resolved",
+				"run_id", req.RunID,
+				"iteration", state.Iteration,
+				"effort", adaptive.Effort,
+				"score", adaptive.Score,
+				"reasons", strings.Join(adaptive.Reasons, ","))
+			effort = adaptive.Effort
+		}
 		reasoningDecision := providers.ResolveReasoningDecision(
 			provider, model,
-			l.reasoningConfig.Effort,
+			effort,
 			l.reasoningConfig.Fallback,
 			l.reasoningConfig.Source,
 		)

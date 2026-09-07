@@ -36,5 +36,12 @@
     "skills": "Навыки",
     "noResults": "Совпадений не найдено",
     "gcHint": "Команды рабочих процессов GoClaw"
+  },
+  "workspacePicker": {
+    "create": "Создать рабочее пространство",
+    "createPlaceholder": "Название рабочего пространства",
+    "createConfirm": "Создать",
+    "createCancel": "Отмена",
+    "createFailed": "Не удалось создать рабочее пространство: {{message}}"
   }
 }
