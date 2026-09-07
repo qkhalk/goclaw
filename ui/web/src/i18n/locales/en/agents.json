@@ -940,7 +940,9 @@
       "downgrade": "Downgrade",
       "downgradeDesc": "Normalize to the nearest supported lower level, or the lowest supported level if needed",
       "provider_default": "Use Model Default",
-      "provider_defaultDesc": "Do not force an explicit effort and let the provider/model pick its default"
+      "provider_defaultDesc": "Do not force an explicit effort and let the provider/model pick its default",
+      "adaptive": "Auto (adaptive)",
+      "adaptiveDesc": "Gateway picks the effort per message complexity"
     },
     "otherConfig": {
       "title": "Other Config",

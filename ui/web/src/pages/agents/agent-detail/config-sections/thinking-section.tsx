@@ -13,7 +13,7 @@ import type { ReasoningOverrideMode } from "@/types/agent";
 import type { ReasoningCapability } from "@/types/provider";
 import { InfoLabel } from "./config-section";
 
-const SIMPLE_LEVELS = ["off", "low", "medium", "high"] as const;
+const SIMPLE_LEVELS = ["adaptive", "off", "low", "medium", "high"] as const;
 const FALLBACKS = ["downgrade", "provider_default", "off"] as const;
 
 interface ThinkingSectionProps {

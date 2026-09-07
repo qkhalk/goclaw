@@ -95,6 +95,34 @@ func TestParseReasoningConfigPreservesExplicitInherit(t *testing.T) {
 	}
 }
 
+func TestParseReasoningConfigAcceptsAdaptiveEffort(t *testing.T) {
+	agent := &AgentData{
+		ReasoningConfig: json.RawMessage(`{"override_mode": "custom", "effort": "adaptive"}`),
+	}
+
+	got := agent.ParseReasoningConfig()
+	if got.Effort != "adaptive" {
+		t.Fatalf("Effort = %q, want adaptive", got.Effort)
+	}
+	if got.OverrideMode != ReasoningOverrideCustom {
+		t.Fatalf("OverrideMode = %q, want %q", got.OverrideMode, ReasoningOverrideCustom)
+	}
+}
+
+func TestParseReasoningConfigAcceptsAdaptiveLegacyThinkingLevel(t *testing.T) {
+	agent := &AgentData{
+		ThinkingLevel: "adaptive",
+	}
+
+	got := agent.ParseReasoningConfig()
+	if got.Effort != "adaptive" {
+		t.Fatalf("Effort = %q, want adaptive", got.Effort)
+	}
+	if got.Source != ReasoningSourceLegacy {
+		t.Fatalf("Source = %q, want %q", got.Source, ReasoningSourceLegacy)
+	}
+}
+
 func TestParseProviderReasoningConfigNormalizesDefaults(t *testing.T) {
 	settings := json.RawMessage(`{
 		"reasoning_defaults": {"effort": " xhigh ", "fallback": "provider_default"}

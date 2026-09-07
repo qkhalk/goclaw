@@ -88,7 +88,7 @@ export function normalizeReasoningEffort(value: unknown): string {
   if (typeof value !== "string") return "";
   const normalized = value.trim().toLowerCase();
   return [
-    "off", "auto", "none", "minimal", "low", "medium", "high", "xhigh",
+    "off", "auto", "adaptive", "none", "minimal", "low", "medium", "high", "xhigh",
   ].includes(normalized) ? normalized : "";
 }
 
@@ -112,6 +112,9 @@ export function deriveLegacyThinkingLevel(effort: string): string {
       return "low";
     case "xhigh":
       return "high";
+    case "adaptive":
+      // Adaptive is resolved per-request by the gateway, not a fixed tier.
+      return "adaptive";
     default:
       return "off";
   }

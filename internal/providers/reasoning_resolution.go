@@ -6,6 +6,11 @@ const (
 	ReasoningFallbackDowngrade       = "downgrade"
 	ReasoningFallbackDisable         = "off"
 	ReasoningFallbackProviderDefault = "provider_default"
+	// ReasoningEffortAdaptive is an agent-level effort sentinel: the gateway
+	// estimates a concrete effort per request (message complexity + run
+	// signals) before ResolveReasoningDecision runs. It must never reach a
+	// provider request unchanged, so NormalizeReasoningEffort rejects it.
+	ReasoningEffortAdaptive = "adaptive"
 )
 
 type ReasoningDecision struct {
