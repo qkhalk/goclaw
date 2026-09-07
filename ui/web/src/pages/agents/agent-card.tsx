@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AgentData } from "@/types/agent";
 import { cn } from "@/lib/utils";
+import { stripLeadingEmoji } from "@/lib/agent-emoji";
 import { UUID_RE, agentDisplayName, hasActiveChatGPTOAuthRouting, readPromptMode } from "./agent-detail/agent-display-utils";
 import { promptModeBadgeClass } from "./agent-detail/prompt-mode-badge-utils";
 
@@ -20,6 +21,8 @@ export function AgentCard({ agent, onClick, onResummon, onDelete }: AgentCardPro
   const displayName = agentDisplayName(agent, t("card.unnamedAgent"));
   const selfEvolve = agent.agent_type === "predefined" && Boolean(agent.self_evolve);
   const emoji = agent.emoji ?? "";
+  // Avatar emoji renders beside the name; drop a duplicated leading cluster.
+  const shownName = stripLeadingEmoji(emoji, displayName);
   const hasOAuthRouting = hasActiveChatGPTOAuthRouting(agent.chatgpt_oauth_routing);
   const promptMode = readPromptMode(agent);
 
@@ -39,7 +42,7 @@ export function AgentCard({ agent, onClick, onResummon, onDelete }: AgentCardPro
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold">{displayName}</span>
+            <span className="truncate text-sm font-semibold">{shownName}</span>
             {agent.is_default && (
               <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />
             )}

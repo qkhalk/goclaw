@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Loader2, Bot, Users, PanelRightOpen, PanelRightClose, FolderOpen, ListTree, SquareTerminal } from "lucide-react";
 import { useHttp } from "@/hooks/use-ws";
 import { useAuthStore } from "@/stores/use-auth-store";
+import { stripLeadingEmoji } from "@/lib/agent-emoji";
 import type { RunActivity, ActiveTeamTask } from "@/types/chat";
 import type { AgentData } from "@/types/agent";
 import type { SessionInfo } from "@/types/session";
@@ -65,8 +66,9 @@ export function ChatTopBar({ agentId, isRunning, isBusy, activity, teamTasks, on
       .catch(() => setAgent({ name: agentId }));
   }, [http, connected, agentId]);
 
-  const displayName = agent?.name ?? agentId;
   const emoji = agent?.emoji;
+  // Avatar emoji renders beside the name; drop a duplicated leading cluster.
+  const displayName = agent ? stripLeadingEmoji(emoji, agent.name) : agentId;
   const PanelIcon = taskPanelOpen ? PanelRightClose : PanelRightOpen;
 
   // Context-usage badge: only renders when the caller passes a session with

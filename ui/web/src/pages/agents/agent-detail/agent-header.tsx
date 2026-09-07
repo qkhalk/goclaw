@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { AgentData } from "@/types/agent";
 import type { HeartbeatConfig } from "@/pages/agents/hooks/use-agent-heartbeat";
 import { useCountdown } from "@/hooks/use-countdown";
+import { stripLeadingEmoji } from "@/lib/agent-emoji";
 import { agentDisplayName, agentKeyDisplay, hasActiveChatGPTOAuthRouting, readPromptMode } from "./agent-display-utils";
 import { cn } from "@/lib/utils";
 import { promptModeBadgeClass } from "./prompt-mode-badge-utils";
@@ -28,7 +29,8 @@ export function AgentHeader({ agent, heartbeat, onBack, onDelete, onAdvanced, on
 
   const emoji = agent.emoji ?? "";
   const selfEvolve = Boolean(agent.self_evolve);
-  const title = agentDisplayName(agent, t("card.unnamedAgent"));
+  // Avatar emoji renders beside the title; drop a duplicated leading cluster.
+  const title = stripLeadingEmoji(emoji, agentDisplayName(agent, t("card.unnamedAgent")));
   const keyDisplay = agentKeyDisplay(agent.agent_key);
   const hasOAuthRouting = hasActiveChatGPTOAuthRouting(agent.chatgpt_oauth_routing);
   const promptMode = readPromptMode(agent);
