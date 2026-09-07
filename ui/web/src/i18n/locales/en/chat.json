@@ -36,7 +36,12 @@
     "none": "No workspace",
     "empty": "No workspaces available",
     "loading": "Loading workspaces…",
-    "archived": "Archived"
+    "archived": "Archived",
+    "create": "Create workspace",
+    "createPlaceholder": "Workspace name",
+    "createConfirm": "Create",
+    "createCancel": "Cancel",
+    "createFailed": "Failed to create workspace: {{message}}"
   },
   "fileExplorer": {
     "title": "Files",
