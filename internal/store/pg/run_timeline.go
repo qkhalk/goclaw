@@ -348,6 +348,7 @@ func (s *PGRunStore) ListRuns(ctx context.Context, opts store.RunListOpts) ([]st
 // RecoverStaleRuns marks runs whose heartbeat has not advanced within staleAfter
 // as failed, unless the run carries a valid checkpoint — such runs are paused
 // (resumable) instead of terminal-failed. Cross-tenant (startup + periodic).
+// Returns the number of swept rows (including checkpoint-paused runs).
 func (s *PGRunStore) RecoverStaleRuns(ctx context.Context, staleAfter time.Duration) (int64, error) {
 	deadline := time.Now().Add(-staleAfter)
 	// Paused (resumable) runs keep completed_at NULL — only terminal-failed runs
@@ -381,6 +382,58 @@ func (s *PGRunStore) RecoverStaleRuns(ctx context.Context, staleAfter time.Durat
 	}
 	n, _ := res.RowsAffected()
 	return n, nil
+}
+
+// RecoverStaleRunsWithDetail is RecoverStaleRuns returning the terminal-failed
+// run records so the sweep caller can emit run.failed events to subscribers.
+// Checkpoint-paused rows are excluded — they remain resumable, not failed.
+func (s *PGRunStore) RecoverStaleRunsWithDetail(ctx context.Context, staleAfter time.Duration) ([]store.AgentRun, error) {
+	deadline := time.Now().Add(-staleAfter)
+	// Paused (resumable) runs keep completed_at NULL — only terminal-failed runs
+	// get it stamped so the run record reads as recoverable. checkpoint is a
+	// JSONB column: NULL means no checkpoint, an empty checkpoint is normalized
+	// to NULL at write time (see UpdateRunCheckpoint).
+	rows, err := pkgSqlxDB.QueryxContext(ctx, `
+		UPDATE agent_runs
+		 SET status = CASE
+		         WHEN checkpoint IS NOT NULL THEN $1
+		         ELSE $2
+		       END,
+		     error = CASE
+		         WHEN checkpoint IS NOT NULL THEN $3
+		         ELSE $4
+		       END,
+		     completed_at = CASE
+		         WHEN checkpoint IS NOT NULL THEN completed_at
+		         ELSE COALESCE(completed_at, $5)
+		       END,
+		     updated_at = $5
+		 WHERE status IN ('pending', 'running', 'compacting')
+		   AND heartbeat_at < $6
+		RETURNING tenant_id, run_id, session_key, agent_id, user_id, channel, chat_id, status, error`,
+		store.RunTimelineStatusPaused,
+		store.AgentRunStatusFailed,
+		"run paused: heartbeat expired, checkpoint available",
+		"run stalled: heartbeat expired",
+		deadline, deadline)
+	if err != nil {
+		return nil, fmt.Errorf("recover stale runs: %w", err)
+	}
+	defer rows.Close()
+	var failed []store.AgentRun
+	for rows.Next() {
+		var row agentRunRow
+		if err := rows.StructScan(&row); err != nil {
+			return nil, fmt.Errorf("recover stale runs: scan: %w", err)
+		}
+		// RETURNING yields every swept row; keep only terminal failures so the
+		// caller notifies exactly the sessions whose runs actually died.
+		if row.Status != store.AgentRunStatusFailed {
+			continue
+		}
+		failed = append(failed, row.toStore())
+	}
+	return failed, rows.Err()
 }
 
 // buildRunWhere scopes a single-record read. Fails closed (WHERE 1=0) when a

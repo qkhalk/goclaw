@@ -704,12 +704,31 @@ func wireExtras(
 
 	// Automatic stale-run recovery parity (Phase 10): mark agent_runs whose
 	// heartbeat has not advanced within staleAfter as failed. Cross-tenant.
+	// Swept failures broadcast run.failed agent events so clients watching the
+	// run clear their streaming state instead of sticking on "typing…".
 	if stores.Runs != nil {
-		go runStaleRunsSweep(
+		go runStaleRunsSweepWithNotify(
 			stores.Runs,
 			appCfg.Reliability.Runs.EffectiveStaleAfter(),
 			appCfg.Reliability.Runs.EffectiveSweepInterval(),
 			runWatchdog, // D2 ladder escalation on the heartbeat cadence
+			func(r store.AgentRun) {
+				ev := agent.AgentEvent{
+					Type:       protocol.AgentEventRunFailed,
+					RunID:      r.RunID,
+					SessionKey: r.SessionKey,
+					UserID:     r.UserID,
+					Channel:    r.Channel,
+					ChatID:     r.ChatID,
+					TenantID:   r.TenantID,
+					Payload:    map[string]string{"error": r.Error},
+				}
+				msgBus.Broadcast(bus.Event{
+					Name:     protocol.EventAgent,
+					Payload:  ev,
+					TenantID: ev.TenantID,
+				})
+			},
 		)
 	}
 
