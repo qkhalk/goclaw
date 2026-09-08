@@ -135,6 +135,27 @@ cases:
       contains: ["dedup-fact"]
       max_results: 1
 
+  - name: contradicted-memory-dropped-from-retrieval
+    description: an active contradiction drops the older fact from retrieval
+    severity: P0
+    seed:
+      memories:
+        - user: gina
+          scope: user
+          kind: preference
+          content: "editor-gina: favorite editor is Vim"
+        - user: gina
+          scope: user
+          kind: preference
+          content: "editor-gina: favorite editor is VS Code"
+          contradicts: 0
+    act:
+      search: { user: gina, scopes: [user] }
+    expect:
+      contains: ["VS Code"]
+      not_contains: ["Vim"]
+      max_results: 1
+
   - name: scope-whitelist-multi-value
     description: multi-scope whitelist (user+global) is a union, not a contradiction
     severity: P1

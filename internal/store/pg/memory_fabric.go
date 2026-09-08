@@ -327,7 +327,7 @@ func (s *PGMemoryFabricStore) SearchMemories(ctx context.Context, q store.Memory
 		}
 		out = append(out, store.ScoredMemory{Memory: m, Score: store.MemoryRecallScore(m, now)})
 	}
-	return out, rows.Err()
+	return store.FilterContradictedMemories(out), rows.Err()
 }
 
 // SupersedeMemory marks oldID superseded and inserts replacement pointing back

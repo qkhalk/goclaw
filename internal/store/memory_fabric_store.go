@@ -144,6 +144,35 @@ type ScoredMemory struct {
 // julianday variants) — change both together.
 const memoryRecencyDecaySeconds = 2592000.0
 
+// FilterContradictedMemories drops rows that an active contradiction in the
+// result set supersedes: if row B carries ContradictsID == A.ID, A loses
+// regardless of its score (B is the newer observation; retrieval already
+// ranks B higher for equal authority). Rows contradicting something outside
+// the result set are unaffected - their counterpart may be archived or
+// simply not recalled. Runs after SearchMemories in both store
+// implementations, so callers never see a contradicted-and-replaced fact.
+func FilterContradictedMemories(results []ScoredMemory) []ScoredMemory {
+	if len(results) < 2 {
+		return results
+	}
+	contradicted := make(map[string]bool)
+	for _, r := range results {
+		if r.ContradictsID != nil && *r.ContradictsID != "" {
+			contradicted[*r.ContradictsID] = true
+		}
+	}
+	if len(contradicted) == 0 {
+		return results
+	}
+	out := results[:0:0]
+	for _, r := range results {
+		if !contradicted[r.ID] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // MemoryRecallScore computes the recall ranking score in Go. The SQL ORDER BY
 // in SearchMemories uses the identical formula for ordering; computing the
 // returned Score here (instead of selecting it as an extra column) keeps the
