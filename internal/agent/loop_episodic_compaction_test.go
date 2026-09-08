@@ -28,6 +28,7 @@ func (r *recordingBus) Subscribe(_ eventbus.EventType, _ eventbus.DomainEventHan
 }
 func (r *recordingBus) Start(_ context.Context)            {}
 func (r *recordingBus) Drain(_ time.Duration) error        { return nil }
+func (r *recordingBus) DroppedTotal() uint64                 { return 0 }
 func (r *recordingBus) events() []eventbus.DomainEvent {
 	r.mu.Lock()
 	defer r.mu.Unlock()
