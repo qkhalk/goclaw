@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useWs, useHttp } from "@/hooks/use-ws";
 import { Methods } from "@/api/protocol";
 import type { ChatMessage } from "@/types/chat";
-import type { AttachedFile } from "@/components/chat/chat-input";
+import type { AttachedFile, ComposerOverrides } from "@/components/chat/chat-input";
 
 interface UseChatSendOptions {
   agentId: string;
@@ -33,7 +33,7 @@ export function useChatSend({
   const [error, setError] = useState<string | null>(null);
 
   const send = useCallback(
-    async (message: string, sessionKey: string, files?: AttachedFile[]) => {
+    async (message: string, sessionKey: string, files?: AttachedFile[], overrides?: ComposerOverrides) => {
       const hasMessage = message.trim().length > 0;
       const hasFiles = files && files.length > 0;
       if (!ws.isConnected) {
@@ -87,6 +87,11 @@ export function useChatSend({
             message: trimmed,
             stream: true,
             ...(mediaItems && { media: mediaItems }),
+            // Per-message composer overrides — empty fields stay absent so the
+            // agent defaults apply server-side.
+            ...(overrides?.providerName && { providerName: overrides.providerName }),
+            ...(overrides?.model && { model: overrides.model }),
+            ...(overrides?.thinkingLevel && { thinkingLevel: overrides.thinkingLevel }),
           },
           600_000,
         );

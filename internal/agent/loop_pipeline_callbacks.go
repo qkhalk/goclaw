@@ -530,9 +530,14 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 		}
 
 		// Reasoning decision: resolve effort level for thinking models (o3, DeepSeek-R1, Kimi).
-		// "adaptive" agents estimate a concrete effort per request from the
-		// latest user message and run depth; everything else uses the fixed config.
+		// A per-request override (chat.send composer picker) wins over the agent
+		// config; "adaptive" agents estimate a concrete effort per request from
+		// the latest user message and run depth; everything else uses the fixed
+		// config.
 		effort := l.reasoningConfig.Effort
+		if req.ThinkingLevelOverride != "" {
+			effort = req.ThinkingLevelOverride
+		}
 		if effort == providers.ReasoningEffortAdaptive {
 			adaptive := EstimateAdaptiveEffort(AdaptiveSignals{
 				UserMessage: lastUserMessage(chatReq.Messages),
