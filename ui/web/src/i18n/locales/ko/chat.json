@@ -52,9 +52,9 @@
     "thinking": "사고 수준"
   },
   "thinkingLevels": {
-    "adaptive": "사고: 적응형",
-    "auto": "사고: 자동",
-    "off": "사고: 끄기",
+    "adaptive": "적응형",
+    "auto": "자동",
+    "off": "끔",
     "none": "없음",
     "minimal": "최소",
     "low": "낮음",
