@@ -106,5 +106,24 @@
     "skills": "技能",
     "noResults": "没有匹配的命令或技能",
     "gcHint": "GoClaw 工作流命令"
+  },
+  "composer": {
+    "provider": "提供商",
+    "providerDefault": "代理默认",
+    "model": "模型",
+    "modelDefault": "代理默认模型",
+    "loadingModels": "正在加载模型…",
+    "thinking": "思考级别"
+  },
+  "thinkingLevels": {
+    "adaptive": "思考：自适应",
+    "auto": "思考：自动",
+    "off": "思考：关闭",
+    "none": "无",
+    "minimal": "极少",
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "xhigh": "超高"
   }
 }

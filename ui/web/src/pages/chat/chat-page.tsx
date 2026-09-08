@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { ChatSidebar } from "./chat-sidebar";
 import { ChatThread } from "./chat-thread";
-import { ChatInput, type AttachedFile } from "@/components/chat/chat-input";
+import { ChatInput, type AttachedFile, type ComposerOverrides } from "@/components/chat/chat-input";
 import { ChatTopBar } from "@/components/chat/chat-top-bar";
 import { DropZone } from "@/components/chat/drop-zone";
 import { AgentPickerPrompt } from "@/components/chat/agent-picker-prompt";
@@ -132,13 +132,13 @@ export function ChatPage() {
   );
 
   const handleSend = useCallback(
-    (message: string, sendFiles?: AttachedFile[]) => {
+    (message: string, sendFiles?: AttachedFile[], overrides?: ComposerOverrides) => {
       let key = sessionKey;
       if (!key) {
         key = buildNewSessionKey();
         navigate(`/chat/${encodeURIComponent(key)}`, { replace: true });
       }
-      send(message, key, sendFiles);
+      send(message, key, sendFiles, overrides);
       setScrollTrigger((n) => n + 1);
     },
     [sessionKey, send, buildNewSessionKey, navigate],
