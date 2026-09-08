@@ -166,6 +166,31 @@ func (l *Loop) processToolResult(
 
 	action = toolResultContinue
 
+	// Supervisor: record the result outcome and enforce the consecutive-
+	// failure cap and the run deadline. On breach, break the run exactly
+	// like a critical tool-loop detection (durable final content +
+	// loopKilled) so the outcome is a clean budget stop, not a crash.
+	if rs.supervisor != nil {
+		if verdict := rs.supervisor.RecordToolResult(result.IsError); !verdict.Allowed {
+			slog.Warn("supervisor: tool budget exceeded", "agent", l.id, "tool", registryName, "run", req.RunID)
+			warningMsgs = append(warningMsgs, providers.Message{Role: "user", Content: verdict.StopReason})
+			rs.finalContent = verdict.StopReason
+			rs.loopKilled = true
+			return toolMsg, nil, toolResultBreak
+		} else if verdict.Warning != "" {
+			// One-shot wrap-up notice surfaces in the conversation (the model
+			// can finish gracefully) and on the timeline via the activity
+			// channel below.
+			warningMsgs = append(warningMsgs, providers.Message{Role: "user", Content: verdict.Warning})
+		}
+		if verdict := rs.supervisor.CheckDeadline(); !verdict.Allowed {
+			slog.Warn("supervisor: run deadline exceeded (tool path)", "agent", l.id, "run", req.RunID)
+			rs.finalContent = verdict.StopReason
+			rs.loopKilled = true
+			return toolMsg, nil, toolResultBreak
+		}
+	}
+
 	// Check for tool call loop after recording result.
 	if level, msg := rs.loopDetector.detect(registryName, argsHash); level != "" {
 		if level == "critical" {

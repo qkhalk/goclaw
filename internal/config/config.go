@@ -95,6 +95,33 @@ type ReliabilityConfig struct {
 	// Recovery bounds the unified weak-model/error recovery engine
 	// (internal/pipeline recover stage). Zero values fall back to defaults.
 	Recovery RecoveryConfig `json:"recovery,omitempty"`
+	// Supervisor tunes the proactive per-run resource enforcement
+	// (internal/agent RunSupervisor): hard caps on tool calls, LLM calls,
+	// wall-clock run time and consecutive tool failures, enforced immediately
+	// inside the loop. Zero values fall back to the documented defaults;
+	// negative values disable a specific cap.
+	Supervisor SupervisorConfig `json:"supervisor,omitempty"`
+}
+
+// SupervisorConfig tunes reliability.supervisor. See agent.SupervisorLimits
+// for cap semantics; cmd converts this config into the runtime limits
+// (config cannot import internal/agent without an import cycle). Total tool
+// calls per run are already capped separately via agents.*.max_tool_calls
+// (PipelineConfig.MaxToolCalls) — this config covers only the un-enforced
+// budgets.
+type SupervisorConfig struct {
+	// MaxLLMCalls caps think-stage LLM calls per run. Default 60; negative
+	// disables.
+	MaxLLMCalls int `json:"max_llm_calls,omitempty"`
+	// MaxRunTimeMs caps wall-clock run duration. Default 1800000 (30m);
+	// negative disables.
+	MaxRunTimeMs int `json:"max_run_time_ms,omitempty"`
+	// MaxConsecutiveToolFailures caps back-to-back failed tool results.
+	// Default 6; negative disables.
+	MaxConsecutiveToolFailures int `json:"max_consecutive_tool_failures,omitempty"`
+	// WarnAtPercent is the budget percentage at which a one-shot wrap-up
+	// warning fires. Default 80.
+	WarnAtPercent int `json:"warn_at_percent,omitempty"`
 }
 
 // SLOConfig tunes the config-driven reliability SLO (error budget).

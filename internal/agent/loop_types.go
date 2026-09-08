@@ -97,6 +97,7 @@ type Loop struct {
 	maxTokens        int // max output tokens per LLM call (0 = default 8192)
 	maxIterations    int
 	maxToolCalls     int
+	supervisorLimits SupervisorLimits
 	workspace        string
 	dataDir          string // global workspace root for team workspace resolution
 	workspaceSharing *store.WorkspaceSharingConfig
@@ -350,6 +351,10 @@ type LoopConfig struct {
 	MaxTokens        int // max output tokens per LLM call (0 = default 8192)
 	MaxIterations    int
 	MaxToolCalls     int
+	// Supervisor caps think-stage LLM calls, wall-clock run time and
+	// consecutive tool failures per run (proactive resource enforcement).
+	// Nil = package defaults apply.
+	Supervisor       *SupervisorLimits
 	Workspace        string
 	DataDir          string // global workspace root for team workspace resolution
 	WorkspaceSharing *store.WorkspaceSharingConfig
@@ -586,6 +591,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		maxIterations:          cfg.MaxIterations,
 		verifierMode:           cfg.VerifierMode,
 		maxToolCalls:           cfg.MaxToolCalls,
+		supervisorLimits:       cfg.Supervisor.withDefaultsSafe(),
 		workspace:              cfg.Workspace,
 		dataDir:                cfg.DataDir,
 		workspaceSharing:       cfg.WorkspaceSharing,
@@ -793,6 +799,7 @@ type MediaResult struct {
 type runState struct {
 	// Loop control
 	loopDetector      toolLoopState
+	supervisor        *RunSupervisor
 	totalUsage        providers.Usage
 	lastUsage         providers.Usage
 	lastUsageMsgCount int

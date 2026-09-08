@@ -53,7 +53,7 @@ func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState) pipelineCa
 		enrichMedia:        l.makeEnrichMedia(req),
 		injectReminders:    l.makeInjectReminders(req),
 		buildFilteredTools: l.makeBuildFilteredTools(req),
-		callLLM:            l.makeCallLLM(req, emitRun),
+		callLLM:            l.makeCallLLM(req, bridgeRS, emitRun),
 		pruneMessages:      l.makePruneMessages(),
 		sanitizeHistory:    sanitizeHistory,
 		compactMessages:    l.makeCompactMessages(req),
@@ -471,10 +471,37 @@ func allowedToolNamesSlice(allowed map[string]bool) []string {
 	return names
 }
 
-func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx context.Context, state *pipeline.RunState, chatReq providers.ChatRequest) (*providers.ChatResponse, error) {
+func (l *Loop) makeCallLLM(req *RunRequest, bridgeRS *runState, emitRun func(AgentEvent)) func(ctx context.Context, state *pipeline.RunState, chatReq providers.ChatRequest) (*providers.ChatResponse, error) {
 	return func(ctx context.Context, state *pipeline.RunState, chatReq providers.ChatRequest) (*providers.ChatResponse, error) {
 		provider := state.Provider
 		model := state.Model
+
+		// Supervisor gate: enforce the per-run LLM-call cap and the wall-clock
+		// deadline BEFORE any provider call. On breach, answer with a
+		// stop-finish blocker (same pattern as the team-work directive
+		// blocker) so the run ends naturally instead of burning more budget.
+		sup := bridgeRS.supervisor
+		emitSupervisorActivity := func(message string) {
+			emitRun(AgentEvent{
+				Type:    protocol.AgentEventActivity,
+				AgentID: l.id,
+				RunID:   req.RunID,
+				Payload: map[string]string{"phase": "supervisor", "message": message},
+			})
+		}
+		if verdict := sup.RecordLLMCall(); !verdict.Allowed {
+			slog.Warn("supervisor: llm budget exceeded",
+				"agent", l.id, "run", req.RunID, "reason", verdict.StopReason)
+			emitSupervisorActivity(verdict.StopReason)
+			return &providers.ChatResponse{Content: verdict.StopReason, FinishReason: "stop"}, nil
+		} else if verdict.Warning != "" {
+			emitSupervisorActivity(verdict.Warning)
+		}
+		if verdict := sup.CheckDeadline(); !verdict.Allowed {
+			slog.Warn("supervisor: run deadline exceeded", "agent", l.id, "run", req.RunID)
+			emitSupervisorActivity(verdict.StopReason)
+			return &providers.ChatResponse{Content: verdict.StopReason, FinishReason: "stop"}, nil
+		}
 
 		// Issue 3: surface transient provider retries to the user ("Provider busy,
 		// retrying...") instead of a silent failure ending in a 💔 reaction. The

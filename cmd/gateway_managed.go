@@ -286,6 +286,7 @@ func wireExtras(
 		DefaultTimezone:        appCfg.Cron.DefaultTimezone,
 		InjectionAction:        injectionAction,
 		MaxMessageChars:        appCfg.Gateway.MaxMessageChars,
+		Supervisor:             agent.SupervisorLimitsFromConfig(appCfg.Reliability.Supervisor),
 		CompactionCfg:          appCfg.Agents.Defaults.Compaction,
 		ContextPruningCfg:      appCfg.Agents.Defaults.ContextPruning,
 		SandboxEnabled:         sandboxEnabled,
