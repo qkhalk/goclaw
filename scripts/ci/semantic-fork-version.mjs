@@ -115,7 +115,17 @@ try {
 
 // Compute the tag.
 let tag;
-if (plainMode) {
+if (plainMode && override) {
+  // Plain re-cut: VERSION_OVERRIDE pins the exact tag (e.g. re-publish
+  // 3.17.2 after a failed run). Without this, the auto-bump loop below
+  // would skip past the existing tag to the next free number.
+  const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(override);
+  if (!m) {
+    writeNoRelease(`VERSION_OVERRIDE '${override}' is not a valid plain tag (X.Y.Z).`);
+    process.exit(0);
+  }
+  tag = `v${override.replace(/^v/, "")}`;
+} else if (plainMode) {
   // Plain mode: clean semver tag with no suffix (v3.17.0). Auto-increments
   // patch if the tag already exists (v3.17.0 → v3.17.1 → v3.17.2).
   let [major, minor, patch] = base.split(".").map(Number);
