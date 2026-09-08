@@ -152,11 +152,15 @@ func (s *SQLiteMemoryFabricStore) WriteMemory(ctx context.Context, m *store.Memo
 
 	// Newest active near-key duplicate (same ownership tuple, non-global).
 	dupWhere, dupArgs := memoryTupleMatch(1, m)
-	kindParam := len(dupArgs) + 1
 	if !store.IsCrossTenant(ctx) && !store.IsMasterScope(ctx) {
 		dupArgs = append(dupArgs, store.TenantIDFromContext(ctx).String())
 		dupWhere += fmt.Sprintf(" AND tenant_id = ?%d", len(dupArgs))
 	}
+	// kindParam must be computed AFTER the tenant filter is appended (the
+	// placeholder number depends on the arg count). SQLite does not error on
+	// the mismatched comparison like PG does — the dedup lookup silently
+	// matched nothing, so every write skipped dedup/supersession.
+	kindParam := len(dupArgs) + 1
 	dupQuery := `SELECT id, content_hash FROM memories
 		WHERE status = 'active' AND scope <> 'global' AND content_hash IS NOT NULL AND (` +
 		dupWhere + `) AND kind = ?` + fmt.Sprint(kindParam) + `
@@ -223,6 +227,21 @@ func (s *SQLiteMemoryFabricStore) GetMemory(ctx context.Context, id string) (*st
 	return scanMemoryFabric(row)
 }
 
+// inPlaceholders appends the values from vals that pass valid to args and
+// returns a comma-joined placeholder list ("?3,?4") for an IN (...) predicate.
+// Empty string means no valid values — apply no filter.
+func inPlaceholders(args *[]any, vals []string, valid func(string) bool) string {
+	var ph []string
+	for _, v := range vals {
+		if !valid(v) {
+			continue
+		}
+		*args = append(*args, v)
+		ph = append(ph, fmt.Sprintf("?%d", len(*args)))
+	}
+	return strings.Join(ph, ",")
+}
+
 // SearchMemories applies the retrieval hard gates (status='active' plus
 // identity gates on the non-empty query fields), optional scope/kind
 // whitelists, and ranks by authority/confidence/recency computed in SQL via
@@ -259,42 +278,42 @@ func (s *SQLiteMemoryFabricStore) SearchMemories(ctx context.Context, q store.Me
 		args = append(args, q.SessionKey)
 		where += fmt.Sprintf(" AND session_key = ?%d", len(args))
 	}
-	for _, sc := range q.Scopes {
-		if !store.ValidMemoryScope(sc) {
-			continue
-		}
-		args = append(args, sc)
-		where += fmt.Sprintf(" AND scope = ?%d", len(args))
+	// Scope/kind whitelists are unions (IN (...)), not per-element ANDs:
+	// AND-chaining two whitelist values yields a contradiction that always
+	// matches nothing. Invalid values are skipped, an all-invalid list applies
+	// no filter.
+	if ph := inPlaceholders(&args, q.Scopes, store.ValidMemoryScope); ph != "" {
+		where += " AND scope IN (" + ph + ")"
 	}
-	for _, k := range q.Kinds {
-		if !store.ValidMemoryKind(k) {
-			continue
-		}
-		args = append(args, k)
-		where += fmt.Sprintf(" AND kind = ?%d", len(args))
+	if ph := inPlaceholders(&args, q.Kinds, store.ValidMemoryKind); ph != "" {
+		where += " AND kind IN (" + ph + ")"
 	}
 	limit := 50
 	if q.Limit > 0 {
 		limit = q.Limit
 	}
+	// The score is not selected as a column: the shared 20-column memory scan
+	// must stay exact-match for database/sql Scan. Ordering uses the same
+	// formula MemoryRecallScore computes (see its doc for the sync note).
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+memoryFabricColumns+`,
-		   authority*0.10 + confidence*0.10 +
-		   MAX(0, 1 - (julianday('now')-julianday(updated_at))/2592000.0) AS score
+		`SELECT `+memoryFabricColumns+`
 		 FROM memories WHERE `+where+`
-		 ORDER BY score DESC, updated_at DESC
+		 ORDER BY authority*0.10 + confidence*0.10 +
+		   MAX(0, 1 - (julianday('now')-julianday(updated_at))/2592000.0)*0.10 DESC,
+		   updated_at DESC
 		 LIMIT `+fmt.Sprint(limit), args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []store.ScoredMemory{}
+	now := time.Now()
 	for rows.Next() {
 		m, err := scanMemoryFabric(rows)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, store.ScoredMemory{Memory: m})
+		out = append(out, store.ScoredMemory{Memory: m, Score: store.MemoryRecallScore(m, now)})
 	}
 	return out, rows.Err()
 }
