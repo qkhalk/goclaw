@@ -42,5 +42,24 @@
     "createConfirm": "생성",
     "createCancel": "취소",
     "createFailed": "워크스페이스 생성 실패: {{message}}"
+  },
+  "composer": {
+    "provider": "공급자",
+    "providerDefault": "에이전트 기본 공급자",
+    "model": "모델",
+    "modelDefault": "에이전트 기본 모델",
+    "loadingModels": "모델 로드 중…",
+    "thinking": "사고 수준"
+  },
+  "thinkingLevels": {
+    "adaptive": "사고: 적응형",
+    "auto": "사고: 자동",
+    "off": "사고: 끄기",
+    "none": "없음",
+    "minimal": "최소",
+    "low": "낮음",
+    "medium": "중간",
+    "high": "높음",
+    "xhigh": "최대"
   }
 }

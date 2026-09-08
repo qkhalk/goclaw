@@ -42,6 +42,8 @@ type ChatMethods struct {
 	linkStore        store.AgentLinkStore
 	teamWorkEmbedder memory.EmbeddingProvider
 	policyStore      store.AgentPolicies // optional: tenant suspension + max_sessions cap (Phase 4)
+	providerStore    store.ProviderStore // optional: per-message composer overrides (chat.send)
+	providerReg      *providers.Registry // optional: registry lookup for the composer provider override
 }
 
 func NewChatMethods(agents *agent.Router, sess store.SessionStore, cfg *config.Config, rl *gateway.RateLimiter, eventBus bus.EventPublisher) *ChatMethods {
@@ -75,6 +77,15 @@ func (m *ChatMethods) SetTeamWorkClassification(agentStore store.AgentStore, tea
 // SetPostTurnProcessor sets the post-turn processor for team task dispatch.
 func (m *ChatMethods) SetPostTurnProcessor(pt tools.PostTurnProcessor) {
 	m.postTurn = pt
+}
+
+// SetProviderOverrideResolver wires the provider store + registry used to
+// resolve chat.send per-message composer overrides (providerName/model/
+// thinkingLevel). Nil either side = overrides are ignored and agent defaults
+// apply.
+func (m *ChatMethods) SetProviderOverrideResolver(ps store.ProviderStore, reg *providers.Registry) {
+	m.providerStore = ps
+	m.providerReg = reg
 }
 
 // Register adds chat methods to the router.
@@ -136,6 +147,24 @@ type chatSendParams struct {
 	SessionKey string          `json:"sessionKey"`
 	Stream     bool            `json:"stream"`
 	Media      json.RawMessage `json:"media,omitempty"` // []string (legacy) or []chatMediaItem
+
+	// Per-message composer overrides (all optional; empty = agent defaults).
+	// ProviderName resolves through the provider store + registry at dispatch;
+	// Model maps to RunRequest.ModelOverride; ThinkingLevel accepts the standard
+	// effort levels plus "adaptive" (validated by thinkingOverrideFor).
+	ProviderName string `json:"providerName,omitempty"`
+	Model        string `json:"model,omitempty"`
+	Thinking     string `json:"thinkingLevel,omitempty"`
+}
+
+// thinkingOverrideFor validates a chat.send thinkingLevel param. Accepts
+// "adaptive" verbatim (the loop re-estimates per request) and any standard
+// effort level; anything else yields "" (agent config applies).
+func thinkingOverrideFor(level string) string {
+	if level == providers.ReasoningEffortAdaptive {
+		return level
+	}
+	return providers.NormalizeReasoningEffort(level)
 }
 
 // parseMedia handles both legacy string paths and new {path,filename} objects.
@@ -395,6 +424,23 @@ func (m *ChatMethods) dispatchChatSends(requests []chatSendRequest) {
 		// Parse media items (supports both legacy string paths and new {path,filename} objects).
 		items := params.parseMedia()
 
+		// Composer overrides (chat.send per-message): resolve the provider by
+		// name through store + registry (mirrors cron/heartbeat) and validate
+		// the thinking level. Unresolved/invalid → agent defaults apply.
+		var composerProvider providers.Provider
+		if params.ProviderName != "" && m.providerStore != nil && m.providerReg != nil {
+			if provData, perr := m.providerStore.GetProviderByName(runCtx, params.ProviderName); perr == nil {
+				if prov, gerr := m.providerReg.GetForTenant(store.TenantIDFromContext(runCtx), provData.Name); gerr == nil {
+					composerProvider = prov
+				} else {
+					slog.Warn("chat.send composer provider not in registry", "provider", params.ProviderName, "error", gerr)
+				}
+			} else {
+				slog.Warn("chat.send composer provider not found", "provider", params.ProviderName, "error", perr)
+			}
+		}
+		thinkingOverride := thinkingOverrideFor(params.Thinking)
+
 		// Convert media items to bus.MediaFile with MIME detection.
 		var mediaFiles []bus.MediaFile
 		var mediaInfos []media.MediaInfo
@@ -422,17 +468,20 @@ func (m *ChatMethods) dispatchChatSends(requests []chatSendRequest) {
 		}
 
 		result, err := loop.Run(runCtx, agent.RunRequest{
-			SessionKey:        sessionKey,
-			Message:           message,
-			Media:             mediaFiles,
-			Channel:           "ws",
-			ChatID:            userID, // use stable userID for team/workspace isolation (not ephemeral client.ID())
-			WorkspaceChatID:   userID, // mirror ChatID so vault chat_id isolation activates for WS direct flow
-			RunID:             runID,
-			UserID:            userID,
-			Stream:            params.Stream,
-			TeamWorkDirective: gate.directive,
-			InjectCh:          injectCh,
+			SessionKey:            sessionKey,
+			Message:               message,
+			Media:                 mediaFiles,
+			Channel:               "ws",
+			ChatID:                userID, // use stable userID for team/workspace isolation (not ephemeral client.ID())
+			WorkspaceChatID:       userID, // mirror ChatID so vault chat_id isolation activates for WS direct flow
+			RunID:                 runID,
+			UserID:                userID,
+			Stream:                params.Stream,
+			TeamWorkDirective:     gate.directive,
+			ModelOverride:         params.Model,
+			ProviderOverride:      composerProvider,
+			ThinkingLevelOverride: thinkingOverride,
+			InjectCh:              injectCh,
 			// Wire trace ID back to the active run so force-abort can mark the
 			// correct trace as cancelled if the goroutine does not exit within 3s.
 			OnTraceCreated: func(traceID uuid.UUID) {
