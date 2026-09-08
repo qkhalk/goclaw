@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Compute the next release tag and build release notes that record the exact
-// fork delta versus upstream (nextlevelbuilder/goclaw).
+// changes since the previous release tag reachable from HEAD.
 //
 // Outputs (GITHUB_OUTPUT):
 //   released   "true" | "false"
@@ -167,28 +167,28 @@ if (git(["tag", "--list", tag])) {
   }
 }
 
-// Fork-delta commit list relative to the upstream anchor.
+// Fork-delta commit list relative to the previous release anchor.
 const anchor = upstreamAnchor(head);
-const anchorLabel = anchor || "upstream-anchor";
+const anchorLabel = anchor || "previous-release";
 const subjectList = [];
 let deltaMessage;
 if (anchor) {
   const log = git(["log", "--format=%B%x1e", `${anchor}..HEAD`]);
   const messages = log.split("\x1e").map((m) => m.trim()).filter(Boolean);
   subjectList.push(...messages.map((m) => m.split(/\r?\n/, 1)[0]));
-  deltaMessage = `upstream \`${anchor}\` → this release`;
+  deltaMessage = `kể từ bản \`${anchor}\``;
 } else {
   subjectList.push(...git(["log", "--format=%s", "-300"]).split(/\r?\n/).filter(Boolean));
-  deltaMessage = "no upstream release tag found locally — listing recent commits";
+  deltaMessage = "chưa xác định được bản trước — liệt kê commit gần đây";
 }
 const groups = forkDelta(subjectList);
 
 const lines = [
   `## ${tag}`,
   "",
-  `Fork release \`${tag}\` của **qkhalk/goclaw** — fork delta so với upstream (${deltaMessage}).`,
+  `GoClaw \`${tag}\` — các thay đổi ${deltaMessage}.`,
   "",
-  "### Fork delta so với upstream",
+  "### Thay đổi",
   "",
   ...(groups.feat.length ? [`**Features**`, "", ...groups.feat.map((c) => `- ${c}`), ""] : []),
   ...(groups.fix.length ? [`**Fixes**`, "", ...groups.fix.map((c) => `- ${c}`), ""] : []),
@@ -203,7 +203,7 @@ const lines = [
   `- \`ghcr.io/qkhalk/goclaw:${tag}-full\``,
   `- \`ghcr.io/qkhalk/goclaw:fork\` (alias)`,
   "",
-  "Toàn bộ fork features (reliability layer + AgentKit phases) — xem mục **Fork Features** trong README.",
+  "Toàn bộ tính năng (reliability layer + AgentKit phases) — xem README.",
   "",
 ];
 

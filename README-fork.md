@@ -18,7 +18,7 @@ Xem mục **Fork Features** trong [`README.md`](README.md): reliability layer (`
 
 Release fork được tạo **manual** qua GitHub Actions → **Fork Release (manual)** (`release-fork.yaml`):
 
-- Tag `v3.16.0-fork.N` (tự tăng), kèm **fork delta** so với upstream trong release notes.
+- Tag `v3.16.0-fork.N` (tự tăng), kèm danh sách **thay đổi kể từ bản trước** trong release notes.
 - Build binaries (linux/amd64 + arm64, web embedded) + Docker image `ghcr.io/qkhalk/goclaw:{tag}` (+ `-full`, alias `:fork`).
 - Publish lên **GHCR `ghcr.io/qkhalk/goclaw`** — registry riêng của fork (upstream giữ `ghcr.io/nextlevelbuilder/goclaw` + Docker Hub).
 

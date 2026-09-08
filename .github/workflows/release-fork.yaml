@@ -1,7 +1,7 @@
 name: Fork Release (manual)
 
-# Manual release of a qkhalk/goclaw fork build. Records the fork delta versus
-# upstream in the release notes, publishes binaries + web UI, and pushes
+# Manual release of a qkhalk/goclaw build. Records the changes since the
+# previous release in the release notes, publishes binaries + web UI, and pushes
 # Docker images to ghcr.io/qkhalk/goclaw. Does NOT auto-trigger on push.
 #
 # Usage: Actions → "Fork Release (manual)" → Run workflow.
