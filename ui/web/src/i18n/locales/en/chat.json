@@ -106,5 +106,24 @@
     "skills": "Skills",
     "noResults": "No matching commands or skills",
     "gcHint": "GoClaw workflow commands"
+  },
+  "composer": {
+    "provider": "Provider",
+    "providerDefault": "Agent provider",
+    "model": "Model",
+    "modelDefault": "Agent model",
+    "loadingModels": "Loading models…",
+    "thinking": "Thinking level"
+  },
+  "thinkingLevels": {
+    "adaptive": "Thinking: Adaptive",
+    "auto": "Thinking: Auto",
+    "off": "Thinking: Off",
+    "none": "None",
+    "minimal": "Minimal",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "xhigh": "Ultra"
   }
 }

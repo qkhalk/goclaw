@@ -43,5 +43,24 @@
     "createConfirm": "Создать",
     "createCancel": "Отмена",
     "createFailed": "Не удалось создать рабочее пространство: {{message}}"
+  },
+  "composer": {
+    "provider": "Провайдер",
+    "providerDefault": "Провайдер агента",
+    "model": "Модель",
+    "modelDefault": "Модель агента",
+    "loadingModels": "Загрузка моделей…",
+    "thinking": "Уровень размышлений"
+  },
+  "thinkingLevels": {
+    "adaptive": "Размышления: адаптивно",
+    "auto": "Размышления: авто",
+    "off": "Размышления: выкл.",
+    "none": "Нет",
+    "minimal": "Минимальный",
+    "low": "Низкий",
+    "medium": "Средний",
+    "high": "Высокий",
+    "xhigh": "Максимальный"
   }
 }
