@@ -171,6 +171,20 @@ const (
 	// (hard mode, or recover mode after its one continuation still fails).
 	AgentEventVerificationPassed = "verification.passed"
 	AgentEventVerificationFailed = "verification.failed"
+
+	// AgentEventCheckpointCreated is emitted by the run-record updater each
+	// time a durable pipeline checkpoint persists to agent_runs (checkpoint
+	// cadence, not the pause write — a pause carries its own run.paused
+	// event). Payload: iteration, status. Persisted to the run timeline so
+	// replay clients can render checkpoint markers.
+	AgentEventCheckpointCreated = "checkpoint.created"
+
+	// AgentEventLLMStarted / AgentEventLLMCompleted bracket one think-stage
+	// LLM call (including internal guard retries: the pair closes with the
+	// total duration). Payloads: started — provider, model, iteration;
+	// completed — duration_ms, input_tokens, output_tokens, is_error.
+	AgentEventLLMStarted   = "llm.started"
+	AgentEventLLMCompleted = "llm.completed"
 )
 
 // block.reply payload source values.
