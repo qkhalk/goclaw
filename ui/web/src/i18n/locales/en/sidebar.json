@@ -28,6 +28,7 @@
     "vault": "Vault",
     "knowledgeGraph": "Knowledge Graph",
     "traces": "Traces",
+    "runs": "Runs",
     "realtimeEvents": "Realtime Events",
     "usage": "Usage",
     "logs": "Logs",

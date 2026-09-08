@@ -92,9 +92,11 @@ func TestRunTimelineHTTPAdminSeesTenantItems(t *testing.T) {
 }
 
 type stubHTTPRunsStore struct {
-	run   *store.AgentRun
-	err   error
-	calls []string
+	run      *store.AgentRun
+	list     []store.AgentRun
+	listOpts []store.RunListOpts
+	err      error
+	calls    []string
 }
 
 func (s *stubHTTPRunsStore) CreateRun(context.Context, *store.AgentRun) error { return s.err }
@@ -122,8 +124,9 @@ func (s *stubHTTPRunsStore) GetRun(_ context.Context, runID string) (*store.Agen
 	return s.run, nil
 }
 
-func (s *stubHTTPRunsStore) ListRuns(context.Context, store.RunListOpts) ([]store.AgentRun, error) {
-	return nil, s.err
+func (s *stubHTTPRunsStore) ListRuns(_ context.Context, opts store.RunListOpts) ([]store.AgentRun, error) {
+	s.listOpts = append(s.listOpts, opts)
+	return s.list, s.err
 }
 
 func (s *stubHTTPRunsStore) RecoverStaleRuns(context.Context, time.Duration) (int64, error) {
@@ -211,6 +214,83 @@ func TestRunGetHTTPNotFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRunsListHTTPScopesViewerAndValidatesStatus(t *testing.T) {
+	token := setupTraceReadToken(t, "caller")
+	runs := &stubHTTPRunsStore{
+		list: []store.AgentRun{
+			{RunID: "run-1", UserID: "caller", Status: store.AgentRunStatusRunning},
+			{RunID: "run-2", UserID: "other", Status: store.AgentRunStatusRunning},
+		},
+	}
+	timeline := &stubRunTimelineStore{}
+	h := NewTracesHandler(&mockTracingStore{}, timeline)
+	h.SetRunsStore(runs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/runs?status=running&limit=1&offset=2", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Runs []store.AgentRun `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Runs) != 1 || body.Runs[0].UserID != "caller" {
+		t.Fatalf("runs = %+v, want only caller's run", body.Runs)
+	}
+	if len(runs.listOpts) != 1 {
+		t.Fatalf("ListRuns calls = %d, want 1", len(runs.listOpts))
+	}
+	opts := runs.listOpts[0]
+	if opts.Status != "running" || opts.Limit != 1 || opts.Offset != 2 {
+		t.Fatalf("opts = %+v", opts)
+	}
+}
+
+func TestRunsListHTTPRejectsInvalidStatus(t *testing.T) {
+	token := setupTraceReadToken(t, "caller")
+	runs := &stubHTTPRunsStore{}
+	timeline := &stubRunTimelineStore{}
+	h := NewTracesHandler(&mockTracingStore{}, timeline)
+	h.SetRunsStore(runs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/runs?status=bogus", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+	if len(runs.listOpts) != 0 {
+		t.Fatalf("ListRuns calls = %d, want 0", len(runs.listOpts))
+	}
+}
+
+func TestRunsListHTTPUnavailableWhenStoreNil(t *testing.T) {
+	token := setupTraceReadToken(t, "caller")
+	mux := http.NewServeMux()
+	NewTracesHandler(&mockTracingStore{}, &stubRunTimelineStore{}).RegisterRoutes(mux) // no SetRunsStore
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/runs", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body=%s", rec.Code, rec.Body.String())
 	}
 }
 

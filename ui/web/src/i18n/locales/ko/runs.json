@@ -1,0 +1,81 @@
+{
+  "title": "실행 기록",
+  "description": "에이전트 실행 기록 및 타임라인 리플레이",
+  "refresh": "새로 고침",
+  "filters": {
+    "allStatuses": "전체"
+  },
+  "status": {
+    "pending": "대기 중",
+    "running": "실행 중",
+    "compacting": "압축 중",
+    "completed": "완료",
+    "failed": "실패",
+    "cancelled": "취소됨"
+  },
+  "itemType": {
+    "chunk": "어시스턴트 스트림",
+    "thinking": "생각",
+    "tool.started": "도구 시작",
+    "tool.result": "도구 결과",
+    "tool.call": "도구 호출",
+    "run.status": "실행 상태",
+    "checkpoint": "체크포인트",
+    "activity": "활동",
+    "assistant.message": "어시스턴트 메시지"
+  },
+  "timelineStatus": {
+    "started": "시작됨",
+    "running": "실행 중",
+    "completed": "완료",
+    "failed": "실패",
+    "cancelled": "취소됨",
+    "thinking": "생각 중",
+    "waiting_tool": "도구 대기",
+    "verifying": "검증 중",
+    "paused": "일시 중지",
+    "pending": "대기 중",
+    "compacting": "압축 중",
+    "waiting_provider": "제공자 대기"
+  },
+  "table": {
+    "runId": "Run",
+    "status": "상태",
+    "session": "세션",
+    "channel": "채널",
+    "agent": "에이전트",
+    "started": "시작 시간",
+    "duration": "소요 시간",
+    "attempt": "시도 횟수"
+  },
+  "detail": {
+    "backToList": "목록으로",
+    "runId": "Run ID",
+    "sessionKey": "세션",
+    "agent": "에이전트",
+    "user": "사용자",
+    "channel": "채널",
+    "chatId": "채팅",
+    "startedAt": "시작 시간",
+    "completedAt": "완료 시간",
+    "heartbeatAt": "마지막 하트비트",
+    "duration": "소요 시간",
+    "attempt": "시도 횟수",
+    "error": "실행 오류",
+    "events": "{{count}}개 이벤트",
+    "timeline": "타임라인",
+    "loadMore": "이벤트 더 보기",
+    "openSession": "세션 열기",
+    "llmDuration": "LLM {{ms}}",
+    "tokens": "{{count}} 토큰",
+    "iteration": "{{count}}회차",
+    "notFound": "실행 기록을 찾을 수 없습니다",
+    "loadFailed": "실행 기록을 불러오지 못했습니다"
+  },
+  "empty": {
+    "noRuns": "아직 실행 기록이 없습니다",
+    "noRunsHint": "에이전트가 메시지 처리를 시작하면 실행 기록이 여기에 표시됩니다",
+    "noRunsFiltered": "필터 조건에 맞는 실행 기록이 없습니다",
+    "noEvents": "이 실행에 대한 타임라인 이벤트가 없습니다"
+  }
+}

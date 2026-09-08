@@ -42,6 +42,12 @@ const ConfigPage = lazyWithRetry(() =>
 const TracesPage = lazyWithRetry(() =>
   import("@/pages/traces/traces-page").then((m) => ({ default: m.TracesPage })),
 );
+const RunsPage = lazyWithRetry(() =>
+  import("@/pages/runs/runs-page").then((m) => ({ default: m.RunsPage })),
+);
+const RunReplayPage = lazyWithRetry(() =>
+  import("@/pages/runs/run-replay-page").then((m) => ({ default: m.RunReplayPage })),
+);
 const ChannelsPage = lazyWithRetry(() =>
   import("@/pages/channels/channels-page").then((m) => ({ default: m.ChannelsPage })),
 );
@@ -203,6 +209,8 @@ export function AppRoutes() {
           {/* Operator+ pages */}
           <Route path={ROUTES.TRACES} element={<TracesPage key="list" />} />
           <Route path={ROUTES.TRACE_DETAIL} element={<TracesPage key="detail" />} />
+          <Route path={ROUTES.RUNS} element={<RunsPage key="list" />} />
+          <Route path={ROUTES.RUN_DETAIL} element={<RunReplayPage />} />
           <Route path={ROUTES.EVENTS} element={<EventsPage />} />
           <Route path={ROUTES.USAGE} element={<Navigate to={ROUTES.OVERVIEW} replace />} />
           <Route path={ROUTES.ACTIVITY} element={<ActivityPage />} />

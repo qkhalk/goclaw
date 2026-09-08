@@ -1,0 +1,81 @@
+{
+  "title": "Runs",
+  "description": "Durable agent run records and their timeline replays",
+  "refresh": "Refresh",
+  "filters": {
+    "allStatuses": "All"
+  },
+  "status": {
+    "pending": "Pending",
+    "running": "Running",
+    "compacting": "Compacting",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "itemType": {
+    "chunk": "Assistant stream",
+    "thinking": "Thinking",
+    "tool.started": "Tool started",
+    "tool.result": "Tool result",
+    "tool.call": "Tool call",
+    "run.status": "Run status",
+    "checkpoint": "Checkpoint",
+    "activity": "Activity",
+    "assistant.message": "Assistant message"
+  },
+  "timelineStatus": {
+    "started": "Started",
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "thinking": "Thinking",
+    "waiting_tool": "Waiting for tool",
+    "verifying": "Verifying",
+    "paused": "Paused",
+    "pending": "Pending",
+    "compacting": "Compacting",
+    "waiting_provider": "Waiting for provider"
+  },
+  "table": {
+    "runId": "Run",
+    "status": "Status",
+    "session": "Session",
+    "channel": "Channel",
+    "agent": "Agent",
+    "started": "Started",
+    "duration": "Duration",
+    "attempt": "Attempt"
+  },
+  "detail": {
+    "backToList": "Back to runs",
+    "runId": "Run ID",
+    "sessionKey": "Session",
+    "agent": "Agent",
+    "user": "User",
+    "channel": "Channel",
+    "chatId": "Chat",
+    "startedAt": "Started",
+    "completedAt": "Completed",
+    "heartbeatAt": "Last heartbeat",
+    "duration": "Duration",
+    "attempt": "Attempt",
+    "error": "Run error",
+    "events": "{{count}} events",
+    "timeline": "Timeline",
+    "loadMore": "Load more events",
+    "openSession": "Open session",
+    "llmDuration": "LLM {{ms}}",
+    "tokens": "{{count}} tokens",
+    "iteration": "Iteration {{count}}",
+    "notFound": "Run not found",
+    "loadFailed": "Failed to load run"
+  },
+  "empty": {
+    "noRuns": "No runs recorded yet",
+    "noRunsHint": "Run records appear here once agents start processing messages",
+    "noRunsFiltered": "No runs match the current filters",
+    "noEvents": "No timeline events for this run"
+  }
+}

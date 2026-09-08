@@ -1,0 +1,81 @@
+{
+  "title": "Запуски",
+  "description": "Журналы запусков агентов и воспроизведение их таймлайна",
+  "refresh": "Обновить",
+  "filters": {
+    "allStatuses": "Все"
+  },
+  "status": {
+    "pending": "Ожидает",
+    "running": "Выполняется",
+    "compacting": "Сжатие",
+    "completed": "Завершено",
+    "failed": "Ошибка",
+    "cancelled": "Отменено"
+  },
+  "itemType": {
+    "chunk": "Поток ассистента",
+    "thinking": "Размышление",
+    "tool.started": "Инструмент запущен",
+    "tool.result": "Результат инструмента",
+    "tool.call": "Вызов инструмента",
+    "run.status": "Статус запуска",
+    "checkpoint": "Контрольная точка",
+    "activity": "Активность",
+    "assistant.message": "Сообщение ассистента"
+  },
+  "timelineStatus": {
+    "started": "Начато",
+    "running": "Выполняется",
+    "completed": "Завершено",
+    "failed": "Ошибка",
+    "cancelled": "Отменено",
+    "thinking": "Размышление",
+    "waiting_tool": "Ожидание инструмента",
+    "verifying": "Проверка",
+    "paused": "Приостановлено",
+    "pending": "Ожидает",
+    "compacting": "Сжатие",
+    "waiting_provider": "Ожидание провайдера"
+  },
+  "table": {
+    "runId": "Запуск",
+    "status": "Статус",
+    "session": "Сессия",
+    "channel": "Канал",
+    "agent": "Агент",
+    "started": "Начало",
+    "duration": "Длительность",
+    "attempt": "Попытка"
+  },
+  "detail": {
+    "backToList": "К списку",
+    "runId": "ID запуска",
+    "sessionKey": "Сессия",
+    "agent": "Агент",
+    "user": "Пользователь",
+    "channel": "Канал",
+    "chatId": "Чат",
+    "startedAt": "Начало",
+    "completedAt": "Завершение",
+    "heartbeatAt": "Последний heartbeat",
+    "duration": "Длительность",
+    "attempt": "Попытка",
+    "error": "Ошибка запуска",
+    "events": "{{count}} событий",
+    "timeline": "Таймлайн",
+    "loadMore": "Загрузить ещё события",
+    "openSession": "Открыть сессию",
+    "llmDuration": "LLM {{ms}}",
+    "tokens": "{{count}} токенов",
+    "iteration": "Итерация {{count}}",
+    "notFound": "Запуск не найден",
+    "loadFailed": "Не удалось загрузить запуск"
+  },
+  "empty": {
+    "noRuns": "Запусков пока нет",
+    "noRunsHint": "Записи о запусках появятся здесь, когда агенты начнут обрабатывать сообщения",
+    "noRunsFiltered": "Нет запусков, соответствующих фильтрам",
+    "noEvents": "Для этого запуска нет событий таймлайна"
+  }
+}
