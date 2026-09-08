@@ -93,7 +93,7 @@ func TestMakeCallLLMEmitsRetryingOnTransientProviderError(t *testing.T) {
 		Iteration: 0,
 	}
 
-	resp, err := loop.makeCallLLM(req, col.onEvent)(context.Background(), state, providers.ChatRequest{})
+	resp, err := loop.makeCallLLM(req, &runState{}, col.onEvent)(context.Background(), state, providers.ChatRequest{})
 	if err != nil {
 		t.Fatalf("makeCallLLM returned error: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestMakeCallLLM_StreamsFinalThinkingWhenNoThinkingChunkArrives(t *testing.T
 		Iteration: 0,
 	}
 
-	resp, err := loop.makeCallLLM(req, col.onEvent)(context.Background(), state, providers.ChatRequest{})
+	resp, err := loop.makeCallLLM(req, &runState{}, col.onEvent)(context.Background(), state, providers.ChatRequest{})
 	if err != nil {
 		t.Fatalf("makeCallLLM returned error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestMakeCallLLMPropagatesDelegationArtifactBridgeOptions(t *testing.T) {
 	ctx = tools.WithDelegationID(ctx, "delegation-id")
 	ctx = tools.WithDelegationArtifactInputs(ctx, "/runtime/inputs")
 
-	if _, err := loop.makeCallLLM(req, func(AgentEvent) {})(ctx, state, providers.ChatRequest{}); err != nil {
+	if _, err := loop.makeCallLLM(req, &runState{}, func(AgentEvent) {})(ctx, state, providers.ChatRequest{}); err != nil {
 		t.Fatal(err)
 	}
 	if provider.request.Options[providers.OptDelegationID] != "delegation-id" ||

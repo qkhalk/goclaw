@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
@@ -22,7 +23,7 @@ import (
 func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipeline.RunState, checkpoint func(ctx context.Context, state *pipeline.RunState) error) (*RunResult, error) {
 	input := convertRunInput(&req)
 	// Bridge runState shares loop detection state between pipeline and agent.
-	bridgeRS := &runState{}
+	bridgeRS := &runState{supervisor: NewRunSupervisor(l.supervisorLimits, time.Now())}
 
 	// Resolve the effective model + provider BEFORE building deps so the pre-call
 	// budget estimate reserves reasoning output for the model that will actually
