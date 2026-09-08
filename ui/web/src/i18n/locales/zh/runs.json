@@ -1,0 +1,81 @@
+{
+  "title": "运行记录",
+  "description": "Agent 运行记录与时间线回放",
+  "refresh": "刷新",
+  "filters": {
+    "allStatuses": "全部"
+  },
+  "status": {
+    "pending": "等待中",
+    "running": "运行中",
+    "compacting": "压缩中",
+    "completed": "已完成",
+    "failed": "失败",
+    "cancelled": "已取消"
+  },
+  "itemType": {
+    "chunk": "助手流式输出",
+    "thinking": "思考",
+    "tool.started": "工具开始",
+    "tool.result": "工具结果",
+    "tool.call": "工具调用",
+    "run.status": "运行状态",
+    "checkpoint": "检查点",
+    "activity": "活动",
+    "assistant.message": "助手消息"
+  },
+  "timelineStatus": {
+    "started": "已开始",
+    "running": "运行中",
+    "completed": "已完成",
+    "failed": "失败",
+    "cancelled": "已取消",
+    "thinking": "思考中",
+    "waiting_tool": "等待工具",
+    "verifying": "验证中",
+    "paused": "已暂停",
+    "pending": "等待中",
+    "compacting": "压缩中",
+    "waiting_provider": "等待服务商"
+  },
+  "table": {
+    "runId": "Run",
+    "status": "状态",
+    "session": "会话",
+    "channel": "渠道",
+    "agent": "Agent",
+    "started": "开始时间",
+    "duration": "耗时",
+    "attempt": "尝试次数"
+  },
+  "detail": {
+    "backToList": "返回列表",
+    "runId": "Run ID",
+    "sessionKey": "会话",
+    "agent": "Agent",
+    "user": "用户",
+    "channel": "渠道",
+    "chatId": "聊天",
+    "startedAt": "开始时间",
+    "completedAt": "完成时间",
+    "heartbeatAt": "最后心跳",
+    "duration": "耗时",
+    "attempt": "尝试次数",
+    "error": "运行错误",
+    "events": "{{count}} 个事件",
+    "timeline": "时间线",
+    "loadMore": "加载更多事件",
+    "openSession": "打开会话",
+    "llmDuration": "LLM {{ms}}",
+    "tokens": "{{count}} 个 token",
+    "iteration": "第 {{count}} 轮",
+    "notFound": "未找到该运行",
+    "loadFailed": "加载运行失败"
+  },
+  "empty": {
+    "noRuns": "暂无运行记录",
+    "noRunsHint": "Agent 开始处理消息后，运行记录会显示在这里",
+    "noRunsFiltered": "没有符合筛选条件的运行记录",
+    "noEvents": "该运行没有时间线事件"
+  }
+}

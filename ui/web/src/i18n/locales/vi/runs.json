@@ -1,0 +1,81 @@
+{
+  "title": "Lượt chạy",
+  "description": "Bản ghi lượt chạy của agent và phát lại dòng thời gian",
+  "refresh": "Làm mới",
+  "filters": {
+    "allStatuses": "Tất cả"
+  },
+  "status": {
+    "pending": "Đang chờ",
+    "running": "Đang chạy",
+    "compacting": "Đang nén",
+    "completed": "Hoàn tất",
+    "failed": "Thất bại",
+    "cancelled": "Đã hủy"
+  },
+  "itemType": {
+    "chunk": "Luồng trợ lý",
+    "thinking": "Suy nghĩ",
+    "tool.started": "Bắt đầu công cụ",
+    "tool.result": "Kết quả công cụ",
+    "tool.call": "Gọi công cụ",
+    "run.status": "Trạng thái chạy",
+    "checkpoint": "Mốc khôi phục",
+    "activity": "Hoạt động",
+    "assistant.message": "Tin nhắn trợ lý"
+  },
+  "timelineStatus": {
+    "started": "Đã bắt đầu",
+    "running": "Đang chạy",
+    "completed": "Hoàn tất",
+    "failed": "Thất bại",
+    "cancelled": "Đã hủy",
+    "thinking": "Đang suy nghĩ",
+    "waiting_tool": "Chờ công cụ",
+    "verifying": "Đang xác minh",
+    "paused": "Tạm dừng",
+    "pending": "Đang chờ",
+    "compacting": "Đang nén",
+    "waiting_provider": "Chờ nhà cung cấp"
+  },
+  "table": {
+    "runId": "Run",
+    "status": "Trạng thái",
+    "session": "Phiên",
+    "channel": "Kênh",
+    "agent": "Agent",
+    "started": "Bắt đầu",
+    "duration": "Thời lượng",
+    "attempt": "Lần thử"
+  },
+  "detail": {
+    "backToList": "Về danh sách",
+    "runId": "Run ID",
+    "sessionKey": "Phiên",
+    "agent": "Agent",
+    "user": "Người dùng",
+    "channel": "Kênh",
+    "chatId": "Chat",
+    "startedAt": "Bắt đầu",
+    "completedAt": "Hoàn tất",
+    "heartbeatAt": "Heartbeat cuối",
+    "duration": "Thời lượng",
+    "attempt": "Lần thử",
+    "error": "Lỗi run",
+    "events": "{{count}} sự kiện",
+    "timeline": "Dòng thời gian",
+    "loadMore": "Tải thêm sự kiện",
+    "openSession": "Mở phiên",
+    "llmDuration": "LLM {{ms}}",
+    "tokens": "{{count}} token",
+    "iteration": "Vòng lặp {{count}}",
+    "notFound": "Không tìm thấy run",
+    "loadFailed": "Không tải được run"
+  },
+  "empty": {
+    "noRuns": "Chưa có lượt chạy nào",
+    "noRunsHint": "Bản ghi run sẽ xuất hiện ở đây khi agent bắt đầu xử lý tin nhắn",
+    "noRunsFiltered": "Không có lượt chạy nào khớp bộ lọc",
+    "noEvents": "Không có sự kiện dòng thời gian cho run này"
+  }
+}
