@@ -38,6 +38,13 @@ type SQLiteCronStore struct {
 
 	retryCfg  cron.RetryConfig
 	defaultTZ string
+
+	// Stale-execution lease reclaim (see SetStaleReclaimWindow). cron_exec
+	// stamps updated_at when a job enters 'running'; a job still 'running'
+	// with next_run_at=NULL past the window is reclaimed as interrupted.
+	// 0 = disabled; cmd wires job_timeout × (retries+1) + grace.
+	staleReclaimWindow time.Duration
+	lastReclaim        time.Time
 }
 
 func NewSQLiteCronStore(db *sql.DB) *SQLiteCronStore {
@@ -60,6 +67,16 @@ func (s *SQLiteCronStore) SetDefaultTimezone(tz string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.defaultTZ = tz
+}
+
+// SetStaleReclaimWindow configures how long a job may stay in 'running'
+// before the scheduler reclaims it as interrupted and reschedules it.
+// Zero (default) disables reclaim.
+func (s *SQLiteCronStore) SetStaleReclaimWindow(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.staleReclaimWindow = d
+	s.lastReclaim = time.Time{}
 }
 
 func (s *SQLiteCronStore) Start() error {

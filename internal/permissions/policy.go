@@ -365,6 +365,8 @@ func isWriteMethod(method string) bool {
 		protocol.MethodSessionsReset,
 		protocol.MethodSessionsPatch,
 		protocol.MethodSessionsCompact,
+		// Branch (fork) inserts a new session row derived from the source.
+		protocol.MethodSessionsBranch,
 		protocol.MethodCronCreate,
 		protocol.MethodCronUpdate,
 		protocol.MethodCronDelete,

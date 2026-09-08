@@ -34,15 +34,6 @@ type watchdogSweeper interface {
 // startup auto-resume so a backlog of paused runs cannot flood the scheduler.
 const autoResumeConcurrency = 2
 
-// pausedRunLister is the optional store capability the reconciler prefers over
-// mark-failed: runs holding a durable checkpoint can pause instead of die.
-// Declared as an interface assertion (not an edit to RunsStore) so it compiles
-// against any backend that has not grown the query yet; nil capability ⇒ the
-// legacy terminal-fail path is used for every stale run.
-type pausedRunLister interface {
-	ListPausedRunsWithCheckpoint(ctx context.Context, limit int) ([]string, error)
-}
-
 // resumeFn resumes one interrupted run by ID (makeRunResumer shape).
 type resumeFn func(ctx context.Context, runID string) (*agent.RunResult, error)
 
@@ -82,15 +73,10 @@ func runStaleRunsSweepWithNotify(runs store.RunsStore, staleAfter, interval time
 }
 
 // sweepStaleRunsOnce runs one sweep cycle. Terminal-failed runs are handed to
-// notify (when set) after the store marks them failed.
+// notify (when set) after the store marks them failed. Pause-if-checkpoint
+// reconciliation lives inside the store sweeps (RecoverStaleRuns[WithDetail]
+// transition checkpointed stale rows to "paused"), so no pre-pass is needed.
 func sweepStaleRunsOnce(ctx context.Context, runs store.RunsStore, staleAfter time.Duration, wd watchdogSweeper, notify func(store.AgentRun)) {
-	// D3 — pause-preferred reconciliation. Only when the store
-	// exposes the checkpoint-aware listing; otherwise skip straight
-	// to the legacy sweep below.
-	if lister, ok := runs.(pausedRunLister); ok && lister != nil {
-		reconcileStaleWithCheckpoint(ctx, runs, lister)
-	}
-
 	var marked int
 	if detailer, ok := runs.(store.StaleRunDetailer); ok && detailer != nil {
 		failed, err := detailer.RecoverStaleRunsWithDetail(ctx, staleAfter)
@@ -124,26 +110,6 @@ func sweepStaleRunsOnce(ctx context.Context, runs store.RunsStore, staleAfter ti
 	}
 }
 
-// reconcileStaleWithCheckpoint transitions stale running rows that hold a
-// durable checkpoint to "paused" before RecoverStaleRuns terminal-fails them,
-// preserving resume capability across crashes. Best-effort: errors are logged
-// and never break the sweep loop.
-func reconcileStaleWithCheckpoint(ctx context.Context, runs store.RunsStore, lister pausedRunLister) {
-	const reconcileBatch = 50
-	ids, err := lister.ListPausedRunsWithCheckpoint(ctx, reconcileBatch)
-	if err != nil {
-		slog.Debug("runs.checkpoint_reconcile_unavailable", "error", err)
-		return
-	}
-	for _, id := range ids {
-		if err := runs.UpdateRunStatus(ctx, id, store.RunTimelineStatusPaused); err != nil {
-			slog.Warn("runs.pause_if_checkpoint_failed", "run_id", id, "error", err)
-		} else {
-			slog.Info("runs.paused_with_checkpoint", "run_id", id)
-		}
-	}
-}
-
 // autoResumePausedRuns resumes runs left in "paused" by a previous process,
 // bounded to autoResumeConcurrency goroutines. Runs once per process start
 // (called from the startup reconciliation block); each resume reuses the
@@ -154,25 +120,14 @@ func autoResumePausedRuns(runs store.RunsStore, resumer resumeFn) {
 		return
 	}
 	ctx := context.Background()
-	// Prefer the checkpoint-aware listing when the backend has it; fall back
-	// to the generic status filter otherwise. Both are read-only.
+	rows, err := runs.ListRuns(ctx, store.RunListOpts{Status: store.RunTimelineStatusPaused, Limit: 100})
+	if err != nil {
+		slog.Warn("runs.auto_resume_list_failed", "error", err)
+		return
+	}
 	var ids []string
-	if lister, ok := runs.(pausedRunLister); ok && lister != nil {
-		got, err := lister.ListPausedRunsWithCheckpoint(ctx, 100)
-		if err != nil {
-			slog.Warn("runs.auto_resume_list_failed", "error", err)
-			return
-		}
-		ids = got
-	} else {
-		rows, err := runs.ListRuns(ctx, store.RunListOpts{Status: store.RunTimelineStatusPaused, Limit: 100})
-		if err != nil {
-			slog.Warn("runs.auto_resume_list_failed", "error", err)
-			return
-		}
-		for _, r := range rows {
-			ids = append(ids, r.RunID)
-		}
+	for _, r := range rows {
+		ids = append(ids, r.RunID)
 	}
 	if len(ids) == 0 {
 		return
@@ -222,6 +177,17 @@ func startCronAndHeartbeat(
 	pgStores.Cron.SetOnEvent(func(event store.CronEvent) {
 		server.BroadcastEvent(*protocol.NewEvent(protocol.EventCron, event))
 	})
+	// Reclaim hung cron executions: a job stuck in 'running' past its lease
+	// window is marked interrupted and rescheduled. The window covers
+	// worst-case runtime — (retries+1) × job_timeout — plus retry-backoff
+	// headroom, so a legitimately retrying job is never reclaimed.
+	if reclaimer, ok := interface{}(pgStores.Cron).(interface{ SetStaleReclaimWindow(time.Duration) }); ok {
+		retries := cfg.Cron.MaxRetries
+		if retries < 0 {
+			retries = 0
+		}
+		reclaimer.SetStaleReclaimWindow(cfg.Cron.JobTimeoutDuration()*time.Duration(retries+1) + 2*time.Minute)
+	}
 	if err := pgStores.Cron.Start(); err != nil {
 		slog.Warn("cron service failed to start", "error", err)
 	}

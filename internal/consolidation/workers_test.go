@@ -380,6 +380,7 @@ func (m *mockDomainEventBus) Subscribe(eventType eventbus.EventType, handler eve
 func (m *mockDomainEventBus) Start(_ context.Context) {}
 
 func (m *mockDomainEventBus) Drain(_ time.Duration) error { return nil }
+func (m *mockDomainEventBus) DroppedTotal() uint64        { return 0 }
 
 // Test episodic worker
 

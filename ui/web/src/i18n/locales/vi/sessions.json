@@ -43,8 +43,19 @@
       "toolResult": "kết quả tool",
       "trace": "trace",
       "activity": "hoạt động",
-      "failed": "lỗi"
-    }
+      "failed": "lỗi",
+      "pause": "tạm dừng",
+      "resume": "chạy tiếp",
+      "wake": "đánh thức"
+    },
+    "branch": "Tạo nhánh",
+    "compact": "Rút gọn",
+    "compactTitle": "Rút gọn phiên?",
+    "compactDescription": "Cắt lịch sử còn 4 tin nhắn cuối. Các tin nhắn cũ bị xoá và bộ đếm nén được ghi lại.",
+    "confirmCompact": "Rút gọn",
+    "branchTitle": "Tạo nhánh phiên?",
+    "branchDescription": "Tạo phiên mới rẽ nhánh từ {{count}} tin nhắn đầu của phiên này. Phiên gốc giữ nguyên.",
+    "confirmBranch": "Tạo nhánh"
   },
   "toast": {
     "deleted": "Đã xóa session",
@@ -52,6 +63,14 @@
     "reset": "Đã đặt lại session",
     "resetFailed": "Không thể đặt lại session",
     "updated": "Đã cập nhật session",
-    "updateFailed": "Không thể cập nhật session"
+    "updateFailed": "Không thể cập nhật session",
+    "compacted": "Đã rút gọn phiên",
+    "compactFailed": "Rút gọn phiên thất bại",
+    "branchCreated": "Đã tạo nhánh với {{count}} tin nhắn",
+    "branchFailed": "Tạo nhánh thất bại",
+    "runPaused": "Đã tạm dừng run",
+    "runResumed": "Đã chạy tiếp run",
+    "runWoken": "Đã đánh thức run",
+    "runActionFailed": "Thao tác run thất bại"
   }
 }

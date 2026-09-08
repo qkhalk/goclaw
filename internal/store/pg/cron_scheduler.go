@@ -157,7 +157,40 @@ func (s *PGCronStore) runLoop() {
 			return
 		case <-ticker.C:
 			s.safeCheckAndRunDueJobs()
+			s.maybeReclaimStaleJobs()
 		}
+	}
+}
+
+// maybeReclaimStaleJobs reclaims jobs whose execution lease has expired: a job
+// left in last_status='running' with next_run_at=NULL for longer than the
+// reclaim window can never self-recover while the process is alive — the
+// executor enforces job_timeout, but a hung handler that outlives it leaves
+// the job claimed forever. Reclaim marks it interrupted and reschedules it
+// now. Runs at most once per minute; disabled when the window is unset.
+func (s *PGCronStore) maybeReclaimStaleJobs() {
+	s.mu.Lock()
+	window := s.staleReclaimWindow
+	if window <= 0 || (!s.lastReclaim.IsZero() && time.Since(s.lastReclaim) < time.Minute) {
+		s.mu.Unlock()
+		return
+	}
+	s.lastReclaim = time.Now()
+	s.mu.Unlock()
+
+	now := time.Now()
+	res, err := s.db.ExecContext(s.baseCtx,
+		`UPDATE cron_jobs
+		 SET last_status = 'interrupted', next_run_at = $1, updated_at = $1
+		 WHERE last_status = 'running' AND next_run_at IS NULL AND updated_at < $2`,
+		now, now.Add(-window))
+	if err != nil {
+		slog.Warn("cron: stale job reclaim failed", "error", err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		slog.Warn("cron: reclaimed stale running jobs", "count", n, "window", window.String())
+		s.InvalidateCache()
 	}
 }
 

@@ -41,7 +41,11 @@ const (
 	MethodSessionsDelete  = "sessions.delete"
 	MethodSessionsReset   = "sessions.reset"
 	MethodSessionsCompact = "sessions.compact"
-	MethodRunTimelineGet  = "run.timeline.get"
+	// sessions.branch clones a session's history up to a message index into a
+	// new session key (fork). Mirrors POST /v1/chat/sessions/{key}/branch;
+	// handler lives in internal/gateway/methods/sessions.go.
+	MethodSessionsBranch = "sessions.branch"
+	MethodRunTimelineGet = "run.timeline.get"
 
 	// Durable run records (agent_runs state machine). Follow the naming
 	// pattern of run.timeline.get; handlers live in
