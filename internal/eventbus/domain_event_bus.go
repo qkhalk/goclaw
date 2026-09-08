@@ -22,6 +22,11 @@ type DomainEventBus interface {
 
 	// Drain waits for all queued events to be processed. For graceful shutdown.
 	Drain(timeout time.Duration) error
+
+	// DroppedTotal returns the cumulative number of events dropped because the
+	// queue was full. A growing value means subscribers are losing events —
+	// raise QueueSize/WorkerCount or throttle the publisher.
+	DroppedTotal() uint64
 }
 
 // Config for the domain event bus worker pool.

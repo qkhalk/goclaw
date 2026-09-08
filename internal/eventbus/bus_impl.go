@@ -21,6 +21,7 @@ type busImpl struct {
 	cancel   context.CancelFunc
 	started  atomic.Bool
 	draining atomic.Bool
+	dropped  atomic.Uint64
 }
 
 // NewDomainEventBus creates a bus. Call Start() before Publish().
@@ -68,8 +69,17 @@ func (b *busImpl) Publish(event DomainEvent) {
 	select {
 	case b.queue <- event:
 	default:
-		slog.Warn("eventbus: queue full, dropping event",
-			"type", event.Type, "source_id", event.SourceID)
+		// Queue full — the event is lost. Every drop is counted; the log is
+		// rate-limited (first drop, then every 100th) so a burst cannot flood
+		// the log, while DroppedTotal() keeps the exact tally for health checks.
+		n := b.dropped.Add(1)
+		if n == 1 || n%100 == 0 {
+			slog.Warn("eventbus: queue full, dropping event",
+				"type", event.Type, "source_id", event.SourceID, "dropped_total", n)
+		} else {
+			slog.Debug("eventbus: queue full, dropping event",
+				"type", event.Type, "source_id", event.SourceID, "dropped_total", n)
+		}
 	}
 }
 
@@ -87,6 +97,11 @@ func (b *busImpl) Subscribe(eventType EventType, handler DomainEventHandler) fun
 			b.handlers[eventType] = append(hs[:idx], hs[idx+1:]...)
 		}
 	}
+}
+
+// DroppedTotal reports the cumulative count of events dropped on a full queue.
+func (b *busImpl) DroppedTotal() uint64 {
+	return b.dropped.Load()
 }
 
 func (b *busImpl) Drain(timeout time.Duration) error {

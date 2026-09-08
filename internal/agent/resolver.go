@@ -121,6 +121,10 @@ type ResolverDeps struct {
 	// disabled (runs still execute; only the durable record is skipped).
 	RunsStore store.RunsStore
 
+	// Append-only checkpoint snapshot history (time travel). Nil disables the
+	// snapshot history; the latest-checkpoint resume path is unaffected.
+	SnapshotStore store.CheckpointSnapshotStore
+
 	// RunHeartbeatInterval overrides the agent_runs heartbeat cadence. Zero =
 	// default 10s.
 	RunHeartbeatInterval time.Duration
@@ -571,6 +575,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			SkillStore:             deps.SkillStore,
 			UserResolver:           newContactResolver(deps.ContactStore),
 			RunsStore:              deps.RunsStore,
+			SnapshotStore:          deps.SnapshotStore,
 			RunHeartbeatInterval:   deps.RunHeartbeatInterval,
 		})
 

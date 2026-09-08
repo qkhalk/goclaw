@@ -32,7 +32,20 @@
     "showDetails": "세부 정보 보기",
     "hide": "숨기기",
     "systemMessage": "시스템 메시지",
-    "messages": "메시지"
+    "messages": "메시지",
+    "timeline": {
+      "pause": "일시정지",
+      "resume": "재개",
+      "wake": "깨우기"
+    },
+    "branch": "분기",
+    "compact": "압축",
+    "compactTitle": "세션을 압축하시겠습니까?",
+    "compactDescription": "기록을 마지막 4개 메시지로 잘라냅니다. 오래된 메시지는 삭제되고 압축 횟수가 기록됩니다.",
+    "confirmCompact": "압축",
+    "branchTitle": "세션 분기를 만들까요?",
+    "branchDescription": "이 세션의 처음 {{count}}개 메시지에서 분기된 새 세션을 만듭니다. 원본은 그대로 유지됩니다.",
+    "confirmBranch": "분기 만들기"
   },
   "toast": {
     "deleted": "세션 삭제됨",
@@ -40,6 +53,14 @@
     "reset": "세션 초기화됨",
     "resetFailed": "세션 초기화 실패",
     "updated": "세션 업데이트됨",
-    "updateFailed": "세션 업데이트 실패"
+    "updateFailed": "세션 업데이트 실패",
+    "compacted": "세션이 압축되었습니다",
+    "compactFailed": "세션 압축 실패",
+    "branchCreated": "{{count}}개 메시지로 분기가 생성되었습니다",
+    "branchFailed": "분기 생성 실패",
+    "runPaused": "실행이 일시정지되었습니다",
+    "runResumed": "실행이 재개되었습니다",
+    "runWoken": "실행이 깨어났습니다",
+    "runActionFailed": "실행 작업 실패"
   }
 }

@@ -262,6 +262,10 @@ type Loop struct {
 	// Durable run records: agent_runs state machine (create on start, terminal
 	// on exit, heartbeat while running). Nil = run-record tracking disabled.
 	runsStore store.RunsStore
+	// Append-only checkpoint snapshot history backing time travel
+	// (runs.checkpoints.list / runs.replay). Nil = snapshot history disabled;
+	// resume-from-latest keeps working through runsStore alone.
+	snapshotsStore store.CheckpointSnapshotStore
 	// runHeartbeatInterval is how often a live run's heartbeat_at is advanced in
 	// agent_runs (coalesced writes). Zero = default 10s.
 	runHeartbeatInterval time.Duration
@@ -508,6 +512,10 @@ type LoopConfig struct {
 	// disabled (runs still execute; only the durable record is skipped).
 	RunsStore store.RunsStore
 
+	// Append-only checkpoint snapshot history (time travel). Nil disables the
+	// snapshot history; the latest-checkpoint resume path is unaffected.
+	SnapshotStore store.CheckpointSnapshotStore
+
 	// RunHeartbeatInterval overrides how often a live run's heartbeat_at is
 	// advanced in agent_runs (coalesced writes). Zero = default 10s.
 	RunHeartbeatInterval time.Duration
@@ -672,6 +680,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		skillStore:             cfg.SkillStore,
 		userResolver:           cfg.UserResolver,
 		runsStore:              cfg.RunsStore,
+		snapshotsStore:         cfg.SnapshotStore,
 		runHeartbeatInterval:   cfg.RunHeartbeatInterval,
 	}
 }

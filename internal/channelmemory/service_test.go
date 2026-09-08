@@ -200,6 +200,7 @@ func (f *fakeDomainEventBus) Subscribe(eventbus.EventType, eventbus.DomainEventH
 func (f *fakeDomainEventBus) Start(context.Context) {}
 
 func (f *fakeDomainEventBus) Drain(time.Duration) error { return nil }
+func (f *fakeDomainEventBus) DroppedTotal() uint64      { return 0 }
 
 func (f *fakeEpisodicStore) Create(_ context.Context, ep *store.EpisodicSummary) error {
 	if f.createErr != nil {
