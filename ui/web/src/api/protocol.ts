@@ -82,6 +82,11 @@ export const Methods = {
   RUN_TIMELINE_GET: "run.timeline.get",
   RUNS_GET: "runs.get",
   RUNS_EVENTS: "runs.events",
+  RUNS_RESUME: "runs.resume",
+  RUNS_PAUSE: "runs.pause",
+  RUNS_WAKE: "runs.wake",
+  SESSIONS_COMPACT: "sessions.compact",
+  SESSIONS_BRANCH: "sessions.branch",
 
   // Workspace registry (Paseo Phase 2) + file explorer (Phase 3 / §24)
   WORKSPACE_LIST: "workspace.list",
