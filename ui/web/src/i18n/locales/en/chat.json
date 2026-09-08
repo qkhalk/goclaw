@@ -116,9 +116,9 @@
     "thinking": "Thinking level"
   },
   "thinkingLevels": {
-    "adaptive": "Thinking: Adaptive",
-    "auto": "Thinking: Auto",
-    "off": "Thinking: Off",
+    "adaptive": "Adaptive",
+    "auto": "Auto",
+    "off": "Off",
     "none": "None",
     "minimal": "Minimal",
     "low": "Low",
