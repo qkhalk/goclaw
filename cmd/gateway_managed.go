@@ -319,6 +319,7 @@ func wireExtras(
 		DomainBus:              domainBus,
 		HookDispatcher:         hookDispatcher,
 		RunsStore:              stores.Runs,
+		SnapshotStore:          stores.CheckpointSnapshots,
 		RunHeartbeatInterval:   appCfg.Reliability.Runs.EffectiveHeartbeatInterval(),
 		OnTextUploaded: func(ctx context.Context, path, content string) {
 			if vaultIntc != nil {

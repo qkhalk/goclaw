@@ -104,5 +104,51 @@ export function useSessions(opts: UseSessionsOptions = {}) {
     [ws, invalidate],
   );
 
-  return { sessions, total, loading, refresh: invalidate, preview, deleteSession, resetSession, patchSession };
+  const compactSession = useCallback(
+    async (key: string, keepLast = 4) => {
+      if (!ws.isConnected) return;
+      try {
+        await ws.call(Methods.SESSIONS_COMPACT, { key, keepLast });
+        await invalidate();
+        toast.success(i18next.t("sessions:toast.compacted"));
+      } catch (err) {
+        toast.error(i18next.t("sessions:toast.compactFailed"), userFriendlyError(err));
+        throw err;
+      }
+    },
+    [ws, invalidate],
+  );
+
+  const branchSession = useCallback(
+    async (key: string, upToIndex: number, label?: string) => {
+      if (!ws.isConnected) return null;
+      try {
+        const res = await ws.call<{ sessionKey: string; copiedMessages: number }>(Methods.SESSIONS_BRANCH, {
+          sessionKey: key,
+          upToIndex,
+          label,
+        });
+        await invalidate();
+        toast.success(i18next.t("sessions:toast.branchCreated", { count: res.copiedMessages }));
+        return res.sessionKey;
+      } catch (err) {
+        toast.error(i18next.t("sessions:toast.branchFailed"), userFriendlyError(err));
+        throw err;
+      }
+    },
+    [ws, invalidate],
+  );
+
+  return {
+    sessions,
+    total,
+    loading,
+    refresh: invalidate,
+    preview,
+    deleteSession,
+    resetSession,
+    patchSession,
+    compactSession,
+    branchSession,
+  };
 }

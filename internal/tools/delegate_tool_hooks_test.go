@@ -51,6 +51,7 @@ func (*recordingDelegateEventBus) Subscribe(
 func (*recordingDelegateEventBus) Start(context.Context) {}
 
 func (*recordingDelegateEventBus) Drain(time.Duration) error { return nil }
+func (*recordingDelegateEventBus) DroppedTotal() uint64      { return 0 }
 
 func (b *recordingDelegateEventBus) snapshot() []eventbus.DomainEvent {
 	b.mu.Lock()

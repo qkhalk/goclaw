@@ -33,6 +33,13 @@ type PGCronStore struct {
 
 	retryCfg  cron.RetryConfig
 	defaultTZ string // fallback IANA timezone for cron jobs without explicit TZ
+
+	// Stale-execution lease reclaim. cron_exec stamps updated_at when a job
+	// enters 'running'; a job still 'running' with next_run_at=NULL after
+	// staleReclaimWindow can never self-recover while the process is alive
+	// (0 = disabled; cmd wires job_timeout × (retries+1) + grace).
+	staleReclaimWindow time.Duration
+	lastReclaim        time.Time
 }
 
 func NewPGCronStore(db *sql.DB) *PGCronStore {
@@ -58,6 +65,16 @@ func (s *PGCronStore) SetDefaultTimezone(tz string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.defaultTZ = tz
+}
+
+// SetStaleReclaimWindow configures how long a job may stay in 'running'
+// before the scheduler reclaims it as interrupted and reschedules it.
+// Zero (default) disables reclaim.
+func (s *PGCronStore) SetStaleReclaimWindow(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.staleReclaimWindow = d
+	s.lastReclaim = time.Time{}
 }
 
 func (s *PGCronStore) Start() error {

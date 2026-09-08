@@ -179,6 +179,7 @@ func (b *fakeEventBus) Subscribe(eventbus.EventType, eventbus.DomainEventHandler
 }
 func (b *fakeEventBus) Start(context.Context)     {}
 func (b *fakeEventBus) Drain(time.Duration) error { return nil }
+func (b *fakeEventBus) DroppedTotal() uint64      { return 0 }
 
 type fakeTeamAccessStore struct {
 	allowed bool

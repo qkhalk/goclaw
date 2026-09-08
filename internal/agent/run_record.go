@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ const defaultRunHeartbeatInterval = 10 * time.Second
 // never blocks the run.
 type runRecordUpdater struct {
 	runs      store.RunsStore
+	snapshots store.CheckpointSnapshotStore
 	runID     string
 	heartbeat *time.Ticker
 	done      chan struct{}
@@ -82,6 +84,7 @@ func newRunRecordUpdater(ctx context.Context, l *Loop, runID string) *runRecordU
 	}
 	u := &runRecordUpdater{
 		runs:      l.runsStore,
+		snapshots: l.snapshotsStore,
 		runID:     runID,
 		heartbeat: time.NewTicker(interval),
 		done:      make(chan struct{}),
@@ -130,7 +133,43 @@ func (u *runRecordUpdater) checkpoint(ctx context.Context, status string, state 
 		slog.Warn("runs.checkpoint_failed", "run_id", u.runID, "status", status, "error", err)
 		return err
 	}
+	u.appendSnapshot(safeCtx, status, checkpointRaw, state.Iteration)
 	return nil
+}
+
+// appendSnapshot records a durable checkpoint into the append-only snapshot
+// history (run_checkpoint_snapshots), giving runs.replay a rewindable timeline.
+// Best-effort: a failure only forfeits rewind capability, never the run.
+// Checkpoint cadence is low-frequency (DurableCheckpointInterval), so the
+// newest-seq read before each append is negligible.
+func (u *runRecordUpdater) appendSnapshot(ctx context.Context, status string, snapshot []byte, iteration int) {
+	if u.snapshots == nil {
+		return
+	}
+	if !store.ValidCheckpointSnapshotStatus(status) {
+		status = store.CheckpointSnapshotRunning
+	}
+	snapCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	seq := 1
+	latest, err := u.snapshots.ListCheckpointSnapshots(snapCtx, store.CheckpointSnapshotListOpts{RunID: u.runID, Limit: 1})
+	if err != nil {
+		slog.Warn("runs.snapshot_seq_lookup_failed", "run_id", u.runID, "error", err)
+		return
+	}
+	if len(latest) > 0 {
+		seq = latest[0].Seq + 1
+	}
+	snap := &store.CheckpointSnapshot{
+		RunID:     u.runID,
+		Seq:       seq,
+		Status:    status,
+		Snapshot:  json.RawMessage(snapshot),
+		Iteration: iteration,
+	}
+	if err := u.snapshots.AppendCheckpointSnapshot(snapCtx, snap); err != nil {
+		slog.Warn("runs.snapshot_append_failed", "run_id", u.runID, "seq", seq, "error", err)
+	}
 }
 
 // terminal marks the run record as terminal (completed/failed/cancelled),

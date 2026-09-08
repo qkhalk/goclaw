@@ -3,6 +3,9 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"errors"
+
+	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
@@ -10,6 +13,7 @@ import (
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
@@ -32,6 +36,7 @@ func (m *SessionsMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodSessionsDelete, m.handleDelete)
 	router.Register(protocol.MethodSessionsReset, m.handleReset)
 	router.Register(protocol.MethodSessionsCompact, m.handleCompact)
+	router.Register(protocol.MethodSessionsBranch, m.handleBranch)
 }
 
 type sessionsListParams struct {
@@ -301,4 +306,94 @@ func (m *SessionsMethods) handleCompact(ctx context.Context, client *gateway.Cli
 		"kept":     keepLast,
 	}))
 	emitAudit(m.eventBus, client, "session.compacted", "session", params.Key)
+}
+
+// sessionsBranchParams carries the fork request. Param names follow the WS
+// camelCase convention; semantics mirror POST /v1/chat/sessions/{key}/branch.
+type sessionsBranchParams struct {
+	SessionKey    string            `json:"sessionKey"`
+	NewSessionKey string            `json:"newSessionKey,omitempty"`
+	UpToIndex     *int              `json:"upToIndex"`
+	Label         string            `json:"label,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+}
+
+// handleBranch clones a session's history up to upToIndex messages into a new
+// session key. The store stamps branched_from/branched_from_index/branched_at
+// metadata on the branch so lineage stays traceable without a schema column.
+func (m *SessionsMethods) handleBranch(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	var params sessionsBranchParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidJSON)))
+		return
+	}
+	if params.SessionKey == "" {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "sessionKey")))
+		return
+	}
+	if params.UpToIndex == nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "upToIndex")))
+		return
+	}
+
+	sourceAgent, _ := sessions.ParseSessionKey(params.SessionKey)
+	if sourceAgent == "" {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, "invalid session key")))
+		return
+	}
+	source := m.sessions.Get(ctx, params.SessionKey)
+	if source == nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "session", params.SessionKey)))
+		return
+	}
+	if !canSeeAll(client.Role(), m.cfg.Gateway.OwnerIDs, client.UserID()) {
+		if source.UserID != client.UserID() {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "session")))
+			return
+		}
+	}
+
+	newKey := params.NewSessionKey
+	if newKey == "" {
+		newKey = "agent:" + sourceAgent + ":branch:direct:" + uuid.NewString()
+	} else if targetAgent, _ := sessions.ParseSessionKey(newKey); targetAgent == "" || targetAgent != sourceAgent {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, "newSessionKey must use the same agent key")))
+		return
+	}
+
+	brancher, ok := m.sessions.(store.SessionBranchStore)
+	if !ok {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgInvalidRequest, "session branching unavailable")))
+		return
+	}
+	branch, copied, err := brancher.BranchSession(ctx, params.SessionKey, store.SessionBranchOpts{
+		NewKey:    newKey,
+		UpToIndex: *params.UpToIndex,
+		Label:     params.Label,
+		Metadata:  params.Metadata,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrSessionAlreadyExists):
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrFailedPrecondition, i18n.T(locale, i18n.MsgAlreadyExists, "session", newKey)))
+		case errors.Is(err, store.ErrInvalidSessionBranch):
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, "upToIndex out of range")))
+		case errors.Is(err, store.ErrSessionNotFound):
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "session", params.SessionKey)))
+		default:
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		}
+		return
+	}
+
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
+		"ok":             true,
+		"sourceKey":      params.SessionKey,
+		"sessionKey":     branch.Key,
+		"copiedMessages": copied,
+		"totalMessages":  len(source.Messages),
+		"label":          branch.Label,
+	}))
+	emitAudit(m.eventBus, client, "session.branched", "session", params.SessionKey)
 }

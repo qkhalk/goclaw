@@ -26,8 +26,9 @@ func (b *fakeBus) Subscribe(et eventbus.EventType, h eventbus.DomainEventHandler
 	b.handlers[et] = append(b.handlers[et], h)
 	return func() {}
 }
-func (b *fakeBus) Start(_ context.Context) {}
+func (b *fakeBus) Start(_ context.Context)     {}
 func (b *fakeBus) Drain(_ time.Duration) error { return nil }
+func (b *fakeBus) DroppedTotal() uint64        { return 0 }
 
 func (b *fakeBus) trigger(ctx context.Context, et eventbus.EventType, ev eventbus.DomainEvent) {
 	for _, h := range b.handlers[et] {
@@ -54,8 +55,8 @@ func TestSubscribeDelegateEvents_CompletedFiresSubagentStop(t *testing.T) {
 
 	delegationID := uuid.NewString()
 	bus.trigger(context.Background(), eventbus.EventDelegateCompleted, eventbus.DomainEvent{
-		Type:    eventbus.EventDelegateCompleted,
-		Payload: eventbus.DelegateCompletedPayload{DelegationID: delegationID},
+		Type:      eventbus.EventDelegateCompleted,
+		Payload:   eventbus.DelegateCompletedPayload{DelegationID: delegationID},
 		Timestamp: time.Now(),
 	})
 
@@ -78,8 +79,8 @@ func TestSubscribeDelegateEvents_FailedFiresSubagentStop(t *testing.T) {
 
 	delegationID := uuid.NewString()
 	bus.trigger(context.Background(), eventbus.EventDelegateFailed, eventbus.DomainEvent{
-		Type:    eventbus.EventDelegateFailed,
-		Payload: eventbus.DelegateFailedPayload{DelegationID: delegationID, Error: "timeout"},
+		Type:      eventbus.EventDelegateFailed,
+		Payload:   eventbus.DelegateFailedPayload{DelegationID: delegationID, Error: "timeout"},
 		Timestamp: time.Now(),
 	})
 
