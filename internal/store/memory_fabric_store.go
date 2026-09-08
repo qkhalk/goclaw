@@ -138,6 +138,53 @@ type ScoredMemory struct {
 	Score float64
 }
 
+// memoryRecencyDecaySeconds is the linear-decay horizon of the recency term
+// in the recall score: a memory not updated for 30 days scores 0 recency.
+// Mirrors the SQL ORDER BY term in SearchMemories (PG EXTRACT and SQLite
+// julianday variants) — change both together.
+const memoryRecencyDecaySeconds = 2592000.0
+
+// FilterContradictedMemories drops rows that an active contradiction in the
+// result set supersedes: if row B carries ContradictsID == A.ID, A loses
+// regardless of its score (B is the newer observation; retrieval already
+// ranks B higher for equal authority). Rows contradicting something outside
+// the result set are unaffected - their counterpart may be archived or
+// simply not recalled. Runs after SearchMemories in both store
+// implementations, so callers never see a contradicted-and-replaced fact.
+func FilterContradictedMemories(results []ScoredMemory) []ScoredMemory {
+	if len(results) < 2 {
+		return results
+	}
+	contradicted := make(map[string]bool)
+	for _, r := range results {
+		if r.ContradictsID != nil && *r.ContradictsID != "" {
+			contradicted[*r.ContradictsID] = true
+		}
+	}
+	if len(contradicted) == 0 {
+		return results
+	}
+	out := results[:0:0]
+	for _, r := range results {
+		if !contradicted[r.ID] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// MemoryRecallScore computes the recall ranking score in Go. The SQL ORDER BY
+// in SearchMemories uses the identical formula for ordering; computing the
+// returned Score here (instead of selecting it as an extra column) keeps the
+// shared 20-column memory scan path intact.
+func MemoryRecallScore(m *Memory, now time.Time) float64 {
+	recency := 1 - now.Sub(m.UpdatedAt).Seconds()/memoryRecencyDecaySeconds
+	if recency < 0 {
+		recency = 0
+	}
+	return m.Authority*0.10 + m.Confidence*0.10 + recency*0.10
+}
+
 // MemoryFabricStore persists semantic memory records. Implementations must
 // scope reads and writes to the tenant from context where the row carries one;
 // nil TenantID rows are master/global and only reachable from master scope.

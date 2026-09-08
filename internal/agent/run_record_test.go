@@ -9,7 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/pipeline"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // recordingRunsStore is a minimal in-memory RunsStore double that records the
@@ -248,5 +250,74 @@ func TestNewRunRecordUpdaterSkipsCreateRun(t *testing.T) {
 func TestNewRunRecordUpdaterNilWithoutStore(t *testing.T) {
 	if u := newRunRecordUpdater(context.Background(), &Loop{}, "run-1"); u != nil {
 		t.Fatal("expected nil updater when runsStore is nil")
+	}
+}
+
+// TestRunRecordCheckpointEmitsEvent pins the checkpoint.created agent event:
+// emitted only after a successful durable checkpoint write, enriched with the
+// run-request identity so the timeline recorder accepts it, and skipped (not
+// mislabeled) on the resume path where no request context exists.
+func TestRunRecordCheckpointEmitsEvent(t *testing.T) {
+	tenantID := uuid.Must(uuid.NewV7())
+	s := &recordingRunsStore{}
+	l := &Loop{runsStore: s}
+	var mu sync.Mutex
+	var events []AgentEvent
+	l.onEvent = func(ev AgentEvent) {
+		mu.Lock()
+		events = append(events, ev)
+		mu.Unlock()
+	}
+	ctx := store.WithTenantID(context.Background(), tenantID)
+
+	u := startRunRecord(ctx, l, RunRequest{
+		RunID:      "run-ck-1",
+		SessionKey: "session-ck-1",
+		UserID:     "user-1",
+		Channel:    "web",
+		ChatID:     "chat-1",
+	})
+	if u == nil {
+		t.Fatal("expected updater")
+	}
+	defer u.terminal(ctx, store.AgentRunStatusCompleted, "")
+
+	state := &pipeline.RunState{Iteration: 3}
+	if err := u.checkpoint(ctx, store.AgentRunStatusRunning, state); err != nil {
+		t.Fatalf("checkpoint: %v", err)
+	}
+
+	mu.Lock()
+	if len(events) != 1 {
+		mu.Unlock()
+		t.Fatalf("emitted %d events, want 1 (checkpoint.created)", len(events))
+	}
+	mu.Unlock()
+	ev := events[0]
+	if ev.Type != protocol.AgentEventCheckpointCreated {
+		t.Fatalf("event type = %q", ev.Type)
+	}
+	if ev.RunID != "run-ck-1" || ev.SessionKey != "session-ck-1" || ev.UserID != "user-1" {
+		t.Fatalf("identity fields wrong: %+v", ev)
+	}
+	if ev.TenantID != tenantID {
+		t.Fatalf("TenantID = %v, want %v", ev.TenantID, tenantID)
+	}
+	if ev.Seq != 1 {
+		t.Fatalf("Seq = %d, want 1 (l.emit stamps per-run sequence)", ev.Seq)
+	}
+
+	// The resume path has no run request: the checkpoint DB write still
+	// happens, but no event is emitted (recorder would drop it anyway).
+	u2 := newRunRecordUpdater(ctx, l, "run-ck-2")
+	defer u2.terminal(ctx, store.AgentRunStatusCompleted, "")
+	if err := u2.checkpoint(ctx, store.AgentRunStatusRunning, state); err != nil {
+		t.Fatalf("resume-path checkpoint: %v", err)
+	}
+	mu.Lock()
+	n := len(events)
+	mu.Unlock()
+	if n != 1 {
+		t.Fatalf("resume path emitted extra event (total %d), want still 1", n)
 	}
 }

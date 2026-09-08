@@ -26,7 +26,7 @@ func TestLLMCallUsageRecorded(t *testing.T) {
 	req := &RunRequest{RunID: "r1", SessionKey: "s1", Channel: "ws"}
 	state := &pipeline.RunState{RunID: "r1", Provider: prov, Model: "stub-model"}
 
-	_, err := l.makeCallLLM(req, func(AgentEvent) {})(context.Background(), state, providers.ChatRequest{
+	_, err := l.makeCallLLM(req, &runState{}, func(AgentEvent) {})(context.Background(), state, providers.ChatRequest{
 		Messages: []providers.Message{{Role: "user", Content: "hi"}},
 	})
 	if err != nil {

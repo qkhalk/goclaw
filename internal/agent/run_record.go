@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/pipeline"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // defaultRunHeartbeatInterval is the cadence at which a live run's heartbeat_at
@@ -23,6 +25,8 @@ const defaultRunHeartbeatInterval = 10 * time.Second
 // terminal on exit. All writes are non-fatal (D9) — a DB failure logs and
 // never blocks the run.
 type runRecordUpdater struct {
+	l         *Loop
+	req       RunRequest
 	runs      store.RunsStore
 	snapshots store.CheckpointSnapshotStore
 	runID     string
@@ -64,7 +68,15 @@ func startRunRecord(ctx context.Context, l *Loop, req RunRequest) *runRecordUpda
 		slog.Warn("runs.create_failed", "run_id", req.RunID, "error", err)
 		return nil
 	}
-	return newRunRecordUpdater(ctx, l, req.RunID)
+	u := newRunRecordUpdater(ctx, l, req.RunID)
+	if u != nil {
+		// Run request context (session key, user, channel, tenant) backs the
+		// checkpoint.created event enrichment. The resume path constructs the
+		// updater without a request — checkpoint events stay best-effort there
+		// (the checkpoint DB write itself is unaffected).
+		u.req = req
+	}
+	return u
 }
 
 // newRunRecordUpdater builds the run-record heartbeat updater for an EXISTING
@@ -83,6 +95,7 @@ func newRunRecordUpdater(ctx context.Context, l *Loop, runID string) *runRecordU
 		interval = defaultRunHeartbeatInterval
 	}
 	u := &runRecordUpdater{
+		l:         l,
 		runs:      l.runsStore,
 		snapshots: l.snapshotsStore,
 		runID:     runID,
@@ -134,7 +147,34 @@ func (u *runRecordUpdater) checkpoint(ctx context.Context, status string, state 
 		return err
 	}
 	u.appendSnapshot(safeCtx, status, checkpointRaw, state.Iteration)
+	u.emitCheckpointCreated(ctx, status, state.Iteration)
 	return nil
+}
+
+// emitCheckpointCreated broadcasts the checkpoint.created agent event after a
+// successful durable checkpoint write so the timeline (and any other
+// subscriber of l.emit) can render resume points. Best-effort: the updater
+// holds the run request only on the normal-run path (startRunRecord); the
+// resume path leaves req zero and the missing session key makes the recorder
+// skip the event rather than mislabel it. Non-fatal by construction.
+func (u *runRecordUpdater) emitCheckpointCreated(ctx context.Context, status string, iteration int) {
+	if u.l == nil || u.req.RunID == "" || u.req.SessionKey == "" {
+		return
+	}
+	u.l.emit(AgentEvent{
+		Type:       protocol.AgentEventCheckpointCreated,
+		AgentID:    u.l.id,
+		RunID:      u.req.RunID,
+		UserID:     u.req.UserID,
+		Channel:    u.req.Channel,
+		ChatID:     u.req.ChatID,
+		SessionKey: u.req.SessionKey,
+		TenantID:   store.TenantIDFromContext(ctx),
+		Payload: map[string]string{
+			"iteration": strconv.Itoa(iteration),
+			"status":    status,
+		},
+	})
 }
 
 // appendSnapshot records a durable checkpoint into the append-only snapshot

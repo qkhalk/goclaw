@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -323,6 +324,22 @@ func timelineKindForEvent(event AgentEvent) (string, string, bool) {
 		return store.RunTimelineItemTypeRunStatus, store.RunTimelineStatusFailed, true
 	case protocol.AgentEventRunCancelled:
 		return store.RunTimelineItemTypeRunStatus, store.RunTimelineStatusCancelled, true
+	case protocol.AgentEventRunPaused:
+		return store.RunTimelineItemTypeRunStatus, store.RunTimelineStatusPaused, true
+	case protocol.AgentEventRunWoken:
+		// Resume: the run goes back to running; a fresh run.started follows
+		// from the resumed execution, this row marks the wake itself.
+		return store.RunTimelineItemTypeRunStatus, store.RunTimelineStatusRunning, true
+	case protocol.AgentEventRunRetrying:
+		// Transient provider retry — an activity row, not a run-status row:
+		// the run never left the running state.
+		return store.RunTimelineItemTypeActivity, store.RunTimelineStatusRunning, true
+	case protocol.AgentEventCheckpointCreated:
+		return store.RunTimelineItemTypeCheckpoint, store.RunTimelineStatusCompleted, true
+	case protocol.AgentEventLLMStarted:
+		return store.RunTimelineItemTypeActivity, store.RunTimelineStatusThinking, true
+	case protocol.AgentEventLLMCompleted:
+		return store.RunTimelineItemTypeActivity, store.RunTimelineStatusRunning, true
 	case protocol.AgentEventActivity:
 		if payloadString(event.Payload, "phase") == "verifying" {
 			return store.RunTimelineItemTypeActivity, store.RunTimelineStatusVerifying, true
@@ -361,6 +378,18 @@ func timelineTitle(event AgentEvent) string {
 		return "Run failed"
 	case protocol.AgentEventRunCancelled:
 		return "Run cancelled"
+	case protocol.AgentEventRunPaused:
+		return "Run paused"
+	case protocol.AgentEventRunWoken:
+		return "Run resumed"
+	case protocol.AgentEventRunRetrying:
+		return "Provider retry"
+	case protocol.AgentEventCheckpointCreated:
+		return "Checkpoint"
+	case protocol.AgentEventLLMStarted:
+		return "LLM call"
+	case protocol.AgentEventLLMCompleted:
+		return "LLM call finished"
 	case protocol.AgentEventBlockReply:
 		return "Assistant message"
 	case protocol.AgentEventActivity:
@@ -387,6 +416,23 @@ func timelinePreview(event AgentEvent) string {
 		return sanitizeTimelinePreview(payloadString(event.Payload, "content"))
 	case protocol.AgentEventRunFailed:
 		return sanitizeTimelinePreview(payloadString(event.Payload, "error"))
+	case protocol.AgentEventRunPaused:
+		return sanitizeTimelinePreview(payloadString(event.Payload, "reason"))
+	case protocol.AgentEventRunWoken:
+		return sanitizeTimelinePreview(payloadString(event.Payload, "message"))
+	case protocol.AgentEventRunRetrying:
+		return fmt.Sprintf("attempt %s/%s",
+			payloadString(event.Payload, "attempt"), payloadString(event.Payload, "maxAttempts"))
+	case protocol.AgentEventCheckpointCreated:
+		return fmt.Sprintf("iteration %s persisted (%s)",
+			payloadString(event.Payload, "iteration"), payloadString(event.Payload, "status"))
+	case protocol.AgentEventLLMStarted:
+		return fmt.Sprintf("%s/%s starting", payloadString(event.Payload, "provider"), payloadString(event.Payload, "model"))
+	case protocol.AgentEventLLMCompleted:
+		return fmt.Sprintf("%sms · in %s · out %s tokens",
+			payloadString(event.Payload, "duration_ms"),
+			payloadString(event.Payload, "input_tokens"),
+			payloadString(event.Payload, "output_tokens"))
 	case protocol.AgentEventActivity:
 		return sanitizeTimelinePreview(payloadAnyString(event.Payload))
 	case protocol.AgentEventToolCall:
@@ -431,6 +477,13 @@ func timelineContent(event AgentEvent, itemType string) string {
 		}
 		if len(entry) == 0 {
 			return ""
+		}
+		raw, _ := json.Marshal(entry)
+		return string(raw)
+	case protocol.AgentEventCheckpointCreated:
+		entry := map[string]string{
+			"iteration": payloadString(event.Payload, "iteration"),
+			"status":    payloadString(event.Payload, "status"),
 		}
 		raw, _ := json.Marshal(entry)
 		return string(raw)

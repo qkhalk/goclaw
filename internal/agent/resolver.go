@@ -58,6 +58,7 @@ type ResolverDeps struct {
 	MaxMessageChars int
 
 	// Global defaults (from config.json) — per-agent DB overrides take priority
+	Supervisor             *SupervisorLimits
 	CompactionCfg          *config.CompactionConfig
 	ContextPruningCfg      *config.ContextPruningConfig
 	SandboxEnabled         bool
@@ -501,6 +502,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			ContextWindow:          contextWindow,
 			MaxTokens:              ag.ParseMaxTokens(),
 			MaxIterations:          maxIter,
+			Supervisor:             deps.Supervisor,
 			Workspace:              workspace,
 			DataDir:                dataDir,
 			RestrictToWs:           &restrictVal,
