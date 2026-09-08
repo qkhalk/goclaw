@@ -283,3 +283,119 @@ func TestCoalesceMixedTypes_PreservesBoundaries(t *testing.T) {
 		t.Fatalf("expected 3 items (no merging across types), got %d", len(merged))
 	}
 }
+
+// TestRunTimelineItemFromEventNewLifecycleTypes pins the timeline mapping of
+// the extended lifecycle vocabulary: pause/wake/retry rows plus checkpoint
+// and llm call markers. These were previously emitted (paused) or missing
+// entirely (checkpoint, llm) with no persisted trace.
+func TestRunTimelineItemFromEventNewLifecycleTypes(t *testing.T) {
+	tenantID := uuid.Must(uuid.NewV7())
+	base := AgentEvent{
+		AgentID:    "default",
+		RunID:      "run-1",
+		SessionKey: "session-1",
+		TenantID:   tenantID,
+	}
+	cases := []struct {
+		name      string
+		event     AgentEvent
+		itemType  string
+		status    string
+		wantTitle string
+	}{
+		{
+			name:      "paused",
+			event:     AgentEvent{Type: protocol.AgentEventRunPaused, Payload: map[string]string{"reason": "hibernated"}},
+			itemType:  store.RunTimelineItemTypeRunStatus,
+			status:    store.RunTimelineStatusPaused,
+			wantTitle: "Run paused",
+		},
+		{
+			name:      "woken",
+			event:     AgentEvent{Type: protocol.AgentEventRunWoken},
+			itemType:  store.RunTimelineItemTypeRunStatus,
+			status:    store.RunTimelineStatusRunning,
+			wantTitle: "Run resumed",
+		},
+		{
+			name:      "retrying is activity, not run status",
+			event:     AgentEvent{Type: protocol.AgentEventRunRetrying, Payload: map[string]string{"attempt": "2", "maxAttempts": "4"}},
+			itemType:  store.RunTimelineItemTypeActivity,
+			status:    store.RunTimelineStatusRunning,
+			wantTitle: "Provider retry",
+		},
+		{
+			name:      "checkpoint created",
+			event:     AgentEvent{Type: protocol.AgentEventCheckpointCreated, Payload: map[string]string{"iteration": "3", "status": "running"}},
+			itemType:  store.RunTimelineItemTypeCheckpoint,
+			status:    store.RunTimelineStatusCompleted,
+			wantTitle: "Checkpoint",
+		},
+		{
+			name:      "llm started",
+			event:     AgentEvent{Type: protocol.AgentEventLLMStarted, Payload: map[string]string{"provider": "anthropic", "model": "claude-x"}},
+			itemType:  store.RunTimelineItemTypeActivity,
+			status:    store.RunTimelineStatusThinking,
+			wantTitle: "LLM call",
+		},
+		{
+			name:      "llm completed",
+			event:     AgentEvent{Type: protocol.AgentEventLLMCompleted, Payload: map[string]any{"duration_ms": "3210", "input_tokens": "100", "output_tokens": "50", "is_error": false}},
+			itemType:  store.RunTimelineItemTypeActivity,
+			status:    store.RunTimelineStatusRunning,
+			wantTitle: "LLM call finished",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ev := base
+			ev.Type = tc.event.Type
+			ev.Payload = tc.event.Payload
+			item, ok := runTimelineItemFromEvent(ev, 1)
+			if !ok {
+				t.Fatalf("%s: expected timeline item", tc.event.Type)
+			}
+			if item.ItemType != tc.itemType || item.Status != tc.status {
+				t.Fatalf("%s: got %s/%s, want %s/%s", tc.event.Type, item.ItemType, item.Status, tc.itemType, tc.status)
+			}
+			if item.Title != tc.wantTitle {
+				t.Fatalf("%s: title = %q, want %q", tc.event.Type, item.Title, tc.wantTitle)
+			}
+		})
+	}
+
+	// Checkpoint rows persist a JSON summary in content for replay clients.
+	item, ok := runTimelineItemFromEvent(AgentEvent{
+		Type:       protocol.AgentEventCheckpointCreated,
+		RunID:      "run-1",
+		SessionKey: "session-1",
+		TenantID:   tenantID,
+		Payload:    map[string]string{"iteration": "3", "status": "running"},
+	}, 1)
+	if !ok {
+		t.Fatal("checkpoint: expected timeline item")
+	}
+	if !store.RunTimelineItemContentPersisted(item.ItemType) {
+		t.Fatal("checkpoint items must persist content")
+	}
+	if !strings.Contains(item.Content, `"iteration":"3"`) || !strings.Contains(item.Content, `"status":"running"`) {
+		t.Fatalf("checkpoint content = %s", item.Content)
+	}
+
+	// LLM completed preview surfaces duration + tokens for the timeline.
+	item, ok = runTimelineItemFromEvent(AgentEvent{
+		Type:       protocol.AgentEventLLMCompleted,
+		RunID:      "run-1",
+		SessionKey: "session-1",
+		TenantID:   tenantID,
+		Payload:    map[string]any{"duration_ms": "3210", "input_tokens": "100", "output_tokens": "50", "is_error": false},
+	}, 1)
+	if !ok {
+		t.Fatal("llm completed: expected timeline item")
+	}
+	for _, want := range []string{"3210", "100", "50"} {
+		if !strings.Contains(item.Preview, want) {
+			t.Fatalf("llm completed preview %q missing %q", item.Preview, want)
+		}
+	}
+}
