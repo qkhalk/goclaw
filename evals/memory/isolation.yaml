@@ -1,0 +1,173 @@
+# Memory fabric isolation suite.
+#
+# Every case exercises the real SearchMemories SQL gates against PostgreSQL:
+# a regression in a WHERE clause fails here before it reaches users. Pair each
+# negative assertion with a `positive` control so "nothing was stored" can
+# never masquerade as "nothing leaked".
+#
+# Logical identities (alice, bob, agent-a, ...) are made unique per run by the
+# driver, so repeated executions are hermetic.
+suite: memory-isolation
+driver: memory
+cases:
+  - name: user-scope-no-cross-user-leak
+    description: user-scoped memory of alice must never surface for bob
+    severity: P0
+    seed:
+      memories:
+        - user: alice
+          scope: user
+          kind: preference
+          content: "alice-secret: favorite programming language is Go"
+    act:
+      search: { user: bob }
+    expect:
+      not_contains: ["alice-secret"]
+    positive:
+      search: { user: alice }
+      contains: ["alice-secret"]
+
+  - name: tenant-isolation-no-cross-tenant-leak
+    description: tenant-A memories must never surface from tenant-B context
+    severity: P0
+    seed:
+      memories:
+        - user: alice
+          scope: user
+          kind: fact
+          content: "tenantA-secret: deploy key rotation day is Friday"
+    act:
+      # Same query identity, but the search runs from a second tenant's
+      # context (cross_tenant lives inside search) — the tenant hard gate
+      # must exclude the row seeded above.
+      search: { user: alice, cross_tenant: true }
+    expect:
+      not_contains: ["tenantA-secret"]
+
+  - name: agent-scope-no-cross-agent-leak
+    description: agent-scoped memory of agent-a must not surface for agent-b
+    severity: P0
+    seed:
+      memories:
+        - agent: agent-a
+          scope: agent
+          kind: instruction
+          content: "agentA-secret: always answer in formal tone"
+    act:
+      search: { agent: agent-b }
+    expect:
+      not_contains: ["agentA-secret"]
+    positive:
+      search: { agent: agent-a }
+      contains: ["agentA-secret"]
+
+  - name: session-scope-no-cross-session-leak
+    description: session-scoped memory must not surface for another session
+    severity: P0
+    seed:
+      memories:
+        - user: alice
+          session: sess-one
+          scope: session
+          kind: task_state
+          content: "session1-secret: mid-refactor of checkout flow"
+    act:
+      search: { user: alice, session: sess-two }
+    expect:
+      not_contains: ["session1-secret"]
+    positive:
+      search: { user: alice, session: sess-one }
+      contains: ["session1-secret"]
+
+  - name: global-scope-shared-within-tenant
+    description: global ring is visible to every user of the same tenant
+    severity: P1
+    seed:
+      memories:
+        - scope: global
+          kind: constraint
+          content: "shared-fact: company holiday policy applies worldwide"
+    act:
+      search: { user: bob }
+    expect:
+      contains: ["shared-fact"]
+      min_results: 1
+
+  - name: superseded-memory-dropped-from-retrieval
+    description: only the superseding row stays retrievable after a supersede write
+    severity: P0
+    seed:
+      memories:
+        - user: superseder
+          scope: user
+          kind: preference
+          content: "old-pref: favorite editor is Vim"
+        - user: superseder
+          scope: user
+          kind: preference
+          content: "new-pref: favorite editor is VS Code"
+    act:
+      # Unique user + user-ring whitelist keeps other cases' rows (global,
+      # session, other users) out of the count — the case asserts exactly one
+      # surviving row for this identity.
+      search: { user: superseder, scopes: [user] }
+    expect:
+      contains: ["new-pref"]
+      not_contains: ["old-pref"]
+      max_results: 1
+
+  - name: dedup-identical-content-single-row
+    description: writing identical content twice yields one retrievable row
+    severity: P1
+    seed:
+      memories:
+        - user: dave
+          scope: user
+          kind: fact
+          content: "dedup-fact: standup is at 09:30"
+        - user: dave
+          scope: user
+          kind: fact
+          content: "dedup-fact: standup is at 09:30"
+    act:
+      search: { user: dave, scopes: [user] }
+    expect:
+      contains: ["dedup-fact"]
+      max_results: 1
+
+  - name: scope-whitelist-multi-value
+    description: multi-scope whitelist (user+global) is a union, not a contradiction
+    severity: P1
+    seed:
+      memories:
+        - user: erin
+          scope: user
+          kind: fact
+          content: "ring-user: erin's personal note"
+        - scope: global
+          kind: fact
+          content: "ring-global: shared team note"
+    act:
+      search: { user: erin, scopes: [user, global] }
+    expect:
+      contains: ["ring-user", "ring-global"]
+      min_results: 2
+
+  - name: kind-whitelist-filters
+    description: kind whitelist restricts retrieval to the requested kinds
+    severity: P1
+    seed:
+      memories:
+        - user: frank
+          scope: user
+          kind: fact
+          content: "kind-fact: the API returns JSON"
+        - user: frank
+          scope: user
+          kind: preference
+          content: "kind-pref: prefers concise answers"
+    act:
+      search: { user: frank, kinds: [preference] }
+    expect:
+      contains: ["kind-pref"]
+      not_contains: ["kind-fact"]

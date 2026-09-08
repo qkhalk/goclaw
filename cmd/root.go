@@ -51,6 +51,7 @@ func init() {
 	rootCmd.AddCommand(sessionsCmd())
 	rootCmd.AddCommand(tracesCmd())
 	rootCmd.AddCommand(runsCmd())
+	rootCmd.AddCommand(evalCmd())
 	rootCmd.AddCommand(migrateCmd())
 	rootCmd.AddCommand(upgradeCmd())
 	rootCmd.AddCommand(backupCmd())
