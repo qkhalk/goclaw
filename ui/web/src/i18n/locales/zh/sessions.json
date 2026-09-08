@@ -43,8 +43,19 @@
       "toolResult": "工具结果",
       "trace": "追踪",
       "activity": "活动",
-      "failed": "失败"
-    }
+      "failed": "失败",
+      "pause": "暂停",
+      "resume": "恢复",
+      "wake": "唤醒"
+    },
+    "branch": "创建分支",
+    "compact": "压缩",
+    "compactTitle": "压缩会话？",
+    "compactDescription": "将历史记录截断为最近 4 条消息。较旧的消息将被删除，并记录压缩计数。",
+    "confirmCompact": "压缩",
+    "branchTitle": "创建会话分支？",
+    "branchDescription": "以本会话的前 {{count}} 条消息创建新会话分支。原会话保持不变。",
+    "confirmBranch": "创建分支"
   },
   "toast": {
     "deleted": "Session已删除",
@@ -52,6 +63,14 @@
     "reset": "Session已重置",
     "resetFailed": "重置Session失败",
     "updated": "Session已更新",
-    "updateFailed": "更新Session失败"
+    "updateFailed": "更新Session失败",
+    "compacted": "会话已压缩",
+    "compactFailed": "压缩会话失败",
+    "branchCreated": "已创建包含 {{count}} 条消息的分支",
+    "branchFailed": "创建分支失败",
+    "runPaused": "运行已暂停",
+    "runResumed": "运行已恢复",
+    "runWoken": "运行已唤醒",
+    "runActionFailed": "运行操作失败"
   }
 }

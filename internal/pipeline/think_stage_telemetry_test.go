@@ -28,6 +28,7 @@ func (s *stubEventBus) Subscribe(eventType eventbus.EventType, handler eventbus.
 }
 func (s *stubEventBus) Start(ctx context.Context)               {}
 func (s *stubEventBus) Drain(timeout time.Duration) error      { return nil }
+func (s *stubEventBus) DroppedTotal() uint64                   { return 0 }
 
 func (s *stubEventBus) publishedBudgetEvents() []eventbus.DomainEvent {
 	s.mu.Lock()

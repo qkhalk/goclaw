@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Trash2, RotateCcw, Eye, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, Trash2, RotateCcw, Eye, Pencil, Check, X, GitBranch, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageBubble } from "@/components/chat/message-bubble";
@@ -43,6 +43,8 @@ interface SessionDetailPageProps {
   onDelete: (key: string) => Promise<void>;
   onReset: (key: string) => Promise<void>;
   onPatch?: (key: string, updates: { label?: string }) => Promise<void>;
+  onCompact?: (key: string, keepLast?: number) => Promise<void>;
+  onBranch?: (key: string, upToIndex: number) => Promise<void>;
 }
 
 export function SessionDetailPage({
@@ -52,6 +54,8 @@ export function SessionDetailPage({
   onDelete,
   onReset,
   onPatch,
+  onCompact,
+  onBranch,
 }: SessionDetailPageProps) {
   const { t } = useTranslation("sessions");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -59,6 +63,8 @@ export function SessionDetailPage({
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmCompact, setConfirmCompact] = useState(false);
+  const [confirmBranch, setConfirmBranch] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
 
@@ -215,6 +221,24 @@ export function SessionDetailPage({
           </div>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmBranch(true)}
+            className="gap-1"
+            disabled={!onBranch || messages.length === 0}
+          >
+            <GitBranch className="h-3.5 w-3.5" /> {t("detail.branch")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmCompact(true)}
+            className="gap-1"
+            disabled={!onCompact || messages.length < 6}
+          >
+            <Scissors className="h-3.5 w-3.5" /> {t("detail.compact")}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setConfirmReset(true)} className="gap-1">
             <RotateCcw className="h-3.5 w-3.5" /> {t("detail.reset")}
           </Button>
@@ -229,7 +253,7 @@ export function SessionDetailPage({
         <SummaryBlock text={summary} />
       )}
 
-      <RunTimelinePanel items={runTimelineData?.items ?? []} loading={runTimelineFetching} />
+      <RunTimelinePanel items={runTimelineData?.items ?? []} loading={runTimelineFetching} onRefresh={refetchRunTimeline} />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -277,6 +301,31 @@ export function SessionDetailPage({
           await onReset(session.key);
           setConfirmReset(false);
           setMessages([]);
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmCompact}
+        onOpenChange={setConfirmCompact}
+        title={t("detail.compactTitle")}
+        description={t("detail.compactDescription")}
+        confirmLabel={t("detail.confirmCompact")}
+        onConfirm={async () => {
+          await onCompact?.(session.key, 4);
+          setConfirmCompact(false);
+          loadMessages();
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmBranch}
+        onOpenChange={setConfirmBranch}
+        title={t("detail.branchTitle")}
+        description={t("detail.branchDescription", { count: messages.length })}
+        confirmLabel={t("detail.confirmBranch")}
+        onConfirm={async () => {
+          setConfirmBranch(false);
+          await onBranch?.(session.key, messages.length);
         }}
       />
     </div>
