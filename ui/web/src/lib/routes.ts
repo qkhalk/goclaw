@@ -16,6 +16,8 @@ export const ROUTES = {
   CONFIG: "/config",
   TRACES: "/traces",
   TRACE_DETAIL: "/traces/:id",
+  RUNS: "/runs",
+  RUN_DETAIL: "/runs/:runId",
   EVENTS: "/events",
   USAGE: "/usage",
   CHANNELS: "/channels",
