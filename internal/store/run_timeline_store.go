@@ -21,6 +21,12 @@ const (
 	RunTimelineItemTypeChunk        = "chunk"
 	RunTimelineItemTypeThinking     = "thinking"
 	RunTimelineItemTypeToolStarted  = "tool.started"
+
+	// RunTimelineItemTypeCheckpoint marks a durable pipeline checkpoint write
+	// (agent_runs.checkpoint) — replay clients render these as resume points.
+	// Content carries a small JSON summary {iteration,status}; the checkpoint
+	// payload itself stays in agent_runs.
+	RunTimelineItemTypeCheckpoint = "checkpoint"
 )
 
 // RunTimelineItemContentPersisted reports whether a timeline item type carries
@@ -29,7 +35,8 @@ const (
 // their content intact; legacy types strip content to keep the timeline slim.
 func RunTimelineItemContentPersisted(itemType string) bool {
 	switch itemType {
-	case RunTimelineItemTypeChunk, RunTimelineItemTypeThinking, RunTimelineItemTypeToolStarted:
+	case RunTimelineItemTypeChunk, RunTimelineItemTypeThinking, RunTimelineItemTypeToolStarted,
+		RunTimelineItemTypeCheckpoint:
 		return true
 	}
 	return false
