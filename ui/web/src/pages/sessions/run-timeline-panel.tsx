@@ -15,16 +15,29 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
+import { useRunActions } from "./hooks/use-run-actions";
 import type { RunTimelineItem, RunTimelineItemType } from "@/types/run-timeline";
 
 interface RunTimelinePanelProps {
   items: RunTimelineItem[];
   loading?: boolean;
+  /** Refetch the timeline after a run action (pause/resume/wake). */
+  onRefresh?: () => void;
 }
 
-export function RunTimelinePanel({ items, loading }: RunTimelinePanelProps) {
+export function RunTimelinePanel({ items, loading, onRefresh }: RunTimelinePanelProps) {
   const { t } = useTranslation("sessions");
   const [open, setOpen] = useState(false);
+  const { pauseRun, resumeRun, wakeRun } = useRunActions();
+
+  const runAction = (action: "pause" | "resume" | "wake", runId: string) => {
+    if (!runId) return;
+    if (action === "pause") pauseRun(runId);
+    else if (action === "resume") resumeRun(runId);
+    else wakeRun(runId);
+    // Give the gateway a beat to persist the status transition, then refresh.
+    setTimeout(() => onRefresh?.(), 800);
+  };
 
   if (!loading && items.length === 0) return null;
 
@@ -80,6 +93,21 @@ export function RunTimelinePanel({ items, loading }: RunTimelinePanelProps) {
                           {t("detail.timeline.trace")}
                         </Link>
                       </Button>
+                    )}
+                    {item.run_id && item.status === "running" && (
+                      <Button variant="ghost" size="sm" className="h-6 gap-1 px-1 text-xs" onClick={() => runAction("pause", item.run_id!)}>
+                        {t("detail.timeline.pause")}
+                      </Button>
+                    )}
+                    {item.run_id && item.status === "paused" && (
+                      <>
+                        <Button variant="ghost" size="sm" className="h-6 gap-1 px-1 text-xs" onClick={() => runAction("resume", item.run_id!)}>
+                          {t("detail.timeline.resume")}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 gap-1 px-1 text-xs" onClick={() => runAction("wake", item.run_id!)}>
+                          {t("detail.timeline.wake")}
+                        </Button>
+                      </>
                     )}
                     {item.run_id && <span>{item.run_id}</span>}
                   </div>
