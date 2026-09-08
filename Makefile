@@ -108,6 +108,16 @@ test-scenarios:
 # Critical tests (P0 + P1) - run before merge
 test-critical: test-invariants test-contracts
 
+# ── Agent Evaluation Harness ──
+# Behavioral evals (memory isolation, run resume, tool security) against the
+# same PG instance as integration tests (pgvector:pg18 on :5433). Prints a
+# per-suite score table; non-zero exit on any failure.
+eval:
+	go run . eval run
+
+eval-list:
+	go run . eval list
+
 # ── Agent Hooks targets (phase 4) ──
 # Requires TEST_DATABASE_URL pointing at a pgvector:pg18 container on :5433
 test-hooks-unit:
