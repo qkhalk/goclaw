@@ -52,7 +52,7 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`\bcurl\b.*\|\s*(ba)?sh\b`),                                              // curl | sh
 			regexp.MustCompile(`\bcurl\b.*(-d\b|-F\b|--data|--upload|--form|-T\b|(-X|--request)\s*P(UT|OST|ATCH))`), // curl POST/PUT
-			regexp.MustCompile(`\bwget\b.*-O\s*-\s*\|\s*(ba)?sh\b`),                                              // wget | sh
+			regexp.MustCompile(`\bwget\b.*\|\s*(ba)?sh\b`),                                                        // wget | sh (any output flag form, incl. -qO- / -O-)
 			regexp.MustCompile(`\bwget\b.*(--post-(data|file)|--method=P(UT|OST|ATCH)|--body-data)`),             // wget POST
 			regexp.MustCompile(`\b(nslookup|dig|host)\b`),                                                        // DNS exfiltration
 			regexp.MustCompile(`/dev/tcp/`),                                                                       // bash tcp redirect
@@ -109,7 +109,7 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 		Description: "Dangerous Path Operations",
 		Default:     true,
 		Patterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bchmod\s+[0-7]{3,4}\s+/`),
+			regexp.MustCompile(`\bchmod\s+(-\w+\s+)*[0-7]{3,4}\s+/`), // chmod [flags] MODE /... (flags like -R must not bypass)
 			regexp.MustCompile(`\bchown\b.*\s+/`),
 			regexp.MustCompile(`\bchmod\b.*\+x.*/tmp/`),
 			regexp.MustCompile(`\bchmod\b.*\+x.*/var/tmp/`),

@@ -568,16 +568,58 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 		// Emit LLM span start for tracing.
 		start := time.Now().UTC()
 		var opts []spanOption
+		providerName := ""
+		if provider != nil {
+			providerName = provider.Name()
+			opts = append(opts, withProvider(provider.Name()))
+		}
 		if state.Model != "" {
 			opts = append(opts, withModel(state.Model))
-		}
-		if provider != nil {
-			opts = append(opts, withProvider(provider.Name()))
 		}
 		spanID := l.emitLLMSpanStart(ctx, start, state.Iteration+1, chatReq.Messages, opts...)
 		if spanID != uuid.Nil {
 			state.CurrentLLMSpanID = &spanID
 		}
+
+		// Bracket the think-stage LLM call with llm.started / llm.completed
+		// agent events for the run timeline (latency + token observability).
+		// The completed event fires on every return path (guard retries
+		// included) with the total duration. Best-effort: l.emit is a no-op
+		// without an onEvent callback.
+		emitRun(AgentEvent{
+			Type:    protocol.AgentEventLLMStarted,
+			AgentID: l.id,
+			RunID:   req.RunID,
+			Payload: map[string]string{
+				"provider":  providerName,
+				"model":     state.Model,
+				"iteration": strconv.Itoa(state.Iteration + 1),
+			},
+		})
+		var (
+			resp *providers.ChatResponse
+			err  error
+		)
+		defer func() {
+			// Numeric fields are formatted here — timeline previews read
+			// payload values as strings (same convention as run.retrying).
+			payload := map[string]any{
+				"provider":    providerName,
+				"model":       state.Model,
+				"duration_ms": strconv.FormatInt(time.Since(start).Milliseconds(), 10),
+				"is_error":    err != nil,
+			}
+			if err == nil && resp != nil && resp.Usage != nil {
+				payload["input_tokens"] = strconv.Itoa(resp.Usage.PromptTokens)
+				payload["output_tokens"] = strconv.Itoa(resp.Usage.CompletionTokens)
+			}
+			emitRun(AgentEvent{
+				Type:    protocol.AgentEventLLMCompleted,
+				AgentID: l.id,
+				RunID:   req.RunID,
+				Payload: payload,
+			})
+		}()
 		recordUsageCapAttempt := func(reservation *usagecaps.Reservation) {
 			if reservation != nil {
 				opts = append(opts, withUsageCapMetadata(reservation.TraceMetadata()))
@@ -679,7 +721,7 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 			return callResp, callErr
 		}
 
-		resp, err := callProvider("initial", chatReq)
+		resp, err = callProvider("initial", chatReq)
 		slog.Info("debug.llm.first_response",
 			"has_error", err != nil,
 			"tool_calls_count", func() int {

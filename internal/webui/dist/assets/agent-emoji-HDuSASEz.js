@@ -1,0 +1,1 @@
+var e=/\uFE0F/g;function t(e){let t=Intl.Segmenter;if(t){for(let{segment:n}of new t(`en`,{granularity:`grapheme`}).segment(e))return n;return``}return Array.from(e)[0]??``}function n(n,r){let i=n?.trim();if(!i||!r)return r;let a=r.trimStart(),o=t(a);return!o||!(o===i||o.replace(e,``)===i.replace(e,``))?r:a.slice(o.length).trimStart()}export{n as t};

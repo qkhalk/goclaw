@@ -138,6 +138,24 @@ type ScoredMemory struct {
 	Score float64
 }
 
+// memoryRecencyDecaySeconds is the linear-decay horizon of the recency term
+// in the recall score: a memory not updated for 30 days scores 0 recency.
+// Mirrors the SQL ORDER BY term in SearchMemories (PG EXTRACT and SQLite
+// julianday variants) — change both together.
+const memoryRecencyDecaySeconds = 2592000.0
+
+// MemoryRecallScore computes the recall ranking score in Go. The SQL ORDER BY
+// in SearchMemories uses the identical formula for ordering; computing the
+// returned Score here (instead of selecting it as an extra column) keeps the
+// shared 20-column memory scan path intact.
+func MemoryRecallScore(m *Memory, now time.Time) float64 {
+	recency := 1 - now.Sub(m.UpdatedAt).Seconds()/memoryRecencyDecaySeconds
+	if recency < 0 {
+		recency = 0
+	}
+	return m.Authority*0.10 + m.Confidence*0.10 + recency*0.10
+}
+
 // MemoryFabricStore persists semantic memory records. Implementations must
 // scope reads and writes to the tenant from context where the row carries one;
 // nil TenantID rows are master/global and only reachable from master scope.

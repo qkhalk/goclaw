@@ -1,0 +1,28 @@
+# Durable run-state machine suite.
+#
+# Scenarios are implemented in internal/eval/driver_resume.go and selected by
+# name — they pin the contracts resume depends on: checkpoints survive status
+# transitions, run creation is idempotent, and stale/interrupted runs are
+# reconciled after a gateway restart.
+suite: run-state-machine
+driver: resume
+cases:
+  - name: checkpoint-survives-paused-to-running
+    description: resume path depends on UpdateRunStatus never clearing the checkpoint
+    severity: P0
+    scenario: checkpoint_preserved
+
+  - name: create-run-idempotent
+    description: duplicate CreateRun (heartbeat reuse) yields one row, no error
+    severity: P0
+    scenario: create_idempotent
+
+  - name: stale-run-recovery
+    description: a run with an expired heartbeat is marked failed by recovery
+    severity: P0
+    scenario: stale_recovery
+
+  - name: interrupted-timeline-recovery
+    description: a run interrupted mid-execution gets a terminal timeline item on startup
+    severity: P1
+    scenario: timeline_recovery
