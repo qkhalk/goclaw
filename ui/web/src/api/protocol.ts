@@ -80,6 +80,7 @@ export const Methods = {
   SESSIONS_DELETE: "sessions.delete",
   SESSIONS_RESET: "sessions.reset",
   RUN_TIMELINE_GET: "run.timeline.get",
+  RUNS_LIST: "runs.list",
   RUNS_GET: "runs.get",
   RUNS_EVENTS: "runs.events",
   RUNS_RESUME: "runs.resume",

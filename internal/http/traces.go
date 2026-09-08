@@ -57,10 +57,12 @@ func (h *TracesHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/traces/follow", h.authMiddleware(h.handleFollow))
 	mux.HandleFunc("GET /v1/traces/{traceID}/export", h.authMiddleware(h.handleExport))
 	mux.HandleFunc("GET /v1/traces/{traceID}", h.authMiddleware(h.handleGet))
+	mux.HandleFunc("GET /v1/runs", h.authMiddleware(h.handleRunsList))
 	mux.HandleFunc("GET /v1/runs/{runID}/timeline", h.authMiddleware(h.handleRunTimeline))
 	// Durable run records (agent_runs state machine). Go's ServeMux prefers the
 	// more specific /{runID}/timeline and /{runID}/events patterns for those
-	// paths, so GET /v1/runs/{runID} matches run records only.
+	// paths, so GET /v1/runs/{runID} matches run records only, and /v1/runs
+	// matches the list endpoint only.
 	mux.HandleFunc("GET /v1/runs/{runID}", h.authMiddleware(h.handleRunGet))
 	mux.HandleFunc("GET /v1/runs/{runID}/events", h.authMiddleware(h.handleRunEvents))
 	mux.HandleFunc("POST /v1/runs/{runID}/resume", h.authMiddleware(h.handleRunResume))
@@ -408,6 +410,63 @@ func (h *TracesHandler) handleRunTimeline(w http.ResponseWriter, r *http.Request
 		"items":       items,
 		"limit":       opts.Limit,
 		"offset":      opts.Offset,
+	})
+}
+
+// handleRunsList serves GET /v1/runs: paginated durable run records, optionally
+// scoped by session_key or status. Mirrors the runs.list WS method, including
+// viewer-role filtering (non-admin callers see only their own runs).
+func (h *TracesHandler) handleRunsList(w http.ResponseWriter, r *http.Request) {
+	locale := store.LocaleFromContext(r.Context())
+	if h.runs == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": i18n.T(locale, i18n.MsgRunsUnavailable)})
+		return
+	}
+	opts := store.RunListOpts{Limit: 100}
+	if v := r.URL.Query().Get("session_key"); v != "" {
+		opts.SessionKey = v
+	}
+	if v := r.URL.Query().Get("status"); v != "" && !store.ValidAgentRunStatus(v) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidRequest, "invalid status; use pending|running|compacting|completed|failed|cancelled")})
+		return
+	} else if v != "" {
+		opts.Status = v
+	}
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if n > 500 {
+				n = 500
+			}
+			opts.Limit = n
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			opts.Offset = n
+		}
+	}
+	runs, err := h.runs.ListRuns(r.Context(), opts)
+	if err != nil {
+		slog.Warn("runs.list_failed", "session_key", opts.SessionKey, "status", opts.Status, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgInternalError, "run list")})
+		return
+	}
+	// Non-admin callers may only list their own run records.
+	auth := resolveAuth(r)
+	if !permissions.HasMinRole(auth.Role, permissions.RoleAdmin) {
+		callerID := store.UserIDFromContext(r.Context())
+		filtered := runs[:0]
+		for _, run := range runs {
+			if run.UserID == callerID {
+				filtered = append(filtered, run)
+			}
+		}
+		runs = filtered
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"runs":   runs,
+		"limit":  opts.Limit,
+		"offset": opts.Offset,
 	})
 }
 

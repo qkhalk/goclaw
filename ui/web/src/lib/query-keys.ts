@@ -29,6 +29,12 @@ export const queryKeys = {
     all: ["traces"] as const,
     list: (params: Record<string, unknown>) => ["traces", params] as const,
   },
+  runs: {
+    all: ["runs"] as const,
+    list: (params: Record<string, unknown>) => ["runs", "list", params] as const,
+    detail: (runId: string) => ["runs", "detail", runId] as const,
+    events: (runId: string) => ["runs", "events", runId] as const,
+  },
   cliCredentials: {
     all: ["cliCredentials"] as const,
   },
