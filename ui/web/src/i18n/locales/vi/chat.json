@@ -116,9 +116,9 @@
     "thinking": "Mức độ suy nghĩ"
   },
   "thinkingLevels": {
-    "adaptive": "Suy nghĩ: Thích ứng",
-    "auto": "Suy nghĩ: Tự động",
-    "off": "Suy nghĩ: Tắt",
+    "adaptive": "Thích ứng",
+    "auto": "Tự động",
+    "off": "Tắt",
     "none": "Không",
     "minimal": "Tối thiểu",
     "low": "Thấp",

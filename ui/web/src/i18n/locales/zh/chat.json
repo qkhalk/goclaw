@@ -116,9 +116,9 @@
     "thinking": "思考级别"
   },
   "thinkingLevels": {
-    "adaptive": "思考：自适应",
-    "auto": "思考：自动",
-    "off": "思考：关闭",
+    "adaptive": "自适应",
+    "auto": "自动",
+    "off": "关闭",
     "none": "无",
     "minimal": "极少",
     "low": "低",
