@@ -43,9 +43,20 @@ type EvalCase struct {
 	Scenario string `yaml:"scenario,omitempty"`
 
 	// security driver
-	Command      string `yaml:"command,omitempty"`
-	Path         string `yaml:"path,omitempty"`
-	ExpectDenied bool   `yaml:"expect_denied"`
+	Command      string        `yaml:"command,omitempty"`
+	Path         string        `yaml:"path,omitempty"`
+	WebFetch     *WebFetchCase `yaml:"webfetch,omitempty"`
+	ExpectDenied bool          `yaml:"expect_denied"`
+}
+
+// WebFetchCase pins the web_fetch domain policy layer. Only deny cases are
+// expressible: the policy check runs before any network I/O, so a denial is
+// provably offline while an allow would perform a real fetch.
+type WebFetchCase struct {
+	URL            string   `yaml:"url"`
+	Policy         string   `yaml:"policy"` // allow_all (default) | allowlist
+	AllowedDomains []string `yaml:"allowed_domains,omitempty"`
+	BlockedDomains []string `yaml:"blocked_domains,omitempty"`
 }
 
 // MemorySeed declares memories to write before the act step. Identities

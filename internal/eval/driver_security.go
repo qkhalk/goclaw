@@ -48,9 +48,44 @@ func (d *SecurityDriver) Run(ctx context.Context, env *Env, runID string, c Eval
 		return d.checkCommand(ctx, c)
 	case c.Path != "":
 		return d.checkPath(ctx, c)
+	case c.WebFetch != nil:
+		return d.checkWebFetch(ctx, c)
 	default:
-		return "", fmt.Errorf("security case requires command or path")
+		return "", fmt.Errorf("security case requires command, path or webfetch")
 	}
+}
+
+// webFetchDenyMarkers covers every layer that may reject the URL before a
+// fetch: the domain policy (blocklist / allowlist miss) and SSRF protection
+// (which resolves first). Any denial proves the URL did not get fetched.
+var webFetchDenyMarkers = []string{
+	"blocked by policy",
+	"not in the allowed domains list",
+	"SSRF protection",
+}
+
+func (d *SecurityDriver) checkWebFetch(ctx context.Context, c EvalCase) (string, error) {
+	wf := c.WebFetch
+	tool := tools.NewWebFetchTool(tools.WebFetchConfig{
+		Policy:         wf.Policy,
+		AllowedDomains: wf.AllowedDomains,
+		BlockedDomains: wf.BlockedDomains,
+	})
+	res := tool.Execute(ctx, map[string]any{"url": wf.URL})
+	denied := res != nil && res.IsError
+	detail := fmt.Sprintf("is_error=%v output=%q", denied, res.ForLLM)
+	if !c.ExpectDenied {
+		return detail, fmt.Errorf("only deny cases are supported for webfetch (an allow performs a real fetch)")
+	}
+	if !denied {
+		return detail, fmt.Errorf("expected policy denial, fetch proceeded: %s", res.ForLLM)
+	}
+	for _, marker := range webFetchDenyMarkers {
+		if strings.Contains(res.ForLLM, marker) {
+			return detail, nil
+		}
+	}
+	return detail, fmt.Errorf("denied but by an unexpected layer (markers %v not found): %s", webFetchDenyMarkers, res.ForLLM)
 }
 
 // policyDenyMarker is the substring ExecTool returns when the pre-execution

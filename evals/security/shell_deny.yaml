@@ -75,3 +75,29 @@ cases:
     severity: P0
     path: "notes.txt"
     expect_denied: false
+
+  # Web fetch domain policy layer (tools.WebFetchConfig). Deny-only: the
+  # policy check runs before any network I/O, so a denial is provably
+  # offline; allow cases perform real fetches and live in unit tests.
+  - name: webfetch-blocklist-always-wins
+    severity: P0
+    webfetch:
+      url: "https://internal.corp/secret"
+      policy: allow_all
+      blocked_domains: ["internal.corp"]
+    expect_denied: true
+
+  - name: webfetch-allowlist-miss
+    severity: P0
+    webfetch:
+      url: "https://evil.example/payload"
+      policy: allowlist
+      allowed_domains: ["github.com"]
+    expect_denied: true
+
+  - name: webfetch-ssrf-private-range
+    severity: P0
+    webfetch:
+      url: "http://127.0.0.1:5433/"
+      policy: allow_all
+    expect_denied: true
