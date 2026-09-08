@@ -74,6 +74,10 @@ type MemorySeedItem struct {
 	Content   string  `yaml:"content"`
 	Source    string  `yaml:"source"`              // session|manual|consolidation|import
 	Confidence float64 `yaml:"confidence,omitempty"`
+	// Contradicts is the 0-based index of an earlier seed item in the same
+	// list that this row contradicts. The contradicted row is dropped from
+	// retrieval (SearchMemories applies store.FilterContradictedMemories).
+	Contradicts *int `yaml:"contradicts,omitempty"`
 }
 
 // MemoryAct is the retrieval being evaluated.

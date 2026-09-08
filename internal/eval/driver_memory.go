@@ -49,34 +49,39 @@ func (d *MemoryDriver) Run(ctx context.Context, env *Env, runID string, c EvalCa
 	}
 	tctx := env.TenantCtx(d.tenantID)
 
-	for _, m := range c.Seed.Memories {
-		if !store.ValidMemoryScope(m.Scope) {
-			return "", fmt.Errorf("seed: invalid scope %q", m.Scope)
+	// Pass 1: write rows without contradiction links, remembering assigned
+	// IDs so contradicts-index references can be resolved in pass 2.
+	ids := make([]*string, len(c.Seed.Memories))
+	for i, m := range c.Seed.Memories {
+		if m.Contradicts != nil {
+			continue
 		}
-		if !store.ValidMemoryKind(m.Kind) {
-			return "", fmt.Errorf("seed: invalid kind %q", m.Kind)
+		written, err := d.seedOne(tctx, env, runID, m)
+		if err != nil {
+			return "", err
 		}
-		mem := &store.Memory{
-			Scope:      m.Scope,
-			Kind:       m.Kind,
-			Content:    m.Content,
-			SourceType: m.Source,
-			Confidence: m.Confidence,
+		ids[i] = &written.ID
+	}
+	// Pass 2: contradiction rows point at their earlier counterpart via a
+	// direct UPDATE. WriteMemory cannot be used here: different content in
+	// the same tuple triggers its supersede path (which would flip the old
+	// row to superseded), while a contradiction keeps both rows active -
+	// exactly the state store.FilterContradictedMemories resolves at read.
+	for i, m := range c.Seed.Memories {
+		if m.Contradicts == nil {
+			continue
 		}
-		if mem.SourceType == "" {
-			mem.SourceType = "manual"
+		if *m.Contradicts >= len(ids) || ids[*m.Contradicts] == nil {
+			return "", fmt.Errorf("seed %d: contradicts index %d is not an earlier seed row", i, *m.Contradicts)
 		}
-		if user := d.ident(runID, m.User); user != "" {
-			mem.UserID = &user
+		written, err := d.seedOne(tctx, env, runID, m)
+		if err != nil {
+			return "", err
 		}
-		if agent := d.ident(runID, m.Agent); agent != "" {
-			mem.AgentID = &agent
-		}
-		if sess := d.ident(runID, m.Session); sess != "" {
-			mem.SessionKey = &sess
-		}
-		if err := env.MemoryFabric.WriteMemory(tctx, mem); err != nil {
-			return "", fmt.Errorf("seed write (scope=%s user=%s): %w", m.Scope, m.User, err)
+		if _, err := env.DB.ExecContext(ctx,
+			`UPDATE memories SET contradicts_id = $1 WHERE id = $2`,
+			*ids[*m.Contradicts], written.ID); err != nil {
+			return "", fmt.Errorf("seed contradicts link: %w", err)
 		}
 	}
 
@@ -145,4 +150,38 @@ func (d *MemoryDriver) check(ctx context.Context, env *Env, runID string, spec M
 		return detail, fmt.Errorf("%s", strings.Join(failures, "; "))
 	}
 	return detail, nil
+}
+
+// seedOne writes one seed memory and returns the stored row (WriteMemory
+// rewrites m.ID with the canonical id when a dedup upsert occurs).
+func (d *MemoryDriver) seedOne(tctx context.Context, env *Env, runID string, m MemorySeedItem) (*store.Memory, error) {
+	if !store.ValidMemoryScope(m.Scope) {
+		return nil, fmt.Errorf("seed: invalid scope %q", m.Scope)
+	}
+	if !store.ValidMemoryKind(m.Kind) {
+		return nil, fmt.Errorf("seed: invalid kind %q", m.Kind)
+	}
+	mem := &store.Memory{
+		Scope:      m.Scope,
+		Kind:       m.Kind,
+		Content:    m.Content,
+		SourceType: m.Source,
+		Confidence: m.Confidence,
+	}
+	if mem.SourceType == "" {
+		mem.SourceType = "manual"
+	}
+	if user := d.ident(runID, m.User); user != "" {
+		mem.UserID = &user
+	}
+	if agent := d.ident(runID, m.Agent); agent != "" {
+		mem.AgentID = &agent
+	}
+	if sess := d.ident(runID, m.Session); sess != "" {
+		mem.SessionKey = &sess
+	}
+	if err := env.MemoryFabric.WriteMemory(tctx, mem); err != nil {
+		return nil, fmt.Errorf("seed write (scope=%s user=%s): %w", m.Scope, m.User, err)
+	}
+	return mem, nil
 }
