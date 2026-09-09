@@ -518,6 +518,11 @@ func isReadMethod(method string) bool {
 		protocol.MethodJobsGet,
 		protocol.MethodTasksTree,
 
+		// Node runtime (inheritance plan Phase 2) + routing rules
+		// (Phase 4) — registry/config reads.
+		protocol.MethodNodesList,
+		protocol.MethodRoutingRulesList,
+
 		// Memory fabric (Paseo Phase 5) — scoped retrieval reads.
 		protocol.MethodMemoryGet,
 		protocol.MethodMemorySearch,
