@@ -31,5 +31,42 @@
     "title": "Thu hồi thiết bị",
     "description": "Thu hồi ghép nối cho {{channel}}:{{senderId}}? Thiết bị sẽ cần ghép nối lại.",
     "confirmLabel": "Thu hồi"
+  },
+  "compute": {
+    "title": "Node tính toán",
+    "namePlaceholder": "Tên node mới",
+    "createKey": "Tạo khóa",
+    "emptyTitle": "Chưa có node tính toán",
+    "emptyDescription": "Tạo khóa, rồi chạy goclaw-node với khóa đó trên máy đích.",
+    "columns": {
+      "name": "Tên",
+      "platform": "Nền tảng",
+      "capabilities": "Khả năng",
+      "trust": "Mức tin cậy",
+      "lastSeen": "Gần đây nhất",
+      "actions": "Thao tác"
+    },
+    "online": "Trực tuyến",
+    "offline": "Ngoại tuyến",
+    "trustAction": "Tin cậy",
+    "revoke": "Thu hồi",
+    "trust": {
+      "pending": "Chờ duyệt",
+      "trusted": "Được tin cậy",
+      "revoked": "Đã thu hồi"
+    },
+    "keyCreatedTitle": "Đã tạo khóa node",
+    "keyCreatedWarning": "Sao chép khóa cho \"{{name}}\" ngay bây giờ — khóa chỉ hiển thị một lần và không thể khôi phục. Chạy goclaw-node với khóa đó; node sẽ ở trạng thái chờ cho đến khi bạn tin cậy nó.",
+    "copy": "Sao chép",
+    "confirmTrust": {
+      "title": "Tin cậy node",
+      "description": "Tin cậy \"{{name}}\"? Lệnh có thể được thực thi trên node này khi agent gọi đến.",
+      "confirmLabel": "Tin cậy"
+    },
+    "confirmRevoke": {
+      "title": "Thu hồi node",
+      "description": "Thu hồi \"{{name}}\"? Khóa của node sẽ ngừng hoạt động ngay lập tức và daemon sẽ bị ngắt kết nối.",
+      "confirmLabel": "Thu hồi"
+    }
   }
 }
