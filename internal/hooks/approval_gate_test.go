@@ -3,6 +3,7 @@ package hooks_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 )
@@ -14,6 +15,7 @@ type fakeGate struct {
 	gateReason  string
 	askAllow    bool
 	askReason   string
+	askDelay    time.Duration
 	gateQueries []hooks.ApprovalQuery
 	askQueries  []hooks.ApprovalQuery
 }
@@ -23,8 +25,15 @@ func (g *fakeGate) GateToolCall(_ context.Context, q hooks.ApprovalQuery) (bool,
 	return g.gateAllow, g.gateReason
 }
 
-func (g *fakeGate) ResolveAsk(_ context.Context, q hooks.ApprovalQuery) (bool, string) {
+func (g *fakeGate) ResolveAsk(ctx context.Context, q hooks.ApprovalQuery) (bool, string) {
 	g.askQueries = append(g.askQueries, q)
+	if g.askDelay > 0 {
+		select {
+		case <-time.After(g.askDelay):
+		case <-ctx.Done():
+			return false, "cancelled"
+		}
+	}
 	return g.askAllow, g.askReason
 }
 
@@ -234,7 +243,11 @@ func TestHookAsk_NonToolEvent_DegradesToBlockEvenWithGate(t *testing.T) {
 func TestApprovalGate_AskApprovalSkipsChainBudgetCheck(t *testing.T) {
 	// A human approval wait legitimately outlives the chain budget; the
 	// approved call must NOT be vetoed by the post-hook budget check.
-	gate := &fakeGate{gateAllow: true, askAllow: true}
+	// Deterministic setup: the hook itself returns ask instantly, then the
+	// (simulated) human wait outlasts the budget. The budget must not expire
+	// before the hook returns — that path maps to DecisionTimeout in runOne,
+	// which is a different mechanism.
+	gate := &fakeGate{gateAllow: true, askAllow: true, askDelay: 80 * time.Millisecond}
 	withTestGate(t, gate)
 
 	askHook := newBaseHook(hooks.HandlerHTTP, hooks.EventPreToolUse)
@@ -242,7 +255,7 @@ func TestApprovalGate_AskApprovalSkipsChainBudgetCheck(t *testing.T) {
 	d := hooks.NewStdDispatcher(hooks.StdDispatcherOpts{
 		Store:       fs,
 		Audit:       hooks.NewAuditWriter(fs, ""),
-		ChainBudget: 1, // 1ns: expired by the time the ask resolves
+		ChainBudget: 10 * time.Millisecond,
 		Handlers: map[hooks.HandlerType]hooks.Handler{
 			hooks.HandlerHTTP: &fakeHandler{decision: hooks.DecisionAsk},
 		},
