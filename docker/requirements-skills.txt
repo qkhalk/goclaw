@@ -19,3 +19,6 @@ lxml~=6.0.2
 
 # AI SDK — relaxed to allow minor updates (fast-moving SDK)
 anthropic>=0.88.0,<2.0.0
+
+# Security testing (security-audit skill; no Alpine apk package exists)
+sqlmap~=1.9
