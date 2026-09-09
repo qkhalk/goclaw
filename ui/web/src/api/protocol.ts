@@ -154,6 +154,17 @@ export const Methods = {
   APPROVALS_APPROVE: "exec.approval.approve",
   APPROVALS_DENY: "exec.approval.deny",
 
+  // Node runtime (inheritance plan Phase 2)
+  NODES_REGISTER: "nodes.register",
+  NODES_LIST: "nodes.list",
+  NODES_REVOKE: "nodes.revoke",
+  NODES_RESULT: "nodes.result",
+
+  // Routing rules (inheritance plan Phase 4)
+  ROUTING_RULES_LIST: "routing.rules.list",
+  ROUTING_RULES_SET: "routing.rules.set",
+  ROUTING_RULES_DELETE: "routing.rules.delete",
+
   USAGE_GET: "usage.get",
   USAGE_SUMMARY: "usage.summary",
 
@@ -258,6 +269,8 @@ export const Events = {
   SHUTDOWN: "shutdown",
   NODE_PAIR_REQUESTED: "node.pair.requested",
   NODE_PAIR_RESOLVED: "node.pair.resolved",
+  NODE_INVOKE: "node.invoke",
+  NODE_STATE: "node.state",
   DEVICE_PAIR_REQUESTED: "device.pair.requested",
   DEVICE_PAIR_RESOLVED: "device.pair.resolved",
   VOICEWAKE_CHANGED: "voicewake.changed",
