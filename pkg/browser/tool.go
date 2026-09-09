@@ -37,6 +37,7 @@ Actions:
 - snapshot: Get page accessibility tree with element refs (use targetId, maxChars, interactive, compact, depth)
 - screenshot: Capture page screenshot (use targetId, fullPage)
 - navigate: Navigate tab to URL (requires targetId, targetUrl)
+- download: Download a file from a URL to the session media store (requires targetUrl; optional timeoutMs). The URL should trigger a browser download (attachment/blob), not render a regular page.
 - console: Get browser console messages (requires targetId)
 - act: Interact with elements (requires request object with kind, ref, etc.)
 
@@ -57,7 +58,7 @@ func (t *BrowserTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"action": map[string]any{
 				"type":        "string",
-				"enum":        []string{"status", "start", "stop", "tabs", "open", "close", "snapshot", "screenshot", "navigate", "console", "act"},
+				"enum":        []string{"status", "start", "stop", "tabs", "open", "close", "snapshot", "screenshot", "navigate", "download", "console", "act"},
 				"description": "The browser action to perform",
 			},
 			"targetUrl": map[string]any{
@@ -91,6 +92,10 @@ func (t *BrowserTool) Parameters() map[string]any {
 			"timeoutMs": map[string]any{
 				"type":        "number",
 				"description": "Timeout in milliseconds for actions",
+			},
+			"maxBytes": map[string]any{
+				"type":        "number",
+				"description": "Max download size in bytes for the download action (default 50MB)",
 			},
 			"request": map[string]any{
 				"type":        "object",
@@ -153,8 +158,13 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 
 	// Apply per-action timeout before startup so remote Chrome failures are bounded too.
 	switch action {
-	case "open", "navigate", "snapshot", "screenshot", "act", "tabs":
+	case "open", "navigate", "snapshot", "screenshot", "act", "tabs", "download":
 		timeout := t.manager.ActionTimeout()
+		if action == "download" {
+			// Downloads legitimately take longer than UI actions; default to
+			// DefaultDownloadTimeout, still overridable via timeoutMs.
+			timeout = DefaultDownloadTimeout
+		}
 		if ms, ok := args["timeoutMs"].(float64); ok && ms > 0 {
 			timeout = time.Duration(ms) * time.Millisecond
 		}
@@ -165,7 +175,7 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 
 	// Auto-start browser for actions that need it
 	switch action {
-	case "open", "snapshot", "screenshot", "navigate", "act", "tabs":
+	case "open", "snapshot", "screenshot", "navigate", "act", "tabs", "download":
 		if err := t.manager.Start(ctx); err != nil {
 			return tools.ErrorResult(fmt.Sprintf("failed to start browser: %v", err))
 		}
@@ -190,6 +200,8 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 		return t.handleScreenshot(ctx, args)
 	case "navigate":
 		return t.handleNavigate(ctx, args)
+	case "download":
+		return t.handleDownload(ctx, args)
 	case "console":
 		return t.handleConsole(ctx, args)
 	case "act":
@@ -321,6 +333,34 @@ func (t *BrowserTool) handleConsole(ctx context.Context, args map[string]any) *t
 	targetID, _ := args["targetId"].(string)
 	msgs := t.manager.ConsoleMessages(ctx, targetID)
 	return jsonResult(msgs)
+}
+
+// handleDownload downloads a file via the browser and stages it into the
+// session media store so the agent can read/send it. When no workspace is
+// configured, the path of the temp staging file is returned instead.
+func (t *BrowserTool) handleDownload(ctx context.Context, args map[string]any) *tools.Result {
+	targetURL, _ := args["targetUrl"].(string)
+	if targetURL == "" {
+		return tools.ErrorResult("targetUrl is required for download action")
+	}
+	targetID, _ := args["targetId"].(string)
+
+	opts := DownloadOpts{}
+	if ms, ok := args["maxBytes"].(float64); ok && ms > 0 {
+		opts.MaxBytes = int64(ms)
+	}
+
+	result, err := t.manager.Download(ctx, targetID, targetURL, opts)
+	if err != nil {
+		return tools.ErrorResult(fmt.Sprintf("download failed: %v", err))
+	}
+
+	stagedPath := StageDownloadedFile(ctx, result)
+	if stagedPath != result.FilePath {
+		// File was moved into the media store — remove the now-empty temp dir.
+		CleanupStaging(result)
+	}
+	return tools.NewResult(fmt.Sprintf("Download complete: %s (%d bytes, saved as %s)", stagedPath, result.Bytes, result.FileName))
 }
 
 func (t *BrowserTool) handleAct(ctx context.Context, args map[string]any) *tools.Result {
