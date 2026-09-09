@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 80
+const SchemaVersion = 81
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1502,8 +1502,25 @@ CREATE INDEX IF NOT EXISTS idx_hook_executions_session
 CREATE UNIQUE INDEX IF NOT EXISTS uq_hook_executions_dedup
     ON hook_executions (dedup_key)
     WHERE dedup_key IS NOT NULL;`,
-}
 
+	// Version 80 → 81: tenant-scoped inbound routing rules (inheritance
+	// plan Phase 4; PG 000117). Evaluated between config-binding peer
+	// matches and channel matches; lowest priority number wins. match_config
+	// TEXT holds camelCase JSON (WS wire shape); column avoids the reserved
+	// keyword `match`. Key is the SOURCE version: applied when upgrading
+	// from 80 to reach SchemaVersion 81.
+	80: `CREATE TABLE IF NOT EXISTS routing_rules (
+	id              TEXT PRIMARY KEY,
+	tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+	priority        INT NOT NULL DEFAULT 100,
+	match_config    TEXT NOT NULL DEFAULT '{}',
+	target_agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+	enabled         INT NOT NULL DEFAULT 1,
+	created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_routing_rules_eval
+	ON routing_rules (tenant_id, enabled, priority, created_at);`,}
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.
 // Mirrors PG migrations 000070 (pricing catalog + overrides), 000071 (usage cap
 // tables), 000072 (agent budget source), and 000104 (warn_at_percent).

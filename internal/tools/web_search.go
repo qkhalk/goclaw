@@ -30,6 +30,7 @@ const (
 	searchProviderExa        = "exa"
 	searchProviderTavily     = "tavily"
 	searchProviderBrave      = "brave"
+	searchProviderSearxNG    = "searxng"
 	searchProviderParallel   = "parallel"
 	searchProviderDuckDuckGo = "duckduckgo"
 )
@@ -38,6 +39,7 @@ var defaultSearchProviderOrder = []string{
 	searchProviderExa,
 	searchProviderTavily,
 	searchProviderBrave,
+	searchProviderSearxNG,
 	searchProviderDuckDuckGo,
 }
 
@@ -54,12 +56,18 @@ type searchParams struct {
 	SearchLang string
 	UILang     string
 	Freshness  string
+	// MaxAgeDays is the optional freshness filter in days (max_age_days
+	// param). Only providers with real support act on it (SearXNG maps it to
+	// time_range and post-filters by publishedDate); others ignore it.
+	MaxAgeDays int
 }
 
 type searchResult struct {
 	Title       string `json:"title"`
 	URL         string `json:"url"`
 	Description string `json:"description"`
+	// PublishedDate is set only by providers that return one (SearXNG).
+	PublishedDate *time.Time `json:"publishedDate,omitempty"`
 }
 
 // --- Freshness validation (matching TS) ---
@@ -164,9 +172,13 @@ func (t *WebSearchTool) Parameters() map[string]any {
 				"type":        "string",
 				"description": "Filter results by discovery time. Supports 'pd' (past day), 'pw' (past week), 'pm' (past month), 'py' (past year), and date range 'YYYY-MM-DDtoYYYY-MM-DD'.",
 			},
+			"max_age_days": map[string]any{
+				"type":        "number",
+				"description": "Optional: only return results newer than this many days. Honored natively by searxng (time_range + published-date filter); other providers ignore it.",
+			},
 			"provider": map[string]any{
 				"type":        "string",
-				"description": "Optional: force a specific provider (e.g., 'tavily', 'exa', 'brave', 'parallel', 'duckduckgo'). When omitted, the tenant's configured provider chain is used (first-success-wins). Use this to force cross-engine corroboration — call once with each provider and compare results.",
+				"description": "Optional: force a specific provider (e.g., 'tavily', 'exa', 'brave', 'searxng', 'parallel', 'duckduckgo'). When omitted, the tenant's configured provider chain is used (first-success-wins). Use this to force cross-engine corroboration — call once with each provider and compare results.",
 			},
 		},
 		"required": []string{"query"},
@@ -189,6 +201,10 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) *Resul
 	uiLang, _ := args["ui_lang"].(string)
 	freshness, _ := args["freshness"].(string)
 	requestedProvider, _ := args["provider"].(string)
+	maxAgeDays := 0
+	if v, ok := args["max_age_days"].(float64); ok && v > 0 {
+		maxAgeDays = int(v)
+	}
 
 	params := searchParams{
 		Query:      query,
@@ -197,6 +213,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) *Resul
 		SearchLang: searchLang,
 		UILang:     uiLang,
 		Freshness:  freshness,
+		MaxAgeDays: maxAgeDays,
 	}
 
 	// Check cache (scoped per channel + provider to prevent cross-engine cache mixing)
@@ -242,6 +259,12 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) *Resul
 			continue
 		}
 
+		// Normalize URLs and drop exact duplicates before appending results
+		// so repeated engines / an engine's own repeats cannot double-list a
+		// page (dedup key: lowercase host, no utm_*/fbclid/gclid, no trailing
+		// slash, sorted query).
+		results = DedupeSearchResults(results)
+
 		formatted := formatSearchResults(query, results, provider.Name())
 		wrapped := wrapExternalContent(formatted, "Web Search", false)
 
@@ -263,6 +286,7 @@ func buildSearchCacheKey(p searchParams) string {
 		orDefault(p.SearchLang, "default"),
 		orDefault(p.UILang, "default"),
 		orDefault(p.Freshness, "default"),
+		fmt.Sprintf("%d", p.MaxAgeDays),
 	}
 	return strings.Join(parts, ":")
 }

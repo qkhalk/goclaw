@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"mime"
 	"path/filepath"
 	"strings"
@@ -36,20 +37,102 @@ type defaultAgentGetter interface {
 }
 
 func resolveAgentRouteForInbound(ctx context.Context, cfg *config.Config, agentStore defaultAgentGetter, channel, chatID, peerKind string) string {
+	return resolveAgentRouteForInboundWithRules(ctx, cfg, agentStore, nil, channel, chatID, peerKind, "")
+}
+
+// resolveAgentRouteForInboundWithRules resolves the target agent with the
+// full Phase 4 priority chain:
+//
+//  1. config bindings with a peer constraint
+//  2. DB routing rules (tenant-scoped, lowest priority number first,
+//     enabled only) — inheritance plan Phase 4
+//  3. config bindings without a peer constraint (channel-level)
+//  4. DB default agent → config default agent
+//
+// Rules errors NEVER break inbound routing: on lookup failure the chain
+// falls through to the legacy behavior (log + continue).
+func resolveAgentRouteForInboundWithRules(ctx context.Context, cfg *config.Config, agentStore defaultAgentGetter, rules store.RoutingRulesStore, channel, chatID, peerKind, guildID string) string {
 	if cfg == nil {
 		return config.DefaultAgentID
 	}
+	// Pass 1: peer-constrained config bindings (most specific).
 	for _, binding := range cfg.Bindings {
-		if bindingMatchesInbound(binding, channel, chatID, peerKind) {
+		if binding.Match.Peer != nil && bindingMatchesInbound(binding, channel, chatID, peerKind) {
 			return config.NormalizeAgentID(binding.AgentID)
 		}
 	}
+	// Pass 2: DB routing rules. Failure falls through to legacy routing.
+	if rules != nil {
+		if agentID, ok := matchRoutingRules(ctx, rules, channel, chatID, peerKind, guildID); ok {
+			return agentID
+		}
+	}
+	// Pass 3: channel-level config bindings (no peer constraint).
+	for _, binding := range cfg.Bindings {
+		if binding.Match.Peer == nil && bindingMatchesInbound(binding, channel, chatID, peerKind) {
+			return config.NormalizeAgentID(binding.AgentID)
+		}
+	}
+	// Pass 4: DB default agent → config default.
 	if agentStore != nil {
 		if ag, err := agentStore.GetDefault(ctx); err == nil && ag != nil && ag.AgentKey != "" {
 			return ag.AgentKey
 		}
 	}
 	return cfg.ResolveDefaultAgentID()
+}
+
+// matchRoutingRules returns the agent_key of the first matching enabled
+// routing rule for the tenant in ctx, or ok=false when none matches or the
+// lookup fails (rules failures are logged and never block inbound routing).
+func matchRoutingRules(ctx context.Context, rules store.RoutingRulesStore, channel, chatID, peerKind, guildID string) (string, bool) {
+	tid := store.TenantIDFromContext(ctx)
+	if tid == uuid.Nil {
+		return "", false
+	}
+	list, err := rules.ListRules(ctx, tid.String())
+	if err != nil {
+		slog.Warn("routing.rules: lookup failed, falling back to legacy routing", "error", err, "tenant_id", tid)
+		return "", false
+	}
+	for _, rule := range list {
+		if rule == nil || !rule.Enabled {
+			continue
+		}
+		if !routingRuleMatches(rule.Match, channel, chatID, peerKind, guildID) {
+			continue
+		}
+		if rule.TargetAgentKey == "" {
+			// Target agent missing/deleted — skip rather than misroute.
+			slog.Warn("routing.rules: match with unresolvable target agent", "rule_id", rule.ID, "target_agent_id", rule.TargetAgentID)
+			continue
+		}
+		return rule.TargetAgentKey, true
+	}
+	return "", false
+}
+
+// routingRuleMatches reports whether an inbound message satisfies a rule's
+// match block. Every set field must equal the message value; nil fields are
+// wildcards. accountId rules never match because inbound messages carry no
+// account context yet (conservative — avoids wrong routing).
+func routingRuleMatches(m store.RoutingRuleMatch, channel, chatID, peerKind, guildID string) bool {
+	if m.Channel != nil && *m.Channel != channel {
+		return false
+	}
+	if m.PeerKind != nil && *m.PeerKind != peerKind {
+		return false
+	}
+	if m.PeerID != nil && *m.PeerID != chatID {
+		return false
+	}
+	if m.GuildID != nil && *m.GuildID != guildID {
+		return false
+	}
+	if m.AccountID != nil {
+		return false
+	}
+	return true
 }
 
 func bindingMatchesInbound(binding config.AgentBinding, channel, chatID, peerKind string) bool {

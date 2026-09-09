@@ -91,6 +91,7 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 		TaskGraph:              NewPGTaskGraphStore(db),
 		MemoryFabric:           NewPGMemoryFabricStore(db),
 		Terminals:              NewPGTerminalStore(db),
+		RoutingRules:           NewPGRoutingRulesStore(db),
 	}
 	// Wire permStore into WorkstationStore so Create seeds allowlist atomically (H5 fix).
 	// Must happen after both stores are constructed.

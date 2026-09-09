@@ -3004,8 +3004,7 @@ CREATE INDEX IF NOT EXISTS idx_terminal_sessions_updated
 -- nodes.register; the plaintext is revealed once at key creation.
 -- trust: pending (default, nothing executes) | trusted | revoked
 -- (terminal — a revoked node needs a freshly created key).
--- ============================================================
-
+-- =====================================================
 CREATE TABLE IF NOT EXISTS nodes (
     id            TEXT PRIMARY KEY,
     tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
@@ -3025,3 +3024,23 @@ CREATE INDEX IF NOT EXISTS idx_nodes_tenant_trust
     ON nodes (tenant_id, trust);
 CREATE INDEX IF NOT EXISTS idx_nodes_tenant_created
     ON nodes (tenant_id, created_at DESC);
+=======
+-- Table: routing_rules (PG 000117)
+-- Inbound routing rules (inheritance plan Phase 4): tenant-scoped,
+-- evaluated between config-binding peer matches and channel matches.
+-- match_config JSONB is camelCase, matching the WS wire shape; the column
+-- is named match_config because `match` is a reserved SQL keyword.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS routing_rules (
+    id              TEXT PRIMARY KEY,
+    tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    priority        INT NOT NULL DEFAULT 100,
+    match_config    TEXT NOT NULL DEFAULT '{}',
+    target_agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    enabled         INT NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_routing_rules_eval
+    ON routing_rules (tenant_id, enabled, priority, created_at);
