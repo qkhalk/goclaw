@@ -2991,3 +2991,34 @@ CREATE INDEX IF NOT EXISTS idx_terminal_sessions_workspace
     ON terminal_sessions (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_terminal_sessions_updated
     ON terminal_sessions (updated_at DESC);
+
+-- ============================================================
+-- Table: nodes (PG 000114)
+-- Node runtime registry (inheritance plan Phase 2): one row per
+-- registered compute node daemon. Distinct from node_leases (UI-tab
+-- presence) and from pairing (channel sender trust). node_key_hash is
+-- the SHA-256 hex of the bearer key the daemon presents at
+-- nodes.register; the plaintext is revealed once at key creation.
+-- trust: pending (default, nothing executes) | trusted | revoked
+-- (terminal — a revoked node needs a freshly created key).
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS nodes (
+    id            TEXT PRIMARY KEY,
+    tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    name          VARCHAR(255) NOT NULL,
+    node_key_hash TEXT NOT NULL UNIQUE,
+    platform      TEXT NOT NULL DEFAULT '',
+    capabilities  TEXT NOT NULL DEFAULT '[]',
+    trust         TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (trust IN ('pending','trusted','revoked')),
+    last_seen_at  TEXT,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    revoked_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_nodes_tenant_trust
+    ON nodes (tenant_id, trust);
+CREATE INDEX IF NOT EXISTS idx_nodes_tenant_created
+    ON nodes (tenant_id, created_at DESC);

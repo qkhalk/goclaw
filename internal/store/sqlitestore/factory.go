@@ -97,6 +97,7 @@ func NewSQLiteStores(cfg store.StoreConfig) (*store.Stores, error) {
 		TenantRoles:            NewSQLiteTenantRoleStore(db),
 		PublisherKeys:          NewSQLitePublisherKeyStore(db),
 		NodeLeases:             NewSQLiteNodeLeaseStore(db),
+		Nodes:                  NewSQLiteNodeStore(db),
 		Workspaces:             NewSQLiteWorkspaceStore(db),
 		AgentJobs:              NewSQLiteAgentJobStore(db),
 		TaskGraph:              NewSQLiteTaskGraphStore(db),
