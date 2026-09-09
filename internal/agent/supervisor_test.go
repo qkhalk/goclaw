@@ -77,8 +77,9 @@ func TestSupervisorConsecutiveToolFailures(t *testing.T) {
 	if v := sup.RecordToolResult(true); !v.Allowed {
 		t.Fatalf("failure after reset = %+v, want allowed", v)
 	}
-	// Three consecutive failures trip the cap.
-	for i := 0; i < 2; i++ {
+	// Fresh streak: one more failure allowed (streak 2), the next trips the
+	// cap — the count blocks when it REACHES the limit (count >= Max).
+	for i := 0; i < 1; i++ {
 		if v := sup.RecordToolResult(true); !v.Allowed {
 			t.Fatalf("streak failure %d = %+v, want allowed", i+1, v)
 		}
