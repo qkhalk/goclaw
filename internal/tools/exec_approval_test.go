@@ -512,6 +512,7 @@ func TestClassifyTool(t *testing.T) {
 		{"browser", ToolClassBrowser},
 		{"browser_navigate", ToolClassBrowser},
 		{"workstation_exec", ToolClassWorkstationExec},
+		{"node_exec", ToolClassWorkstationExec},
 		{"write_file", ToolClassWriteFile},
 		{"edit_file", ToolClassWriteFile},
 		{"read_file", ""},

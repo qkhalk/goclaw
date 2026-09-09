@@ -29,7 +29,7 @@ func ClassifyTool(toolName string) ToolClass {
 		return ""
 	case name == "exec" || name == "bash" || name == "sh" || strings.HasPrefix(name, "exec_"):
 		return ToolClassExec
-	case name == "workstation_exec":
+	case name == "workstation_exec" || name == "node_exec":
 		return ToolClassWorkstationExec
 	case name == "browser" || strings.HasPrefix(name, "browser_"):
 		return ToolClassBrowser
