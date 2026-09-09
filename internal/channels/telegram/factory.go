@@ -42,6 +42,7 @@ type telegramInstanceConfig struct {
 	AllowFrom         []string                               `json:"allow_from,omitempty"`
 	Groups            map[string]*config.TelegramGroupConfig `json:"groups,omitempty"`
 	TelegramManager   *config.TelegramManagerConfig          `json:"telegram_manager,omitempty"`
+	MenuSkills        []string                               `json:"menu_skills,omitempty"` // skill slugs pinned to the "/" bot command menu
 }
 
 // Factory creates a Telegram channel from DB instance data (no extra stores).
@@ -52,11 +53,12 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 
 // FactoryWithStores returns a ChannelFactory that includes optional stores via functional options.
 func FactoryWithStores(agentStore store.AgentStore, configPermStore store.ConfigPermissionStore, teamStore store.TeamStore, subagentTaskStore store.SubagentTaskStore, pendingStore store.PendingMessageStore) channels.ChannelFactory {
-	return FactoryWithStoresAndAudio(agentStore, configPermStore, teamStore, subagentTaskStore, pendingStore, nil)
+	return FactoryWithStoresAndAudio(agentStore, configPermStore, teamStore, subagentTaskStore, pendingStore, nil, nil)
 }
 
 // FactoryWithStoresAndAudio returns a ChannelFactory with all stores and STT support.
-func FactoryWithStoresAndAudio(agentStore store.AgentStore, configPermStore store.ConfigPermissionStore, teamStore store.TeamStore, subagentTaskStore store.SubagentTaskStore, pendingStore store.PendingMessageStore, audioMgr *audio.Manager) channels.ChannelFactory {
+// skillsLister is optional (nil = /skills command and skill menu entries disabled).
+func FactoryWithStoresAndAudio(agentStore store.AgentStore, configPermStore store.ConfigPermissionStore, teamStore store.TeamStore, subagentTaskStore store.SubagentTaskStore, pendingStore store.PendingMessageStore, audioMgr *audio.Manager, skillsLister SkillsLister) channels.ChannelFactory {
 	return func(name string, creds json.RawMessage, cfg json.RawMessage,
 		msgBus *bus.MessageBus, pairingSvc store.PairingStore) (channels.Channel, error) {
 		return buildChannel(name, creds, cfg, msgBus, pairingSvc, audioMgr,
@@ -65,6 +67,7 @@ func FactoryWithStoresAndAudio(agentStore store.AgentStore, configPermStore stor
 			WithTeamStore(teamStore),
 			WithSubagentTaskStore(subagentTaskStore),
 			WithPendingMessageStore(pendingStore),
+			WithSkillsLister(skillsLister),
 		)
 	}
 }
@@ -123,6 +126,7 @@ func buildChannel(name string, creds json.RawMessage, cfg json.RawMessage,
 		ForceIPv4:         ic.ForceIPv4,
 		TelegramManager:   ic.TelegramManager,
 		Groups:            ic.Groups,
+		MenuSkills:        ic.MenuSkills,
 	}
 
 	// DB instances default to "pairing" for groups (secure by default).

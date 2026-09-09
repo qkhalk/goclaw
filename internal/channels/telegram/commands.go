@@ -86,6 +86,7 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 			"/reset — Reset conversation history\n" +
 			"/status — Show bot status\n" +
 			"/reactions — Show reaction emoji legend\n" +
+			"/skills — List available skills\n" +
 			"/tasks — List team tasks\n" +
 			"/task_detail <id> — View task detail\n" +
 			"/subagents — List subagent tasks\n" +
@@ -205,6 +206,10 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 
 	case "/tasks":
 		c.handleTasksList(ctx, chatID, isGroup, setThread)
+		return true
+
+	case "/skills":
+		c.handleSkillsList(ctx, chatID, chatIDStr, messageThreadID, setThread)
 		return true
 
 	case "/task_detail":
