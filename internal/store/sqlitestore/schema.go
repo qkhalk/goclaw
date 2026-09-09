@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 78
+const SchemaVersion = 79
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1464,6 +1464,13 @@ CREATE INDEX IF NOT EXISTS idx_nodes_tenant_trust
     ON nodes (tenant_id, trust);
 CREATE INDEX IF NOT EXISTS idx_nodes_tenant_created
     ON nodes (tenant_id, created_at DESC);`,
+	// 78 → 79: Approval Engine v2 — policy scopes + expiry. Mirrors PG
+	// migration 000115: session_key scopes allow-for-session grants,
+	// args_digest keys allow-once grants for retried calls, grant_expires_at
+	// bounds a granted scope's lifetime.
+	78: `ALTER TABLE approval_requests ADD COLUMN session_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE approval_requests ADD COLUMN args_digest TEXT NOT NULL DEFAULT '';
+ALTER TABLE approval_requests ADD COLUMN grant_expires_at TEXT;`,
 }
 
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.

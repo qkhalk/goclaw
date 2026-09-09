@@ -64,11 +64,12 @@ func (s *PGApprovalStore) CreateRequest(ctx context.Context, req *store.Approval
 	payload := jsonOrEmpty(req.Payload)
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO approval_requests (id, tenant_id, agent_id, requester_id, requester_type, action_type, payload, command, status, decision, decided_by, allow_once, allow_always, created_at, decided_at, expired_at, timeout_seconds)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+		`INSERT INTO approval_requests (id, tenant_id, agent_id, requester_id, requester_type, action_type, payload, command, status, decision, decided_by, allow_once, allow_always, session_key, args_digest, grant_expires_at, created_at, decided_at, expired_at, timeout_seconds)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
 		req.ID, req.TenantID, nilUUID(req.AgentID), nilUUID(req.RequesterID), req.RequesterType,
 		req.ActionType, payload, nilStr(req.Command), req.Status, nilStr(req.Decision),
 		nilUUID(req.DecidedBy), nilBool(req.AllowOnce), nilBool(req.AllowAlways),
+		req.SessionKey, req.ArgsDigest, nilTime(req.GrantExpiresAt),
 		req.CreatedAt, nilTime(req.DecidedAt), nilTime(req.ExpiredAt), req.TimeoutSeconds,
 	)
 	if err != nil {
@@ -77,13 +78,17 @@ func (s *PGApprovalStore) CreateRequest(ctx context.Context, req *store.Approval
 	return nil
 }
 
+// approvalSelectCols is the shared SELECT column list for approval_requests
+// reads. Order must match approvalRow.scan targets exactly.
+const approvalSelectCols = `id, tenant_id, agent_id, requester_id, requester_type, action_type, payload::text, command, status, decision, decided_by, allow_once, allow_always, session_key, args_digest, grant_expires_at, created_at, decided_at, expired_at, timeout_seconds`
+
 // ListPending returns pending (unresolved) requests for the given tenant,
 // oldest first.
 func (s *PGApprovalStore) ListPending(ctx context.Context, tenantID uuid.UUID) ([]store.ApprovalRequest, error) {
 	if tenantID == uuid.Nil {
 		tenantID = tenantIDForInsert(ctx)
 	}
-	q := `SELECT id, tenant_id, agent_id, requester_id, requester_type, action_type, payload::text, command, status, decision, decided_by, allow_once, allow_always, created_at, decided_at, expired_at, timeout_seconds
+	q := `SELECT ` + approvalSelectCols + `
 		 FROM approval_requests
 		 WHERE tenant_id = $1 AND status = $2
 		 ORDER BY created_at ASC, id ASC`
@@ -109,10 +114,40 @@ func (s *PGApprovalStore) ListPending(ctx context.Context, tenantID uuid.UUID) (
 	return items, nil
 }
 
-// Resolve transitions a pending request to a terminal state, scoped to the
-// context tenant. A second resolve of the same row returns
+// ListPendingAll returns pending requests across ALL tenants, oldest first.
+// Cross-tenant by design (startup reinstatement); callers must carry each
+// row's TenantID forward.
+func (s *PGApprovalStore) ListPendingAll(ctx context.Context) ([]store.ApprovalRequest, error) {
+	q := `SELECT ` + approvalSelectCols + `
+		 FROM approval_requests
+		 WHERE status = $1
+		 ORDER BY created_at ASC, id ASC`
+	rows, err := s.db.QueryContext(ctx, q, store.ApprovalStatusPending)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []store.ApprovalRequest
+	for rows.Next() {
+		var r approvalRow
+		if err := scanApprovalRow(rows.Scan, &r); err != nil {
+			return nil, err
+		}
+		items = append(items, r.toStore())
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = []store.ApprovalRequest{}
+	}
+	return items, nil
+}
+
+// ResolveWithScope transitions a pending request to a terminal state, scoped
+// to the context tenant. A second resolve of the same row returns
 // ErrApprovalAlreadyResolved.
-func (s *PGApprovalStore) Resolve(ctx context.Context, id uuid.UUID, decision string, decidedBy *uuid.UUID, allowOnce, allowAlways bool) error {
+func (s *PGApprovalStore) ResolveWithScope(ctx context.Context, id uuid.UUID, decision string, decidedBy *uuid.UUID, grant store.ApprovalGrant) error {
 	tid, err := requireTenantID(ctx)
 	if err != nil {
 		return err
@@ -124,9 +159,10 @@ func (s *PGApprovalStore) Resolve(ctx context.Context, id uuid.UUID, decision st
 	now := time.Now()
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE approval_requests
-		 SET status = $3, decision = $4, decided_by = $5, allow_once = $6, allow_always = $7, decided_at = $8
-		 WHERE id = $1 AND tenant_id = $2 AND status = $9`,
-		id, tid, status, decision, nilUUID(decidedBy), nilBool(allowOnce), nilBool(allowAlways), now, store.ApprovalStatusPending)
+		 SET status = $3, decision = $4, decided_by = $5, allow_once = $6, allow_always = $7, session_key = $8, grant_expires_at = $9, decided_at = $10
+		 WHERE id = $1 AND tenant_id = $2 AND status = $11`,
+		id, tid, status, decision, nilUUID(decidedBy), nilBool(grant.AllowOnce), nilBool(grant.AllowAlways),
+		grant.SessionKey, nilTime(grant.ExpiresAt), now, store.ApprovalStatusPending)
 	if err != nil {
 		return fmt.Errorf("resolve approval request: %w", err)
 	}
@@ -144,7 +180,7 @@ func (s *PGApprovalStore) Resolve(ctx context.Context, id uuid.UUID, decision st
 // (nil, nil) when the row is missing or belongs to another tenant.
 func (s *PGApprovalStore) GetByID(ctx context.Context, id uuid.UUID) (*store.ApprovalRequest, error) {
 	where, args := buildApprovalGetWhere(ctx, id)
-	q := `SELECT id, tenant_id, agent_id, requester_id, requester_type, action_type, payload::text, command, status, decision, decided_by, allow_once, allow_always, created_at, decided_at, expired_at, timeout_seconds
+	q := `SELECT ` + approvalSelectCols + `
 		 FROM approval_requests` + where
 	var r approvalRow
 	if err := scanApprovalRow(s.db.QueryRowContext(ctx, q, args...).Scan, &r); err != nil {
@@ -195,7 +231,7 @@ func (s *PGApprovalStore) ListHistory(ctx context.Context, tenantID uuid.UUID, o
 		argIdx++
 	}
 	args = append(args, limit, opts.Offset)
-	q := `SELECT id, tenant_id, agent_id, requester_id, requester_type, action_type, payload::text, command, status, decision, decided_by, allow_once, allow_always, created_at, decided_at, expired_at, timeout_seconds
+	q := `SELECT ` + approvalSelectCols + `
 		 FROM approval_requests
 		 WHERE ` + strings.Join(conditions, " AND ") +
 		` ORDER BY created_at DESC, id DESC` +
@@ -250,6 +286,9 @@ type approvalRow struct {
 	DecidedBy      *uuid.UUID
 	AllowOnce      *bool
 	AllowAlways    *bool
+	SessionKey     *string
+	ArgsDigest     *string
+	GrantExpiresAt *time.Time
 	CreatedAt      time.Time
 	DecidedAt      *time.Time
 	ExpiredAt      *time.Time
@@ -260,7 +299,8 @@ func scanApprovalRow(scan func(dest ...any) error, r *approvalRow) error {
 	return scan(
 		&r.ID, &r.TenantID, &r.AgentID, &r.RequesterID, &r.RequesterType, &r.ActionType,
 		&r.Payload, &r.Command, &r.Status, &r.Decision, &r.DecidedBy,
-		&r.AllowOnce, &r.AllowAlways, &r.CreatedAt, &r.DecidedAt, &r.ExpiredAt, &r.TimeoutSeconds,
+		&r.AllowOnce, &r.AllowAlways, &r.SessionKey, &r.ArgsDigest, &r.GrantExpiresAt,
+		&r.CreatedAt, &r.DecidedAt, &r.ExpiredAt, &r.TimeoutSeconds,
 	)
 }
 
@@ -279,6 +319,9 @@ func (r approvalRow) toStore() store.ApprovalRequest {
 		DecidedBy:      r.DecidedBy,
 		AllowOnce:      derefBool(r.AllowOnce),
 		AllowAlways:    derefBool(r.AllowAlways),
+		SessionKey:     derefStr(r.SessionKey),
+		ArgsDigest:     derefStr(r.ArgsDigest),
+		GrantExpiresAt: r.GrantExpiresAt,
 		CreatedAt:      r.CreatedAt,
 		DecidedAt:      r.DecidedAt,
 		ExpiredAt:      r.ExpiredAt,
