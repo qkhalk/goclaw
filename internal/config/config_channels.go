@@ -477,6 +477,46 @@ type ToolsConfig struct {
 	ScrubCredentials        *bool                         `json:"scrub_credentials,omitempty"`     // auto-redact API keys/tokens in tool output (default true)
 	McpServers              map[string]*MCPServerConfig   `json:"mcp_servers,omitempty"`           // external MCP server connections
 	DocumentParser          DocumentParserConfig          `json:"document_parser"`                 // local-first document text extraction
+	Deferred                DeferredToolsConfig           `json:"deferred"`                        // deferred native tool loading via tool_search (default disabled)
+}
+
+// DefaultDeferredToolsThreshold is the visible-tool-def count above which
+// deferred native tool mode defers the excess when enabled.
+const DefaultDeferredToolsThreshold = 60
+
+// DefaultDeferredAlwaysInline returns the default always_inline entries: the
+// highest-priority/most-used groups (filesystem, web, sessions, memory) plus
+// the skills tools stay inline.
+func DefaultDeferredAlwaysInline() []string {
+	return []string{
+		"group:fs", "group:web", "group:sessions", "group:memory",
+		"skill_search", "use_skill", "skill_manage", "publish_skill",
+	}
+}
+
+// DeferredToolsConfig configures deferred (search-mode) loading of native
+// builtin tools. Ships DARK: when disabled (default), every builtin tool schema
+// is inlined into each LLM request exactly as before. When enabled and the
+// visible tool count exceeds Threshold, the excess is deferred behind a
+// `tool_search` meta-tool (BM25 discovery + on-demand activation), mirroring
+// the MCP manager's mcp_tool_search mechanism.
+type DeferredToolsConfig struct {
+	Enabled      bool     `json:"enabled,omitempty"`       // enable deferred native tool mode (default false — measure schema token cost before enabling)
+	Threshold    int      `json:"threshold,omitempty"`     // visible tool defs above which deferral kicks in (default 60)
+	AlwaysInline []string `json:"always_inline,omitempty"` // tool/group names never deferred (default fs, web, sessions, memory, skills)
+}
+
+// Resolve fills zero values with defaults (threshold 60, default always_inline
+// list). Explicit values win; an unset AlwaysInline is treated as "use default".
+func (c DeferredToolsConfig) Resolve() DeferredToolsConfig {
+	r := c
+	if r.Threshold <= 0 {
+		r.Threshold = DefaultDeferredToolsThreshold
+	}
+	if len(r.AlwaysInline) == 0 {
+		r.AlwaysInline = DefaultDeferredAlwaysInline()
+	}
+	return r
 }
 
 // DocumentParserConfig controls local-first document text extraction in the
