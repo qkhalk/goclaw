@@ -23,11 +23,54 @@
   "toast": {
     "approved": "Одобрено",
     "approvedAlways": "Команда разрешена всегда",
+    "approvedSession": "Разрешено на эту сессию",
     "approvedOnce": "Команда одобрена",
     "approveFailed": "Не удалось одобрить",
     "denied": "Отклонено",
     "deniedDesc": "Команда отклонена",
     "denyFailed": "Не удалось отклонить",
     "unknownError": "Неизвестная ошибка"
+  },
+  "tabs": {
+    "pending": "Ожидают",
+    "history": "История"
+  },
+  "scope": {
+    "once": "Разрешить один раз",
+    "session": "Разрешить на сессию",
+    "always": "Разрешить всегда"
+  },
+  "scopeLabel": "Объём разрешения",
+  "approve": "Одобрить",
+  "expiresIn": "закроется через {{time}}",
+  "riskLabel": "Риск",
+  "confirmApprove": {
+    "once": {
+      "title": "Разрешить один раз",
+      "description": "Разрешить «{{command}}» от агента «{{agentId}}»?"
+    },
+    "session": {
+      "title": "Разрешить на сессию",
+      "description": "Разрешить «{{command}}» от агента «{{agentId}}» до конца этой сессии?"
+    },
+    "always": {
+      "title": "Разрешить всегда",
+      "description": "Всегда разрешать «{{command}}» для агента «{{agentId}}»? В будущем это будет одобряться автоматически."
+    }
+  },
+  "historyEmptyTitle": "Нет истории одобрений",
+  "historyEmptyDescription": "Здесь появятся обработанные запросы на одобрение.",
+  "history": {
+    "class": "Класс инструмента",
+    "command": "Запрос",
+    "status": "Статус",
+    "decision": "Решение",
+    "created": "Запрошено",
+    "grantExpires": "Разрешение истекает"
+  },
+  "status": {
+    "approved": "Одобрено",
+    "denied": "Отклонено",
+    "expired": "Истекло"
   }
 }

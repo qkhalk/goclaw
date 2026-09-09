@@ -171,6 +171,10 @@ func (d *stdDispatcher) Fire(ctx context.Context, ev Event) (FireResult, error) 
 		return FireResult{Decision: DecisionAllow}, err
 	}
 	if len(hooks) == 0 {
+		// No hooks matched, but tool-class approval policies still apply.
+		if allow, reason := d.gatePreToolUse(ctx, ev, ev.ToolInput, ""); !allow {
+			return FireResult{Decision: DecisionBlock, DecisionReason: reason}, nil
+		}
 		return FireResult{Decision: DecisionAllow}, nil
 	}
 
@@ -179,6 +183,25 @@ func (d *stdDispatcher) Fire(ctx context.Context, ev Event) (FireResult, error) 
 	}
 	d.runAsync(ctx, ev, hooks)
 	return FireResult{Decision: DecisionAllow}, nil
+}
+
+// gatePreToolUse routes a pre_tool_use call through the tool-class approval
+// policy AFTER the hook chain allowed it (hooks veto cheaply without wasting a
+// human approval). toolInput is the (possibly hook-mutated) arguments and risk
+// an optional hint from the asking hook. Returns (true, "") when the call may
+// proceed. No-op when no approval engine is wired or the event is not
+// pre_tool_use.
+func (d *stdDispatcher) gatePreToolUse(ctx context.Context, ev Event, toolInput map[string]any, risk string) (bool, string) {
+	if ev.HookEvent != EventPreToolUse {
+		return true, ""
+	}
+	gate := approvalGate()
+	if gate == nil {
+		return true, ""
+	}
+	q := approvalQueryFor(ev, risk)
+	q.ToolInput = toolInput
+	return gate.GateToolCall(ctx, q)
 }
 
 // runSync executes the blocking chain with a wall-time budget and per-hook
@@ -269,6 +292,29 @@ func (d *stdDispatcher) runSync(ctx context.Context, ev Event, chain []HookConfi
 		case DecisionBlock:
 			d.cb.record(ctx, cfg.ID, d.now(), d.store)
 			return FireResult{Decision: DecisionBlock, DecisionReason: scriptRes.Reason}, nil
+		case DecisionAsk:
+			// Human-in-the-loop: with an approval engine wired, create an
+			// approval request through it and wait (deny-after-timeout on
+			// silence; a human approval also records an allow-once grant for
+			// the retried/resumed call). Without an engine, degrade to block.
+			//
+			// The wait runs against the parent ctx, not chainCtx: approval
+			// waits are human-scale (minutes) while the chain budget governs
+			// hook execution (seconds). On approval we skip the post-hook
+			// budget check — an elapsed budget must not veto a human decision.
+			if gate := approvalGate(); gate != nil && ev.HookEvent == EventPreToolUse {
+				q := approvalQueryFor(evMut, scriptRes.Reason)
+				if allow, denyReason := gate.ResolveAsk(ctx, q); !allow {
+					return FireResult{Decision: DecisionBlock, DecisionReason: denyReason}, nil
+				}
+				continue
+			}
+			slog.Warn("security.hook.ask_degraded_to_block",
+				"hook_id", cfg.ID,
+				"event_id", ev.EventID,
+				"reason", "no approval engine wired or non-tool event",
+			)
+			return FireResult{Decision: DecisionBlock, DecisionReason: scriptRes.Reason}, nil
 		case DecisionTimeout:
 			d.cb.record(ctx, cfg.ID, d.now(), d.store)
 			if cfg.OnTimeout == DecisionBlock {
@@ -284,6 +330,12 @@ func (d *stdDispatcher) runSync(ctx context.Context, ev Event, chain []HookConfi
 			// Chain wall-time budget exhausted (H3): fail-closed.
 			return FireResult{Decision: DecisionBlock, DecisionReason: "hook chain timeout"}, nil
 		}
+	}
+
+	// Hook chain allowed the call — apply tool-class approval policy with the
+	// (possibly hook-mutated) input before letting it execute.
+	if allow, reason := d.gatePreToolUse(ctx, evMut, evMut.ToolInput, ""); !allow {
+		return FireResult{Decision: DecisionBlock, DecisionReason: reason}, nil
 	}
 
 	result := FireResult{Decision: DecisionAllow}

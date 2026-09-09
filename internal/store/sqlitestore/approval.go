@@ -26,6 +26,10 @@ func NewSQLiteApprovalStore(db *sql.DB) *SQLiteApprovalStore {
 	return &SQLiteApprovalStore{db: db}
 }
 
+// approvalSelectCols is the shared SELECT column list for approval_requests
+// reads. Order must match sqliteApprovalRow scan targets exactly.
+const approvalSelectCols = `id, tenant_id, agent_id, requester_id, requester_type, action_type, payload, command, status, decision, decided_by, allow_once, allow_always, session_key, args_digest, grant_expires_at, created_at, decided_at, expired_at, timeout_seconds`
+
 // CreateRequest inserts a new approval request. Status defaults to pending;
 // the tenant comes from the context tenant (master fallback).
 func (s *SQLiteApprovalStore) CreateRequest(ctx context.Context, req *store.ApprovalRequest) error {
@@ -48,11 +52,12 @@ func (s *SQLiteApprovalStore) CreateRequest(ctx context.Context, req *store.Appr
 	payload := jsonOrEmpty(req.Payload)
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO approval_requests (id, tenant_id, agent_id, requester_id, requester_type, action_type, payload, command, status, decision, decided_by, allow_once, allow_always, created_at, decided_at, expired_at, timeout_seconds)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO approval_requests (id, tenant_id, agent_id, requester_id, requester_type, action_type, payload, command, status, decision, decided_by, allow_once, allow_always, session_key, args_digest, grant_expires_at, created_at, decided_at, expired_at, timeout_seconds)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		req.ID.String(), req.TenantID.String(), nilUUIDStr(req.AgentID), nilUUIDStr(req.RequesterID),
 		req.RequesterType, req.ActionType, string(payload), nilStr(req.Command), req.Status,
 		nilStr(req.Decision), nilUUIDStr(req.DecidedBy), sqlBoolNil(req.AllowOnce), sqlBoolNil(req.AllowAlways),
+		req.SessionKey, req.ArgsDigest, nilTimeStr(req.GrantExpiresAt),
 		req.CreatedAt.Format(time.RFC3339Nano), nilTimeStr(req.DecidedAt), nilTimeStr(req.ExpiredAt),
 		req.TimeoutSeconds,
 	)
@@ -68,7 +73,7 @@ func (s *SQLiteApprovalStore) ListPending(ctx context.Context, tenantID uuid.UUI
 	if tenantID == uuid.Nil {
 		tenantID = tenantIDForInsert(ctx)
 	}
-	q := `SELECT id, tenant_id, agent_id, requester_id, requester_type, action_type, payload, command, status, decision, decided_by, allow_once, allow_always, created_at, decided_at, expired_at, timeout_seconds
+	q := `SELECT ` + approvalSelectCols + `
 		 FROM approval_requests
 		 WHERE tenant_id = ? AND status = ?
 		 ORDER BY created_at ASC, id ASC`
@@ -94,10 +99,40 @@ func (s *SQLiteApprovalStore) ListPending(ctx context.Context, tenantID uuid.UUI
 	return items, nil
 }
 
-// Resolve transitions a pending request to a terminal state, scoped to the
-// context tenant. A second resolve of the same row returns
+// ListPendingAll returns pending requests across ALL tenants, oldest first.
+// Cross-tenant by design (startup reinstatement); callers must carry each
+// row's TenantID forward.
+func (s *SQLiteApprovalStore) ListPendingAll(ctx context.Context) ([]store.ApprovalRequest, error) {
+	q := `SELECT ` + approvalSelectCols + `
+		 FROM approval_requests
+		 WHERE status = ?
+		 ORDER BY created_at ASC, id ASC`
+	rows, err := s.db.QueryContext(ctx, q, store.ApprovalStatusPending)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []store.ApprovalRequest
+	for rows.Next() {
+		var r sqliteApprovalRow
+		if err := scanApprovalRow(rows.Scan, &r); err != nil {
+			return nil, err
+		}
+		items = append(items, r.toStore())
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = []store.ApprovalRequest{}
+	}
+	return items, nil
+}
+
+// ResolveWithScope transitions a pending request to a terminal state, scoped
+// to the context tenant. A second resolve of the same row returns
 // ErrApprovalAlreadyResolved.
-func (s *SQLiteApprovalStore) Resolve(ctx context.Context, id uuid.UUID, decision string, decidedBy *uuid.UUID, allowOnce, allowAlways bool) error {
+func (s *SQLiteApprovalStore) ResolveWithScope(ctx context.Context, id uuid.UUID, decision string, decidedBy *uuid.UUID, grant store.ApprovalGrant) error {
 	tid, err := requireTenantID(ctx)
 	if err != nil {
 		return err
@@ -109,9 +144,10 @@ func (s *SQLiteApprovalStore) Resolve(ctx context.Context, id uuid.UUID, decisio
 	now := time.Now().Format(time.RFC3339Nano)
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE approval_requests
-		 SET status = ?, decision = ?, decided_by = ?, allow_once = ?, allow_always = ?, decided_at = ?
+		 SET status = ?, decision = ?, decided_by = ?, allow_once = ?, allow_always = ?, session_key = ?, grant_expires_at = ?, decided_at = ?
 		 WHERE id = ? AND tenant_id = ? AND status = ?`,
-		status, decision, nilUUIDStr(decidedBy), sqlBoolNil(allowOnce), sqlBoolNil(allowAlways), now,
+		status, decision, nilUUIDStr(decidedBy), sqlBoolNil(grant.AllowOnce), sqlBoolNil(grant.AllowAlways),
+		grant.SessionKey, nilTimeStr(grant.ExpiresAt), now,
 		id.String(), tid.String(), store.ApprovalStatusPending)
 	if err != nil {
 		return fmt.Errorf("resolve approval request: %w", err)
@@ -130,7 +166,7 @@ func (s *SQLiteApprovalStore) Resolve(ctx context.Context, id uuid.UUID, decisio
 // (nil, nil) when the row is missing or belongs to another tenant.
 func (s *SQLiteApprovalStore) GetByID(ctx context.Context, id uuid.UUID) (*store.ApprovalRequest, error) {
 	where, args := buildApprovalGetWhere(ctx, id)
-	q := `SELECT id, tenant_id, agent_id, requester_id, requester_type, action_type, payload, command, status, decision, decided_by, allow_once, allow_always, created_at, decided_at, expired_at, timeout_seconds
+	q := `SELECT ` + approvalSelectCols + `
 		 FROM approval_requests` + where
 	var r sqliteApprovalRow
 	if err := scanApprovalRow(s.db.QueryRowContext(ctx, q, args...).Scan, &r); err != nil {
@@ -179,7 +215,7 @@ func (s *SQLiteApprovalStore) ListHistory(ctx context.Context, tenantID uuid.UUI
 		args = append(args, opts.Status)
 	}
 	args = append(args, limit, opts.Offset)
-	q := `SELECT id, tenant_id, agent_id, requester_id, requester_type, action_type, payload, command, status, decision, decided_by, allow_once, allow_always, created_at, decided_at, expired_at, timeout_seconds
+	q := `SELECT ` + approvalSelectCols + `
 		 FROM approval_requests
 		 WHERE ` + strings.Join(conditions, " AND ") +
 		` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
@@ -251,6 +287,9 @@ type sqliteApprovalRow struct {
 	DecidedBy      sql.NullString
 	AllowOnce      sql.NullBool
 	AllowAlways    sql.NullBool
+	SessionKey     sql.NullString
+	ArgsDigest     sql.NullString
+	GrantExpiresAt nullSqliteTime
 	CreatedAt      sqliteTime
 	DecidedAt      nullSqliteTime
 	ExpiredAt      nullSqliteTime
@@ -263,7 +302,8 @@ func scanApprovalRow(scan func(dest ...any) error, r *sqliteApprovalRow) error {
 	if err := scan(
 		&id, &tenantID, &r.AgentID, &r.RequesterID, &r.RequesterType, &r.ActionType,
 		&r.Payload, &r.Command, &r.Status, &r.Decision, &r.DecidedBy,
-		&r.AllowOnce, &r.AllowAlways, &createdAt, &r.DecidedAt, &r.ExpiredAt, &r.TimeoutSeconds,
+		&r.AllowOnce, &r.AllowAlways, &r.SessionKey, &r.ArgsDigest, &r.GrantExpiresAt,
+		&createdAt, &r.DecidedAt, &r.ExpiredAt, &r.TimeoutSeconds,
 	); err != nil {
 		return err
 	}
@@ -288,11 +328,17 @@ func (r sqliteApprovalRow) toStore() store.ApprovalRequest {
 		DecidedBy:      parseNullableUUID(r.DecidedBy),
 		AllowOnce:      r.AllowOnce.Bool,
 		AllowAlways:    r.AllowAlways.Bool,
+		SessionKey:     r.SessionKey.String,
+		ArgsDigest:     r.ArgsDigest.String,
 		CreatedAt:      r.CreatedAt.Time,
 		TimeoutSeconds: r.TimeoutSeconds,
 	}
 	if r.Payload.Valid {
 		req.Payload = []byte(r.Payload.String)
+	}
+	if r.GrantExpiresAt.Valid {
+		t := r.GrantExpiresAt.Time
+		req.GrantExpiresAt = &t
 	}
 	if r.DecidedAt.Valid {
 		t := r.DecidedAt.Time

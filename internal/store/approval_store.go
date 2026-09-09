@@ -33,9 +33,10 @@ const (
 // ApprovalDecision is the stored decision string on a resolved row. Mirrors the
 // in-memory decisions in internal/tools/exec_approval.go.
 const (
-	ApprovalDecisionAllowOnce   = "allow-once"
-	ApprovalDecisionAllowAlways = "allow-always"
-	ApprovalDecisionDeny        = "deny"
+	ApprovalDecisionAllowOnce      = "allow-once"
+	ApprovalDecisionAllowAlways    = "allow-always"
+	ApprovalDecisionAllowForSession = "allow-for-session"
+	ApprovalDecisionDeny           = "deny"
 )
 
 // ApprovableEntity identity semantics: requester_id/decided_by are UUIDs when
@@ -57,10 +58,34 @@ type ApprovalRequest struct {
 	DecidedBy      *uuid.UUID      `json:"decided_by,omitempty" db:"decided_by"`
 	AllowOnce      bool            `json:"allow_once,omitempty" db:"allow_once"`
 	AllowAlways    bool            `json:"allow_always,omitempty" db:"allow_always"`
-	CreatedAt      time.Time       `json:"created_at" db:"created_at"`
-	DecidedAt      *time.Time      `json:"decided_at,omitempty" db:"decided_at"`
-	ExpiredAt      *time.Time      `json:"expired_at,omitempty" db:"expired_at"`
-	TimeoutSeconds int             `json:"timeout_seconds" db:"timeout_seconds"`
+	// SessionKey is the session the request originated from. Populated for
+	// allow-for-session grants and for display in the approval queue.
+	SessionKey string `json:"session_key,omitempty" db:"session_key"`
+	// ArgsDigest is the canonical sha256 of (tool name, tool arguments). A
+	// grant keyed by this digest lets a retried/resumed identical call pass
+	// without a second prompt (allow-once semantics for tool-class approvals).
+	ArgsDigest string `json:"args_digest,omitempty" db:"args_digest"`
+	// GrantExpiresAt is the expiry timestamp of the granted scope (written on
+	// resolve). Distinct from ExpiredAt, which bounds how long the REQUEST
+	// itself stays resolvable.
+	GrantExpiresAt *time.Time `json:"grant_expires_at,omitempty" db:"grant_expires_at"`
+	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+	DecidedAt      *time.Time `json:"decided_at,omitempty" db:"decided_at"`
+	ExpiredAt      *time.Time `json:"expired_at,omitempty" db:"expired_at"`
+	TimeoutSeconds int        `json:"timeout_seconds" db:"timeout_seconds"`
+}
+
+// ApprovalGrant describes the scope granted when an approval request is
+// approved. Exactly one of the Allow* flags should be set; ExpiresAt bounds
+// the grant's lifetime (nil = no expiry).
+type ApprovalGrant struct {
+	AllowOnce       bool
+	AllowAlways     bool
+	AllowForSession bool
+	// SessionKey scopes an allow-for-session grant to one session.
+	SessionKey string
+	// ExpiresAt is the grant expiry timestamp (nil = never expires).
+	ExpiresAt *time.Time
 }
 
 // ApprovalListOpts scopes an approval history read. Reads are tenant-scoped via
@@ -81,10 +106,15 @@ type ApprovalStore interface {
 	// ListPending returns unreasoned (pending) requests for the context tenant,
 	// oldest first. Responses where status IN (pending, expired).
 	ListPending(ctx context.Context, tenantID uuid.UUID) ([]ApprovalRequest, error)
-	// Resolve marks a pending request resolved. Returns nil when the request was
-	// successfully transitioned; ErrApprovalAlreadyResolved when the row was
+	// ListPendingAll returns pending requests across ALL tenants, oldest first.
+	// Cross-tenant by design: used at gateway startup to reinstate durable
+	// waiters-without-waiter after a restart. Callers must treat the rows as
+	// tenant-scoped state and carry each row's TenantID forward.
+	ListPendingAll(ctx context.Context) ([]ApprovalRequest, error)
+	// ResolveWithScope marks a pending request resolved with the granted scope.
+	// Returns nil on success; ErrApprovalAlreadyResolved when the row was
 	// already in a terminal state. Only the owning tenant can resolve.
-	Resolve(ctx context.Context, id uuid.UUID, decision string, decidedBy *uuid.UUID, allowOnce, allowAlways bool) error
+	ResolveWithScope(ctx context.Context, id uuid.UUID, decision string, decidedBy *uuid.UUID, grant ApprovalGrant) error
 	// GetByID returns one request by id, scoped to the context tenant. Returns
 	// nil, nil when the row does not exist or belongs to another tenant.
 	GetByID(ctx context.Context, id uuid.UUID) (*ApprovalRequest, error)
