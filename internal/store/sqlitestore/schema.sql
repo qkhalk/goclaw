@@ -2307,7 +2307,7 @@ CREATE TABLE IF NOT EXISTS hook_executions (
     session_id   TEXT,
     event        TEXT NOT NULL,
     input_hash   TEXT,
-    decision     TEXT NOT NULL CHECK (decision IN ('allow', 'block', 'error', 'timeout')),
+    decision     TEXT NOT NULL CHECK (decision IN ('allow', 'block', 'error', 'timeout', 'ask', 'defer')),
     duration_ms  INTEGER NOT NULL DEFAULT 0,
     retry        INTEGER NOT NULL DEFAULT 0,
     dedup_key    TEXT,

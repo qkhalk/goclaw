@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 79
+const SchemaVersion = 80
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1471,6 +1471,37 @@ CREATE INDEX IF NOT EXISTS idx_nodes_tenant_created
 	78: `ALTER TABLE approval_requests ADD COLUMN session_key TEXT NOT NULL DEFAULT '';
 ALTER TABLE approval_requests ADD COLUMN args_digest TEXT NOT NULL DEFAULT '';
 ALTER TABLE approval_requests ADD COLUMN grant_expires_at TEXT;`,
+	// 79 → 80: Approval Engine v2 — hook_executions.decision vocabulary gains
+	// 'ask' (and reserved 'defer'). Mirrors PG migration 000116. SQLite cannot
+	// alter a CHECK constraint, so rebuild the table (leaf audit table: no
+	// inbound FKs). Indexes are dropped first — they follow the renamed table
+	// and would collide with the recreated names.
+	79: `DROP INDEX IF EXISTS uq_hook_executions_dedup;
+DROP INDEX IF EXISTS idx_hook_executions_session;
+ALTER TABLE hook_executions RENAME TO hook_executions_old_ask;
+CREATE TABLE hook_executions (
+    id           TEXT NOT NULL PRIMARY KEY,
+    hook_id      TEXT REFERENCES hooks(id) ON DELETE SET NULL,
+    session_id   TEXT,
+    event        TEXT NOT NULL,
+    input_hash   TEXT,
+    decision     TEXT NOT NULL CHECK (decision IN ('allow', 'block', 'error', 'timeout', 'ask', 'defer')),
+    duration_ms  INTEGER NOT NULL DEFAULT 0,
+    retry        INTEGER NOT NULL DEFAULT 0,
+    dedup_key    TEXT,
+    error        TEXT,
+    error_detail BLOB,
+    metadata     TEXT NOT NULL DEFAULT '{}',
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+INSERT INTO hook_executions (id, hook_id, session_id, event, input_hash, decision, duration_ms, retry, dedup_key, error, error_detail, metadata, created_at)
+SELECT id, hook_id, session_id, event, input_hash, decision, duration_ms, retry, dedup_key, error, error_detail, metadata, created_at FROM hook_executions_old_ask;
+DROP TABLE hook_executions_old_ask;
+CREATE INDEX IF NOT EXISTS idx_hook_executions_session
+    ON hook_executions (session_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_hook_executions_dedup
+    ON hook_executions (dedup_key)
+    WHERE dedup_key IS NOT NULL;`,
 }
 
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.
