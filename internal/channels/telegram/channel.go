@@ -35,6 +35,7 @@ type Channel struct {
 	configPermStore   store.ConfigPermissionStore // for group file writer management (nil if not configured)
 	teamStore         store.TeamStore             // for /tasks, /task_detail commands (nil if not configured)
 	subagentTaskStore store.SubagentTaskStore     // for /subagents, /subagent commands (nil if not configured)
+	skillsLister      SkillsLister                // for /skills command + bot skill menu (nil = disabled)
 	placeholders      sync.Map                    // localKey string → messageID int
 	stopThinking      sync.Map                    // localKey string → *thinkingCancel
 	typingCtrls       sync.Map                    // localKey string → *typing.Controller
@@ -262,7 +263,8 @@ func (c *Channel) Start(ctx context.Context) error {
 
 	// Register bot menu commands with retry.
 	go func() {
-		commands := DefaultMenuCommands()
+		commands := append(DefaultMenuCommands(),
+			skillMenuCommands(pollCtx, menuSkillSlugs(c.config.MenuSkills), c.skillsLister)...)
 		syncCtx, cancel := context.WithTimeout(pollCtx, probeOverallTimeout)
 		defer cancel()
 		var lastErr error
