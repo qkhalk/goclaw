@@ -89,6 +89,7 @@ type TelegramConfig struct {
 	ReasoningStream   *bool                  `json:"reasoning_stream,omitempty"`   // show reasoning as separate message when provider emits thinking events (default true)
 	ReactionLevel     string                 `json:"reaction_level,omitempty"`     // "off" (default), "minimal", "full" — status emoji reactions
 	MediaMaxBytes     int64                  `json:"media_max_bytes,omitempty"`    // max media download size in bytes (default 20MB)
+	MenuSkills        []string               `json:"menu_skills,omitempty"`        // skill slugs pinned to the "/" bot command menu (nil = defaults: cook, plan, fix, review, test; [] = none)
 	LinkPreview       *bool                  `json:"link_preview,omitempty"`       // enable URL previews in messages (default true)
 	BlockReply        *bool                  `json:"block_reply,omitempty"`        // override gateway block_reply (nil = inherit)
 	ChatBehavior      *ChatBehaviorConfig    `json:"chat_behavior,omitempty"`      // override gateway chat behavior (nil = inherit)

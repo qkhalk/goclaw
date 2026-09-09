@@ -30,7 +30,8 @@ import (
 
 // registerConfigChannels registers config-based channels as fallback when no DB instances are loaded.
 // audioMgr is optional (nil = STT disabled for channels).
-func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, msgBus *bus.MessageBus, pgStores *store.Stores, instanceLoader *channels.InstanceLoader, audioMgr *audio.Manager) {
+// skillsLister is optional (nil = /skills command and skill menu entries disabled).
+func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, msgBus *bus.MessageBus, pgStores *store.Stores, instanceLoader *channels.InstanceLoader, audioMgr *audio.Manager, skillsLister telegram.SkillsLister) {
 	if instanceLoader != nil {
 		return
 	}
@@ -49,7 +50,7 @@ func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, ms
 	if cfg.Channels.Telegram.Enabled {
 		if cfg.Channels.Telegram.Token == "" {
 			recordMissingConfig(channels.TypeTelegram, "Set channels.telegram.token in config.")
-		} else if tg, err := telegram.New(cfg.Channels.Telegram, msgBus, pgStores.Pairing, audioMgr); err != nil {
+		} else if tg, err := telegram.New(cfg.Channels.Telegram, msgBus, pgStores.Pairing, audioMgr, telegram.WithSkillsLister(skillsLister)); err != nil {
 			channelMgr.RecordFailure(channels.TypeTelegram, "", err)
 			slog.Error("failed to initialize telegram channel", "error", err)
 		} else {
