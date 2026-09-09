@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 77
+const SchemaVersion = 78
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1443,6 +1443,27 @@ UPDATE mcp_servers
 	76: `CREATE INDEX IF NOT EXISTS idx_webhook_calls_running_heartbeat
         ON webhook_calls (status, last_heartbeat_at)
         WHERE status = 'running';`,
+	// 77 → 78: node runtime registry (inheritance plan Phase 2; PG 000114).
+	// One row per registered compute node daemon. trust: pending (default,
+	// nothing executes) | trusted | revoked (terminal).
+	77: `CREATE TABLE IF NOT EXISTS nodes (
+    id            TEXT PRIMARY KEY,
+    tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    name          VARCHAR(255) NOT NULL,
+    node_key_hash TEXT NOT NULL UNIQUE,
+    platform      TEXT NOT NULL DEFAULT '',
+    capabilities  TEXT NOT NULL DEFAULT '[]',
+    trust         TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (trust IN ('pending','trusted','revoked')),
+    last_seen_at  TEXT,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    revoked_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_nodes_tenant_trust
+    ON nodes (tenant_id, trust);
+CREATE INDEX IF NOT EXISTS idx_nodes_tenant_created
+    ON nodes (tenant_id, created_at DESC);`,
 }
 
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.
