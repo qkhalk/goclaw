@@ -96,7 +96,7 @@ export function ApprovalsPage() {
                         {approval.expiresAt && (
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Timer className="h-3 w-3" />
-                            {t("expiresIn", { time: formatRelativeTime(new Date(approval.expiresAt)) })}
+                            {t("expiresIn", { time: formatDate(new Date(approval.expiresAt)) })}
                           </span>
                         )}
                       </div>
