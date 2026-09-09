@@ -85,6 +85,7 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 		TenantRoles:            NewPGTenantRoleStore(db),
 		PublisherKeys:          NewPGPublisherKeyStore(db),
 		NodeLeases:             NewPGNodeLeaseStore(db),
+		Nodes:                  NewPGNodeStore(db),
 		Workspaces:             NewPGWorkspaceStore(db),
 		AgentJobs:              NewPGAgentJobStore(db),
 		TaskGraph:              NewPGTaskGraphStore(db),
