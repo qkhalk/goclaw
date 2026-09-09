@@ -23,12 +23,14 @@ type toolSearchEntry struct {
 // into the registry and become available on the next agent loop iteration —
 // mirroring the MCP manager's mcp_tool_search behavior.
 //
+// The BM25 index is built per Execute against the registry's live deferred set
+// (small, and it shrinks as tools activate), so results are always fresh.
+//
 // When MCP search mode is also active, the MCP side registers a UNIFIED
 // "tool_search" (internal/mcp tool_search_unified.go) that overwrites this
 // native-only variant, covering both deferred sets with one meta-tool.
 type ToolSearchTool struct {
-	reg   *Registry
-	index *BM25Index
+	reg *Registry
 }
 
 func (t *ToolSearchTool) Name() string { return ToolSearchName }
@@ -59,14 +61,6 @@ func (t *ToolSearchTool) Parameters() map[string]any {
 		},
 		"required": []string{"query"},
 	}
-}
-
-// rebuildIndex builds the BM25 index over the current deferred native set.
-func (t *ToolSearchTool) rebuildIndex() {
-	docs := t.reg.DeferredSearchDocs()
-	t.index = NewBM25Index()
-	t.index.Build(docs)
-	slog.Debug("tool_search.index_built", "tools", len(docs))
 }
 
 func (t *ToolSearchTool) Execute(ctx context.Context, args map[string]any) *Result {

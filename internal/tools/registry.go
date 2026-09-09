@@ -214,8 +214,6 @@ func (r *Registry) ApplyDeferredMode() {
 		"deferred_tools", len(deferred),
 		"threshold", r.deferThreshold)
 	r.mu.Unlock()
-
-	search.rebuildIndex()
 }
 
 // DeferredToolNames returns the currently deferred native tool names, sorted.
