@@ -114,7 +114,10 @@ func (t *NodeExecTool) Execute(ctx context.Context, args map[string]any) *Result
 	res, invokeErr := nodes.Invoke(ctx, t.registry, t.nodeStore, node.ID, nodes.InvokeRequest{
 		Command: command,
 		Args:    execArgs,
-		Timeout: time.Duration(timeoutSec) * time.Second,
+		// float64 seconds → Duration must multiply through float64: an
+		// integer conversion (time.Duration(0.05)) truncates to 0, which
+		// Invoke would then replace with the default timeout.
+		Timeout: time.Duration(timeoutSec * float64(time.Second)),
 	})
 	t.auditInvoke(agentID, node, invokeErr)
 
