@@ -42,7 +42,8 @@ type telegramInstanceConfig struct {
 	AllowFrom         []string                               `json:"allow_from,omitempty"`
 	Groups            map[string]*config.TelegramGroupConfig `json:"groups,omitempty"`
 	TelegramManager   *config.TelegramManagerConfig          `json:"telegram_manager,omitempty"`
-	MenuSkills        []string                               `json:"menu_skills,omitempty"` // skill slugs pinned to the "/" bot command menu
+	MenuSkills        []string                               `json:"menu_skills,omitempty"`      // skill slugs pinned to the "/" bot command menu
+	TextCoalesceMs    *int                                   `json:"text_coalesce_ms,omitempty"` // silence window merging client-split long text messages
 }
 
 // Factory creates a Telegram channel from DB instance data (no extra stores).
@@ -127,6 +128,7 @@ func buildChannel(name string, creds json.RawMessage, cfg json.RawMessage,
 		TelegramManager:   ic.TelegramManager,
 		Groups:            ic.Groups,
 		MenuSkills:        ic.MenuSkills,
+		TextCoalesceMs:    ic.TextCoalesceMs,
 	}
 
 	// DB instances default to "pairing" for groups (secure by default).
