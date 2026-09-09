@@ -153,6 +153,11 @@ func wireExtraTools(
 		}
 	}
 
+	// Deferred native tools: one-shot activation now that every builtin tool is
+	// registered. No-op unless tools.deferred.enabled (configured in
+	// setupToolRegistry — default OFF, ships dark).
+	toolsReg.ApplyDeferredMode()
+
 	return heartbeatTool, hasMemory
 }
 
