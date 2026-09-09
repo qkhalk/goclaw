@@ -57,18 +57,18 @@ processResolvedMessage(ctx, rctx, msgs[])
 
 ## Todo
 
-- [ ] Config + default
-- [ ] text_coalescer.go + tests
-- [ ] Handler refactor + wiring
-- [ ] Docs + CHANGELOG
-- [ ] Build/test xanh + commit
+- [x] Config + default
+- [x] text_coalescer.go + tests
+- [x] Handler refactor + wiring
+- [x] Docs + CHANGELOG
+- [x] Build/test xanh + commit
 
 ## Success Criteria
 
-- [ ] Test: 3 tin text cách nhau < window → 1 publish, content đủ, `merged_message_ids` 3 id, metadata tin đầu.
-- [ ] Test: `window=0` → publish ngay từng tin (passthrough).
-- [ ] Test: media/album không vào buffer.
-- [ ] `go test ./internal/channels/telegram/ ./internal/bus/ ./internal/config/` xanh.
+- [x] Test: 3 tin text cách nhau < window → 1 publish, content đủ, `merged_message_ids` 3 id, metadata tin đầu.
+- [x] Test: `window=0` → publish ngay từng tin (passthrough).
+- [x] Test: media/album không vào buffer.
+- [x] `go test ./internal/channels/telegram/ ./internal/bus/ ./internal/config/` xanh.
 
 ## Risk Assessment
 

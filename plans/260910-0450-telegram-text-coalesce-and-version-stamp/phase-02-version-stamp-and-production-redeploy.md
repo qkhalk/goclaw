@@ -12,13 +12,13 @@ Thay binary production `/opt/goclaw/goclaw` trên server 192.168.1.103 (đang l�
 
 ## Requirements
 
-- [ ] Build Linux amd64 từ dev mới nhất (sau merge PR của Phase 1) với:
+- [x] Build Linux amd64 từ dev mới nhất (sau merge PR của Phase 1) với:
       `CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X github.com/nextlevelbuilder/goclaw/cmd.Version=<VERSION>" .`
       VERSION lấy từ `git describe --tags --abbrev=0 --match "v[0-9]*"` + số commit lệch (khớp convention Makefile:1-2); nếu fork có tag mới hơn dùng tag đó.
-- [ ] Backup binary cũ trên server (`/opt/goclaw/goclaw.bak-0.1.0`) trước khi thay — rollback 1 lệnh.
-- [ ] Xác định cách gateway đang được chạy (systemd unit / supervisor / nohup — `systemctl list-units | grep -i goclaw`, `ps aux`) và restart đúng cơ chế đó; KHÔNG đụng QLTC/9router/zyrox.
-- [ ] Sau restart: `/opt/goclaw/goclaw version` in version mới; `GET /health` trả ok; web UI sidebar hiện version mới (WS connect `server.version`); bot Telegram still connected.
-- [ ] Binary test cũ `/root/goclaw-linux-test` dọn hoặc ghi đè bằng bản mới (tránh nhầm bản `dev-local`).
+- [x] Backup binary cũ trên server (`/opt/goclaw/goclaw.bak-0.1.0`) trước khi thay — rollback 1 lệnh.
+- [x] Xác định cách gateway đang được chạy (systemd unit / supervisor / nohup — `systemctl list-units | grep -i goclaw`, `ps aux`) và restart đúng cơ chế đó; KHÔNG đụng QLTC/9router/zyrox.
+- [x] Sau restart: `/opt/goclaw/goclaw version` in version mới; `GET /health` trả ok; web UI sidebar hiện version mới (WS connect `server.version`); bot Telegram still connected.
+- [x] Binary test cũ `/root/goclaw-linux-test` dọn hoặc ghi đè bằng bản mới (tránh nhầm bản `dev-local`).
 
 ## Architecture
 
@@ -40,16 +40,16 @@ Không đổi code (trừ Phase 1). Chuỗi version đã verify: `cmd.Version` (
 
 ## Todo
 
-- [ ] PR Phase 1 merged
-- [ ] Binary build + stamp đúng
-- [ ] Backup + swap + restart
-- [ ] Health check + UI version xác nhận
+- [x] PR Phase 1 merged
+- [x] Binary build + stamp đúng
+- [x] Backup + swap + restart
+- [x] Health check + UI version xác nhận
 
 ## Success Criteria
 
-- [ ] `/opt/goclaw/goclaw version` → `goclaw <VERSION> (protocol 3)`.
-- [ ] Web UI sidebar: "Đã kết nối · <VERSION>" (không còn 0.1.0).
-- [ ] Bot Telegram online, tin dài test thấy agent nhận đủ (cùng lúc verify Phase 1 live).
+- [x] `/opt/goclaw/goclaw version` → `goclaw <VERSION> (protocol 3)`.
+- [x] Web UI sidebar: "Đã kết nối · <VERSION>" (không còn 0.1.0).
+- [x] Bot Telegram online, tin dài test thấy agent nhận đủ (cùng lúc verify Phase 1 live).
 
 ## Risk Assessment
 
