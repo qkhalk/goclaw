@@ -684,3 +684,43 @@ func TestResolveAsk_AllowOnceGrantSingleUse(t *testing.T) {
 		t.Fatal("second retry allowed; allow-once grant must be single-use")
 	}
 }
+
+func TestResolveAllowAlways_LegacyVsToolExec(t *testing.T) {
+	// Legacy exec request: allow-always feeds the per-binary dynamic allowlist.
+	m := NewExecApprovalManager(ExecApprovalConfig{Security: ExecSecurityFull, Ask: ExecAskOnMiss})
+	go func() { _, _ = m.RequestApproval(context.Background(), "docker ps", "", 5*time.Second) }()
+	deadline := time.Now().Add(2 * time.Second)
+	var id string
+	for time.Now().Before(deadline) {
+		if l := m.ListPending(); len(l) == 1 {
+			id = l[0].ID
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	m.Resolve(context.Background(), id, ApprovalAllowAlways, nil)
+	if !m.alwaysAllow["docker"] {
+		t.Error("legacy allow-always did not record the binary in the dynamic allowlist")
+	}
+
+	// Hook-ask request on the exec tool: allow-always must NOT poison the
+	// dynamic allowlist with the "exec" class label (that would auto-approve
+	// every future command).
+	m2 := NewExecApprovalManager(DefaultExecApprovalConfig())
+	m2.askTimeout = 5 * time.Second
+	q := hooks.ApprovalQuery{ToolName: "exec", ToolInput: map[string]any{"command": "docker ps"}, ArgsDigest: "d1"}
+	go func() { _, _ = m2.ResolveAsk(context.Background(), q) }()
+	deadline = time.Now().Add(2 * time.Second)
+	id = ""
+	for time.Now().Before(deadline) {
+		if l := m2.ListPending(); len(l) == 1 {
+			id = l[0].ID
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	m2.Resolve(context.Background(), id, ApprovalAllowAlways, nil)
+	if m2.alwaysAllow["exec"] {
+		t.Error("hook-ask allow-always poisoned the dynamic allowlist with the exec class label")
+	}
+}

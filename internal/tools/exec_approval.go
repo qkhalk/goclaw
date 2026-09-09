@@ -159,6 +159,7 @@ type PendingApproval struct {
 
 	resultCh    chan ApprovalDecision
 	durableOnly bool // reinstated from the store: no live waiter on the other side
+	legacy      bool // created by the legacy exec RequestApproval path
 }
 
 // ExecApprovalManager manages pending approval requests and the dynamic allowlist.
@@ -264,6 +265,7 @@ func (m *ExecApprovalManager) RequestApproval(ctx context.Context, command, agen
 		SessionKey: ToolSessionKeyFromCtx(ctx),
 		AgentID:    agentID,
 		Timeout:    timeout,
+		Legacy:     true,
 		Payload:    json.RawMessage(`{"command":` + marshalJSONString(command) + `}`),
 	})
 }
@@ -289,6 +291,9 @@ type ToolApprovalRequest struct {
 	Timeout time.Duration
 	// Payload is opaque JSON persisted with the row (exec: {"command":...}).
 	Payload json.RawMessage
+	// Legacy marks requests created by the legacy exec path, where an
+	// allow-always decision also feeds the per-binary dynamic allowlist.
+	Legacy bool
 }
 
 // RequestToolApproval creates a pending tool-class approval and blocks until
@@ -319,6 +324,7 @@ func (m *ExecApprovalManager) RequestToolApproval(ctx context.Context, req ToolA
 		ArgsDigest: req.ArgsDigest,
 		ExpiresAt:  &expiresAt,
 		resultCh:   make(chan ApprovalDecision, 1),
+		legacy:     req.Legacy,
 	}
 	m.pending[id] = pa
 	st := m.approvalStore
@@ -547,10 +553,13 @@ func (m *ExecApprovalManager) ResolveScope(ctx context.Context, id string, decis
 func (m *ExecApprovalManager) recordGrantLocked(pa *PendingApproval, decision ApprovalDecision, expiresAt *time.Time) {
 	switch decision {
 	case ApprovalAllowAlways:
-		if pa.ToolClass == ToolClassExec {
+		if pa.ToolClass == ToolClassExec && pa.legacy {
 			// Legacy dynamic allowlist: future commands sharing the binary
-			// skip the ask via matchesAllowlist.
-			if bin := extractBin(pa.Command); bin != "" {
+			// skip the ask via matchesAllowlist. Only genuine legacy exec
+			// requests (Command = the raw shell command) update it — a hook
+			// ask on the exec tool must not widen the allowlist to every
+			// binary by extracting "exec" from the args preview.
+			if bin := extractBin(pa.Command); bin != "" && bin != string(ToolClassExec) {
 				m.alwaysAllow[bin] = true
 				slog.Info("exec approval: added to always-allow", "bin", bin)
 			}
