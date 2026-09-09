@@ -228,10 +228,13 @@ func TestHooksC4_AskCollapsesToBlock(t *testing.T) {
 		t.Fatalf("Fire: %v", err)
 	}
 	if res.Decision != hooks.DecisionBlock {
-		t.Fatalf("decision=%v, want block (ask should collapse)", res.Decision)
+		t.Fatalf("decision=%v, want block (ask must not allow; approval engine not wired here)", res.Decision)
 	}
-	if !pollAuditDecision(t, db, id, "block", 2*time.Second) {
-		t.Errorf("expected block audit row for hook %s", id)
+	// Approval Engine v2: the script handler passes ask through and the audit
+	// row records the hook's true decision ("ask"); the dispatcher degrades
+	// the pipeline outcome to block when no gate handles it.
+	if !pollAuditDecision(t, db, id, "ask", 2*time.Second) {
+		t.Errorf("expected ask audit row for hook %s", id)
 	}
 }
 
