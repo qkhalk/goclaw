@@ -32,28 +32,34 @@ import (
 
 // Metadata holds parsed SKILL.md frontmatter.
 type Metadata struct {
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	Version      string   `json:"version,omitempty"`
-	Inputs       []string `json:"inputs,omitempty"`
-	Outputs      []string `json:"outputs,omitempty"`
-	AllowedTools []string `json:"allowedTools,omitempty"`
-	QualityGates []string `json:"qualityGates,omitempty"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Version      string         `json:"version,omitempty"`
+	Inputs       []string       `json:"inputs,omitempty"`
+	Outputs      []string       `json:"outputs,omitempty"`
+	AllowedTools []string       `json:"allowedTools,omitempty"`
+	QualityGates []string       `json:"qualityGates,omitempty"`
+	Requires     *SkillRequires `json:"requires,omitempty"`
 }
 
 // Info describes a discovered skill.
 type Info struct {
-	Name         string   `json:"name"`
-	Slug         string   `json:"slug"`    // directory name (unique identifier)
-	Path         string   `json:"path"`    // absolute path to SKILL.md
-	BaseDir      string   `json:"baseDir"` // skill directory (parent of SKILL.md)
-	Source       string   `json:"source"`  // "workspace", "global", "builtin"
-	Description  string   `json:"description"`
-	Version      string   `json:"version,omitempty"`
-	Inputs       []string `json:"inputs,omitempty"`
-	Outputs      []string `json:"outputs,omitempty"`
-	AllowedTools []string `json:"allowedTools,omitempty"`
-	QualityGates []string `json:"qualityGates,omitempty"`
+	Name         string         `json:"name"`
+	Slug         string         `json:"slug"`    // directory name (unique identifier)
+	Path         string         `json:"path"`    // absolute path to SKILL.md
+	BaseDir      string         `json:"baseDir"` // skill directory (parent of SKILL.md)
+	Source       string         `json:"source"`  // "workspace", "global", "builtin"
+	Description  string         `json:"description"`
+	Version      string         `json:"version,omitempty"`
+	Inputs       []string       `json:"inputs,omitempty"`
+	Outputs      []string       `json:"outputs,omitempty"`
+	AllowedTools []string       `json:"allowedTools,omitempty"`
+	QualityGates []string       `json:"qualityGates,omitempty"`
+	Requires     *SkillRequires `json:"requires,omitempty"`
+	// UnavailableReason is non-empty when the skill's requires block is not
+	// satisfied on this host (missing binary / OS mismatch). The skill stays
+	// listed and searchable but is flagged and excluded from auto-injection.
+	UnavailableReason string `json:"unavailableReason,omitempty"`
 }
 
 // Loader discovers and loads SKILL.md files from multiple directories.
@@ -374,13 +380,19 @@ func (l *Loader) LoadSkill(ctx context.Context, name string) (string, bool) {
 }
 
 // LoadForContext loads multiple skills and formats them for system prompt injection.
-// If allowList is nil, all skills are loaded. If non-nil, only listed skills are loaded.
+// If allowList is nil, all available skills are loaded (requires-gated ones
+// whose host prerequisites are unmet are skipped). If non-nil, only listed
+// skills are loaded — explicit pins are honored even when unavailable, since
+// the caller (or user) asked for that skill by name.
 func (l *Loader) LoadForContext(ctx context.Context, allowList []string) string {
 	var names []string
 
 	if allowList == nil {
-		// Load all available skills
+		// Load all available skills, skipping unavailable ones.
 		for _, s := range l.ListSkills(ctx) {
+			if s.UnavailableReason != "" {
+				continue
+			}
 			names = append(names, s.Name)
 		}
 	} else {
@@ -444,7 +456,13 @@ func (l *Loader) BuildSummary(ctx context.Context, allowList []string) string {
 	var lines []string
 	lines = append(lines, "<available_skills>")
 	for _, s := range filtered {
-		lines = append(lines, "  <skill>")
+		if s.UnavailableReason != "" {
+			// Requires-gated skill: keep it visible with the reason so the
+			// agent knows it exists but must not attempt to use it here.
+			lines = append(lines, "  <skill unavailable=\"true\">")
+		} else {
+			lines = append(lines, "  <skill>")
+		}
 		lines = append(lines, fmt.Sprintf("    <name>%s</name>", escapeXML(s.Name)))
 		desc := s.Description
 		if len([]rune(desc)) > skillDescMaxLen {
@@ -452,6 +470,9 @@ func (l *Loader) BuildSummary(ctx context.Context, allowList []string) string {
 		}
 		lines = append(lines, fmt.Sprintf("    <description>%s</description>", escapeXML(desc)))
 		lines = append(lines, fmt.Sprintf("    <location>%s</location>", escapeXML(s.Path)))
+		if s.UnavailableReason != "" {
+			lines = append(lines, fmt.Sprintf("    <note>unavailable: %s</note>", escapeXML(s.UnavailableReason)))
+		}
 		lines = append(lines, "  </skill>")
 	}
 	lines = append(lines, "</available_skills>")
@@ -627,6 +648,7 @@ func parseMetadata(path string) *Metadata {
 		Version:      kv["version"],
 		AllowedTools: lists["allowed-tools"],
 		QualityGates: lists["quality-gates"],
+		Requires:     parseRequires(fm),
 	}
 	// inputs/outputs double as scalar keys (comma-separated) and block lists.
 	// Prefer the block-list form when present, else fall back to scalar values.
@@ -646,7 +668,9 @@ func parseMetadata(path string) *Metadata {
 // applyMetadata copies parsed frontmatter metadata onto a skill Info,
 // preserving the long-standing behavior that a non-empty frontmatter name
 // overrides the directory-derived name, and adding the first-class metadata
-// fields (version, inputs, outputs, allowed-tools, quality-gates).
+// fields (version, inputs, outputs, allowed-tools, quality-gates). The
+// requires block is evaluated here so availability is recomputed on every
+// discovery scan — hot reloads pick up newly installed binaries.
 func applyMetadata(info *Info, meta *Metadata) {
 	if meta == nil {
 		return
@@ -660,6 +684,7 @@ func applyMetadata(info *Info, meta *Metadata) {
 	info.Outputs = meta.Outputs
 	info.AllowedTools = meta.AllowedTools
 	info.QualityGates = meta.QualityGates
+	evaluateRequires(info, meta)
 }
 
 // splitListValue splits a comma- or space-separated scalar list value into
