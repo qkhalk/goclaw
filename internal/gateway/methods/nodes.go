@@ -355,7 +355,9 @@ func (m *NodesMethods) handleResult(ctx context.Context, client *gateway.Client,
 	}
 	// Results double as liveness signals.
 	m.registry.Touch(params.NodeID)
-	_ = m.store.TouchSeen(ctx, params.NodeID) // best-effort durable echo
+	if m.store != nil {
+		_ = m.store.TouchSeen(ctx, params.NodeID) // best-effort durable echo
+	}
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{"delivered": delivered}))
 }

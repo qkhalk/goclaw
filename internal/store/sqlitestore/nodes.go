@@ -90,12 +90,11 @@ func (s *SQLiteNodeStore) Create(ctx context.Context, n *store.Node) error {
 	if strings.TrimSpace(n.NodeKeyHash) == "" {
 		return fmt.Errorf("node key hash required")
 	}
-	var tenantArg any
-	if n.TenantID != nil && *n.TenantID != "" {
-		tenantArg = *n.TenantID
-	} else if tid := store.TenantIDFromContext(ctx); tid != store.MasterTenantID {
-		tenantArg = tid.String()
-	}
+	// Mirror the PG store: master-scope creates persist the master tenant
+	// UUID (never NULL), so master-scope List/GetByID (scope clause
+	// tenant_id = master) can read them back — the desktop edition only ever
+	// runs in master scope.
+	tenantArg := store.TenantIDFromContext(ctx).String()
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO nodes
 		 (id, tenant_id, name, node_key_hash, platform, capabilities, trust,
