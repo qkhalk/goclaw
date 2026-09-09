@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+
+	"github.com/nextlevelbuilder/goclaw/internal/media"
 )
 
 // ctxKeyChannel is the context key for the current channel name (e.g. "telegram").
@@ -157,6 +159,19 @@ func (m *Manager) AutoMode() AutoMode { return m.auto }
 
 // HasProviders reports whether any TTS provider is registered.
 func (m *Manager) HasProviders() bool { return len(m.ttsProviders) > 0 }
+
+// MediaCapabilities returns the aggregate media-capability matrix derived
+// from the providers registered with this manager (inheritance plan Phase 4).
+// Only TTS/STT are derivable here today; the remaining dimensions stay false
+// until their owning subsystems expose them. Consumed by a startup debug log
+// and available for a future UI surface. Reads like HasProviders: providers
+// register before the gateway starts serving, so no lock is taken.
+func (m *Manager) MediaCapabilities() media.Capabilities {
+	return media.Capabilities{
+		TTS: len(m.ttsProviders) > 0,
+		STT: len(m.sttProviders) > 0,
+	}
+}
 
 // ListCapabilities iterates all registered TTS providers and returns their
 // capability schemas. Providers implementing DescribableProvider contribute
