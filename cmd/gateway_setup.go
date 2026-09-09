@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
+	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
 	"github.com/nextlevelbuilder/goclaw/internal/memory"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
@@ -185,7 +187,32 @@ func setupToolRegistry(
 		if len(cfg.Tools.ExecApproval.Allowlist) > 0 {
 			approvalCfg.Allowlist = cfg.Tools.ExecApproval.Allowlist
 		}
+		// Per-tool-class approval policies (browser, workstation_exec,
+		// write_file, ...). Values: off (default) | ask | deny. Entries for
+		// the exec class are ignored — exec is governed by security/ask above.
+		if len(cfg.Tools.ExecApproval.ToolPolicies) > 0 {
+			approvalCfg.ToolPolicies = make(map[tools.ToolClass]tools.ToolApprovalMode, len(cfg.Tools.ExecApproval.ToolPolicies))
+			for classRaw, modeRaw := range cfg.Tools.ExecApproval.ToolPolicies {
+				class := tools.ToolClass(strings.ToLower(strings.TrimSpace(classRaw)))
+				mode := tools.ToolApprovalMode(strings.ToLower(strings.TrimSpace(modeRaw)))
+				switch mode {
+				case tools.ToolModeOff, tools.ToolModeAsk, tools.ToolModeDeny:
+				default:
+					slog.Warn("exec approval: invalid tool_policies mode ignored", "class", classRaw, "mode", modeRaw)
+					continue
+				}
+				if class == tools.ToolClassExec {
+					slog.Warn("exec approval: tool_policies entry for exec ignored (governed by security/ask)")
+					continue
+				}
+				approvalCfg.ToolPolicies[class] = mode
+			}
+		}
 		execApprovalMgr = tools.NewExecApprovalManager(approvalCfg)
+
+		// Install the manager as the hook pipeline's approval seam: tool-class
+		// policy gating + hook DecisionAsk → approval instead of block.
+		hooks.SetApprovalGate(execApprovalMgr)
 
 		// Wire approval to exec tools in the registry
 		if execTool, ok := toolsReg.Get("exec"); ok {
@@ -193,7 +220,7 @@ func setupToolRegistry(
 				aa.SetApprovalManager(execApprovalMgr, "default")
 			}
 		}
-		slog.Info("exec approval enabled", "security", string(approvalCfg.Security), "ask", string(approvalCfg.Ask))
+		slog.Info("exec approval enabled", "security", string(approvalCfg.Security), "ask", string(approvalCfg.Ask), "toolPolicies", len(approvalCfg.ToolPolicies))
 	}
 
 	// --- Enforcement: Policy engines ---
@@ -291,6 +318,14 @@ func setupToolRegistry(
 		if t, ok := sf.(*tools.SendFileTool); ok {
 			t.DenyPaths(internalDenyPaths...)
 		}
+	}
+
+	// Deferred native tool mode (tools.deferred — default OFF, ships dark).
+	// Configure only here; activation runs at the end of wireExtraTools, after
+	// ALL builtin tools (incl. session/cron/heartbeat/skills) are registered.
+	if df := cfg.Tools.Deferred.Resolve(); df.Enabled {
+		toolsReg.SetDeferredThreshold(df.Threshold)
+		toolsReg.SetDeferredAlwaysInline(df.AlwaysInline)
 	}
 
 	return

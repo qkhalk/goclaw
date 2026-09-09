@@ -23,11 +23,54 @@
   "toast": {
     "approved": "已批准",
     "approvedAlways": "命令始终允许",
+    "approvedSession": "本次会话内允许",
     "approvedOnce": "命令已批准",
     "approveFailed": "批准失败",
     "denied": "已拒绝",
     "deniedDesc": "命令已拒绝",
     "denyFailed": "拒绝失败",
     "unknownError": "未知错误"
+  },
+  "tabs": {
+    "pending": "待处理",
+    "history": "历史"
+  },
+  "scope": {
+    "once": "允许一次",
+    "session": "本次会话内允许",
+    "always": "始终允许"
+  },
+  "scopeLabel": "授权范围",
+  "approve": "批准",
+  "expiresIn": "{{time}}后关闭",
+  "riskLabel": "风险",
+  "confirmApprove": {
+    "once": {
+      "title": "允许一次",
+      "description": "允许来自Agent 「{{agentId}}」 的 「{{command}}」 执行请求？"
+    },
+    "session": {
+      "title": "本次会话内允许",
+      "description": "在本会话剩余时间内允许Agent 「{{agentId}}」 执行 「{{command}}」？"
+    },
+    "always": {
+      "title": "始终允许",
+      "description": "永久允许Agent 「{{agentId}}」 执行 「{{command}}」？此请求将在未来自动批准。"
+    }
+  },
+  "historyEmptyTitle": "暂无审批历史",
+  "historyEmptyDescription": "已处理的审批请求将显示在此处。",
+  "history": {
+    "class": "工具类别",
+    "command": "请求",
+    "status": "状态",
+    "decision": "决定",
+    "created": "请求时间",
+    "grantExpires": "授权到期"
+  },
+  "status": {
+    "approved": "已批准",
+    "denied": "已拒绝",
+    "expired": "已过期"
   }
 }

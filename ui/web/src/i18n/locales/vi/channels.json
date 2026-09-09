@@ -849,4 +849,43 @@
       }
     }
   }
+,
+    "routingRules": {
+    "title": "Quy tắc định tuyến",
+    "description": "Định tuyến tin nhắn đến tới agent trước khi áp dụng binding kênh. Số priority nhỏ hơn thắng.",
+    "add": "Thêm quy tắc",
+    "edit": "Sửa quy tắc",
+    "delete": "Xóa",
+    "disabled": "Đã tắt",
+    "emptyTitle": "Chưa có quy tắc định tuyến",
+    "emptyDescription": "Tạo quy tắc để định tuyến các cuộc trò chuyện hoặc kênh cụ thể tới agent riêng.",
+    "deleteTitle": "Xóa quy tắc định tuyến?",
+    "deleteDescription": "Sau khi xóa, tin nhắn sẽ quay lại theo binding kênh.",
+    "form": {
+      "createTitle": "Quy tắc mới",
+      "editTitle": "Sửa quy tắc",
+      "channel": "Kênh",
+      "accountId": "ID tài khoản",
+      "peerKind": "Loại peer",
+      "peerId": "ID peer",
+      "guildId": "ID guild",
+      "priority": "Độ ưu tiên",
+      "targetAgent": "Agent đích",
+      "selectAgent": "Chọn agent",
+      "enabled": "Bật",
+      "any": "Bất kỳ",
+      "peerDirect": "Trực tiếp",
+      "peerGroup": "Nhóm",
+      "anyPlaceholder": "Bất kỳ",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "agentRequired": "Hãy chọn agent đích trước."
+    },
+    "toasts": {
+      "saved": "Đã lưu quy tắc định tuyến",
+      "saveFailed": "Không thể lưu quy tắc định tuyến",
+      "deleted": "Đã xóa quy tắc định tuyến",
+      "deleteFailed": "Không thể xóa quy tắc định tuyến"
+    }
+  }
 }

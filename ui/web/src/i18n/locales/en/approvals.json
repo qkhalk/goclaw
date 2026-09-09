@@ -23,11 +23,54 @@
   "toast": {
     "approved": "Approved",
     "approvedAlways": "Command always allowed",
+    "approvedSession": "Allowed for this session",
     "approvedOnce": "Command approved",
     "approveFailed": "Failed to approve",
     "denied": "Denied",
     "deniedDesc": "Command denied",
     "denyFailed": "Failed to deny",
     "unknownError": "Unknown error"
+  },
+  "tabs": {
+    "pending": "Pending",
+    "history": "History"
+  },
+  "scope": {
+    "once": "Allow once",
+    "session": "Allow for session",
+    "always": "Allow always"
+  },
+  "scopeLabel": "Grant scope",
+  "approve": "Approve",
+  "expiresIn": "closes {{time}}",
+  "riskLabel": "Risk",
+  "confirmApprove": {
+    "once": {
+      "title": "Allow Once",
+      "description": "Allow \"{{command}}\" from agent \"{{agentId}}\"?"
+    },
+    "session": {
+      "title": "Allow for Session",
+      "description": "Allow \"{{command}}\" from agent \"{{agentId}}\" for the rest of this session?"
+    },
+    "always": {
+      "title": "Allow Always",
+      "description": "Always allow \"{{command}}\" for agent \"{{agentId}}\"? It will be auto-approved in the future."
+    }
+  },
+  "historyEmptyTitle": "No approval history",
+  "historyEmptyDescription": "Resolved approval requests will appear here.",
+  "history": {
+    "class": "Tool class",
+    "command": "Request",
+    "status": "Status",
+    "decision": "Decision",
+    "created": "Requested",
+    "grantExpires": "Grant expires"
+  },
+  "status": {
+    "approved": "Approved",
+    "denied": "Denied",
+    "expired": "Expired"
   }
 }

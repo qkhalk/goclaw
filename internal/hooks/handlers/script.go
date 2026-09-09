@@ -192,9 +192,11 @@ func (h *ScriptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 		return hooks.DecisionError, parseErr
 	}
 
-	// Wave 1 reserves ask/defer but does not implement them. Treat as block +
-	// warn so operators can see that a hook wants human/external arbitration.
-	if dec == hooks.DecisionAsk || dec == hooks.DecisionDefer {
+	// DecisionAsk passes through to the dispatcher, which routes it to the
+	// approval engine (human-in-the-loop) when one is wired and degrades to
+	// block otherwise. DecisionDefer remains reserved: treat as block + warn
+	// so operators can see that a hook wants external arbitration.
+	if dec == hooks.DecisionDefer {
 		slog.Warn("hooks.decision_not_yet_implemented",
 			"hook_id", cfg.ID, "decision", string(dec))
 		dec = hooks.DecisionBlock

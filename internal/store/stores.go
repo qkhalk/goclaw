@@ -95,6 +95,13 @@ type Stores struct {
 	// marks the lease reconnecting, never a logout.
 	NodeLeases NodeLeaseStore
 
+	// Nodes persists the compute-node registry (inheritance plan Phase 2):
+	// daemon-run execution targets that authenticate with their own bearer
+	// key. Deliberately separate from NodeLeases (UI-tab presence) and from
+	// pairing (channel sender trust); trust defaults to pending and nothing
+	// executes on a node until an operator marks it trusted.
+	Nodes NodeStore
+
 	// Workspaces persists first-class workspace objects (Paseo plan Phase 2):
 	// named sandboxed root directories with optional git binding, scoped to
 	// owner + tenant. Runtime path resolution stays in internal/workspace.
@@ -116,4 +123,9 @@ type Stores struct {
 	// PTY output stays in an in-memory ring buffer and is never written
 	// here.
 	Terminals TerminalStore
+
+	// RoutingRules persists tenant-scoped inbound routing rules (inheritance
+	// plan Phase 4): evaluated between config-binding peer matches and
+	// channel matches, lowest priority number first.
+	RoutingRules RoutingRulesStore
 }

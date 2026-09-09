@@ -14,6 +14,12 @@ const (
 	EventShutdown          = "shutdown"
 	EventNodePairRequested = "node.pair.requested"
 	EventNodePairResolved  = "node.pair.resolved"
+
+	// Node runtime (inheritance plan Phase 2): the gateway targets an invoke
+	// frame at one registered node connection; the node executes the
+	// allowlisted command and posts the outcome via nodes.result RPC.
+	EventNodeInvoke = "node.invoke"
+	EventNodeState  = "node.state"
 	EventDevicePairReq     = "device.pair.requested"
 	EventDevicePairRes     = "device.pair.resolved"
 	EventVoicewakeChanged  = "voicewake.changed"

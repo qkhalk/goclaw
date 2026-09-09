@@ -6,17 +6,39 @@ import { Methods, Events } from "@/api/protocol";
 import { toast } from "@/stores/use-toast-store";
 import i18n from "@/i18n";
 
+export type ApprovalScope = "once" | "session" | "always";
+
 export interface PendingApproval {
   id: string;
   command: string;
   agentId: string;
   createdAt: number;
+  toolClass?: string;
+  toolName?: string;
+  risk?: string;
+  sessionKey?: string;
+  expiresAt?: number;
+}
+
+export interface ApprovalHistoryItem {
+  id: string;
+  command: string;
+  actionType: string;
+  status: string;
+  decision: string;
+  requesterId?: string;
+  agentId?: string;
+  sessionKey?: string;
+  grantExpiresAt?: number;
+  createdAt: number;
+  decidedAt?: number;
 }
 
 export function useApprovals() {
   const ws = useWs();
   const connected = useAuthStore((s) => s.connected);
   const [pending, setPending] = useState<PendingApproval[]>([]);
+  const [history, setHistory] = useState<ApprovalHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +56,22 @@ export function useApprovals() {
     }
   }, [ws, connected]);
 
+  const loadHistory = useCallback(async () => {
+    if (!connected) return;
+    try {
+      // exec.approval.history is not part of the shared protocol constant
+      // table; use the wire name directly.
+      const res = await ws.call<{ history: ApprovalHistoryItem[]; total: number }>(
+        "exec.approval.history",
+        { limit: 50, offset: 0 },
+      );
+      setHistory(res.history ?? []);
+    } catch {
+      // History is best-effort; an unavailable store should not break the page.
+      setHistory([]);
+    }
+  }, [ws, connected]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -42,14 +80,24 @@ export function useApprovals() {
   useWsEvent(Events.EXEC_APPROVAL_REQUESTED, load);
 
   // Listen for resolved approvals
-  useWsEvent(Events.EXEC_APPROVAL_RESOLVED, load);
+  useWsEvent(Events.EXEC_APPROVAL_RESOLVED, () => {
+    load();
+    loadHistory();
+  });
 
   const approve = useCallback(
-    async (id: string, always = false) => {
+    async (id: string, scope: ApprovalScope = "once") => {
       try {
-        await ws.call(Methods.APPROVALS_APPROVE, { id, always });
+        await ws.call(Methods.APPROVALS_APPROVE, { id, scope });
         setPending((prev) => prev.filter((a) => a.id !== id));
-        toast.success(i18n.t("approvals:toast.approved"), always ? i18n.t("approvals:toast.approvedAlways") : i18n.t("approvals:toast.approvedOnce"));
+        toast.success(
+          i18n.t("approvals:toast.approved"),
+          scope === "always"
+            ? i18n.t("approvals:toast.approvedAlways")
+            : scope === "session"
+              ? i18n.t("approvals:toast.approvedSession")
+              : i18n.t("approvals:toast.approvedOnce"),
+        );
       } catch (err) {
         toast.error(i18n.t("approvals:toast.approveFailed"), err instanceof Error ? err.message : i18n.t("approvals:toast.unknownError"));
         throw err;
@@ -72,5 +120,5 @@ export function useApprovals() {
     [ws],
   );
 
-  return { pending, loading, error, refresh: load, approve, deny };
+  return { pending, history, loading, error, refresh: load, refreshHistory: loadHistory, approve, deny };
 }

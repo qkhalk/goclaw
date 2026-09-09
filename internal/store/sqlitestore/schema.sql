@@ -2307,7 +2307,7 @@ CREATE TABLE IF NOT EXISTS hook_executions (
     session_id   TEXT,
     event        TEXT NOT NULL,
     input_hash   TEXT,
-    decision     TEXT NOT NULL CHECK (decision IN ('allow', 'block', 'error', 'timeout')),
+    decision     TEXT NOT NULL CHECK (decision IN ('allow', 'block', 'error', 'timeout', 'ask', 'defer')),
     duration_ms  INTEGER NOT NULL DEFAULT 0,
     retry        INTEGER NOT NULL DEFAULT 0,
     dedup_key    TEXT,
@@ -2786,6 +2786,9 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     decided_by      TEXT,
     allow_once      INTEGER,
     allow_always    INTEGER,
+    session_key     TEXT NOT NULL DEFAULT '',
+    args_digest     TEXT NOT NULL DEFAULT '',
+    grant_expires_at TEXT,
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     decided_at      TEXT,
     expired_at      TEXT,
@@ -2991,3 +2994,53 @@ CREATE INDEX IF NOT EXISTS idx_terminal_sessions_workspace
     ON terminal_sessions (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_terminal_sessions_updated
     ON terminal_sessions (updated_at DESC);
+
+-- ============================================================
+-- Table: nodes (PG 000114)
+-- Node runtime registry (inheritance plan Phase 2): one row per
+-- registered compute node daemon. Distinct from node_leases (UI-tab
+-- presence) and from pairing (channel sender trust). node_key_hash is
+-- the SHA-256 hex of the bearer key the daemon presents at
+-- nodes.register; the plaintext is revealed once at key creation.
+-- trust: pending (default, nothing executes) | trusted | revoked
+-- (terminal — a revoked node needs a freshly created key).
+-- =====================================================
+CREATE TABLE IF NOT EXISTS nodes (
+    id            TEXT PRIMARY KEY,
+    tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    name          VARCHAR(255) NOT NULL,
+    node_key_hash TEXT NOT NULL UNIQUE,
+    platform      TEXT NOT NULL DEFAULT '',
+    capabilities  TEXT NOT NULL DEFAULT '[]',
+    trust         TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (trust IN ('pending','trusted','revoked')),
+    last_seen_at  TEXT,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    revoked_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_nodes_tenant_trust
+    ON nodes (tenant_id, trust);
+CREATE INDEX IF NOT EXISTS idx_nodes_tenant_created
+    ON nodes (tenant_id, created_at DESC);
+=======
+-- Table: routing_rules (PG 000117)
+-- Inbound routing rules (inheritance plan Phase 4): tenant-scoped,
+-- evaluated between config-binding peer matches and channel matches.
+-- match_config JSONB is camelCase, matching the WS wire shape; the column
+-- is named match_config because `match` is a reserved SQL keyword.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS routing_rules (
+    id              TEXT PRIMARY KEY,
+    tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    priority        INT NOT NULL DEFAULT 100,
+    match_config    TEXT NOT NULL DEFAULT '{}',
+    target_agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    enabled         INT NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_routing_rules_eval
+    ON routing_rules (tenant_id, enabled, priority, created_at);

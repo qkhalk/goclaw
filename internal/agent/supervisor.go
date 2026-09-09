@@ -153,6 +153,9 @@ func (s *RunSupervisor) RecordLLMCall() SupervisorVerdict {
 	if s.limits.MaxLLMCalls > 0 && s.llmCalls > s.limits.MaxLLMCalls {
 		return stoppedVerdict(supervisorStopMessage("LLM call", s.llmCalls, s.limits.MaxLLMCalls))
 	}
+	if v := checkDeadlineLocked(s.limits, s.startedAt, &s.warnedDeadline); !v.Allowed {
+		return v
+	}
 	return SupervisorVerdict{Allowed: true, Warning: warning}
 }
 
