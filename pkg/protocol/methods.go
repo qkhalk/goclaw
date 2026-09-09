@@ -71,6 +71,22 @@ const (
 	MethodNodeHeartbeat = "node.heartbeat"
 	MethodNodeBye       = "node.bye"
 
+	// Node runtime (inheritance plan Phase 2): compute-node registry for
+	// remote execution. A node daemon registers with a capability
+	// advertisement, the gateway routes allowlisted exec invocations to it
+	// over node.invoke events, and the daemon posts outcomes via nodes.result.
+	MethodNodesRegister = "nodes.register"
+	MethodNodesList     = "nodes.list"
+	MethodNodesRevoke   = "nodes.revoke"
+	MethodNodesResult   = "nodes.result"
+
+	// Routing rules (inheritance plan Phase 4): tenant-scoped inbound routing
+	// rules evaluated before config bindings. Handlers live in
+	// internal/gateway/methods/routing_rules.go.
+	MethodRoutingRulesList   = "routing.rules.list"
+	MethodRoutingRulesSet    = "routing.rules.set"
+	MethodRoutingRulesDelete = "routing.rules.delete"
+
 	// Workspace domain (Paseo plan Phase 2): first-class workspace objects
 	// with canonical workspace_id, sandboxed root paths, and optional git
 	// binding. Handlers live in internal/gateway/methods/workspace.go.
