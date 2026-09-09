@@ -14,6 +14,19 @@ All notable changes to GoClaw are documented here. For full documentation, see [
   changes the event-delivery model (per-event handler URLs → `eventMode`), which would
   require rewriting the inbound event parser. No user-facing behavior change.
 
+### Fixed
+
+- **Telegram: agent only received the first fragment of long messages** — The
+  Telegram client splits an outbound message longer than 4096 chars into several
+  consecutive messages, and each part previously reached the agent as its own
+  run (`gateway.inbound_debounce_ms` defaults to 0, which disables text merging
+  in the shared bus debouncer; only media has a floor). The Telegram channel now
+  coalesces plain-text parts per chat|sender|topic: a silence window (default
+  1000ms, configurable via `channels.telegram.text_coalesce_ms`, `0` = off)
+  flushes them as one inbound with newline-joined content and all part message
+  IDs seeded into `merged_message_ids` for consumer dedup. Media and album
+  messages keep their existing paths (album aggregator + media debounce floor).
+
 ### Added
 
 - **Telegram `/skills` command + skill shortcuts in the `/` bot menu** — Typing `/`
