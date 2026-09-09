@@ -145,6 +145,8 @@ Backward compatibility: if `reasoning_delivery` is missing, legacy `reasoning_st
 
 The Telegram album aggregator runs at the channel layer after all access gates (mention, pairing, allow-list) pass — it buffers per `MediaGroupID`, pins the sender on first arrival as a security tripwire (mismatched sender → `security.album_sender_mismatch` + drop), and dispatches ONE call to the downstream pipeline on a 500ms silence window. `Channel.Stop()` synchronously drains pending albums before `pollCancel` so in-flight bursts always reach the agent loop. See `CONTRIBUTING.md` → "Multi-attachment coalescing" for the eight cross-surface invariants any new surface must honor.
 
+**Telegram text coalescing (split long messages).** The Telegram client splits an outbound message longer than 4096 chars into several consecutive messages, and each part used to reach the agent as its own run — the agent answered only the first fragment. The Telegram channel now buffers plain-text parts per `localKey|senderID` in `internal/channels/telegram/text_coalescer.go` and dispatches ONE call after a 1s silence window (`channels.telegram.text_coalesce_ms`; unset = 1000, `0` = off). The flush reuses the album multi-member dispatch shape: newline-joined content in the first part's context, all Telegram `message_id`s seeded into `merged_message_ids` for the consumer dedup. Media/album messages never enter this buffer (their coalescing stays with the album aggregator + media floor above), and `Channel.Stop()` drains pending text buffers the same way as albums.
+
 ---
 
 ## 2. Channel Interfaces

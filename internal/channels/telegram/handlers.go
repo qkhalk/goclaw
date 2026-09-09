@@ -456,15 +456,28 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 	c.processResolvedMessage(ctx, rctx, []*telego.Message{message})
 }
 
-// processResolvedMessage handles the post-gate phase of an inbound: media
+// processResolvedMessage routes the post-gate phase of an inbound: plain-text
+// parts go through the text coalescer (so client-split long messages reach the
+// agent as ONE dispatch); everything else dispatches immediately.
+func (c *Channel) processResolvedMessage(ctx context.Context, rctx resolvedMessageContext, members []*telego.Message) {
+	if c.textCoalescer != nil && c.textCoalescer.handles(members) {
+		c.textCoalescer.push(rctx, members[0])
+		return
+	}
+	c.dispatchResolvedMessage(ctx, rctx, members)
+}
+
+// dispatchResolvedMessage handles the post-gate phase of an inbound: media
 // resolution → content enrichment → typing → metadata → PublishInbound. It is
-// the shared entry point for single-message dispatch (members = []{rep}) and
-// album-flush dispatch (members = N buffered album members; rep = members[0]).
+// the shared entry point for single-message dispatch (members = []{rep}),
+// album-flush dispatch (members = N buffered album members; rep = members[0]),
+// and text-coalescer flush (members = N buffered text parts; rctx.content =
+// newline-joined parts).
 //
 // Album behavior: media is resolved for every member, concatenated in arrival
 // order; reply context / forward context / caption come from members[0] only
 // (Telegram puts these on the first album message).
-func (c *Channel) processResolvedMessage(ctx context.Context, rctx resolvedMessageContext, members []*telego.Message) {
+func (c *Channel) dispatchResolvedMessage(ctx context.Context, rctx resolvedMessageContext, members []*telego.Message) {
 	if len(members) == 0 {
 		return
 	}

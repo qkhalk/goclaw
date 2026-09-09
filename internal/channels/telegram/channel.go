@@ -36,6 +36,7 @@ type Channel struct {
 	teamStore         store.TeamStore             // for /tasks, /task_detail commands (nil if not configured)
 	subagentTaskStore store.SubagentTaskStore     // for /subagents, /subagent commands (nil if not configured)
 	skillsLister      SkillsLister                // for /skills command + bot skill menu (nil = disabled)
+	textCoalescer     *textCoalescer              // merges client-split long text messages into one dispatch (nil/0ms window = off)
 	placeholders      sync.Map                    // localKey string → messageID int
 	stopThinking      sync.Map                    // localKey string → *thinkingCancel
 	typingCtrls       sync.Map                    // localKey string → *typing.Controller
@@ -178,6 +179,7 @@ func New(cfg config.TelegramConfig, msgBus *bus.MessageBus, pairingSvc store.Pai
 	ch.SetGroupHistory(channels.MakeHistory(channels.TypeTelegram, nil, base.TenantID()))
 	ch.SetHistoryLimit(historyLimit)
 	ch.SetRequireMention(requireMention)
+	ch.textCoalescer = newTextCoalescer(ch, textCoalesceWindow(cfg))
 	for _, o := range chanOpts {
 		o(ch)
 	}
@@ -425,6 +427,12 @@ func (c *Channel) Stop(_ context.Context) error {
 	// flushFn callbacks still see a valid context for downstream dispatch.
 	if c.albumAgg != nil {
 		c.albumAgg.Stop()
+	}
+
+	// Same for buffered text parts: flush what's pending so a client-split
+	// long message is never dropped on shutdown.
+	if c.textCoalescer != nil {
+		c.textCoalescer.FlushAll()
 	}
 
 	if c.pollCancel != nil {
