@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -79,6 +80,8 @@ func (m *ExecApprovalMethods) handleHistory(ctx context.Context, client *gateway
 		Decision     string `json:"decision"`
 		RequesterID  string `json:"requesterId,omitempty"`
 		AgentID      string `json:"agentId,omitempty"`
+		SessionKey   string `json:"sessionKey,omitempty"`
+		GrantExpiresAt int64 `json:"grantExpiresAt,omitempty"`
 		CreatedAt    int64  `json:"createdAt"`
 		DecidedAt    int64  `json:"decidedAt,omitempty"`
 	}
@@ -90,6 +93,7 @@ func (m *ExecApprovalMethods) handleHistory(ctx context.Context, client *gateway
 			ActionType: r.ActionType,
 			Status:     r.Status,
 			Decision:   r.Decision,
+			SessionKey: r.SessionKey,
 			CreatedAt:  r.CreatedAt.UnixMilli(),
 		}
 		if r.RequesterID != nil {
@@ -100,6 +104,9 @@ func (m *ExecApprovalMethods) handleHistory(ctx context.Context, client *gateway
 		}
 		if r.DecidedAt != nil {
 			hi.DecidedAt = r.DecidedAt.UnixMilli()
+		}
+		if r.GrantExpiresAt != nil {
+			hi.GrantExpiresAt = r.GrantExpiresAt.UnixMilli()
 		}
 		out = append(out, hi)
 	}
@@ -115,7 +122,7 @@ func (m *ExecApprovalMethods) handleHistory(ctx context.Context, client *gateway
 // fallback when the in-memory manager is empty (e.g. after a restart).
 func (m *ExecApprovalMethods) SetApprovalStore(s store.ApprovalStore) { m.store = s }
 
-func (m *ExecApprovalMethods) handleList(_ context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+func (m *ExecApprovalMethods) handleList(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
 	if m.manager == nil {
 		client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
 			"pending": []any{},
@@ -125,20 +132,40 @@ func (m *ExecApprovalMethods) handleList(_ context.Context, client *gateway.Clie
 	pending := m.manager.ListPending()
 
 	type pendingInfo struct {
-		ID        string `json:"id"`
-		Command   string `json:"command"`
-		AgentID   string `json:"agentId"`
-		CreatedAt int64  `json:"createdAt"`
+		ID         string `json:"id"`
+		Command    string `json:"command"`
+		AgentID    string `json:"agentId"`
+		CreatedAt  int64  `json:"createdAt"`
+		ToolClass  string `json:"toolClass,omitempty"`
+		ToolName   string `json:"toolName,omitempty"`
+		Risk       string `json:"risk,omitempty"`
+		SessionKey string `json:"sessionKey,omitempty"`
+		ExpiresAt  int64  `json:"expiresAt,omitempty"`
 	}
 
+	tenantID := client.TenantID()
 	items := make([]pendingInfo, 0, len(pending))
 	for _, pa := range pending {
-		items = append(items, pendingInfo{
-			ID:        pa.ID,
-			Command:   pa.Command,
-			AgentID:   pa.AgentID,
-			CreatedAt: pa.CreatedAt.UnixMilli(),
-		})
+		// Tenant guard: only surface requests from the caller's tenant. The
+		// queue mixes live requests with reinstated durable rows from all
+		// tenants, so the filter is required for cross-tenant isolation.
+		if tenantID != uuid.Nil && pa.TenantID != uuid.Nil && pa.TenantID != tenantID {
+			continue
+		}
+		pi := pendingInfo{
+			ID:         pa.ID,
+			Command:    pa.Command,
+			AgentID:    pa.AgentID,
+			CreatedAt:  pa.CreatedAt.UnixMilli(),
+			ToolClass:  string(pa.ToolClass),
+			ToolName:   pa.ToolName,
+			Risk:       pa.Risk,
+			SessionKey: pa.SessionKey,
+		}
+		if pa.ExpiresAt != nil {
+			pi.ExpiresAt = pa.ExpiresAt.UnixMilli()
+		}
+		items = append(items, pi)
 	}
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
@@ -154,8 +181,15 @@ func (m *ExecApprovalMethods) handleApprove(ctx context.Context, client *gateway
 	}
 
 	var params struct {
-		ID     string `json:"id"`
-		Always bool   `json:"always"` // true = allow-always, false = allow-once
+		ID string `json:"id"`
+		// Always is the legacy scope flag: true = allow-always. Superseded by
+		// Scope; kept for backward compatibility with older clients.
+		Always bool `json:"always"`
+		// Scope selects the grant scope: "once" (default), "session"
+		// (allow-for-session, keyed by the requesting session), or "always".
+		Scope string `json:"scope"`
+		// ExpiresInSeconds bounds the granted scope's lifetime (0 = no expiry).
+		ExpiresInSeconds int `json:"expiresInSeconds"`
 	}
 	if req.Params != nil {
 		json.Unmarshal(req.Params, &params)
@@ -174,12 +208,34 @@ func (m *ExecApprovalMethods) handleApprove(ctx context.Context, client *gateway
 	}
 
 	decision := tools.ApprovalAllowOnce
-	if params.Always {
+	scope := params.Scope
+	if scope == "" {
+		if params.Always {
+			scope = "always"
+		} else {
+			scope = "once"
+		}
+	}
+	switch scope {
+	case "once":
+		decision = tools.ApprovalAllowOnce
+	case "session":
+		decision = tools.ApprovalAllowForSession
+	case "always":
 		decision = tools.ApprovalAllowAlways
+	default:
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "scope (once|session|always)")))
+		return
+	}
+
+	var expiresAt *time.Time
+	if params.ExpiresInSeconds > 0 {
+		t := time.Now().Add(time.Duration(params.ExpiresInSeconds) * time.Second)
+		expiresAt = &t
 	}
 
 	decidedBy := callerUUID(client)
-	if err := m.manager.Resolve(ctx, params.ID, decision, decidedBy); err != nil {
+	if err := m.manager.ResolveScope(ctx, params.ID, decision, decidedBy, expiresAt); err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, err.Error()))
 		return
 	}
