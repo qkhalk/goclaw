@@ -578,6 +578,13 @@ type ExecApprovalCfg struct {
 	Security  string   `json:"security,omitempty"`  // "deny", "allowlist", "full" (default "full")
 	Ask       string   `json:"ask,omitempty"`       // "off", "on-miss", "always" (default "off")
 	Allowlist []string `json:"allowlist,omitempty"` // glob patterns for allowed commands
+	// ToolPolicies configures per-tool-class approval policies for classes
+	// beyond exec. Keys are tool classes ("browser", "workstation_exec",
+	// "write_file", ...); values are modes: "off" (default, no gating), "ask"
+	// (each call waits for human approval), "deny" (calls are blocked). The
+	// exec class keeps using security/ask above — entries for "exec" here are
+	// ignored to avoid double-prompting.
+	ToolPolicies map[string]string `json:"tool_policies,omitempty"`
 }
 
 // WebFetchPolicyConfig controls domain filtering for the web_fetch tool.
