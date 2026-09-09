@@ -849,4 +849,43 @@
       }
     }
   }
+,
+    "routingRules": {
+    "title": "路由规则",
+    "description": "在频道绑定之前将入站消息路由到智能体。优先级数字越小越优先。",
+    "add": "添加规则",
+    "edit": "编辑规则",
+    "delete": "删除",
+    "disabled": "已禁用",
+    "emptyTitle": "暂无路由规则",
+    "emptyDescription": "创建规则，将特定聊天或频道路由到专用智能体。",
+    "deleteTitle": "删除路由规则？",
+    "deleteDescription": "删除后消息将回退到频道绑定。",
+    "form": {
+      "createTitle": "新建规则",
+      "editTitle": "编辑规则",
+      "channel": "频道",
+      "accountId": "账户 ID",
+      "peerKind": "对端类型",
+      "peerId": "对端 ID",
+      "guildId": "服务器 ID",
+      "priority": "优先级",
+      "targetAgent": "目标智能体",
+      "selectAgent": "选择智能体",
+      "enabled": "启用",
+      "any": "任意",
+      "peerDirect": "私聊",
+      "peerGroup": "群聊",
+      "anyPlaceholder": "任意",
+      "save": "保存",
+      "cancel": "取消",
+      "agentRequired": "请先选择目标智能体。"
+    },
+    "toasts": {
+      "saved": "路由规则已保存",
+      "saveFailed": "保存路由规则失败",
+      "deleted": "路由规则已删除",
+      "deleteFailed": "删除路由规则失败"
+    }
+  }
 }

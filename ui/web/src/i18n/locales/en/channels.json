@@ -850,4 +850,43 @@
       }
     }
   }
+,
+    "routingRules": {
+    "title": "Routing rules",
+    "description": "Route inbound messages to agents before channel bindings. Lower priority number wins.",
+    "add": "Add rule",
+    "edit": "Edit rule",
+    "delete": "Delete",
+    "disabled": "Disabled",
+    "emptyTitle": "No routing rules",
+    "emptyDescription": "Create a rule to route specific chats or channels to a dedicated agent.",
+    "deleteTitle": "Delete routing rule?",
+    "deleteDescription": "Messages will fall back to channel bindings after deletion.",
+    "form": {
+      "createTitle": "New rule",
+      "editTitle": "Edit rule",
+      "channel": "Channel",
+      "accountId": "Account ID",
+      "peerKind": "Peer type",
+      "peerId": "Peer ID",
+      "guildId": "Guild ID",
+      "priority": "Priority",
+      "targetAgent": "Target agent",
+      "selectAgent": "Select agent",
+      "enabled": "Enabled",
+      "any": "Any",
+      "peerDirect": "Direct",
+      "peerGroup": "Group",
+      "anyPlaceholder": "Any",
+      "save": "Save",
+      "cancel": "Cancel",
+      "agentRequired": "Select a target agent first."
+    },
+    "toasts": {
+      "saved": "Routing rule saved",
+      "saveFailed": "Failed to save routing rule",
+      "deleted": "Routing rule deleted",
+      "deleteFailed": "Failed to delete routing rule"
+    }
+  }
 }

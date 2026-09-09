@@ -18,6 +18,7 @@ const ChannelInstanceFormDialog = lazy(() =>
 import { channelsWithAuth, reauthDialogs } from "./channel-wizard-registry";
 import { ChannelDetailPage } from "./channel-detail/channel-detail-page";
 import { ChannelListRow } from "./channel-list-row";
+import { RoutingRulesCard } from "./routing-rules-card";
 import { useAgents } from "@/pages/agents/hooks/use-agents";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
@@ -235,6 +236,8 @@ export function ChannelsPage() {
           />
         ) : null;
       })()}
+
+      <RoutingRulesCard agents={agents} />
     </div>
   );
 }

@@ -35,6 +35,9 @@ type ConsumerDeps struct {
 	UsageCaps        *usagecaps.Service
 	ProviderReg      *providers.Registry
 	TeamWorkEmbedder memory.EmbeddingProvider
+	// RoutingRules resolves DB-backed inbound routing rules (Phase 4); may
+	// be nil (rules layer then falls through to legacy binding routing).
+	RoutingRules     store.RoutingRulesStore
 	BgWg             sync.WaitGroup
 	GetAnnounceMu    func(string) *sync.Mutex
 }
