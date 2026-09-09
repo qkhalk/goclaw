@@ -11,13 +11,13 @@ Thêm 4 skill bundled mới trong `skills/` phục vụ kiểm thử sản phẩ
 
 ## Requirements
 
-- [ ] `skills/security-audit/SKILL.md` — đánh giá bảo mật có thẩm quyền: recon (nmap), TLS, security headers, nikto, dir discovery, SQLi/XSS scoped (sqlmap `--batch --level=1`), auth/session analysis, báo cáo findings theo severity + remediation.
-- [ ] `skills/loadtest/SKILL.md` — capacity test L7: chọn tool (wrk/hey/hey→ab fallback), profiles (smoke/baseline/ramp/stress/soak), SLO definition, tìm "knee" (điểm gãy RPS/latency/error-rate), correlate server metrics (CPU, DB pool, FD), abort thresholds, pre-production gate report.
-- [ ] `skills/netstress/SKILL.md` — resilience test L4: iperf3 TCP/UDP throughput + pps, connection-rate (hping3 rate-limited, fallback nping từ nmap), connection exhaustion ceiling, conntrack limits; chỉ chạy trong cửa sổ test đã lên lịch trên hạ tầng mình.
-- [ ] `skills/ssl-audit/SKILL.md` — cert expiry/SAN/chain (openssl s_client), protocol versions (từ chối SSLv3/TLS1.0/1.1), cipher strength, HSTS, OCSP stapling; bảng kết quả + remediation. Fallback openssl thuần khi thiếu testssl.sh.
-- [ ] Frontmatter mỗi skill theo mẫu `skills/cook/SKILL.md`: `name`, `description` (mô tả rõ khi nào dùng — đây là thứ BM25 search + `/skills` hiển thị), `license: Proprietary. Part of GoClaw bundled skills.`, `version: 1`, `inputs`, `outputs`, `allowed-tools`, `quality-gates`, và **`deps:`** (block list `system:...` / `pip:...`) — dep_scanner treats explicit deps as authoritative (`internal/skills/dep_manifest.go:141`, `applyManifestOverride`).
-- [ ] Body: mọi skill có section "Authorization gate" đầu tiên: yêu cầu target thuộc sở hữu/người yêu cầu test có quyền; từ chối target bên ngoài scope; ghi nhận scope trước khi chạy; rate limit + stop conditions.
-- [ ] `docs/15-core-skills-system.md`: thêm 4 skill vào bundled list.
+- [x] `skills/security-audit/SKILL.md` — đánh giá bảo mật có thẩm quyền: recon (nmap), TLS, security headers, nikto, dir discovery, SQLi/XSS scoped (sqlmap `--batch --level=1`), auth/session analysis, báo cáo findings theo severity + remediation.
+- [x] `skills/loadtest/SKILL.md` — capacity test L7: chọn tool (wrk/hey/hey→ab fallback), profiles (smoke/baseline/ramp/stress/soak), SLO definition, tìm "knee" (điểm gãy RPS/latency/error-rate), correlate server metrics (CPU, DB pool, FD), abort thresholds, pre-production gate report.
+- [x] `skills/netstress/SKILL.md` — resilience test L4: iperf3 TCP/UDP throughput + pps, connection-rate (hping3 rate-limited, fallback nping từ nmap), connection exhaustion ceiling, conntrack limits; chỉ chạy trong cửa sổ test đã lên lịch trên hạ tầng mình.
+- [x] `skills/ssl-audit/SKILL.md` — cert expiry/SAN/chain (openssl s_client), protocol versions (từ chối SSLv3/TLS1.0/1.1), cipher strength, HSTS, OCSP stapling; bảng kết quả + remediation. Fallback openssl thuần khi thiếu testssl.sh.
+- [x] Frontmatter mỗi skill theo mẫu `skills/cook/SKILL.md`: `name`, `description` (mô tả rõ khi nào dùng — đây là thứ BM25 search + `/skills` hiển thị), `license: Proprietary. Part of GoClaw bundled skills.`, `version: 1`, `inputs`, `outputs`, `allowed-tools`, `quality-gates`, và **`deps:`** (block list `system:...` / `pip:...`) — dep_scanner treats explicit deps as authoritative (`internal/skills/dep_manifest.go:141`, `applyManifestOverride`).
+- [x] Body: mọi skill có section "Authorization gate" đầu tiên: yêu cầu target thuộc sở hữu/người yêu cầu test có quyền; từ chối target bên ngoài scope; ghi nhận scope trước khi chạy; rate limit + stop conditions.
+- [x] `docs/15-core-skills-system.md`: thêm 4 skill vào bundled list.
 
 ## Architecture
 
@@ -47,16 +47,16 @@ Deps khai báo (giữ tối thiểu, các tool còn lại ghi hướng dẫn cà
 
 ## Todo
 
-- [ ] 4 SKILL.md với authorization gate + methodology + report format
-- [ ] bundled_smoke_test.go update (expected deps + expected slugs)
-- [ ] docs/15 bundled list update
-- [ ] internal/skills tests pass (bundled smoke)
+- [x] 4 SKILL.md với authorization gate + methodology + report format
+- [x] bundled_smoke_test.go update (expected deps + expected slugs)
+- [x] docs/15 bundled list update
+- [x] internal/skills tests pass (bundled smoke)
 
 ## Success Criteria
 
-- [ ] Frontmatter parse sạch (name/description không rỗng, list fields đúng định dạng block-list).
-- [ ] Mô tả đủ tốt cho BM25: chứa từ khóa "security", "load test", "stress", "TLS"…
-- [ ] Authorization gate hiện diện ở đầu cả 4 skill; không có hướng dẫn tấn công target bên thứ ba (chỉ own-authorized infra).
+- [x] Frontmatter parse sạch (name/description không rỗng, list fields đúng định dạng block-list).
+- [x] Mô tả đủ tốt cho BM25: chứa từ khóa "security", "load test", "stress", "TLS"…
+- [x] Authorization gate hiện diện ở đầu cả 4 skill; không có hướng dẫn tấn công target bên thứ ba (chỉ own-authorized infra).
 
 ## Risk Assessment
 

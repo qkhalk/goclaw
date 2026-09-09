@@ -11,14 +11,14 @@ Thêm lệnh `/skills` (channel-side, tức thì, không qua LLM) liệt kê ski
 
 ## Requirements
 
-- [ ] `/skills` xử lý trong `handleBotCommand` (cạnh `/tasks`), trả lời ngay bằng `c.bot.SendMessage` HTML mode.
-- [ ] Danh sách từ `skills.Loader.ListSkills(ctx)` inject qua Option mới `WithSkillsLister` (interface hẹp định nghĩa trong package telegram — tránh coupling + dễ fake trong test).
-- [ ] Mỗi dòng: `/slug — mô tả` (mô tả truncate ~120 runes bằng `truncateStr` sẵn có, HTML-escape). Footer hướng dẫn: gõ `/<slug> <yêu cầu>` hoặc `/use <slug>` để chạy, `/gc:cook` style vẫn dùng tay được.
-- [ ] Chunk an toàn: dùng `c.sendHTML(ctx, chatID, html, 0, threadID)` — `sendHTMLWithDepth` đã tự chunk qua `chunkHTML(html, telegramMaxMessageLen=4000)` (`send.go:305`, `format.go:395`); escape mô tả bằng `escapeHTML` (`format.go:206`, unexported, đủ bộ `& < >`).
-- [ ] Group/topic có `skills` whitelist → chỉ list skill trong whitelist (dùng lại helper resolve topic/group config sẵn có — xem `topic_config.go`; `topicCfg.skills` là `[]string`, nil = tất cả).
-- [ ] Menu: `DefaultMenuCommands()` thêm `{skills, "List available skills"}`; thêm `skillMenuCommands(slugs, lister)` sinh entry cho từng skill: slug phải khớp `^[a-z0-9_]{1,32}$` (bỏ qua + `slog.Warn` nếu không — ví dụ `ui-ux-pro-max` có gạch ngang), description = mô tả skill truncate 256 runes, fallback `"Run skill: <slug>"`. **telego v1.6.0 không validate charset phía client** (chỉ doc-comment; Telegram server mới reject) — validate locally là bắt buộc. Startup sync goroutine (`channel.go:263-289`) đổi `DefaultMenuCommands()` → `DefaultMenuCommands() + skillMenuCommands(...)`.
-- [ ] Config: `TelegramConfig.MenuSkills []string json:"menu_skills,omitempty"` (nil = mặc định `[cook plan fix review test]`, `[]` = tắt); `telegramInstanceConfig` thêm `MenuSkills` map qua cho DB instance.
-- [ ] `/help` text thêm dòng `/skills`.
+- [x] `/skills` xử lý trong `handleBotCommand` (cạnh `/tasks`), trả lời ngay bằng `c.bot.SendMessage` HTML mode.
+- [x] Danh sách từ `skills.Loader.ListSkills(ctx)` inject qua Option mới `WithSkillsLister` (interface hẹp định nghĩa trong package telegram — tránh coupling + dễ fake trong test).
+- [x] Mỗi dòng: `/slug — mô tả` (mô tả truncate ~120 runes bằng `truncateStr` sẵn có, HTML-escape). Footer hướng dẫn: gõ `/<slug> <yêu cầu>` hoặc `/use <slug>` để chạy, `/gc:cook` style vẫn dùng tay được.
+- [x] Chunk an toàn: dùng `c.sendHTML(ctx, chatID, html, 0, threadID)` — `sendHTMLWithDepth` đã tự chunk qua `chunkHTML(html, telegramMaxMessageLen=4000)` (`send.go:305`, `format.go:395`); escape mô tả bằng `escapeHTML` (`format.go:206`, unexported, đủ bộ `& < >`).
+- [x] Group/topic có `skills` whitelist → chỉ list skill trong whitelist (dùng lại helper resolve topic/group config sẵn có — xem `topic_config.go`; `topicCfg.skills` là `[]string`, nil = tất cả).
+- [x] Menu: `DefaultMenuCommands()` thêm `{skills, "List available skills"}`; thêm `skillMenuCommands(slugs, lister)` sinh entry cho từng skill: slug phải khớp `^[a-z0-9_]{1,32}$` (bỏ qua + `slog.Warn` nếu không — ví dụ `ui-ux-pro-max` có gạch ngang), description = mô tả skill truncate 256 runes, fallback `"Run skill: <slug>"`. **telego v1.6.0 không validate charset phía client** (chỉ doc-comment; Telegram server mới reject) — validate locally là bắt buộc. Startup sync goroutine (`channel.go:263-289`) đổi `DefaultMenuCommands()` → `DefaultMenuCommands() + skillMenuCommands(...)`.
+- [x] Config: `TelegramConfig.MenuSkills []string json:"menu_skills,omitempty"` (nil = mặc định `[cook plan fix review test]`, `[]` = tắt); `telegramInstanceConfig` thêm `MenuSkills` map qua cho DB instance.
+- [x] `/help` text thêm dòng `/skills`.
 
 ## Architecture
 
@@ -51,19 +51,19 @@ Injection (đã verify thứ tự startup trong `runGateway`, một scope hàm d
 
 ## Todo
 
-- [ ] Config field + defaults
-- [ ] commands_skills.go (Option, builder, handler)
-- [ ] Switch/menu/help wiring + factory + cmd wiring
-- [ ] Unit tests pass
-- [ ] Build cả 2 mode + vet sạch
+- [x] Config field + defaults
+- [x] commands_skills.go (Option, builder, handler)
+- [x] Switch/menu/help wiring + factory + cmd wiring
+- [x] Unit tests pass
+- [x] Build cả 2 mode + vet sạch
 
 ## Success Criteria
 
-- [ ] `TestSkillMenuCommands_*`: slug hợp lệ giữ nguyên, slug có ký tự lạ bỏ qua, description truncate ≤256, fallback text khi lister nil/0 skill.
-- [ ] `TestBuildSkillsListHTML_*`: có header + dòng `/slug — desc` escape HTML, truncate desc, whitelist filter.
-- [ ] Nil lister → "Skills are not available." (mirror `/tasks` nil-store).
-- [ ] Menu sync gồm entry `skills` + các entry skill mặc định.
-- [ ] Test harness theo pattern `send_placeholder_update_test.go:18-31`: `telego.NewBot("123456:abc...", telego.WithAPICaller(recordingTelegramCaller), telego.WithDiscardLogger())` + `&Channel{...}` để assert message thật gửi đi; pure-function test dựng `&Channel{}` trực tiếp (precedent `handlers_utils_test.go:12`).
+- [x] `TestSkillMenuCommands_*`: slug hợp lệ giữ nguyên, slug có ký tự lạ bỏ qua, description truncate ≤256, fallback text khi lister nil/0 skill.
+- [x] `TestBuildSkillsListHTML_*`: có header + dòng `/slug — desc` escape HTML, truncate desc, whitelist filter.
+- [x] Nil lister → "Skills are not available." (mirror `/tasks` nil-store).
+- [x] Menu sync gồm entry `skills` + các entry skill mặc định.
+- [x] Test harness theo pattern `send_placeholder_update_test.go:18-31`: `telego.NewBot("123456:abc...", telego.WithAPICaller(recordingTelegramCaller), telego.WithDiscardLogger())` + `&Channel{...}` để assert message thật gửi đi; pure-function test dựng `&Channel{}` trực tiếp (precedent `handlers_utils_test.go:12`).
 
 ## Risk Assessment
 
