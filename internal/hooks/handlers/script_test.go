@@ -167,16 +167,18 @@ func TestPanicInsideHandle(t *testing.T) {
 	}
 }
 
-// TestAskDecisionBlocksInWave1 verifies ask/defer map to block.
-func TestAskDecisionBlocksInWave1(t *testing.T) {
+// TestAskDecisionPassesThrough verifies the ask decision reaches the
+// dispatcher untouched: the handler must not pre-convert it to block, so the
+// dispatcher can route it to the approval engine when one is wired.
+func TestAskDecisionPassesThrough(t *testing.T) {
 	src := `function handle(event) { return {decision: "ask", reason: "pls"}; }`
 	h := newTestHandler()
 	dec, err, res := runWithResult(t, h, mkCfg(src), mkEvent(), 500*time.Millisecond)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	if dec != hooks.DecisionBlock {
-		t.Fatalf("decision: got %v, want block (ask→block in Wave 1)", dec)
+	if dec != hooks.DecisionAsk {
+		t.Fatalf("decision: got %v, want ask (passthrough for approval routing)", dec)
 	}
 	if res.Reason != "pls" {
 		t.Fatalf("reason lost: %q", res.Reason)
