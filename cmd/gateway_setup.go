@@ -293,6 +293,14 @@ func setupToolRegistry(
 		}
 	}
 
+	// Deferred native tool mode (tools.deferred — default OFF, ships dark).
+	// Configure only here; activation runs at the end of wireExtraTools, after
+	// ALL builtin tools (incl. session/cron/heartbeat/skills) are registered.
+	if df := cfg.Tools.Deferred.Resolve(); df.Enabled {
+		toolsReg.SetDeferredThreshold(df.Threshold)
+		toolsReg.SetDeferredAlwaysInline(df.AlwaysInline)
+	}
+
 	return
 }
 
