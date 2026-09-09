@@ -769,6 +769,12 @@ func runGateway() {
 		teamWorkEmbedder: teamWorkEmbedder,
 	}
 
+	// Media capability matrix (Phase 4): debug-only startup log; the accessor
+	// stays available for a future UI surface.
+	if audioMgr != nil {
+		slog.Debug("media capabilities", "caps", audioMgr.MediaCapabilities())
+	}
+
 	gatewayAddr := loopbackAddr(cfg.Gateway.Host, cfg.Gateway.Port)
 	var mcpToolLister httpapi.MCPToolLister
 	if mcpMgr != nil {
