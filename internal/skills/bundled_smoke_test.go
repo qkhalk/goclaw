@@ -8,11 +8,17 @@ import (
 	"testing"
 )
 
-// TestBundledSkills_NoRegression verifies every bundled skill scans successfully
-// after Phase 02 changes. No skill currently uses deps:/exclude_deps: (verified
-// via grep), so FromManifest must be false across the board.
+// TestBundledSkills_NoRegression verifies every bundled skill scans successfully.
+// Only the testing skills (security-audit, loadtest, netstress, ssl-audit)
+// declare deps: in frontmatter; every other bundled skill must stay manifest-free.
 func TestBundledSkills_NoRegression(t *testing.T) {
 	bundled := "../../skills"
+	manifestDeps := map[string][]string{
+		"security-audit": {"system:nmap", "system:nikto", "pip:sqlmap", "system:testssl.sh", "system:curl"},
+		"loadtest":       {"system:wrk", "system:hey", "system:curl"},
+		"netstress":      {"system:iperf3", "system:hping3", "system:curl"},
+		"ssl-audit":      {"system:testssl.sh", "system:openssl"},
+	}
 	entries, err := os.ReadDir(bundled)
 	if err != nil {
 		t.Skip("bundled skills dir not found:", err)
@@ -29,11 +35,21 @@ func TestBundledSkills_NoRegression(t *testing.T) {
 			if m == nil {
 				t.Fatal("ScanSkillDeps returned nil")
 			}
-			if m.FromManifest {
-				t.Errorf("%s: FromManifest=true (unexpected — bundled skills don't use deps: yet)", name)
-			}
-			if len(m.Explicit) != 0 {
-				t.Errorf("%s: Explicit non-empty: %v", name, m.Explicit)
+			wantDeps, hasManifest := manifestDeps[name]
+			if hasManifest {
+				if !m.FromManifest {
+					t.Errorf("%s: FromManifest=false, want true (deps: declared)", name)
+				}
+				if got := strings.Join(m.Explicit, ","); got != strings.Join(wantDeps, ",") {
+					t.Errorf("%s: Explicit = %q, want %q", name, got, strings.Join(wantDeps, ","))
+				}
+			} else {
+				if m.FromManifest {
+					t.Errorf("%s: FromManifest=true (unexpected — only testing skills declare deps:)", name)
+				}
+				if len(m.Explicit) != 0 {
+					t.Errorf("%s: Explicit non-empty: %v", name, m.Explicit)
+				}
 			}
 			if len(m.ExcludeDeps) != 0 {
 				t.Errorf("%s: ExcludeDeps non-empty: %v", name, m.ExcludeDeps)
@@ -49,9 +65,13 @@ func TestBundledSkills_ExpectedCoreSkillSlugs(t *testing.T) {
 	expected := map[string]bool{
 		"docx":                 false,
 		"goclaw":               false,
+		"loadtest":             false,
+		"netstress":            false,
 		"pdf":                  false,
 		"pptx":                 false,
+		"security-audit":       false,
 		"skill-creator":        false,
+		"ssl-audit":            false,
 		"workspace-organizing": false,
 		"xlsx":                 false,
 	}

@@ -16,6 +16,35 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Added
 
+- **Telegram `/skills` command + skill shortcuts in the `/` bot menu** — Typing `/`
+  in Telegram now shows frequently used skills (`cook`, `plan`, `fix`, `review`,
+  `test` by default) next to the built-in commands, configurable per channel via
+  `channels.telegram.menu_skills` (nil = defaults, `[]` = none; DB instances use
+  `menu_skills` in instance config). Telegram bot commands only accept
+  `[a-z0-9_]`, so entries are plain `/cook`-style (which already activate skills
+  via the agent's slash-command resolver); `/gc:cook …` spelling still works when
+  typed manually. New `/skills` command replies instantly (no LLM call) with the
+  full skill list and descriptions, HTML-escaped, chunked under Telegram's 4000-
+  char limit, capped at 50 entries, and filtered by group/topic skill whitelists.
+  Skills are injected into the channel via the new `WithSkillsLister` option
+  (backed by `skills.Loader`), wired through both the DB-instance factory and
+  the config-fallback path.
+
+- **Built-in testing skills: `security-audit`, `loadtest`, `netstress`, `ssl-audit`** —
+  Pre-production testing skill set. `security-audit`: authorized web/host
+  assessment (nmap recon, TLS review, header baseline, nikto, scoped sqlmap
+  injection checks, auth/session review, severity-ranked findings report).
+  `loadtest`: HTTP Layer-7 capacity testing with wrk/hey ramp profiles, SLO
+  verdicts, and server-side bottleneck correlation. `netstress`: Layer-4
+  resilience testing on owned infrastructure (iperf3 throughput, rate-capped
+  hping3 connection tests, concurrency ceilings, saturation behavior).
+  `ssl-audit`: TLS health check (cert chain/expiry, protocol/cipher hygiene,
+  HSTS, OCSP stapling) with openssl fallbacks. All four declare system deps in
+  frontmatter (`deps:`) so the existing install-deps flow provisions them
+  (nmap/nikto/wrk/hey/iperf3/curl/openssl + pip sqlmap on the Docker full
+  variant), and each opens with a mandatory authorization gate restricting use
+  to requester-owned or explicitly authorized targets.
+
 - **Behavior UX sidecar delivery overrides** — Adds sidecar-generated Quick
   Acknowledgement and Intermediate Replies with provider/model, timeout, token,
   and char caps. Effective config resolves Channel > Agent > Workspace, with

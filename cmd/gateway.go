@@ -1046,7 +1046,7 @@ func runGateway() {
 		instanceLoader.SetProviderRegistry(providerRegistry)
 		instanceLoader.SetPendingCompactionConfig(cfg.Channels.PendingCompaction)
 		instanceLoader.SetUsageCapService(usageCapSvc)
-		instanceLoader.RegisterFactory(channels.TypeTelegram, telegram.FactoryWithStoresAndAudio(pgStores.Agents, pgStores.ConfigPermissions, pgStores.Teams, pgStores.SubagentTasks, pgStores.PendingMessages, audioMgr))
+		instanceLoader.RegisterFactory(channels.TypeTelegram, telegram.FactoryWithStoresAndAudio(pgStores.Agents, pgStores.ConfigPermissions, pgStores.Teams, pgStores.SubagentTasks, pgStores.PendingMessages, audioMgr, skillsLoader))
 		instanceLoader.RegisterFactory(channels.TypeDiscord, discord.FactoryWithStoresAndAudio(pgStores.Agents, pgStores.ConfigPermissions, pgStores.PendingMessages, audioMgr))
 		instanceLoader.RegisterFactory(channels.TypeFeishu, feishu.FactoryWithStoresAndAudio(pgStores.Agents, pgStores.ConfigPermissions, pgStores.PendingMessages, audioMgr))
 		instanceLoader.RegisterFactory(channels.TypeZaloOA, zalo.Factory)
@@ -1108,7 +1108,7 @@ func runGateway() {
 	}
 
 	// Register config-based channels as fallback when no DB instances loaded.
-	registerConfigChannels(cfg, channelMgr, msgBus, pgStores, instanceLoader, audioMgr)
+	registerConfigChannels(cfg, channelMgr, msgBus, pgStores, instanceLoader, audioMgr, skillsLoader)
 
 	// Register channels/instances/links/teams RPC methods
 	chInstancesM := wireChannelRPCMethods(server, pgStores, channelMgr, instanceLoader, agentRouter, msgBus, cfg, workspace)

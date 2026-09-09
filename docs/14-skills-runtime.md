@@ -46,11 +46,23 @@ Pre-installed runtimes depend on the Docker image variant you deploy. The Packag
 |---------|---------------|------------|------------------------|
 | Latest | `latest` | `ENABLE_PYTHON=true`, `ENABLE_NODE=false`, `ENABLE_FULL_SKILLS=false` | `python3`, `py3-pip`, shared Python deps |
 | Base | `base` | `ENABLE_PYTHON=false`, `ENABLE_NODE=false`, `ENABLE_FULL_SKILLS=false` | No Python or Node.js runtimes |
-| Full | `full` | `ENABLE_FULL_SKILLS=true` | `python3`, `py3-pip`, `nodejs`, `npm`, `pandoc`, `github-cli`, bundled skill deps, Workspace CLI |
+| Full | `full` | `ENABLE_FULL_SKILLS=true` | `python3`, `py3-pip`, `nodejs`, `npm`, `pandoc`, `github-cli`, testing tools (see below), bundled skill deps, Workspace CLI |
 | Custom Python | not published | `ENABLE_PYTHON=true` | `python3`, `py3-pip`, shared Python deps |
 | Custom Node | not published | `ENABLE_NODE=true` | `nodejs`, `npm` |
 
 ### Full Variant Extras
+
+#### apk Packages (testing skills)
+
+| Package | Used By |
+|---------|---------|
+| `curl`, `openssl` | security-audit, loadtest, netstress, ssl-audit skills (fallback probes) |
+| `nmap` | security-audit (recon), netstress (nping fallback) |
+| `nikto` | security-audit (web vulnerability scan) |
+| `wrk`, `hey` | loadtest (HTTP load generation) |
+| `iperf3` | netstress (TCP/UDP throughput) |
+
+Not available as Alpine packages: `sqlmap` (installed via pip instead), `testssl.sh` and `hping3` (skills ship openssl/nping fallbacks; on Debian/Ubuntu hosts they resolve via `deps:` install-deps).
 
 #### Python Packages
 
