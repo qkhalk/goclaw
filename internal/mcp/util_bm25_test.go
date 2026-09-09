@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
 // --- mapToEnvSlice ---
@@ -260,90 +261,90 @@ func TestParseToolHints_NilHintsMap(t *testing.T) {
 	}
 }
 
-// --- mcpBM25Index ---
+// --- BM25 index (shared implementation in internal/tools, via mcp mapping) ---
 
 func TestMCPBM25Index_EmptyIndex(t *testing.T) {
-	idx := newMCPBM25Index()
-	results := idx.search("anything", 5)
+	idx := tools.NewBM25Index()
+	results := idx.Search("anything", 5)
 	if len(results) != 0 {
 		t.Errorf("empty index should return no results, got %d", len(results))
 	}
-	if idx.docCount() != 0 {
-		t.Errorf("empty index docCount should be 0, got %d", idx.docCount())
+	if idx.DocCount() != 0 {
+		t.Errorf("empty index DocCount should be 0, got %d", idx.DocCount())
 	}
 }
 
 func TestMCPBM25Index_Build_SingleTool(t *testing.T) {
-	idx := newMCPBM25Index()
+	idx := tools.NewBM25Index()
 	bt := makeBridgeToolWithDesc("myserver", "search_web", "Search the web for information")
-	idx.build([]*BridgeTool{bt})
+	idx.Build(mcpSearchDocs([]*BridgeTool{bt}))
 
-	if idx.docCount() != 1 {
-		t.Errorf("expected 1 doc, got %d", idx.docCount())
+	if idx.DocCount() != 1 {
+		t.Errorf("expected 1 doc, got %d", idx.DocCount())
 	}
 }
 
 func TestMCPBM25Index_Search_ExactMatch(t *testing.T) {
-	idx := newMCPBM25Index()
-	tools := []*BridgeTool{
+	idx := tools.NewBM25Index()
+	bridges := []*BridgeTool{
 		makeBridgeToolWithDesc("server1", "search_web", "Search the web using DuckDuckGo"),
 		makeBridgeToolWithDesc("server2", "run_code", "Execute Python code in sandbox"),
 		makeBridgeToolWithDesc("server3", "read_file", "Read file from filesystem"),
 	}
-	idx.build(tools)
+	idx.Build(mcpSearchDocs(bridges))
 
-	results := idx.search("web search", 5)
+	results := idx.Search("web search", 5)
 	if len(results) == 0 {
 		t.Fatal("expected results for 'web search'")
 	}
-	if results[0].ServerName != "server1" {
-		t.Errorf("expected server1 first, got %q", results[0].ServerName)
+	if results[0].Source != "server1" {
+		t.Errorf("expected server1 first, got %q", results[0].Source)
 	}
 }
 
 func TestMCPBM25Index_Search_ZeroResults(t *testing.T) {
-	idx := newMCPBM25Index()
-	idx.build([]*BridgeTool{
+	idx := tools.NewBM25Index()
+	idx.Build(mcpSearchDocs([]*BridgeTool{
 		makeBridgeToolWithDesc("s", "tool", "does something"),
-	})
-	results := idx.search("xyzzy_unknown_query_abc", 5)
+	}))
+	results := idx.Search("xyzzy_unknown_query_abc", 5)
 	if len(results) != 0 {
 		t.Errorf("unknown query should return 0 results, got %d", len(results))
 	}
 }
 
 func TestMCPBM25Index_Search_EmptyQuery(t *testing.T) {
-	idx := newMCPBM25Index()
-	idx.build([]*BridgeTool{
+	idx := tools.NewBM25Index()
+	idx.Build(mcpSearchDocs([]*BridgeTool{
 		makeBridgeToolWithDesc("s", "tool", "description"),
-	})
-	results := idx.search("", 5)
+	}))
+	results := idx.Search("", 5)
 	if len(results) != 0 {
 		t.Errorf("empty query should return 0 results, got %d", len(results))
 	}
 }
 
 func TestMCPBM25Index_Search_MaxResultsRespected(t *testing.T) {
-	idx := newMCPBM25Index()
-	tools := make([]*BridgeTool, 10)
-	for i := range tools {
-		tools[i] = makeBridgeToolWithDesc("server", "search_tool", "search web data tool")
+	idx := tools.NewBM25Index()
+	bridges := make([]*BridgeTool, 10)
+	for i := range bridges {
+		bridges[i] = makeBridgeToolWithDesc("server", "search_tool", "search web data tool")
 	}
-	idx.build(tools)
+	idx.Build(mcpSearchDocs(bridges))
 
-	results := idx.search("search", 3)
+	results := idx.Search("search", 3)
 	if len(results) > 3 {
 		t.Errorf("maxResults=3 exceeded, got %d", len(results))
 	}
 }
 
 func TestMCPBM25Index_Search_ResultFields(t *testing.T) {
-	idx := newMCPBM25Index()
+	idx := tools.NewBM25Index()
 	bt := makeBridgeToolWithDesc("my-server", "query_db", "Query the database")
 	bt.registeredName = "mcp_my_server__query_db"
-	idx.build([]*BridgeTool{bt})
+	idx.Build(mcpSearchDocs([]*BridgeTool{bt}))
 
-	results := idx.search("query database", 5)
+	results := mcpHits(idx.Search("query database", 5))
 	if len(results) == 0 {
 		t.Fatal("expected results")
 	}
@@ -360,27 +361,27 @@ func TestMCPBM25Index_Search_ResultFields(t *testing.T) {
 }
 
 func TestMCPBM25Index_Rebuild(t *testing.T) {
-	idx := newMCPBM25Index()
-	idx.build([]*BridgeTool{
+	idx := tools.NewBM25Index()
+	idx.Build(mcpSearchDocs([]*BridgeTool{
 		makeBridgeToolWithDesc("s", "old_tool", "old description search"),
-	})
+	}))
 
 	// Rebuild with new tools
-	idx.build([]*BridgeTool{
+	idx.Build(mcpSearchDocs([]*BridgeTool{
 		makeBridgeToolWithDesc("s", "new_tool", "new description query"),
-	})
+	}))
 
-	results := idx.search("old", 5)
+	results := idx.Search("old", 5)
 	if len(results) != 0 {
 		t.Errorf("after rebuild, old tools should be gone, got %d", len(results))
 	}
-	results = idx.search("new", 5)
+	results = idx.Search("new", 5)
 	if len(results) == 0 {
 		t.Error("after rebuild, new tools should be searchable")
 	}
 }
 
-// --- tokenizeMCP ---
+// --- Tokenize (shared implementation in internal/tools) ---
 
 func TestTokenizeMCP_BasicTokenization(t *testing.T) {
 	tests := []struct {
@@ -388,21 +389,21 @@ func TestTokenizeMCP_BasicTokenization(t *testing.T) {
 		expect []string
 	}{
 		{"search web", []string{"search", "web"}},
-		{"Search Web", []string{"search", "web"}},         // lowercased
+		{"Search Web", []string{"search", "web"}},          // lowercased
 		{"query_db tool", []string{"query", "db", "tool"}}, // underscore as separator
 		{"", nil},
 		{"a b c", nil}, // single-char tokens filtered
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := tokenizeMCP(tt.input)
+			got := tools.Tokenize(tt.input)
 			if len(got) != len(tt.expect) {
-				t.Errorf("tokenizeMCP(%q) = %v, want %v", tt.input, got, tt.expect)
+				t.Errorf("Tokenize(%q) = %v, want %v", tt.input, got, tt.expect)
 				return
 			}
 			for i, tok := range got {
 				if tok != tt.expect[i] {
-					t.Errorf("tokenizeMCP(%q)[%d] = %q, want %q", tt.input, i, tok, tt.expect[i])
+					t.Errorf("Tokenize(%q)[%d] = %q, want %q", tt.input, i, tok, tt.expect[i])
 				}
 			}
 		})
@@ -517,4 +518,3 @@ func makeBridgeToolWithDesc(serverName, toolName, description string) *BridgeToo
 		requiredSet:    map[string]bool{},
 	}
 }
-
