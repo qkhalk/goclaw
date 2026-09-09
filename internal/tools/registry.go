@@ -32,16 +32,29 @@ type Registry struct {
 	// deferredActivator is called when a tool is not in the registry but may be
 	// a deferred MCP tool. Returns true if the tool was successfully activated.
 	deferredActivator func(name string) bool
+
+	// Native deferred mode (tools.deferred, Phase 3). Mirrors the MCP manager's
+	// search mode: when the visible tool count exceeds deferThreshold, excess
+	// canonical tools are moved out of `tools` into `deferredTools` and a
+	// `tool_search` meta-tool is registered for BM25 discovery. Transition is
+	// one-shot (ApplyDeferredMode) at wiring time — never per-request.
+	deferredTools    map[string]Tool         // name → tool (not visible via Get/List/ProviderDefs)
+	deferredMetadata map[string]ToolMetadata // metadata parked alongside deferredTools
+	deferThreshold   int                     // <= 0 = disabled
+	deferInline      []string                // raw always_inline entries ("group:x", group name, or tool name)
+	deferredActive   bool
 }
 
 func NewRegistry() *Registry {
 	r := &Registry{
-		tools:      make(map[string]Tool),
-		metadata:   make(map[string]ToolMetadata),
-		aliases:    make(map[string]string),
-		disabled:   make(map[string]bool),
-		toolGroups: make(map[string][]string),
-		scrubbing:  true, // enabled by default
+		tools:            make(map[string]Tool),
+		metadata:         make(map[string]ToolMetadata),
+		aliases:          make(map[string]string),
+		disabled:         make(map[string]bool),
+		toolGroups:       make(map[string][]string),
+		deferredTools:    make(map[string]Tool),
+		deferredMetadata: make(map[string]ToolMetadata),
+		scrubbing:        true, // enabled by default
 	}
 	// Seed built-in tool groups (deep copy from package-level constant data)
 	for name, members := range builtinToolGroups {
@@ -58,12 +71,19 @@ func (r *Registry) SetDeferredActivator(fn func(name string) bool) {
 	r.deferredActivator = fn
 }
 
-// TryActivateDeferred attempts to activate a named tool via the deferred activator.
+// TryActivateDeferred attempts to activate a named deferred tool so it becomes
+// available on the next iteration (and for the current call's authorization).
+// Native deferred tools are checked first (in-registry, no callback), then the
+// external deferredActivator (the MCP manager's lazy activation).
 // Returns true if the tool is now in the registry (either already was or just activated).
 func (r *Registry) TryActivateDeferred(name string) bool {
 	r.mu.RLock()
+	_, nativeDeferred := r.deferredTools[name]
 	fn := r.deferredActivator
 	r.mu.RUnlock()
+	if nativeDeferred {
+		return r.activateDeferredTool(name)
+	}
 	if fn == nil {
 		return false
 	}
@@ -73,6 +93,235 @@ func (r *Registry) TryActivateDeferred(name string) bool {
 // SetRateLimiter enables per-key tool rate limiting.
 func (r *Registry) SetRateLimiter(rl *ToolRateLimiter) {
 	r.rateLimiter = rl
+}
+
+// SetDeferredThreshold configures the visible canonical tool count above which
+// ApplyDeferredMode defers excess native tools behind the tool_search meta-tool.
+// n <= 0 disables native deferred mode. Must be applied before ApplyDeferredMode.
+func (r *Registry) SetDeferredThreshold(n int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deferThreshold = n
+}
+
+// SetDeferredAlwaysInline configures entries (tool names, group names, or
+// "group:xxx" specs) whose members are never deferred, mirroring the plan's
+// highest-priority groups (filesystem, web, sessions, memory, skills).
+func (r *Registry) SetDeferredAlwaysInline(entries []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deferInline = append([]string(nil), entries...)
+}
+
+// IsDeferredMode reports whether native deferred mode is active.
+func (r *Registry) IsDeferredMode() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.deferredActive
+}
+
+// ApplyDeferredMode transitions the registry into native deferred mode when the
+// number of visible canonical tools exceeds the configured threshold. The
+// excess (sorted lexicographically; always_inline members are protected) is
+// moved out of the visible set and a `tool_search` meta-tool is registered for
+// discovery + on-demand activation. No-op when disabled, under threshold, or
+// already active. One-shot at wiring time — never call per request.
+func (r *Registry) ApplyDeferredMode() {
+	r.mu.Lock()
+	if r.deferThreshold <= 0 || r.deferredActive {
+		r.mu.Unlock()
+		return
+	}
+
+	visible := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		if !r.disabled[name] {
+			visible = append(visible, name)
+		}
+	}
+	slices.Sort(visible)
+
+	if len(visible) <= r.deferThreshold {
+		r.mu.Unlock()
+		return
+	}
+
+	// Resolve always_inline entries against the group table so both "group:fs"
+	// and "fs" (and plain tool names) protect their members.
+	protected := make(map[string]bool)
+	r.toolGroupsMu.RLock()
+	for _, entry := range r.deferInline {
+		spec := strings.TrimPrefix(entry, "group:")
+		if members, ok := r.toolGroups[spec]; ok {
+			for _, m := range members {
+				protected[m] = true
+			}
+			continue
+		}
+		protected[entry] = true
+	}
+	r.toolGroupsMu.RUnlock()
+
+	// Deterministic selection: protected tools stay inline; the remaining
+	// lexicographic prefix fills the rest of the budget; the suffix defers.
+	kept := make(map[string]bool, r.deferThreshold)
+	for _, name := range visible {
+		if protected[name] {
+			kept[name] = true
+		}
+	}
+	budget := r.deferThreshold - len(kept)
+	if budget < 0 {
+		budget = 0
+	}
+	for _, name := range visible {
+		if budget <= 0 {
+			break
+		}
+		if !kept[name] {
+			kept[name] = true
+			budget--
+		}
+	}
+
+	deferred := make([]string, 0, len(visible)-len(kept))
+	for _, name := range visible {
+		if !kept[name] && name != ToolSearchName {
+			deferred = append(deferred, name)
+		}
+	}
+	if len(deferred) == 0 {
+		// Everything protected — nothing to defer, stay fully inline.
+		r.mu.Unlock()
+		return
+	}
+
+	for _, name := range deferred {
+		r.deferredTools[name] = r.tools[name]
+		delete(r.tools, name)
+		if meta, ok := r.metadata[name]; ok {
+			r.deferredMetadata[name] = meta
+			delete(r.metadata, name)
+		}
+	}
+	r.deferredActive = true
+
+	search := &ToolSearchTool{reg: r}
+	r.tools[search.Name()] = search
+
+	slog.Info("tools.deferred_mode.enabled",
+		"inline_tools", len(visible)-len(deferred),
+		"deferred_tools", len(deferred),
+		"threshold", r.deferThreshold)
+	r.mu.Unlock()
+
+	search.rebuildIndex()
+}
+
+// DeferredToolNames returns the currently deferred native tool names, sorted.
+func (r *Registry) DeferredToolNames() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	names := make([]string, 0, len(r.deferredTools))
+	for name := range r.deferredTools {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// DeferredSearchDocs documents the deferred native tools for BM25 indexing.
+// Source is the first (lexicographically ordered) registered group containing
+// the tool, or "builtin" when it belongs to no group.
+func (r *Registry) DeferredSearchDocs() []SearchDoc {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	docs := make([]SearchDoc, 0, len(r.deferredTools))
+	for name, tool := range r.deferredTools {
+		docs = append(docs, SearchDoc{
+			Name:        name,
+			Source:      r.firstGroupOf(name),
+			Description: tool.Description(),
+		})
+	}
+	slices.SortFunc(docs, func(a, b SearchDoc) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return docs
+}
+
+// firstGroupOf returns the first registered group containing name. Caller holds r.mu.
+// Group names are visited in sorted order for a deterministic label.
+func (r *Registry) firstGroupOf(name string) string {
+	groups := make([]string, 0, len(r.toolGroups))
+	for g := range r.toolGroups {
+		groups = append(groups, g)
+	}
+	slices.Sort(groups)
+	for _, g := range groups {
+		if slices.Contains(r.toolGroups[g], name) {
+			return g
+		}
+	}
+	return "builtin"
+}
+
+// searchDeferredTools runs a BM25 query over the deferred native tools.
+// The index is rebuilt per call — the deferred set is small and shrinks as
+// tools are activated, so results always reflect current state.
+func (r *Registry) searchDeferredTools(query string, maxResults int) []SearchHit {
+	docs := r.DeferredSearchDocs()
+	index := NewBM25Index()
+	index.Build(docs)
+	return index.Search(query, maxResults)
+}
+
+// ActivateDeferredTools promotes the named deferred native tools back into the
+// visible registry (available on the next iteration). Returns the names that
+// were actually activated.
+func (r *Registry) ActivateDeferredTools(names []string) []string {
+	var activated []string
+	r.mu.Lock()
+	for _, name := range names {
+		tool, ok := r.deferredTools[name]
+		if !ok {
+			continue
+		}
+		r.tools[name] = tool
+		delete(r.deferredTools, name)
+		if meta, ok := r.deferredMetadata[name]; ok {
+			r.metadata[name] = meta
+			delete(r.deferredMetadata, name)
+		}
+		activated = append(activated, name)
+	}
+	r.mu.Unlock()
+	if len(activated) > 0 {
+		slog.Info("tools.deferred.activated", "tools", activated)
+	}
+	return activated
+}
+
+// activateDeferredTool promotes a single deferred native tool. Used by
+// TryActivateDeferred for exact-name lazy activation (mirrors the MCP manager's
+// ActivateToolIfDeferred semantics). Returns true if the tool is now registered.
+func (r *Registry) activateDeferredTool(name string) bool {
+	r.mu.Lock()
+	tool, ok := r.deferredTools[name]
+	if !ok {
+		r.mu.Unlock()
+		return false
+	}
+	r.tools[name] = tool
+	delete(r.deferredTools, name)
+	if meta, ok := r.deferredMetadata[name]; ok {
+		r.metadata[name] = meta
+		delete(r.deferredMetadata, name)
+	}
+	r.mu.Unlock()
+	slog.Info("tools.deferred.activated", "tools", []string{name})
+	return true
 }
 
 // SetScrubbing enables or disables credential scrubbing on tool output.
@@ -177,6 +426,16 @@ func (r *Registry) ExecuteWithContext(ctx context.Context, name string, args map
 	r.mu.RLock()
 	tool, ok := r.resolve(name)
 	r.mu.RUnlock()
+
+	if !ok && r.TryActivateDeferred(name) {
+		// The model called a deferred tool (native or MCP) by exact name without
+		// searching first. Activating here covers authorization paths that skip
+		// the allowlist check (no policy wired) — the authorize path already
+		// handles the policy path. Mirrors MCP's lazy-activation semantics.
+		r.mu.RLock()
+		tool, ok = r.resolve(name)
+		r.mu.RUnlock()
+	}
 
 	if !ok {
 		return ErrorResult("unknown tool: " + name)
@@ -356,21 +615,35 @@ func (r *Registry) Clone() *Registry {
 	defer r.toolGroupsMu.RUnlock()
 
 	clone := &Registry{
-		tools:       make(map[string]Tool, len(r.tools)),
-		metadata:    make(map[string]ToolMetadata, len(r.metadata)),
-		aliases:     make(map[string]string, len(r.aliases)),
-		disabled:    make(map[string]bool, len(r.disabled)),
-		toolGroups:  make(map[string][]string, len(r.toolGroups)),
-		rateLimiter: r.rateLimiter,
-		scrubbing:   r.scrubbing,
+		tools:            make(map[string]Tool, len(r.tools)),
+		metadata:         make(map[string]ToolMetadata, len(r.metadata)),
+		aliases:          make(map[string]string, len(r.aliases)),
+		disabled:         make(map[string]bool, len(r.disabled)),
+		toolGroups:       make(map[string][]string, len(r.toolGroups)),
+		deferredTools:    make(map[string]Tool, len(r.deferredTools)),
+		deferredMetadata: make(map[string]ToolMetadata, len(r.deferredMetadata)),
+		rateLimiter:      r.rateLimiter,
+		scrubbing:        r.scrubbing,
+		deferThreshold:   r.deferThreshold,
+		deferInline:      append([]string(nil), r.deferInline...),
+		deferredActive:   r.deferredActive,
 	}
 	maps.Copy(clone.tools, r.tools)
 	maps.Copy(clone.metadata, r.metadata)
 	maps.Copy(clone.aliases, r.aliases)
 	maps.Copy(clone.disabled, r.disabled)
+	maps.Copy(clone.deferredTools, r.deferredTools)
+	maps.Copy(clone.deferredMetadata, r.deferredMetadata)
 	// Deep-copy toolGroups (each slice must be copied)
 	for name, members := range r.toolGroups {
 		clone.toolGroups[name] = append([]string(nil), members...)
+	}
+	// Deferred mode carries a per-registry search tool (holds a back-reference
+	// to its owning registry) — rebuild it against the clone, replacing the
+	// inherited tool_search pointer which still references the parent.
+	if r.deferredActive {
+		search := &ToolSearchTool{reg: clone}
+		clone.tools[search.Name()] = search
 	}
 	return clone
 }
