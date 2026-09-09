@@ -40,7 +40,7 @@ func processNormalMessage(
 	// Determine target agent via bindings or explicit AgentID
 	agentID := msg.AgentID
 	if agentID == "" {
-		agentID = resolveAgentRouteForInbound(ctx, deps.Cfg, deps.AgentStore, msg.Channel, msg.ChatID, msg.PeerKind)
+		agentID = resolveAgentRouteForInboundWithRules(ctx, deps.Cfg, deps.AgentStore, deps.RoutingRules, msg.Channel, msg.ChatID, msg.PeerKind, msg.Metadata["guild_id"])
 	}
 
 	agentLoop, err := deps.Agents.Get(ctx, agentID)

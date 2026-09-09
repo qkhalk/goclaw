@@ -123,4 +123,9 @@ type Stores struct {
 	// PTY output stays in an in-memory ring buffer and is never written
 	// here.
 	Terminals TerminalStore
+
+	// RoutingRules persists tenant-scoped inbound routing rules (inheritance
+	// plan Phase 4): evaluated between config-binding peer matches and
+	// channel matches, lowest priority number first.
+	RoutingRules RoutingRulesStore
 }
