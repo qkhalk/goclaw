@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"context"
+	"encoding/json"
+	"log/slog"
 	"slices"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -184,5 +187,31 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 		}
 	}
 
+	logToolSchemaMetrics(toolDefs, iteration)
+
 	return toolDefs, allowedTools, messages
+}
+
+// schemaTokenCharsPerToken is the ~4 chars/token heuristic for dense English
+// schema JSON — a measurement estimate, not a tokenizer.
+const schemaTokenCharsPerToken = 4
+
+// logToolSchemaMetrics emits the per-request measurement of the tool-schema
+// section cost (`tools.schema_tokens` at Debug level): the visible tool-def
+// count plus the estimated token cost of serializing their JSON schemas
+// (bytes/4). This is the Phase 3 measurement baseline — operators compare it
+// against tools.deferred.threshold before enabling deferred native tools.
+// Gated on Debug so production requests pay only one handler check.
+func logToolSchemaMetrics(defs []providers.ToolDefinition, iteration int) {
+	if !slog.Default().Handler().Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+	estimated := 0
+	if blob, err := json.Marshal(defs); err == nil {
+		estimated = len(blob) / schemaTokenCharsPerToken
+	}
+	slog.Debug("tools.schema_tokens",
+		"count", len(defs),
+		"estimated_tokens", estimated,
+		"iteration", iteration)
 }

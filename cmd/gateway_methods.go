@@ -18,7 +18,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore store.SessionStore, tracingStore store.TracingStore, runTimeline store.RunTimelineStore, runsStore store.RunsStore, cronStore store.CronStore, pairingStore store.PairingStore, cfg *config.Config, cfgPath, workspace, dataDir string, msgBus *bus.MessageBus, execApprovalMgr *tools.ExecApprovalManager, approvalStore store.ApprovalStore, agentStore store.AgentStore, skillStore store.SkillStore, configSecretsStore store.ConfigSecretsStore, teamStore store.TeamStore, agentLinkStore store.AgentLinkStore, contextFileInterceptor *tools.ContextFileInterceptor, logTee *gateway.LogTee, heartbeatStore store.HeartbeatStore, configPermStore store.ConfigPermissionStore, sysConfigStore store.SystemConfigStore, tenantStore store.TenantStore, skillTenantCfgStore store.SkillTenantConfigStore, audioMgr *audio.Manager, usageCapSvc *usagecaps.Service, providerReg *providers.Registry, providerStore store.ProviderStore, teamWorkEmbedder memory.EmbeddingProvider, contractStore store.ContractStore, checkpointSnapshots store.CheckpointSnapshotStore, missionStore store.MissionStore, tenantPolicyStore store.TenantPolicyStore, tenantRoleStore store.TenantRoleStore, nodeLeaseStore store.NodeLeaseStore, workspaceStore store.WorkspaceStore, agentJobStore store.AgentJobStore, taskGraphStore store.TaskGraphStore, memoryFabricStore store.MemoryFabricStore, terminals store.TerminalStore) (*methods.PairingMethods, *methods.HeartbeatMethods, *methods.ChatMethods, *methods.ConfigPermissionsMethods) {
+func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore store.SessionStore, tracingStore store.TracingStore, runTimeline store.RunTimelineStore, runsStore store.RunsStore, cronStore store.CronStore, pairingStore store.PairingStore, cfg *config.Config, cfgPath, workspace, dataDir string, msgBus *bus.MessageBus, execApprovalMgr *tools.ExecApprovalManager, approvalStore store.ApprovalStore, agentStore store.AgentStore, skillStore store.SkillStore, configSecretsStore store.ConfigSecretsStore, teamStore store.TeamStore, agentLinkStore store.AgentLinkStore, contextFileInterceptor *tools.ContextFileInterceptor, logTee *gateway.LogTee, heartbeatStore store.HeartbeatStore, configPermStore store.ConfigPermissionStore, sysConfigStore store.SystemConfigStore, tenantStore store.TenantStore, skillTenantCfgStore store.SkillTenantConfigStore, audioMgr *audio.Manager, usageCapSvc *usagecaps.Service, providerReg *providers.Registry, providerStore store.ProviderStore, teamWorkEmbedder memory.EmbeddingProvider, contractStore store.ContractStore, checkpointSnapshots store.CheckpointSnapshotStore, missionStore store.MissionStore, tenantPolicyStore store.TenantPolicyStore, tenantRoleStore store.TenantRoleStore, nodeLeaseStore store.NodeLeaseStore, workspaceStore store.WorkspaceStore, agentJobStore store.AgentJobStore, taskGraphStore store.TaskGraphStore, memoryFabricStore store.MemoryFabricStore, terminals store.TerminalStore, routingRulesStore store.RoutingRulesStore) (*methods.PairingMethods, *methods.HeartbeatMethods, *methods.ChatMethods, *methods.ConfigPermissionsMethods) {
 	router := server.Router()
 
 	// Phase 1: Core methods
@@ -163,6 +163,13 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	// Phase 4: tenant policies + RBAC custom roles (tenant-admin gated).
 	if tenantPolicyStore != nil && tenantRoleStore != nil && tenantStore != nil && msgBus != nil {
 		methods.NewTenantAdminMethods(tenantPolicyStore, tenantRoleStore, tenantStore, msgBus).Register(router)
+	}
+
+	// Phase 4 (inheritance plan): routing.rules.list/set/delete —
+	// tenant-admin gated DB routing rules. Nil-safe: without a store the
+	// surface is not registered.
+	if routingRulesStore != nil {
+		methods.NewRoutingRulesMethods(routingRulesStore, agentStore).Register(router)
 	}
 
 	// Mission Mode: durable mission records + resume. Nil-safe when the store is

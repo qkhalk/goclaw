@@ -23,11 +23,54 @@
   "toast": {
     "approved": "Đã phê duyệt",
     "approvedAlways": "Lệnh luôn được phép",
+    "approvedSession": "Được phép trong phiên này",
     "approvedOnce": "Lệnh đã được phê duyệt",
     "approveFailed": "Không thể phê duyệt",
     "denied": "Đã từ chối",
     "deniedDesc": "Lệnh bị từ chối",
     "denyFailed": "Không thể từ chối",
     "unknownError": "Lỗi không xác định"
+  },
+  "tabs": {
+    "pending": "Đang chờ",
+    "history": "Lịch sử"
+  },
+  "scope": {
+    "once": "Cho phép một lần",
+    "session": "Cho phép theo phiên",
+    "always": "Luôn cho phép"
+  },
+  "scopeLabel": "Phạm vi cấp quyền",
+  "approve": "Phê duyệt",
+  "expiresIn": "đóng sau {{time}}",
+  "riskLabel": "Rủi ro",
+  "confirmApprove": {
+    "once": {
+      "title": "Cho phép một lần",
+      "description": "Cho phép \"{{command}}\" từ agent \"{{agentId}}\"?"
+    },
+    "session": {
+      "title": "Cho phép theo phiên",
+      "description": "Cho phép \"{{command}}\" từ agent \"{{agentId}}\" trong phần còn lại của phiên này?"
+    },
+    "always": {
+      "title": "Luôn cho phép",
+      "description": "Luôn cho phép \"{{command}}\" cho agent \"{{agentId}}\"? Yêu cầu này sẽ được tự động phê duyệt trong tương lai."
+    }
+  },
+  "historyEmptyTitle": "Không có lịch sử phê duyệt",
+  "historyEmptyDescription": "Các yêu cầu phê duyệt đã xử lý sẽ xuất hiện tại đây.",
+  "history": {
+    "class": "Nhóm công cụ",
+    "command": "Yêu cầu",
+    "status": "Trạng thái",
+    "decision": "Quyết định",
+    "created": "Thời điểm yêu cầu",
+    "grantExpires": "Quyền hết hạn"
+  },
+  "status": {
+    "approved": "Đã phê duyệt",
+    "denied": "Đã từ chối",
+    "expired": "Hết hạn"
   }
 }

@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 77
+const SchemaVersion = 81
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1443,8 +1443,84 @@ UPDATE mcp_servers
 	76: `CREATE INDEX IF NOT EXISTS idx_webhook_calls_running_heartbeat
         ON webhook_calls (status, last_heartbeat_at)
         WHERE status = 'running';`,
-}
+	// 77 → 78: node runtime registry (inheritance plan Phase 2; PG 000114).
+	// One row per registered compute node daemon. trust: pending (default,
+	// nothing executes) | trusted | revoked (terminal).
+	77: `CREATE TABLE IF NOT EXISTS nodes (
+    id            TEXT PRIMARY KEY,
+    tenant_id     TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    name          VARCHAR(255) NOT NULL,
+    node_key_hash TEXT NOT NULL UNIQUE,
+    platform      TEXT NOT NULL DEFAULT '',
+    capabilities  TEXT NOT NULL DEFAULT '[]',
+    trust         TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (trust IN ('pending','trusted','revoked')),
+    last_seen_at  TEXT,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    revoked_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_nodes_tenant_trust
+    ON nodes (tenant_id, trust);
+CREATE INDEX IF NOT EXISTS idx_nodes_tenant_created
+    ON nodes (tenant_id, created_at DESC);`,
+	// 78 → 79: Approval Engine v2 — policy scopes + expiry. Mirrors PG
+	// migration 000115: session_key scopes allow-for-session grants,
+	// args_digest keys allow-once grants for retried calls, grant_expires_at
+	// bounds a granted scope's lifetime.
+	78: `ALTER TABLE approval_requests ADD COLUMN session_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE approval_requests ADD COLUMN args_digest TEXT NOT NULL DEFAULT '';
+ALTER TABLE approval_requests ADD COLUMN grant_expires_at TEXT;`,
+	// 79 → 80: Approval Engine v2 — hook_executions.decision vocabulary gains
+	// 'ask' (and reserved 'defer'). Mirrors PG migration 000116. SQLite cannot
+	// alter a CHECK constraint, so rebuild the table (leaf audit table: no
+	// inbound FKs). Indexes are dropped first — they follow the renamed table
+	// and would collide with the recreated names.
+	79: `DROP INDEX IF EXISTS uq_hook_executions_dedup;
+DROP INDEX IF EXISTS idx_hook_executions_session;
+ALTER TABLE hook_executions RENAME TO hook_executions_old_ask;
+CREATE TABLE hook_executions (
+    id           TEXT NOT NULL PRIMARY KEY,
+    hook_id      TEXT REFERENCES hooks(id) ON DELETE SET NULL,
+    session_id   TEXT,
+    event        TEXT NOT NULL,
+    input_hash   TEXT,
+    decision     TEXT NOT NULL CHECK (decision IN ('allow', 'block', 'error', 'timeout', 'ask', 'defer')),
+    duration_ms  INTEGER NOT NULL DEFAULT 0,
+    retry        INTEGER NOT NULL DEFAULT 0,
+    dedup_key    TEXT,
+    error        TEXT,
+    error_detail BLOB,
+    metadata     TEXT NOT NULL DEFAULT '{}',
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+INSERT INTO hook_executions (id, hook_id, session_id, event, input_hash, decision, duration_ms, retry, dedup_key, error, error_detail, metadata, created_at)
+SELECT id, hook_id, session_id, event, input_hash, decision, duration_ms, retry, dedup_key, error, error_detail, metadata, created_at FROM hook_executions_old_ask;
+DROP TABLE hook_executions_old_ask;
+CREATE INDEX IF NOT EXISTS idx_hook_executions_session
+    ON hook_executions (session_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_hook_executions_dedup
+    ON hook_executions (dedup_key)
+    WHERE dedup_key IS NOT NULL;`,
 
+	// Version 80 → 81: tenant-scoped inbound routing rules (inheritance
+	// plan Phase 4; PG 000117). Evaluated between config-binding peer
+	// matches and channel matches; lowest priority number wins. match_config
+	// TEXT holds camelCase JSON (WS wire shape); column avoids the reserved
+	// keyword `match`. Key is the SOURCE version: applied when upgrading
+	// from 80 to reach SchemaVersion 81.
+	80: `CREATE TABLE IF NOT EXISTS routing_rules (
+	id              TEXT PRIMARY KEY,
+	tenant_id       TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+	priority        INT NOT NULL DEFAULT 100,
+	match_config    TEXT NOT NULL DEFAULT '{}',
+	target_agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+	enabled         INT NOT NULL DEFAULT 1,
+	created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_routing_rules_eval
+	ON routing_rules (tenant_id, enabled, priority, created_at);`,}
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.
 // Mirrors PG migrations 000070 (pricing catalog + overrides), 000071 (usage cap
 // tables), 000072 (agent budget source), and 000104 (warn_at_percent).

@@ -213,6 +213,78 @@ func CheckSSRF(rawURL string) error {
 	return nil
 }
 
+// --- Search result dedup (inheritance plan Phase 4) ---
+
+// searchTrackingParamPrefixes are query-param prefixes stripped before URL
+// comparison. utm_* covers the whole Google Analytics family (utm_source,
+// utm_medium, ...); fbclid is Meta's click tracker.
+var searchTrackingParamPrefixes = []string{"utm_"}
+
+// searchTrackingParams are exact query-param names stripped before comparison.
+var searchTrackingParams = map[string]bool{"fbclid": true, "gclid": true}
+
+// NormalizeResultURL canonicalizes a result URL for dedup comparison:
+// lowercase host, tracking params removed (utm_*, fbclid, gclid), trailing
+// slash stripped, query params sorted. The original result URL is displayed
+// to the agent unchanged — normalization is only used as the dedup key.
+// Unparseable or host-less URLs are returned trimmed but otherwise untouched.
+func NormalizeResultURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	u.Host = strings.ToLower(u.Host)
+	for len(u.Path) > 0 && strings.HasSuffix(u.Path, "/") {
+		u.Path = strings.TrimSuffix(u.Path, "/")
+	}
+	u.Fragment = "" // anchors are display noise — same page, drop for comparison
+	if len(u.RawQuery) > 0 {
+		q := u.Query()
+		kept := url.Values{}
+		for k, vs := range q {
+			lk := strings.ToLower(k)
+			if searchTrackingParams[lk] {
+				continue
+			}
+			stripped := false
+			for _, p := range searchTrackingParamPrefixes {
+				if strings.HasPrefix(lk, p) {
+					stripped = true
+					break
+				}
+			}
+			if !stripped {
+				kept[k] = vs
+			}
+		}
+		u.RawQuery = kept.Encode() // sorted → param order irrelevant
+	}
+	return u.String()
+}
+
+// DedupeSearchResults drops results whose normalized URL duplicates an
+// earlier entry (and results with no usable URL). Order is preserved.
+func DedupeSearchResults(results []searchResult) []searchResult {
+	if len(results) == 0 {
+		return results
+	}
+	seen := make(map[string]bool, len(results))
+	out := make([]searchResult, 0, len(results))
+	for _, r := range results {
+		key := NormalizeResultURL(r.URL)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, r)
+	}
+	return out
+}
+
 // --- External Content Wrapping (matching TS src/security/external-content.ts) ---
 
 const (

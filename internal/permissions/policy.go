@@ -407,6 +407,18 @@ func isWriteMethod(method string) bool {
 		protocol.MethodNodeHeartbeat,
 		protocol.MethodNodeBye,
 
+		// Node runtime (inheritance plan Phase 2) — register/result mutate
+		// registry + lease state and carry remote-exec outcomes; revoke
+		// invalidates a node identity. nodes.list is a read below.
+		protocol.MethodNodesRegister,
+		protocol.MethodNodesResult,
+		protocol.MethodNodesRevoke,
+
+		// Routing rules (inheritance plan Phase 4) — set/delete mutate the
+		// tenant routing table; list is a read below.
+		protocol.MethodRoutingRulesSet,
+		protocol.MethodRoutingRulesDelete,
+
 		// Workspace domain (Paseo Phase 2) — create/update/delete mutate the
 		// workspace registry; list/get are reads but classified here would be
 		// wrong, so they live in isReadMethod below.
@@ -505,6 +517,11 @@ func isReadMethod(method string) bool {
 		protocol.MethodJobsList,
 		protocol.MethodJobsGet,
 		protocol.MethodTasksTree,
+
+		// Node runtime (inheritance plan Phase 2) + routing rules
+		// (Phase 4) — registry/config reads.
+		protocol.MethodNodesList,
+		protocol.MethodRoutingRulesList,
 
 		// Memory fabric (Paseo Phase 5) — scoped retrieval reads.
 		protocol.MethodMemoryGet,

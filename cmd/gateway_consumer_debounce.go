@@ -23,7 +23,7 @@ func prepareInboundDebounceMessage(ctx context.Context, msg *bus.InboundMessage,
 		return
 	}
 	routeCtx := inboundMessageTenantContext(ctx, *msg)
-	msg.AgentID = resolveAgentRouteForInbound(routeCtx, deps.Cfg, deps.AgentStore, msg.Channel, msg.ChatID, msg.PeerKind)
+	msg.AgentID = resolveAgentRouteForInboundWithRules(routeCtx, deps.Cfg, deps.AgentStore, deps.RoutingRules, msg.Channel, msg.ChatID, msg.PeerKind, msg.Metadata["guild_id"])
 }
 
 func resolveInboundDebounceDelay(ctx context.Context, msg bus.InboundMessage, deps *ConsumerDeps) time.Duration {

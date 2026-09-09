@@ -109,7 +109,7 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 		Description: "Dangerous Path Operations",
 		Default:     true,
 		Patterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bchmod\s+(-\w+\s+)*[0-7]{3,4}\s+/`), // chmod [flags] MODE /... (flags like -R must not bypass)
+			regexp.MustCompile(`\bchmod\s+(--?[A-Za-z][\w-]*\s+)*[0-7]{3,4}\s+/`), // chmod [flags] MODE /... (short or long flags like -R / --recursive must not bypass)
 			regexp.MustCompile(`\bchown\b.*\s+/`),
 			regexp.MustCompile(`\bchmod\b.*\+x.*/tmp/`),
 			regexp.MustCompile(`\bchmod\b.*\+x.*/var/tmp/`),

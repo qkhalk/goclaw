@@ -31,5 +31,42 @@
     "title": "기기 취소",
     "description": "{{channel}}:{{senderId}}의 페어링을 취소하시겠습니까? 기기는 다시 페어링해야 합니다.",
     "confirmLabel": "취소"
+  },
+  "compute": {
+    "title": "컴퓨팅 노드",
+    "namePlaceholder": "새 노드 이름",
+    "createKey": "키 생성",
+    "emptyTitle": "컴퓨팅 노드 없음",
+    "emptyDescription": "키를 생성한 다음 대상 머신에서 해당 키로 goclaw-node를 실행하세요.",
+    "columns": {
+      "name": "이름",
+      "platform": "플랫폼",
+      "capabilities": "기능",
+      "trust": "신뢰",
+      "lastSeen": "마지막 확인",
+      "actions": "작업"
+    },
+    "online": "온라인",
+    "offline": "오프라인",
+    "trustAction": "신뢰",
+    "revoke": "취소",
+    "trust": {
+      "pending": "대기 중",
+      "trusted": "신뢰됨",
+      "revoked": "취소됨"
+    },
+    "keyCreatedTitle": "노드 키가 생성됨",
+    "keyCreatedWarning": "\"{{name}}\"의 키를 지금 복사하세요 — 한 번만 표시되며 복구할 수 없습니다. 이 키로 goclaw-node를 시작하세요. 노드는 신뢰할 때까지 대기 상태로 유지됩니다.",
+    "copy": "복사",
+    "confirmTrust": {
+      "title": "노드 신뢰",
+      "description": "\"{{name}}\"을(를) 신뢰하시겠습니까? 에이전트가 호출하면 이 노드에서 명령이 실행될 수 있습니다.",
+      "confirmLabel": "신뢰"
+    },
+    "confirmRevoke": {
+      "title": "노드 취소",
+      "description": "\"{{name}}\"을(를) 취소하시겠습니까? 키가 즉시 작동 중지되고 데몬 연결이 해제됩니다.",
+      "confirmLabel": "취소"
+    }
   }
 }

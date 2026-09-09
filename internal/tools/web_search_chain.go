@@ -202,9 +202,10 @@ func BuildChainFromStorage(ctx context.Context, secrets store.ConfigSecretsStore
 			continue
 		}
 
-		key, err := secrets.Get(ctx, "tools.web."+name+".api_key")
+		key, err := secrets.Get(ctx, providerSecretKey(name))
 		if err != nil || key == "" {
-			// No key → provider not configured for this tenant; skip silently.
+			// No credential → provider not configured for this tenant; skip
+			// silently. (SearXNG only joins the chain when its URL is set.)
 			continue
 		}
 
