@@ -7,6 +7,7 @@ import (
 
 // buildProviderByName returns the SearchProvider for a known name.
 // Returns nil for unknown names. DDG ignores apiKey (not required).
+// SearXNG repurposes the apiKey argument as its instance base URL.
 // maxResults <= 0 falls back to defaultSearchCount.
 func buildProviderByName(name, apiKey string, maxResults int) SearchProvider {
 	if maxResults <= 0 {
@@ -19,6 +20,8 @@ func buildProviderByName(name, apiKey string, maxResults int) SearchProvider {
 		return newTavilySearchProvider(apiKey, maxResults)
 	case searchProviderBrave:
 		return newBraveSearchProvider(apiKey, maxResults)
+	case searchProviderSearxNG:
+		return newSearxSearchProvider(apiKey, maxResults)
 	case searchProviderParallel:
 		return newParallelSearchProvider(maxResults)
 	case searchProviderDuckDuckGo:
@@ -26,6 +29,15 @@ func buildProviderByName(name, apiKey string, maxResults int) SearchProvider {
 	default:
 		return nil
 	}
+}
+
+// providerSecretKey returns the config_secrets key carrying a provider's
+// credential. SearXNG's credential is its instance base URL, not an API key.
+func providerSecretKey(name string) string {
+	if name == searchProviderSearxNG {
+		return "tools.web.searxng.url"
+	}
+	return "tools.web." + name + ".api_key"
 }
 
 // NormalizeWebSearchProviderOrder normalizes user-specified provider order.
