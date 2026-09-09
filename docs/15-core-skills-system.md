@@ -27,6 +27,10 @@ Current bundled core skills:
 | `goclaw` | Gateway CLI/runtime administration and troubleshooting |
 | `lark-pm` | Lark/Feishu project-management workflows through GoClaw MCP tools |
 | `lark-playbook` | Troubleshooting playbook for failed Lark/Feishu MCP operations |
+| `security-audit` | Authorized pre-production web/host security assessment (recon, TLS, headers, vuln scans, scoped injection checks) |
+| `loadtest` | HTTP Layer-7 capacity testing (wrk/hey ramp profiles, SLO verdicts, bottleneck correlation) |
+| `netstress` | Layer-4 resilience testing on owned infra (iperf3 throughput, rate-capped connection tests, ceiling report) |
+| `ssl-audit` | TLS/SSL health check (cert chain, protocol/cipher hygiene, HSTS, OCSP stapling) |
 
 Shared helper modules live in `skills/_shared/` and are copied alongside each skill but not registered as standalone skills.
 
@@ -97,6 +101,14 @@ skills/
 ├── lark-pm/
 │   └── SKILL.md
 ├── lark-playbook/
+│   └── SKILL.md
+├── security-audit/
+│   └── SKILL.md
+├── loadtest/
+│   └── SKILL.md
+├── netstress/
+│   └── SKILL.md
+├── ssl-audit/
 │   └── SKILL.md
 └── goclaw/
     └── SKILL.md
