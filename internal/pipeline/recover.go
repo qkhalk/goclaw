@@ -468,7 +468,13 @@ func (e *RecoveryEngine) delayFor(policy RecoveryPolicy, attempt int, retryAfter
 		return 0
 	case BackoffRetryAfter:
 		if retryAfter > 0 {
-			return retryAfter // honored verbatim, mirroring providers.RetryDo
+			// Honoured up to the 30s cap, mirroring providers.RetryDo
+			// (computeDelay): a gateway advertising Retry-After: 3600 must not
+			// park the run for an hour.
+			if retryAfter > 30*time.Second {
+				retryAfter = 30 * time.Second
+			}
+			return retryAfter
 		}
 		return e.exponential(policy, attempt)
 	default:

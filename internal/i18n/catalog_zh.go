@@ -213,6 +213,7 @@ func init() {
 		MsgStatusPhaseDefault:  "阶段：处理中...",
 		MsgCancelledReply:      "✋ 已取消。您接下来想做什么？",
 		MsgInjectedAck:         "收到，我会在当前任务中处理。",
+		MsgRunFailedNotice:     "⚠️ Agent 遇到临时错误，暂时无法完成回复。请稍后重试。",
 
 		// Knowledge Graph
 		MsgEntityIDRequired:       "entity_id 是必填项",

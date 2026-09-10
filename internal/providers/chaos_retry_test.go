@@ -51,9 +51,10 @@ func postToServer(client *http.Client, url string) func() (string, error) {
 
 // TestRetryDo_HTTP_429Storm_RespectsRetryAfter scripts a 429 + Retry-After: 1s
 // storm that clears on the third attempt and asserts RetryDo honors the server's
-// retry hint: exactly 3 attempts, success, and an elapsed time dominated by the
-// two 1s Retry-After delays (a backoff that ignored Retry-After would finish in
-// tens of milliseconds, far below the bound).
+// retry hint (up to the MaxDelay cap): exactly 3 attempts, success, and an
+// elapsed time dominated by the two 1s Retry-After delays (a backoff that
+// ignored Retry-After would finish in tens of milliseconds, far below the
+// bound).
 func TestRetryDo_HTTP_429Storm_RespectsRetryAfter(t *testing.T) {
 	srv := newFakeLLMServer(t)
 	srv.script(
@@ -66,7 +67,10 @@ func TestRetryDo_HTTP_429Storm_RespectsRetryAfter(t *testing.T) {
 	cfg := RetryConfig{
 		Attempts: 3,
 		MinDelay: 10 * time.Millisecond,
-		MaxDelay: 50 * time.Millisecond,
+		// MaxDelay must exceed the 1s Retry-After hint so the hint is honoured
+		// verbatim (hints are capped at MaxDelay since the frozen-placeholder
+		// fix — see TestComputeDelay_RetryAfterCappedAtMaxDelay).
+		MaxDelay: 2 * time.Second,
 		Jitter:   0,
 	}
 	client := &http.Client{Timeout: 5 * time.Second}

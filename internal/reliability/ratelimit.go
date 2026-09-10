@@ -45,11 +45,22 @@ func (r *RateLimitCoordinator) key(provider, model string) string {
 	return provider + ":" + model
 }
 
+// maxCooldown caps an armed cooldown. The retry ladder caps its wait at the
+// provider MaxDelay (default 30s, see providers.computeDelay); arming a longer
+// cooldown would make every subsequent run's admission check abort
+// deterministically until the window expires — a fail-fast cliff caused by the
+// wait/cap asymmetry. Both sides use the same 30s bound.
+const maxCooldown = 30 * time.Second
+
 // Record429 registers a rate-limit event for a provider:model. retryAfter is
-// the provider's Retry-After hint (0 if absent → normalized default 30s).
+// the provider's Retry-After hint (0 if absent → normalized default 30s),
+// capped at maxCooldown.
 func (r *RateLimitCoordinator) Record429(provider, model string, retryAfter time.Duration) {
 	if retryAfter <= 0 {
 		retryAfter = 30 * time.Second
+	}
+	if retryAfter > maxCooldown {
+		retryAfter = maxCooldown
 	}
 	k := r.key(provider, model)
 	r.mu.Lock()
