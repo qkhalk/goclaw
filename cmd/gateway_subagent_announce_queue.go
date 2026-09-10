@@ -13,6 +13,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	orch "github.com/nextlevelbuilder/goclaw/internal/orchestration"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -230,9 +231,11 @@ func processSubagentAnnounceLoop(
 				slog.Error("subagent announce: lead run failed", "error", outcome.Err, "batch_size", len(entries))
 				errContent := formatAgentError(outcome.Err)
 				if isExternalChannel(r.OrigChannelType) {
-					slog.Info("subagent announce: suppressed error for external channel",
+					// No locale in the routing snapshot — default-locale notice
+					// beats the old silent suppression (frozen placeholder).
+					slog.Info("subagent announce: generic error notice for external channel",
 						"channel", r.OrigChannel, "type", r.OrigChannelType)
-					errContent = ""
+					errContent = i18n.T(i18n.DefaultLocale, i18n.MsgRunFailedNotice)
 				}
 				msgBus.PublishOutbound(bus.OutboundMessage{
 					Channel:  r.OrigChannel,

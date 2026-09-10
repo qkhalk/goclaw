@@ -256,6 +256,7 @@ const (
 	MsgStatusPhaseDefault  = "status.phase_default"   // "Phase: Processing..."
 	MsgCancelledReply      = "status.cancelled"       // "✋ Cancelled. What would you like to do next?"
 	MsgInjectedAck         = "status.injected_ack"    // "Got it, I'll incorporate that into what I'm working on."
+	MsgRunFailedNotice     = "status.run_failed"      // "⚠️ The agent hit a temporary error and could not finish. Please try again shortly."
 
 	// --- Knowledge Graph ---
 	MsgEntityIDRequired       = "error.entity_id_required"        // "entity_id is required"
