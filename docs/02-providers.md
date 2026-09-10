@@ -226,13 +226,13 @@ Example:
   Attempt 3: 1200ms (+/-120ms) -> 1080ms..1320ms
 ```
 
-If the response includes a `Retry-After` header (HTTP 429 or 503), the header value completely replaces the computed backoff. The header is parsed as integer seconds or RFC 1123 date format.
+If the response includes a `Retry-After` header (HTTP 429 or 503), the header value replaces the computed backoff, capped at `MaxDelay` (default 30s) — a misbehaving gateway advertising `Retry-After: 3600` must not park the user's turn for an hour. The header is parsed as integer seconds or RFC 1123 date format.
 
 ### Retryable vs Non-Retryable Errors
 
 | Category | Conditions |
 |----------|------------|
-| Retryable | HTTP 429, 500, 502, 503, 504; network errors (`net.Error`); connection reset; broken pipe; EOF; timeout |
+| Retryable | HTTP 429, 500, 502, 503, 504; Cloudflare edge 520, 522, 524 (transient origin-side failures); network errors (`net.Error`); connection reset; broken pipe; EOF; timeout |
 | Non-retryable | HTTP 400, 401, 403, 404; all other status codes |
 
 ### Retry Flow

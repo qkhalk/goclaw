@@ -16,6 +16,27 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Fixed
 
+- **Provider retry hang + silent run failures on chat channels** — A run whose
+  provider call kept failing left the user staring at a frozen
+  "Provider busy, retrying... (2/3)" placeholder with no error and no reply.
+  Three compounding defects: (1) HTTP 524 (Cloudflare origin timeout — common
+  for LLM gateways in front of slow/free origins) was non-retryable, so the
+  final attempt aborted the run; now 520/522/524 retry like other 5xx.
+  (2) `Retry-After` was honoured verbatim with no cap — a gateway advertising
+  `Retry-After: 3600` parked the turn for an hour; it is now capped at 30s
+  everywhere it is honoured (`providers.computeDelay`, the pipeline recovery
+  engine's `BackoffRetryAfter`, and the reliability coordinator's armed
+  cooldown, which previously grew uncapped and made subsequent admission
+  checks abort deterministically). (3) Run failures on external channels
+  (Telegram, FB, …) suppressed the error with an empty outbound — which the
+  dispatch layer drops before any channel sees it, leaving the retry
+  placeholder as the last visible state; channels now receive a short
+  localized notice (`status.run_failed`, all 5 catalogs) in the sender's
+  locale, and cancelled runs likewise get the localized cancelled notice
+  instead of a dropped empty outbound. The same failure notice replaces the
+  silent suppression in the subagent announce path. Long-message coalescing
+  was re-verified against production traces: the agent does receive the full
+  merged text — the perceived data loss was this silent failure.
 - **Channel replies pinned to the sender's language** — Agents replying on
   Telegram (especially via small/free models) code-switched: Vietnamese replies
   sprinkled with English words or garbled tokens, despite the "match the user's

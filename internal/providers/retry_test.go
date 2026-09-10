@@ -25,6 +25,13 @@ func TestIsRetryableError(t *testing.T) {
 		{"http_502_bad_gateway", &HTTPError{Status: 502}, true},
 		{"http_503_unavailable", &HTTPError{Status: 503}, true},
 		{"http_504_timeout", &HTTPError{Status: 504}, true},
+		// Cloudflare edge errors — transient origin-side failures that LLM
+		// gateways commonly emit under load. 524 seen live against a free-tier
+		// openai-compat gateway: with it non-retryable, attempt 3 aborted the
+		// run and the user faced a frozen retry placeholder.
+		{"http_520_cf_unknown", &HTTPError{Status: 520}, true},
+		{"http_522_cf_conn_timeout", &HTTPError{Status: 522}, true},
+		{"http_524_cf_origin_timeout", &HTTPError{Status: 524}, true},
 		{"http_400_bad_request", &HTTPError{Status: 400}, false},
 		{"http_401_unauthorized", &HTTPError{Status: 401}, false},
 		{"http_403_forbidden", &HTTPError{Status: 403}, false},
@@ -99,6 +106,25 @@ func TestComputeDelay_CappedAtMaxDelay(t *testing.T) {
 	}
 }
 
+func TestComputeDelay_RetryAfterCappedAtMaxDelay(t *testing.T) {
+	cfg := RetryConfig{
+		MinDelay: 300 * time.Millisecond,
+		MaxDelay: 30 * time.Second,
+		Jitter:   0,
+	}
+	// A hostile/misbehaving gateway advertising a huge Retry-After must not
+	// park the user's turn for an hour.
+	err := &HTTPError{Status: 429, RetryAfter: 1 * time.Hour}
+	if d := computeDelay(cfg, 1, err); d != 30*time.Second {
+		t.Fatalf("Retry-After 1h: got %v, want 30s (capped at MaxDelay)", d)
+	}
+	// Reasonable Retry-After passes through verbatim.
+	err = &HTTPError{Status: 429, RetryAfter: 7 * time.Second}
+	if d := computeDelay(cfg, 1, err); d != 7*time.Second {
+		t.Fatalf("Retry-After 7s: got %v, want 7s (verbatim)", d)
+	}
+}
+
 func TestComputeDelay_JitterRange(t *testing.T) {
 	cfg := RetryConfig{
 		MinDelay: 1 * time.Second,
@@ -141,12 +167,14 @@ func TestComputeDelay_RetryAfterOverride(t *testing.T) {
 		MaxDelay: 30 * time.Second,
 		Jitter:   0.1,
 	}
-	// HTTPError with RetryAfter should override computed delay
-	err := &HTTPError{Status: 429, RetryAfter: 42 * time.Second}
+	// HTTPError with RetryAfter (under the MaxDelay cap) should override the
+	// computed delay verbatim. The over-cap case is covered by
+	// TestComputeDelay_RetryAfterCappedAtMaxDelay.
+	err := &HTTPError{Status: 429, RetryAfter: 5 * time.Second}
 
 	d := computeDelay(cfg, 1, err)
-	if d != 42*time.Second {
-		t.Fatalf("expected Retry-After override: got %v, want 42s", d)
+	if d != 5*time.Second {
+		t.Fatalf("expected Retry-After override: got %v, want 5s", d)
 	}
 }
 
