@@ -243,6 +243,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		SenderID:               store.SenderIDFromContext(ctx),
 		SenderName:             senderName,
 		UserLocale:             store.ExplicitLocaleFromContext(ctx),
+		UserMessage:            userMessage,
 		Mode:                   mode,
 		ToolNames:              toolNames,
 		SkillsSummary:          l.resolveSkillsSummary(ctx, skillFilter),
