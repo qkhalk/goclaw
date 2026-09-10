@@ -676,6 +676,11 @@ func (c *Channel) dispatchResolvedMessage(ctx context.Context, rctx resolvedMess
 		"is_group":         fmt.Sprintf("%t", rctx.isGroup),
 		"local_key":        rctx.localKey,
 	}
+	// Sender's Telegram client language → locale context → reply-language pin
+	// in the system prompt. Channel posts (synthetic sender) carry no code.
+	if lc := strings.TrimSpace(user.LanguageCode); lc != "" {
+		metadata[tools.MetaUserLocale] = lc
+	}
 	// When this publish coalesces multiple platform messages (album members),
 	// seed every sibling MessageID into merged_message_ids so the consumer
 	// dedup (cmd/gateway_consumer_dedup.go) blocks Telegram retransmits of

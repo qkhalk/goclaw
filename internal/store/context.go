@@ -411,6 +411,18 @@ func LocaleFromContext(ctx context.Context) string {
 	return "en"
 }
 
+// ExplicitLocaleFromContext returns the locale only when one was explicitly
+// set on the context ("" when unset), unlike LocaleFromContext which falls
+// back to "en". Callers that must distinguish "no locale known" (e.g. the
+// system prompt language pin, where pinning English for a Vietnamese user
+// would be wrong) should use this.
+func ExplicitLocaleFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(LocaleKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
 // WithTenantID returns a new context with the given tenant UUID.
 func WithTenantID(ctx context.Context, id uuid.UUID) context.Context {
 	return context.WithValue(ctx, TenantIDKey, id)

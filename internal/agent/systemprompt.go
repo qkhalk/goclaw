@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
@@ -104,24 +105,29 @@ type SystemPromptConfig struct {
 	// buildBitrix24EntityLinkSection to teach the LLM the correct domain for
 	// entity links (tasks, deals, contacts). Empty for non-bitrix24 channels.
 	BitrixPortalDomain string
-	ChatID             string                  // current reply target chat id (drives <current_reply_target>)
-	ChatTitle          string                  // group chat display name (shown in identity line)
-	PeerKind           string                  // "direct" or "group"
-	OwnerIDs           []string                // owner sender IDs
-	SenderID           string                  // current message sender's external ID (numeric for Bitrix24 / Telegram, used to substitute into entity URLs)
-	SenderName         string                  // current message sender display name when channel metadata provides it
-	Mode               PromptMode              // full or minimal
-	ToolNames          []string                // registered tool names
-	SkillsSummary      string                  // XML from skills.Loader.BuildSummary()
-	HasMemory          bool                    // memory_search/memory_get available?
-	HasSpawn           bool                    // spawn tool available?
-	IsTeamContext      bool                    // inject team sections (leader inbound OR team dispatch)
-	TeamWorkspace      string                  // absolute path to team shared workspace (empty if not in team)
-	TeamMembers        []store.TeamMemberData  // team member roster for task assignment
-	TeamGuidance       string                  // edition-specific guidance from TeamActionPolicy.MemberGuidance()
-	ContextFiles       []bootstrap.ContextFile // bootstrap files for # Project Context
-	ExtraPrompt        string                  // extra system prompt (subagent context, etc.)
-	AgentType          string                  // "open" or "predefined" — affects context file framing
+	ChatID             string   // current reply target chat id (drives <current_reply_target>)
+	ChatTitle          string   // group chat display name (shown in identity line)
+	PeerKind           string   // "direct" or "group"
+	OwnerIDs           []string // owner sender IDs
+	SenderID           string   // current message sender's external ID (numeric for Bitrix24 / Telegram, used to substitute into entity URLs)
+	SenderName         string   // current message sender display name when channel metadata provides it
+	// UserLocale pins the reply language. Empty = unknown (no pin — the agent
+	// falls back to "match the user's language" guidance from context files).
+	// Raw value from the channel/client (e.g. "vi", "vi-VN"); normalized to a
+	// supported locale at build time, unsupported values pin nothing.
+	UserLocale    string
+	Mode          PromptMode              // full or minimal
+	ToolNames     []string                // registered tool names
+	SkillsSummary string                  // XML from skills.Loader.BuildSummary()
+	HasMemory     bool                    // memory_search/memory_get available?
+	HasSpawn      bool                    // spawn tool available?
+	IsTeamContext bool                    // inject team sections (leader inbound OR team dispatch)
+	TeamWorkspace string                  // absolute path to team shared workspace (empty if not in team)
+	TeamMembers   []store.TeamMemberData  // team member roster for task assignment
+	TeamGuidance  string                  // edition-specific guidance from TeamActionPolicy.MemberGuidance()
+	ContextFiles  []bootstrap.ContextFile // bootstrap files for # Project Context
+	ExtraPrompt   string                  // extra system prompt (subagent context, etc.)
+	AgentType     string                  // "open" or "predefined" — affects context file framing
 
 	HasSkillSearch      bool              // skill_search tool registered? (for search-mode prompt)
 	HasSkillManage      bool              // skill_manage tool registered + skill_evolve enabled for this agent
@@ -332,6 +338,17 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 		)
 	}
 
+	// 1.6. ## LANGUAGE — pin reply language when the sender's locale is known.
+	// Weak or free-tier models code-switch (e.g. Vietnamese replies sprinkled
+	// with English words) when the only guidance is "match the user's
+	// language" buried in a context file. An explicit, mandatory directive at
+	// the top of the prompt holds much better across models. Same gating as
+	// persona: user-facing turns only (full incl. bootstrap, task); internal
+	// minimal/none prompts skip it.
+	if lang, ok := pinnedLanguage(cfg.UserLocale); ok && (isFull || isTask) {
+		lines = append(lines, buildLanguageSection(lang)...)
+	}
+
 	// 1.7. # Persona — full+task get full persona (SOUL.md+IDENTITY.md), minimal/none skip
 	personaFiles, otherFiles := splitPersonaFiles(cfg.ContextFiles)
 	if (isFull || isTask) && len(personaFiles) > 0 {
@@ -539,7 +556,11 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 		if len(personaFiles) > 0 {
 			lines = append(lines, buildPersonaReminder(personaFiles, cfg.AgentType, cfg.ProviderType)...)
 		}
-		lines = append(lines, "Reminder: Follow AGENTS.md rules — NO_REPLY when silent, match the user's language.", "")
+		if lang, ok := pinnedLanguage(cfg.UserLocale); ok {
+			lines = append(lines, fmt.Sprintf("Reminder: Follow AGENTS.md rules — NO_REPLY when silent, reply in %s only.", lang.name), "")
+		} else {
+			lines = append(lines, "Reminder: Follow AGENTS.md rules — NO_REPLY when silent, match the user's language.", "")
+		}
 	}
 
 	result := strings.Join(lines, "\n")
@@ -553,6 +574,54 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 	)
 
 	return result
+}
+
+// pinnedLanguage normalizes a raw locale into a supported language pin.
+// Returns ok=false when the locale is unknown/unsupported — in that case the
+// prompt keeps the locale-agnostic "match the user's language" guidance rather
+// than pinning the wrong language (e.g. defaulting a Portuguese user to English).
+type pinnedLang struct {
+	code string // supported locale code, e.g. "vi"
+	name string // English name for prompt text, e.g. "Vietnamese"
+}
+
+func pinnedLanguage(locale string) (pinnedLang, bool) {
+	if locale == "" {
+		return pinnedLang{}, false
+	}
+	code := locale
+	if !i18n.IsSupported(code) && len(code) >= 2 {
+		code = code[:2] // "vi-VN" → "vi"
+	}
+	if !i18n.IsSupported(code) {
+		return pinnedLang{}, false
+	}
+	name, ok := languageNames[code]
+	if !ok {
+		return pinnedLang{}, false
+	}
+	return pinnedLang{code: code, name: name}, true
+}
+
+var languageNames = map[string]string{
+	"en": "English",
+	"vi": "Vietnamese",
+	"zh": "Chinese",
+	"ko": "Korean",
+	"ru": "Russian",
+}
+
+// buildLanguageSection renders the mandatory reply-language directive.
+func buildLanguageSection(lang pinnedLang) []string {
+	return []string{
+		"## LANGUAGE — MANDATORY",
+		"",
+		fmt.Sprintf("The user's language is %s (`%s`).", lang.name, lang.code),
+		fmt.Sprintf("- Every reply MUST be written entirely in %s — natural, fluent %s.", lang.name, lang.name),
+		"- Never mix in English or any other language. The only exceptions: code, shell commands, file paths, URLs, and technical product/library names that have no " + lang.name + " equivalent.",
+		"- Match the user's tone: casual " + lang.name + " in → casual " + lang.name + " out.",
+		"",
+	}
 }
 
 func buildCurrentChatContext(cfg SystemPromptConfig, channelLabel string) []string {
