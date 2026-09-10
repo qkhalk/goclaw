@@ -41,7 +41,7 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipel
 		}
 	}
 
-	deps := l.buildPipelineDeps(&req, bridgeRS, checkpoint)
+	deps, cb := l.buildPipelineDeps(&req, bridgeRS, checkpoint)
 
 	p := pipeline.NewDefaultPipeline(deps)
 	var state *pipeline.RunState
@@ -58,6 +58,10 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipel
 
 	pResult, err := p.Run(ctx, state)
 	if err != nil {
+		// A run that dies before its first FlushMessages (e.g. iteration-0
+		// provider failure) would otherwise leave the user's input unrecorded —
+		// later turns then behave as if the message never arrived.
+		l.persistFailedTurnInput(ctx, &req, resume, cb.userMsgPersisted)
 		return nil, err
 	}
 	result := convertRunResult(pResult)
@@ -72,11 +76,13 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipel
 	return redactDelegationRunResult(&req, result), nil
 }
 
-// buildPipelineDeps maps Loop fields + methods to PipelineDeps callbacks.
+// buildPipelineDeps maps Loop fields + methods to PipelineDeps callbacks, and
+// returns the callback set so callers can inspect shared per-run state (e.g.
+// whether the user input message was already persisted to session history).
 // effProvider/effModel are the resolved provider+model for THIS run (after any
 // ModelOverride/ProviderOverride) so reasoning-effort resolution matches the
 // request the pipeline will actually send.
-func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState, checkpoint func(ctx context.Context, state *pipeline.RunState) error) pipeline.PipelineDeps {
+func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState, checkpoint func(ctx context.Context, state *pipeline.RunState) error) (pipeline.PipelineDeps, pipelineCallbackSet) {
 	maxIter := l.maxIterations
 	if req.MaxIterations > 0 && req.MaxIterations < maxIter {
 		maxIter = req.MaxIterations
@@ -215,7 +221,7 @@ func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState, checkpoint
 		UpdateMetadata:   cb.updateMetadata,
 		BootstrapCleanup: cb.bootstrapCleanup,
 		MaybeSummarize:   cb.maybeSummarize,
-	}
+	}, cb
 }
 
 // emitSessionCompleted publishes the session.completed domain event that drives

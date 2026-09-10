@@ -43,6 +43,7 @@ func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState) pipelineCa
 		event.TenantID = l.tenantID
 		l.emit(redactDelegationAgentEvent(req, event))
 	}
+	flushFn, userMsgPersisted := l.makeFlushMessages(req)
 	return pipelineCallbackSet{
 		emitRun:            emitRun,
 		injectContext:      l.makeInjectContext(req),
@@ -64,7 +65,8 @@ func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState) pipelineCa
 		authorizeToolCall:  l.makeAuthorizeToolCall(),
 		checkReadOnly:      l.makeCheckReadOnly(req, bridgeRS),
 		sanitizeContent:    SanitizeAssistantContent,
-		flushMessages:      l.makeFlushMessages(req),
+		flushMessages:      flushFn,
+		userMsgPersisted:   userMsgPersisted,
 		updateMetadata:     l.makeUpdateMetadata(req),
 		bootstrapCleanup:   l.makeBootstrapCleanup(),
 		maybeSummarize:     l.maybeSummarize,
@@ -94,6 +96,11 @@ type pipelineCallbackSet struct {
 	checkReadOnly      func(state *pipeline.RunState) (*providers.Message, bool)
 	sanitizeContent    func(string) string
 	flushMessages      func(ctx context.Context, sessionKey string, msgs []providers.Message) error
+	// userMsgPersisted flips to true once the run's user input message has
+	// landed in session history — either via the first FlushMessages or the
+	// failed-run persist in runViaPipeline's error path. Shared so the error
+	// path never writes a second copy.
+	userMsgPersisted *bool
 	updateMetadata     func(ctx context.Context, sessionKey string, usage, lastUsage providers.Usage, msgCount int) error
 	bootstrapCleanup   func(ctx context.Context, state *pipeline.RunState) error
 	maybeSummarize     func(ctx context.Context, sessionKey string, midLoopCompacted bool)
@@ -934,11 +941,13 @@ func (l *Loop) makeRunMemoryFlush() func(ctx context.Context, state *pipeline.Ru
 	}
 }
 
-func (l *Loop) makeFlushMessages(req *RunRequest) func(ctx context.Context, sessionKey string, msgs []providers.Message) error {
+func (l *Loop) makeFlushMessages(req *RunRequest) (func(ctx context.Context, sessionKey string, msgs []providers.Message) error, *bool) {
 	// Track whether user message has been persisted (first flush only).
 	// v2 adds user message to pendingMsgs explicitly; v3 keeps it in history
 	// (via BuildMessages) so it never reaches FlushPending. This closure
 	// persists the user message on first flush to match v2 session format.
+	// The shared flag is also read by persistFailedTurnInput when a run dies
+	// before its first flush, so the input is never written twice.
 	var userMsgFlushed bool
 	return func(ctx context.Context, sessionKey string, msgs []providers.Message) error {
 		if !userMsgFlushed && !req.HideInput && req.Message != "" {
@@ -956,7 +965,59 @@ func (l *Loop) makeFlushMessages(req *RunRequest) func(ctx context.Context, sess
 			l.sessions.AddMessage(ctx, sessionKey, redactDelegationMessage(req, msg))
 		}
 		return nil
+	}, &userMsgFlushed
+}
+
+// persistFailedTurnInput saves the user's input message to session history
+// when a run fails before its first FlushMessages (e.g. an iteration-0
+// provider failure). Without it the failed turn leaves no trace and every
+// later turn behaves as if the user never sent anything — the reported
+// "agent only received my first message" symptom: the input reached the run
+// (traces prove it) but died with it. Resume runs are skipped: their input
+// was already flushed by the checkpoint stage of the earlier attempt. A
+// trailing identical user turn also skips, covering fresh-fallback resumes
+// after a corrupt checkpoint and verifier continuation passes.
+func (l *Loop) persistFailedTurnInput(ctx context.Context, req *RunRequest, resume *pipeline.RunState, persisted *bool) {
+	if resume != nil || persisted == nil || *persisted || req.HideInput || req.Message == "" {
+		return
 	}
+	*persisted = true
+	// The error path may run on an aborted (cancelled) context; the stores use
+	// *Context calls that fail fast on cancellation. WithoutCancel keeps the
+	// context VALUES (tenant/agent scoping) so the same cache entry and rows
+	// are addressed, while letting the history read + persist complete.
+	safeCtx := context.WithoutCancel(ctx)
+	// Compare and persist the EFFECTIVE input: the media stage replaces the
+	// raw text with the enriched form (media tags + MediaRefs) before think,
+	// and the first-flush path persists that enriched form — deduping against
+	// the raw text would miss it and append a duplicate.
+	effective := req.Message
+	if req.hasEnrichedInputMessage {
+		effective = req.enrichedInputMessage.Content
+	}
+	if hist := l.sessions.GetHistory(safeCtx, req.SessionKey); len(hist) > 0 {
+		for i := len(hist) - 1; i >= 0; i-- {
+			if hist[i].Role != "user" {
+				continue // scan back past assistant replies to the latest user turn
+			}
+			if hist[i].Content == effective {
+				return
+			}
+			break
+		}
+	}
+	inputMessage := providers.Message{Role: "user", Content: req.Message}
+	if req.hasEnrichedInputMessage {
+		inputMessage = req.enrichedInputMessage
+	}
+	l.sessions.AddMessage(safeCtx, req.SessionKey, redactDelegationMessage(req, inputMessage))
+	if err := l.sessions.Save(safeCtx, req.SessionKey); err != nil {
+		slog.Warn("agent loop: persisting input of failed run failed",
+			"agent", l.id, "session", req.SessionKey, "error", err)
+		return
+	}
+	slog.Info("agent loop: persisted user input of failed run",
+		"agent", l.id, "session", req.SessionKey)
 }
 
 func (l *Loop) makeUpdateMetadata(req *RunRequest) func(ctx context.Context, sessionKey string, usage, lastUsage providers.Usage, msgCount int) error {

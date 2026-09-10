@@ -187,7 +187,8 @@ func TestEnrichedInputMediaPersistsForNextTurn(t *testing.T) {
 	if err := loop.makeEnrichMedia(req)(ctx, state); err != nil {
 		t.Fatal(err)
 	}
-	if err := loop.makeFlushMessages(req)(ctx, req.SessionKey, nil); err != nil {
+	flush, _ := loop.makeFlushMessages(req)
+	if err := flush(ctx, req.SessionKey, nil); err != nil {
 		t.Fatal(err)
 	}
 
