@@ -16,6 +16,18 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Fixed
 
+- **Failed runs no longer erase the user's message from session history** —
+  When a run failed before its first history flush (e.g. an iteration-0
+  provider failure such as a gateway 524), the user's input message was never
+  persisted to the session. The turn left no trace: every later reply behaved
+  as if the message had never been sent ("agent only received my first
+  message"), even though traces proved the full text reached the run. The
+  pipeline error path now persists the unflushed input (enriched media form
+  when the media stage ran) before returning the error, using a
+  cancellation-proof context. Resume runs skip this (their input was already
+  flushed by the earlier attempt's checkpoint), as does any turn whose
+  identical message is already the latest user turn in history — covering
+  verifier continuation passes and fresh-fallback resumes without duplicates.
 - **Provider retry hang + silent run failures on chat channels** — A run whose
   provider call kept failing left the user staring at a frozen
   "Provider busy, retrying... (2/3)" placeholder with no error and no reply.
