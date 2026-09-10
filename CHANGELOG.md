@@ -16,6 +16,21 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Fixed
 
+- **Reply-language pin no longer contradicts the user's message** — The
+  language pin introduced for mixed-language replies keyed off the channel
+  client locale (Telegram `language_code`). A Vietnamese user running an
+  English Telegram UI got "Every reply MUST be written entirely in English"
+  injected over a Vietnamese question — conflicting instructions that made
+  weak models code-switch harder (English phrases and garbage tokens inside
+  Vietnamese replies). The pin now resolves from the writing script of the
+  message itself first (Vietnamese diacritics, CJK ideographs without kana,
+  hangul — scripts that are unambiguous at rune level), falls back to a
+  supported non-English client locale (covering accentless Vietnamese from a
+  vi-UI user), and never pins English: English is the neutral default models
+  match naturally, so en/unknown locales keep the locale-agnostic
+  "match the user's language" guidance. Japanese is detected (kana) and
+  deliberately left unpinned; Spanish/French accents cannot trigger a
+  Vietnamese pin. i18n status notices are unchanged (still client locale).
 - **Failed runs no longer erase the user's message from session history** —
   When a run failed before its first history flush (e.g. an iteration-0
   provider failure such as a gateway 524), the user's input message was never

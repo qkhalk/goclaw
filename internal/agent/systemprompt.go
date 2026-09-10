@@ -115,6 +115,9 @@ type SystemPromptConfig struct {
 	// falls back to "match the user's language" guidance from context files).
 	// Raw value from the channel/client (e.g. "vi", "vi-VN"); normalized to a
 	// supported locale at build time, unsupported values pin nothing.
+	// The client locale is only a fallback: the writing script of UserMessage
+	// wins when it identifies a language, and English is never pinned.
+	UserMessage   string // current user input; used for script-based language detection
 	UserLocale    string
 	Mode          PromptMode              // full or minimal
 	ToolNames     []string                // registered tool names
@@ -345,7 +348,7 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 	// the top of the prompt holds much better across models. Same gating as
 	// persona: user-facing turns only (full incl. bootstrap, task); internal
 	// minimal/none prompts skip it.
-	if lang, ok := pinnedLanguage(cfg.UserLocale); ok && (isFull || isTask) {
+	if lang, ok := resolvePinnedLanguage(cfg.UserLocale, cfg.UserMessage); ok && (isFull || isTask) {
 		lines = append(lines, buildLanguageSection(lang)...)
 	}
 
@@ -556,7 +559,7 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 		if len(personaFiles) > 0 {
 			lines = append(lines, buildPersonaReminder(personaFiles, cfg.AgentType, cfg.ProviderType)...)
 		}
-		if lang, ok := pinnedLanguage(cfg.UserLocale); ok {
+		if lang, ok := resolvePinnedLanguage(cfg.UserLocale, cfg.UserMessage); ok {
 			lines = append(lines, fmt.Sprintf("Reminder: Follow AGENTS.md rules — NO_REPLY when silent, reply in %s only.", lang.name), "")
 		} else {
 			lines = append(lines, "Reminder: Follow AGENTS.md rules — NO_REPLY when silent, match the user's language.", "")
@@ -609,6 +612,91 @@ var languageNames = map[string]string{
 	"zh": "Chinese",
 	"ko": "Korean",
 	"ru": "Russian",
+}
+
+// resolvePinnedLanguage decides the reply-language pin. Priority:
+//  1. The writing script of the user's message itself (Vietnamese diacritics,
+//     CJK ideographs, hangul) — the strongest signal of the language the user
+//     actually writes, immune to a mismatched client locale (e.g. a Vietnamese
+//     user running an English Telegram UI).
+//  2. A supported non-English client locale — for users whose UI language
+//     matches what they write but who type without diacritics.
+//  3. No pin — English and unknown locales stay unpinned: English is the
+//     neutral default every model handles by matching the input, and pinning
+//     it over a non-English message contradicts the input mid-prompt, which
+//     measurably degrades weak-model output (code-switching, garbage tokens).
+func resolvePinnedLanguage(locale, message string) (pinnedLang, bool) {
+	if lang, ok := detectLanguageFromText(message); ok {
+		return lang, true
+	}
+	if lang, ok := pinnedLanguage(locale); ok && lang.code != "en" {
+		return lang, true
+	}
+	return pinnedLang{}, false
+}
+
+// detectLanguageFromText recognizes languages whose script is unambiguous at
+// rune level: Vietnamese (distinctive diacritics), Chinese (CJK ideographs,
+// no kana), Korean (hangul). Russian is intentionally NOT detected from text —
+// cyrillic alone cannot distinguish ru/uk/bg, and a wrong pin is worse than
+// the natural language-matching fallback. Short or ambiguous text returns
+// false so the client locale decides.
+func detectLanguageFromText(text string) (pinnedLang, bool) {
+	if len([]rune(text)) < 8 {
+		return pinnedLang{}, false
+	}
+	cjk, kana, hangul, viMarks := 0, 0, 0, 0
+	for _, r := range text {
+		switch {
+		case r >= 0x3040 && r <= 0x30FF: // hiragana/katakana → Japanese
+			kana++
+		case r >= 0x4E00 && r <= 0x9FFF: // CJK unified ideographs
+			cjk++
+		case (r >= 0xAC00 && r <= 0xD7AF) || (r >= 0x1100 && r <= 0x11FF): // hangul
+			hangul++
+		}
+		switch r {
+		case 'ơ', 'Ơ', 'ư', 'Ư': // uniquely Vietnamese vowels
+			viMarks++
+		default:
+			if viToneRunes[r] {
+				viMarks++
+			}
+		}
+	}
+	switch {
+	case kana >= 2:
+		return pinnedLang{}, false // Japanese is unsupported — let the model match naturally
+	case hangul >= 3:
+		return pinnedLang{code: "ko", name: languageNames["ko"]}, true
+	case cjk >= 3 && viMarks == 0:
+		return pinnedLang{code: "zh", name: languageNames["zh"]}, true
+	case viMarks >= 2:
+		return pinnedLang{code: "vi", name: languageNames["vi"]}, true
+	}
+	return pinnedLang{}, false
+}
+
+// viToneRunes collects Vietnamese-specific diacritics that effectively never
+// appear in other Latin-script languages: the hỏi/nặng tone vowels and the
+// multi-diacritic (circumflex/brace/hook + tone) forms. Plain acute/grave
+// accents (á é ó …) are shared with Spanish/French/Portuguese and are
+// deliberately excluded; ơ/ư are matched separately in detectLanguageFromText.
+var viToneRunes = map[rune]bool{
+	// hỏi
+	'ả': true, 'Ả': true, 'ỉ': true, 'Ỉ': true, 'ỏ': true, 'Ỏ': true, 'ủ': true, 'Ủ': true, 'ỷ': true, 'Ỷ': true,
+	// nặng
+	'ạ': true, 'Ạ': true, 'ẹ': true, 'Ẹ': true, 'ị': true, 'Ị': true, 'ọ': true, 'Ọ': true, 'ụ': true, 'Ụ': true,
+	'ậ': true, 'Ậ': true, 'ệ': true, 'Ệ': true, 'ộ': true, 'Ộ': true, 'ợ': true, 'Ợ': true, 'ự': true, 'Ự': true,
+	// circumflex/brace + tone
+	'ấ': true, 'Ấ': true, 'ầ': true, 'Ầ': true, 'ẩ': true, 'Ẩ': true, 'ẫ': true, 'Ẫ': true,
+	'ế': true, 'Ế': true, 'ề': true, 'Ề': true, 'ể': true, 'Ể': true, 'ễ': true, 'Ễ': true,
+	'ố': true, 'Ố': true, 'ồ': true, 'Ồ': true, 'ổ': true, 'Ổ': true, 'ỗ': true, 'Ỗ': true,
+	// breve + tone
+	'ắ': true, 'Ắ': true, 'ằ': true, 'Ằ': true, 'ẳ': true, 'Ẳ': true, 'ẵ': true, 'Ẵ': true, 'ặ': true, 'Ặ': true,
+	// o-horn / u-horn + tone
+	'ớ': true, 'Ớ': true, 'ờ': true, 'Ờ': true, 'ở': true, 'Ở': true, 'ỡ': true, 'Ỡ': true,
+	'ứ': true, 'Ứ': true, 'ừ': true, 'Ừ': true, 'ử': true, 'Ử': true, 'ữ': true, 'Ữ': true,
 }
 
 // buildLanguageSection renders the mandatory reply-language directive.
