@@ -213,6 +213,7 @@ func init() {
 		MsgStatusPhaseDefault:  "Giai đoạn: Đang xử lý...",
 		MsgCancelledReply:      "✋ Đã hủy. Bạn muốn làm gì tiếp?",
 		MsgInjectedAck:         "Đã nhận, tôi sẽ xử lý trong tác vụ hiện tại.",
+		MsgRunFailedNotice:     "⚠️ Agent gặp lỗi tạm thời nên chưa trả lời được. Bạn thử lại sau ít phút nhé.",
 
 		// Knowledge Graph
 		MsgEntityIDRequired:       "entity_id là bắt buộc",

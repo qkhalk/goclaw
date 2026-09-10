@@ -512,7 +512,7 @@ func processNormalMessage(
 	})
 
 	// Handle result asynchronously to not block the flush callback.
-	go func(agentKey, channel, chatID, session, rID, peerKind, inboundContent string, meta map[string]string, blockReplyEnabled bool, chatBehavior channels.ResolvedChatBehavior, streaming bool, ptd *tools.PendingTeamDispatch, tenantID, agentUUID uuid.UUID, agentOtherConfig []byte) {
+	go func(agentKey, channel, chatID, session, rID, peerKind, inboundContent string, meta map[string]string, blockReplyEnabled bool, chatBehavior channels.ResolvedChatBehavior, streaming bool, ptd *tools.PendingTeamDispatch, tenantID, agentUUID uuid.UUID, agentOtherConfig []byte, locale string) {
 		outcome := <-outCh
 
 		// Release team create lock — tasks already visible in DB, other goroutines can list.
@@ -536,14 +536,20 @@ func processNormalMessage(
 		}
 
 		if outcome.Err != nil {
-			// Don't send error for cancelled runs (/stop command) —
-			// publish empty outbound to clean up thinking/typing indicators.
+			// Cancelled runs (/stop, abort): internal surfaces get an empty
+			// outbound; external channels get the localized cancelled notice —
+			// empty content is dropped before reaching the channel (dispatch
+			// gate), which used to leave the last placeholder frozen.
 			if errors.Is(outcome.Err, context.Canceled) {
 				slog.Info("inbound: run cancelled", "channel", channel, "session", session)
+				cancelContent := ""
+				if deps.ChannelMgr != nil && isExternalChannel(deps.ChannelMgr.ChannelTypeForName(channel)) {
+					cancelContent = i18n.T(locale, i18n.MsgCancelledReply)
+				}
 				deps.MsgBus.PublishOutbound(bus.OutboundMessage{
 					Channel:  channel,
 					ChatID:   chatID,
-					Content:  "",
+					Content:  cancelContent,
 					Metadata: meta,
 					TenantID: tenantID,
 					AgentID:  agentUUID,
@@ -551,13 +557,16 @@ func processNormalMessage(
 				return
 			}
 			slog.Error("inbound: agent run failed", "error", outcome.Err, "channel", channel)
-			// Suppress technical error text on public-facing channels (FB, Telegram, etc.)
-			// Empty Content still triggers placeholder/typing cleanup downstream.
+			// Technical error text stays on internal surfaces; public-facing
+			// channels (FB, Telegram, etc.) get a short localized notice. The
+			// old empty-content suppression left users staring at a frozen
+			// "Provider busy, retrying..." placeholder with no feedback after
+			// the run died.
 			errContent := formatAgentError(outcome.Err)
 			if deps.ChannelMgr != nil {
 				if ct := deps.ChannelMgr.ChannelTypeForName(channel); isExternalChannel(ct) {
-					slog.Info("inbound: suppressed error for external channel", "channel", channel, "type", ct)
-					errContent = ""
+					slog.Info("inbound: generic error notice for external channel", "channel", channel, "type", ct)
+					errContent = i18n.T(locale, i18n.MsgRunFailedNotice)
 				}
 			}
 			deps.MsgBus.PublishOutbound(bus.OutboundMessage{
@@ -655,7 +664,7 @@ func processNormalMessage(
 		if deps.TeamStore != nil && channel != tools.ChannelSystem && channel != tools.ChannelTeammate && channel != tools.ChannelDashboard {
 			go autoSetFollowup(ctx, deps.TeamStore, deps.AgentStore, agentKey, channel, chatID, replyContent)
 		}
-	}(agentID, msg.Channel, msg.ChatID, sessionKey, runID, peerKind, inboundMessage, outMeta, blockReply, chatBehavior, channelStream, ptd, msg.TenantID, agentLoop.UUID(), agentLoop.OtherConfig())
+	}(agentID, msg.Channel, msg.ChatID, sessionKey, runID, peerKind, inboundMessage, outMeta, blockReply, chatBehavior, channelStream, ptd, msg.TenantID, agentLoop.UUID(), agentLoop.OtherConfig(), inboundLocale(msg))
 }
 
 func buildDeliveryRuntime(ctx context.Context, deps *ConsumerDeps, agentLoop agent.Agent, behavior channels.ResolvedChatBehavior, msg bus.InboundMessage, userID, peerKind, channelType, agentKey string) channels.DeliveryRuntime {

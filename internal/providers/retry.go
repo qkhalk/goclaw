@@ -100,6 +100,11 @@ func IsRetryableError(err error) bool {
 		switch httpErr.Status {
 		case 429, 500, 502, 503, 504:
 			return true
+		case 520, 522, 524:
+			// Cloudflare edge errors: 520 (unknown origin error), 522 (origin
+			// connection timeout), 524 (origin response timeout). Common for
+			// LLM gateways in front of slow origins — transient, retry helps.
+			return true
 		}
 		return false
 	}
@@ -137,9 +142,9 @@ func IsRetryableError(err error) bool {
 // armed a cooldown that the planned delay cannot outlast, further attempts
 // would only burn quota against a known-closed window: RetryDoFor aborts
 // early with the last error instead of sleeping through its backoff into an
-// armed cooldown. A parsed Retry-After keeps being honoured verbatim by
-// computeDelay, so when it is longer than the remaining cooldown the loop
-// stays alive and lands its next attempt after the window closes.
+// armed cooldown. Cooldowns and Retry-After hints are both capped at 30s
+// (Record429 / computeDelay), so the two sides can never wedge the loop into
+// deterministic aborts.
 func RetryDo[T any](ctx context.Context, cfg RetryConfig, fn func() (T, error)) (T, error) {
 	return RetryDoFor(ctx, cfg, "", "", fn)
 }
@@ -161,9 +166,9 @@ func RetryDoFor[T any](ctx context.Context, cfg RetryConfig, provider, model str
 		// has armed a cooldown (or the breaker is Open) for this target and the
 		// planned delay cannot outlast that block, further attempts would only
 		// burn quota against a known-closed window — abort with the last real
-		// error instead of sleeping into an armed cooldown. A Retry-After on
-		// the current error keeps being honoured verbatim by computeDelay, so
-		// when it is longer than the remaining block the loop stays alive.
+		// error instead of sleeping into an armed cooldown. Retry-After waits
+		// are capped at MaxDelay by computeDelay, matching the 30s cooldown
+		// cap in Record429, so admission and wait stay consistent.
 		if tracked && attempt > 1 && !outlastsBlock(cfg, attempt, lastErr, provider, model) {
 			return zero, lastErr
 		}
@@ -225,10 +230,11 @@ func RetryDoFor[T any](ctx context.Context, cfg RetryConfig, provider, model str
 //     for the same provider:model;
 //   - the circuit breaker: an Open circuit with a future NextRetryAt.
 //
-// The candidate wait is computeDelay's result, which already honours a parsed
-// Retry-After verbatim — so a Retry-After LONGER than the remaining block
-// keeps the loop alive and the next attempt lands after the window closes.
-// A block shorter than the wait is harmless; anything longer means retrying
+// The candidate wait is computeDelay's result, which honours a parsed
+// Retry-After up to the MaxDelay cap — and Record429 caps armed cooldowns at
+// the same 30s bound, so neither side can outgrow the other and wedge the
+// loop into deterministic aborts. A block shorter than the wait is harmless;
+// anything longer means retrying
 // blind into a closed window.
 func outlastsBlock(cfg RetryConfig, attempt int, err error, provider, model string) bool {
 	blocked := time.Duration(0)
@@ -262,10 +268,17 @@ func outlastsBlock(cfg RetryConfig, attempt int, err error, provider, model stri
 
 // computeDelay calculates the retry delay with exponential backoff, jitter, and Retry-After support.
 func computeDelay(cfg RetryConfig, attempt int, err error) time.Duration {
-	// Check for Retry-After header
+	// Check for Retry-After header. Honoured verbatim up to MaxDelay — a
+	// hostile or misbehaving gateway sending "Retry-After: 3600" must not
+	// park the user's turn for an hour; the capped retry either succeeds
+	// against the odds or fails fast and surfaces the error.
 	var httpErr *HTTPError
 	if errors.As(err, &httpErr) && httpErr.RetryAfter > 0 {
-		return httpErr.RetryAfter
+		delay := httpErr.RetryAfter
+		if delay > cfg.MaxDelay {
+			delay = cfg.MaxDelay
+		}
+		return delay
 	}
 
 	// Exponential backoff: minDelay * 2^(attempt-1)

@@ -143,3 +143,23 @@ func TestPendingWaitersCount(t *testing.T) {
 		t.Errorf("PendingWaiters() = %d, want 0 (no active waiters)", got)
 	}
 }
+
+func TestRecord429CapsCooldownAt30s(t *testing.T) {
+	now, _ := fakeClock(t)
+	r := NewRateLimitCoordinator(0)
+	r.nowFn = now
+
+	// A gateway advertising a huge Retry-After must not arm a cooldown that
+	// outgrows the retry ladder's 30s MaxDelay cap — that asymmetry made
+	// every subsequent RetryDoFor admission check abort deterministically.
+	r.Record429("pv", "m", 1*time.Hour)
+	if d, ok := r.CooldownFor("pv", "m"); !ok || d > 30*time.Second {
+		t.Fatalf("cooldown = %v (ok=%v), want <= 30s", d, ok)
+	}
+
+	// Hints within the cap pass through.
+	r.Record429("pv", "m", 10*time.Second)
+	if d, ok := r.CooldownFor("pv", "m"); !ok || d > 10*time.Second {
+		t.Fatalf("cooldown = %v (ok=%v), want <= 10s", d, ok)
+	}
+}

@@ -197,6 +197,7 @@ func init() {
 		MsgStatusPhaseDefault:  "Фаза: Обработка...",
 		MsgCancelledReply:      "✋ Отменено. Что бы вы хотели сделать дальше?",
 		MsgInjectedAck:         "Понял, я учту это в том, над чем работаю.",
+		MsgRunFailedNotice:     "⚠️ Агент столкнулся с временной ошибкой и не смог завершить ответ. Попробуйте ещё раз чуть позже.",
 
 		// Knowledge Graph
 		MsgEntityIDRequired:       "требуется entity_id",

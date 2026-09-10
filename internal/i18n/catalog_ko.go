@@ -140,6 +140,7 @@ func init() {
 		MsgStatusPhaseDefault:  "단계: 처리 중...",
 		MsgCancelledReply:      "✋ 취소되었습니다. 다음에 무엇을 하시겠습니까?",
 		MsgInjectedAck:         "알겠습니다. 작업 중인 내용에 반영하겠습니다.",
+		MsgRunFailedNotice:     "⚠️ 일시적인 오류로 에이전트가 응답을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.",
 
 		// Knowledge Graph
 		MsgEntityIDRequired:       "entity_id가 필요합니다",
