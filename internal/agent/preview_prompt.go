@@ -466,6 +466,7 @@ func BuildPreviewPrompt(ctx context.Context, ag *store.AgentData, mode PromptMod
 		TeamWorkspace:        teamWorkspace,
 		TeamMembers:          teamMembers,
 		TeamGuidance:         teamGuidance,
+		UserLocale:           store.ExplicitLocaleFromContext(ctx),
 		DelegateTargets:      delegateTargets,
 		OrchMode:             orchMode,
 		// Runtime-only fields left at zero: Channel, ChannelType, ChatTitle,

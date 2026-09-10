@@ -100,7 +100,13 @@ func (r *MethodRouter) Handle(ctx context.Context, client *Client, req *protocol
 	// Role injection is required so store.IsOwnerRole / store.IsMasterScope work
 	// from WS handlers — without it, ctx-based permission helpers silently
 	// evaluate as non-owner. HTTP layer does the same via enrichContext.
-	ctx = store.WithLocale(ctx, i18n.Normalize(client.locale))
+	// Locale is stored raw when provided: unsupported values (e.g. "ko") fall
+	// back to English inside i18n.lookup, and the system-prompt language pin
+	// skips them — normalizing here would pin English for UI languages the
+	// backend does not catalog.
+	if client.locale != "" {
+		ctx = store.WithLocale(ctx, client.locale)
+	}
 	if client.TenantID() != uuid.Nil {
 		ctx = store.WithTenantID(ctx, client.TenantID())
 	}
@@ -140,8 +146,13 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 		json.Unmarshal(req.Params, &params)
 	}
 
-	// Set locale on client (persists across all requests for this connection)
-	client.locale = i18n.Normalize(params.Locale)
+	// Set locale on client (persists across all requests for this connection).
+	// Stored raw: i18n.T falls back to English for unknown locales, and an
+	// empty value keeps the system-prompt language pin off ("match the user's
+	// language") instead of defaulting the pin to English.
+	if params.Locale != "" {
+		client.locale = params.Locale
+	}
 
 	configToken := r.server.cfg.Gateway.Token
 

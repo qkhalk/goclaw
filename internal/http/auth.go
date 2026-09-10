@@ -491,11 +491,14 @@ func requireAuthBearer(minRole permissions.Role, bearer string, w http.ResponseW
 }
 
 // extractLocale parses the Accept-Language header and returns a supported locale.
-// Falls back to "en" if no supported language is found.
+// Returns "" when no supported language is found — i18n.lookup falls back to
+// English for message catalogs, and the system-prompt language pin stays off
+// so the model matches the user's language (pinning English for a French user
+// would be wrong).
 func extractLocale(r *http.Request) string {
 	accept := r.Header.Get("Accept-Language")
 	if accept == "" {
-		return i18n.DefaultLocale
+		return ""
 	}
 	// Simple parser: take the first language tag before comma or semicolon
 	for part := range strings.SplitSeq(accept, ",") {
@@ -505,5 +508,5 @@ func extractLocale(r *http.Request) string {
 			return locale
 		}
 	}
-	return i18n.DefaultLocale
+	return ""
 }
