@@ -291,6 +291,7 @@ The Telegram channel uses long polling via the `telego` library (Telegram Bot AP
 - **Concurrent group support**: Group sessions support up to 3 concurrent agent runs.
 - **Bot reply as implicit mention**: Replying to a bot message in a group counts as mentioning the bot.
 - **Show Reasoning delivery**: `reasoning_delivery=always_bubbles` decouples provider streaming from Telegram live streaming so reasoning can appear as bounded normal messages while the final answer remains non-streaming.
+- **Reply-language pinning**: The sender's Telegram client language (`language_code`, e.g. `vi`) travels on inbound metadata (`user_locale`) into the agent context (`store.WithLocale`). The system prompt then emits a mandatory `## LANGUAGE` section pinning the reply language (supported: `en`, `vi`, `zh`) — this prevents weak models from code-switching (e.g. Vietnamese replies mixed with English words). Unknown/empty locale leaves the prompt unpinned ("match the user's language"). Other channel adapters can opt in by setting the same `user_locale` metadata key.
 
 ### Formatting Pipeline
 

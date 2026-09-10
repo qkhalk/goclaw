@@ -91,3 +91,17 @@ func TestAgentAudioFromCtx_NilUUIDReturnsFalse(t *testing.T) {
 		t.Error("expected ok=false when AgentID is uuid.Nil")
 	}
 }
+
+func TestExplicitLocaleFromContext(t *testing.T) {
+	t.Parallel()
+	if got := ExplicitLocaleFromContext(context.Background()); got != "" {
+		t.Errorf("unset locale: got %q, want empty", got)
+	}
+	if got := ExplicitLocaleFromContext(WithLocale(context.Background(), "vi")); got != "vi" {
+		t.Errorf("set locale: got %q, want vi", got)
+	}
+	// WithLocale(ctx, "") is an explicit empty value — still no pin.
+	if got := ExplicitLocaleFromContext(WithLocale(context.Background(), "")); got != "" {
+		t.Errorf("explicit empty locale: got %q, want empty", got)
+	}
+}
