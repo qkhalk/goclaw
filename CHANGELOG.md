@@ -16,6 +16,19 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Fixed
 
+- **Channel replies pinned to the sender's language** — Agents replying on
+  Telegram (especially via small/free models) code-switched: Vietnamese replies
+  sprinkled with English words or garbled tokens, despite the "match the user's
+  language" line in the AGENTS_CORE.md context file. The gateway never pinned
+  the reply language because channel inbounds carried no locale (only WS
+  `connect` and HTTP `Accept-Language` set one, and the context does not cross
+  the message bus). Telegram now propagates the sender's client language
+  (`language_code`) as `user_locale` inbound metadata; the consumer injects it
+  via `store.WithLocale`, and the system prompt emits a mandatory `## LANGUAGE`
+  section pinning the reply language for supported locales (`en`, `vi`, `zh`;
+  regional variants normalize, unknown locales pin nothing). The recency
+  reminder is updated to "reply in <language> only" when pinned. The Web UI
+  prompt preview reflects the pin when the caller's locale is set.
 - **Telegram: agent only received the first fragment of long messages** — The
   Telegram client splits an outbound message longer than 4096 chars into several
   consecutive messages, and each part previously reached the agent as its own

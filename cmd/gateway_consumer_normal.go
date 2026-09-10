@@ -31,11 +31,7 @@ func processNormalMessage(
 ) {
 	// Inject tenant from channel instance into context so all store operations
 	// (agent lookup, session creation, etc.) are tenant-scoped.
-	if msg.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, msg.TenantID)
-	} else {
-		ctx = store.WithTenantID(ctx, store.MasterTenantID)
-	}
+	ctx = applyInboundContext(ctx, msg)
 
 	// Determine target agent via bindings or explicit AgentID
 	agentID := msg.AgentID
@@ -379,7 +375,7 @@ func processNormalMessage(
 	// Only for DM (maxConcurrent=1) where messages queue behind the active run.
 	if maxConcurrent == 1 && deps.Agents.IsSessionBusy(sessionKey) {
 		if loop, ok := agentLoop.(*agent.Loop); ok && loop.Provider() != nil {
-			locale := msg.Metadata["locale"]
+			locale := inboundLocale(msg)
 			if locale == "" {
 				locale = "en"
 			}
@@ -663,7 +659,7 @@ func processNormalMessage(
 }
 
 func buildDeliveryRuntime(ctx context.Context, deps *ConsumerDeps, agentLoop agent.Agent, behavior channels.ResolvedChatBehavior, msg bus.InboundMessage, userID, peerKind, channelType, agentKey string) channels.DeliveryRuntime {
-	locale := msg.Metadata["locale"]
+	locale := inboundLocale(msg)
 	if locale == "" {
 		locale = "auto"
 	}
@@ -777,4 +773,30 @@ func deriveGroupUserID(msg bus.InboundMessage, peerKind string) string {
 	default:
 		return fmt.Sprintf("group:%s:%s", msg.Channel, msg.ChatID)
 	}
+}
+
+// inboundLocale resolves the sender's locale from inbound metadata: the
+// canonical tools.MetaUserLocale key (set by channel adapters, e.g. Telegram
+// language_code) with the legacy "locale" key as fallback. Empty = unknown.
+func inboundLocale(msg bus.InboundMessage) string {
+	if loc := strings.TrimSpace(msg.Metadata[tools.MetaUserLocale]); loc != "" {
+		return loc
+	}
+	return strings.TrimSpace(msg.Metadata["locale"])
+}
+
+// applyInboundContext scopes the consumer context for an inbound message:
+// tenant isolation (always) plus the sender's locale when the channel adapter
+// provided one (e.g. Telegram language_code) so store.WithLocale propagates to
+// the agent loop and the system prompt can pin the reply language.
+func applyInboundContext(ctx context.Context, msg bus.InboundMessage) context.Context {
+	if msg.TenantID != uuid.Nil {
+		ctx = store.WithTenantID(ctx, msg.TenantID)
+	} else {
+		ctx = store.WithTenantID(ctx, store.MasterTenantID)
+	}
+	if loc := inboundLocale(msg); loc != "" {
+		ctx = store.WithLocale(ctx, loc)
+	}
+	return ctx
 }
