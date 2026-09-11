@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Nền per-chat prefs + /thinking"
-status: pending
+status: completed
 priority: P1
 effort: "6h"
 dependencies: []
@@ -69,11 +69,11 @@ type SessionPrefsStore interface {
 
 ## Success Criteria
 
-- [ ] 4 key case khớp consumer (test xanh).
-- [ ] `/thinking high` → tin kế tiếp trace/span cho thấy reasoning effort high (thử nghiệm thủ công trên dev bot hoặc span assert trong test integration nếu có harness).
-- [ ] `/thinking off` → request LLM KHÔNG có param thinking/reasoning (regression test + span verify); `/thinking default` xóa override (agent default áp lại).
-- [ ] Restart gateway → toggle còn nguyên (integration/unit với store thật).
-- [ ] Build + vet + test sạch cả 2 mode.
+- [x] 4 key case khớp consumer (test xanh).
+- [x] `/thinking high` → tin kế tiếp trace/span cho thấy reasoning effort high (thử nghiệm thủ công trên dev bot hoặc span assert trong test integration nếu có harness).
+- [x] `/thinking off` → request LLM KHÔNG có param thinking/reasoning (regression test + span verify); `/thinking default` xóa override (agent default áp lại).
+- [x] Restart gateway → toggle còn nguyên (integration/unit với store thật).
+- [x] Build + vet + test sạch cả 2 mode.
 
 ## Risk Assessment
 

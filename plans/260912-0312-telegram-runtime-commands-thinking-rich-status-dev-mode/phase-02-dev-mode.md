@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Dev mode /dev"
-status: pending
+status: completed
 priority: P1
 effort: "4h"
 dependencies: ["phase-1"]
@@ -73,10 +73,10 @@ Cuối cùng dựa trên cơ chế thật: ask_user chỉ đặt reminder (`reso
 
 ## Success Criteria
 
-- [ ] Dev mode ON → system prompt chứa "DEV MODE ACTIVE" ở đầu ExtraPrompt (unit test assert prompt assembly; thủ công check span input_preview trên dev); OFF → không chứa, kể cả resumed run (resume copy ExtraSystemPrompt `loop_run.go:512`).
-- [ ] Thử nghiệm hành vi: gửi yêu cầu mơ hồ ("sửa cái đó đi") trong dev mode → agent hỏi lại câu làm rõ thay vì tự đoán (manual eval — prompt không guarantee tuyệt đối, ghi nhận kết quả; nếu model yếu vẫn đoán → tăng cường section, không thêm cơ chế mới).
-- [ ] Toggle persist qua restart; group writer-only.
-- [ ] Build/vet/test sạch 2 mode.
+- [x] Dev mode ON → system prompt chứa "DEV MODE ACTIVE" ở đầu ExtraPrompt (unit test assert prompt assembly; thủ công check span input_preview trên dev); OFF → không chứa, kể cả resumed run (resume copy ExtraSystemPrompt `loop_run.go:512`).
+- [x] Thử nghiệm hành vi: gửi yêu cầu mơ hồ ("sửa cái đó đi") trong dev mode → agent hỏi lại câu làm rõ thay vì tự đoán (manual eval — prompt không guarantee tuyệt đối, ghi nhận kết quả; nếu model yếu vẫn đoán → tăng cường section, không thêm cơ chế mới).
+- [x] Toggle persist qua restart; group writer-only.
+- [x] Build/vet/test sạch 2 mode.
 
 ## Risk Assessment
 

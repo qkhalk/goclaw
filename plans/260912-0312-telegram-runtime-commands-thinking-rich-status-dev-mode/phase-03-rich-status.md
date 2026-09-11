@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Rich /status + verbosity + docs page"
-status: pending
+status: completed
 priority: P1
 effort: "1d"
 dependencies: ["phase-1", "phase-2"]
@@ -83,12 +83,12 @@ Concrete impl `cmd/gateway_status_provider.go` (package cmd) capture: `Version` 
 
 ## Success Criteria
 
-- [ ] DM gõ `/status` thấy full 8 dòng; group thấy short; `/status full` ở group persist (tin sau vẫn full).
-- [ ] Cost khớp SUM traces của session đó (verify tay SQL trên DB dev: `SELECT SUM(total_cost) FROM traces WHERE session_key='<key>'`).
-- [ ] Context % đúng toán (LastPromptTokens có thể 0 lúc đầu → hiển thị `?/200k`).
-- [ ] Gateway restart giữa phiên: verbosity + các toggle Phase 1-2 còn nguyên.
-- [ ] Docs page tồn tại ở URL literal; CI docs link check nếu có (không thì bỏ qua).
-- [ ] Build/vet/test sạch 2 mode; không migration.
+- [x] DM gõ `/status` thấy full 8 dòng; group thấy short; `/status full` ở group persist (tin sau vẫn full).
+- [x] Cost khớp SUM traces của session đó (verify tay SQL trên DB dev: `SELECT SUM(total_cost) FROM traces WHERE session_key='<key>'`).
+- [x] Context % đúng toán (LastPromptTokens có thể 0 lúc đầu → hiển thị `?/200k`).
+- [x] Gateway restart giữa phiên: verbosity + các toggle Phase 1-2 còn nguyên.
+- [x] Docs page tồn tại ở URL literal; CI docs link check nếu có (không thì bỏ qua).
+- [x] Build/vet/test sạch 2 mode; không migration.
 
 ## Risk Assessment
 
