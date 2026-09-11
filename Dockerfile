@@ -91,7 +91,7 @@ RUN set -eux; \
     fi; \
     if [ "$ENABLE_FULL_SKILLS" = "true" ]; then \
         apk add --no-cache python3 py3-pip nodejs npm pandoc github-cli poppler-utils bash \
-            curl openssl nmap nikto wrk hey iperf3; \
+            curl openssl nmap nikto wrk hey iperf3 ffuf bind-tools; \
         pip3 install --no-cache-dir --break-system-packages \
             -r /tmp/requirements-base.txt -r /tmp/requirements-skills.txt; \
         npm install -g --cache /tmp/npm-cache docx@^9.6.1 pptxgenjs@^4.0.1 @googleworkspace/cli@0.22.5; \

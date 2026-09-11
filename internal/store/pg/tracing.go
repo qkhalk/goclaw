@@ -487,6 +487,29 @@ func (s *PGTracingStore) GetMonthlyAgentCost(ctx context.Context, agentID uuid.U
 	return cost, err
 }
 
+// SessionTotalCost sums traces.total_cost for a session key (indexed by
+// idx_traces_session). Tenant-scoped unless the context is cross-tenant.
+func (s *PGTracingStore) SessionTotalCost(ctx context.Context, sessionKey string) (float64, bool) {
+	q := `SELECT COALESCE(SUM(total_cost), 0), COUNT(*) FROM traces WHERE session_key = $1`
+	qArgs := []any{sessionKey}
+
+	if !store.IsCrossTenant(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid != uuid.Nil {
+			q += " AND tenant_id = $2"
+			qArgs = append(qArgs, tid)
+		}
+	}
+
+	var cost float64
+	var n int
+	if err := s.db.QueryRowContext(ctx, q, qArgs...).Scan(&cost, &n); err != nil {
+		slog.Warn("tracing: session total cost query failed", "session_key", sessionKey, "error", err)
+		return 0, false
+	}
+	return cost, n > 0
+}
+
 func (s *PGTracingStore) GetCostSummary(ctx context.Context, opts store.CostSummaryOpts) ([]store.CostSummaryRow, error) {
 	var conditions []string
 	var args []any
