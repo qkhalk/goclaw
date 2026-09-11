@@ -180,6 +180,9 @@ type TracingStore interface {
 	// Cost aggregation
 	GetMonthlyAgentCost(ctx context.Context, agentID uuid.UUID, year int, month time.Month) (float64, error)
 	GetCostSummary(ctx context.Context, opts CostSummaryOpts) ([]CostSummaryRow, error)
+	// SessionTotalCost returns the summed total_cost of all traces for a
+	// session key. The bool reports whether any trace exists for the key.
+	SessionTotalCost(ctx context.Context, sessionKey string) (float64, bool)
 
 	// Maintenance
 	DeleteTracesOlderThan(ctx context.Context, cutoff time.Time) (int64, error)

@@ -36,6 +36,8 @@ type Channel struct {
 	teamStore         store.TeamStore             // for /tasks, /task_detail commands (nil if not configured)
 	subagentTaskStore store.SubagentTaskStore     // for /subagents, /subagent commands (nil if not configured)
 	skillsLister      SkillsLister                // for /skills command + bot skill menu (nil = disabled)
+	sessionPrefs      SessionPrefsStore           // for per-chat preference commands (/thinking, /dev, /status verbosity) (nil = disabled)
+	statusProvider    StatusProvider              // for the /status command (nil = availability notice)
 	textCoalescer     *textCoalescer              // merges client-split long text messages into one dispatch (nil/0ms window = off)
 	placeholders      sync.Map                    // localKey string → messageID int
 	stopThinking      sync.Map                    // localKey string → *thinkingCancel
@@ -265,8 +267,22 @@ func (c *Channel) Start(ctx context.Context) error {
 
 	// Register bot menu commands with retry.
 	go func() {
+		// Core + workflow skills, then the testing suite. The menu stays
+		// disjoint: if a slug appears in both lists the first wins.
 		commands := append(DefaultMenuCommands(),
 			skillMenuCommands(pollCtx, menuSkillSlugs(c.config.MenuSkills), c.skillsLister)...)
+		seen := map[string]struct{}{}
+		for _, cmd := range commands {
+			seen[cmd.Command] = struct{}{}
+		}
+		for _, cmd := range skillMenuCommands(pollCtx, testingMenuSkillSlugs(c.config.MenuTestingSkills), c.skillsLister) {
+			if _, dup := seen[cmd.Command]; dup {
+				slog.Warn("telegram: duplicate skill menu command skipped", "command", cmd.Command)
+				continue
+			}
+			seen[cmd.Command] = struct{}{}
+			commands = append(commands, cmd)
+		}
 		syncCtx, cancel := context.WithTimeout(pollCtx, probeOverallTimeout)
 		defer cancel()
 		var lastErr error

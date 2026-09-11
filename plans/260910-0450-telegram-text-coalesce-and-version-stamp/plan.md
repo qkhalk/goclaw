@@ -1,7 +1,7 @@
 ---
 title: "Telegram text coalesce and version stamp"
 description: "Sửa 2 lỗi: (1) tin nhắn Telegram dài bị client cắt thành nhiều phần nhưng agent chỉ nhận phần đầu — gộp các phần liên tiếp ở channel-level trước khi publish; (2) UI hiển thị version 0.1.0 (binary cũ stamp 0.1.0-4phases.2 đang chạy production) — build lại từ dev với version stamp đúng và redeploy."
-status: pending
+status: completed
 priority: P1
 effort: "0.5d"
 tags: [telegram, debounce, version, bugfix]

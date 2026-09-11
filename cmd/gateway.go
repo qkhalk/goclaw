@@ -1039,6 +1039,17 @@ func runGateway() {
 		}
 	}
 
+	// Rich /status provider for the Telegram channel. The scheduler handle is
+	// lazy — sched is created further down in this function.
+	var sched *scheduler.Scheduler
+	statusProvider := &gatewayStatusProvider{
+		version:  Version,
+		server:   server,
+		schedFn:  func() *scheduler.Scheduler { return sched },
+		sessions: pgStores.Sessions,
+		tracing:  pgStores.Tracing,
+	}
+
 	// Load channel instances from DB.
 	var instanceLoader *channels.InstanceLoader
 	if pgStores.ChannelInstances != nil {
@@ -1046,7 +1057,7 @@ func runGateway() {
 		instanceLoader.SetProviderRegistry(providerRegistry)
 		instanceLoader.SetPendingCompactionConfig(cfg.Channels.PendingCompaction)
 		instanceLoader.SetUsageCapService(usageCapSvc)
-		instanceLoader.RegisterFactory(channels.TypeTelegram, telegram.FactoryWithStoresAndAudio(pgStores.Agents, pgStores.ConfigPermissions, pgStores.Teams, pgStores.SubagentTasks, pgStores.PendingMessages, audioMgr, skillsLoader))
+		instanceLoader.RegisterFactory(channels.TypeTelegram, telegram.FactoryWithStoresAndAudio(pgStores.Agents, pgStores.ConfigPermissions, pgStores.Teams, pgStores.SubagentTasks, pgStores.PendingMessages, audioMgr, skillsLoader, pgStores.Sessions, statusProvider))
 		instanceLoader.RegisterFactory(channels.TypeDiscord, discord.FactoryWithStoresAndAudio(pgStores.Agents, pgStores.ConfigPermissions, pgStores.PendingMessages, audioMgr))
 		instanceLoader.RegisterFactory(channels.TypeFeishu, feishu.FactoryWithStoresAndAudio(pgStores.Agents, pgStores.ConfigPermissions, pgStores.PendingMessages, audioMgr))
 		instanceLoader.RegisterFactory(channels.TypeZaloOA, zalo.Factory)
@@ -1108,7 +1119,7 @@ func runGateway() {
 	}
 
 	// Register config-based channels as fallback when no DB instances loaded.
-	registerConfigChannels(cfg, channelMgr, msgBus, pgStores, instanceLoader, audioMgr, skillsLoader)
+	registerConfigChannels(cfg, channelMgr, msgBus, pgStores, instanceLoader, audioMgr, skillsLoader, statusProvider)
 
 	// Register channels/instances/links/teams RPC methods
 	chInstancesM := wireChannelRPCMethods(server, pgStores, channelMgr, instanceLoader, agentRouter, msgBus, cfg, workspace)
@@ -1172,7 +1183,7 @@ func runGateway() {
 
 	// Create lane-based scheduler (matching TS CommandLane pattern).
 	// Must be created before cron setup so cron jobs route through the scheduler.
-	sched := scheduler.NewScheduler(
+	sched = scheduler.NewScheduler(
 		scheduler.DefaultLanes(),
 		scheduler.DefaultQueueConfig(),
 		makeSchedulerRunFunc(agentRouter, cfg),

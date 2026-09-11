@@ -31,6 +31,11 @@ func WithSkillsLister(l SkillsLister) Option { return func(c *Channel) { c.skill
 // command menu when channels.telegram.menu_skills is not configured.
 var defaultMenuSkills = []string{"cook", "plan", "fix", "review", "test"}
 
+// defaultTestingMenuSkills are the testing-suite slugs appended to the menu
+// when channels.telegram.menu_testing_skills is not configured. Hyphens are
+// sanitized to underscores for Telegram bot commands (see skillMenuCommands).
+var defaultTestingMenuSkills = []string{"security-audit", "loadtest", "netstress", "ssl-audit", "recon", "fuzz", "dns-audit"}
+
 // telegramCommandRE matches the subset of skill slugs Telegram accepts as bot
 // commands: 1-32 chars of [a-z0-9_]. telego does not validate this client-side
 // (types.go doc comment only) — the Bot API rejects anything else at runtime,
@@ -53,9 +58,31 @@ func menuSkillSlugs(configured []string) []string {
 	return configured
 }
 
+// testingMenuSkillSlugs resolves the configured testing-suite menu slugs
+// (nil = defaults, [] = none).
+func testingMenuSkillSlugs(configured []string) []string {
+	if configured == nil {
+		return defaultTestingMenuSkills
+	}
+	return configured
+}
+
+// telegramCommandName sanitizes a skill slug into a Telegram bot command
+// name. Telegram only accepts [a-z0-9_]{1,32} — hyphens (security-audit)
+// become underscores (/security_audit), which the agent-side skill command
+// matching treats as equivalent. Returns "" when no valid command exists.
+func telegramCommandName(slug string) string {
+	name := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(slug)), "-", "_")
+	if !telegramCommandRE.MatchString(name) {
+		return ""
+	}
+	return name
+}
+
 // skillMenuCommands builds bot-command menu entries for the given skill slugs.
-// Slugs Telegram cannot accept are skipped with a warning; descriptions come
-// from the lister when one is wired (truncated to one line), otherwise a
+// Slugs are sanitized to Telegram command names (hyphens → underscores);
+// slugs with no valid command form are skipped with a warning. Descriptions
+// come from the lister when one is wired (truncated to one line), otherwise a
 // generic "Run skill: <slug>" fallback is used.
 func skillMenuCommands(ctx context.Context, slugs []string, lister SkillsLister) []telego.BotCommand {
 	descriptions := map[string]string{}
@@ -67,7 +94,8 @@ func skillMenuCommands(ctx context.Context, slugs []string, lister SkillsLister)
 
 	commands := make([]telego.BotCommand, 0, len(slugs))
 	for _, slug := range slugs {
-		if !telegramCommandRE.MatchString(slug) {
+		name := telegramCommandName(slug)
+		if name == "" {
 			slog.Warn("telegram: skill menu entry skipped (not a valid bot command)", "slug", slug)
 			continue
 		}
@@ -75,7 +103,7 @@ func skillMenuCommands(ctx context.Context, slugs []string, lister SkillsLister)
 		if desc == "" {
 			desc = fmt.Sprintf("Run skill: %s", slug)
 		}
-		commands = append(commands, telego.BotCommand{Command: slug, Description: desc})
+		commands = append(commands, telego.BotCommand{Command: name, Description: desc})
 	}
 	return commands
 }

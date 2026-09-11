@@ -14,6 +14,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/bitrix24"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/telegram"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/telegram/voiceguard"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
@@ -478,14 +479,27 @@ func processNormalMessage(
 	// upstream dispatch set MetaOriginRole.
 	effectiveRole := msg.Metadata[tools.MetaOriginRole]
 
+	// Per-chat preferences authored by channel commands (/thinking, /dev) in
+	// session metadata. ThinkingLevelOverride outranks agent config downstream
+	// (loop_pipeline_callbacks.go); dev mode prepends its behavior section to
+	// the extra system prompt.
+	var thinkingOverride string
+	if data := deps.SessStore.Get(ctx, sessionKey); data != nil {
+		thinkingOverride = data.Metadata[telegram.MetaKeyThinkingLevel]
+		if data.Metadata[telegram.MetaKeyChatMode] == "dev" {
+			extraPrompt = agent.ApplyDevMode(true, extraPrompt)
+		}
+	}
+
 	// Schedule through main lane (per-session concurrency controlled by maxConcurrent)
 	outCh := deps.Sched.ScheduleWithOpts(schedCtx, "main", agent.RunRequest{
-		SessionKey:   sessionKey,
-		Message:      inboundMessage,
-		Media:        reqMedia,
-		ForwardMedia: fwdMedia,
-		Channel:      msg.Channel,
-		ChannelType:  resolveChannelType(deps.ChannelMgr, msg.Channel),
+		SessionKey:            sessionKey,
+		Message:               inboundMessage,
+		Media:                 reqMedia,
+		ForwardMedia:          fwdMedia,
+		Channel:               msg.Channel,
+		ChannelType:           resolveChannelType(deps.ChannelMgr, msg.Channel),
+		ThinkingLevelOverride: thinkingOverride,
 		// Forward Bitrix24 portal domain from channel metadata so the
 		// system prompt can teach the LLM the correct entity URL host.
 		// Empty for non-bitrix24 channels — section is skipped downstream.

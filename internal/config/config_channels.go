@@ -90,6 +90,7 @@ type TelegramConfig struct {
 	ReactionLevel     string                 `json:"reaction_level,omitempty"`     // "off" (default), "minimal", "full" — status emoji reactions
 	MediaMaxBytes     int64                  `json:"media_max_bytes,omitempty"`    // max media download size in bytes (default 20MB)
 	MenuSkills        []string               `json:"menu_skills,omitempty"`        // skill slugs pinned to the "/" bot command menu (nil = defaults: cook, plan, fix, review, test; [] = none)
+	MenuTestingSkills []string               `json:"menu_testing_skills,omitempty"` // testing skill slugs appended to the menu (nil = defaults: security-audit, loadtest, netstress, ssl-audit, recon, fuzz, dns-audit; [] = none)
 	TextCoalesceMs    *int                   `json:"text_coalesce_ms,omitempty"`   // silence window merging client-split long text messages into one inbound (default 1000; 0 = off)
 	LinkPreview       *bool                  `json:"link_preview,omitempty"`       // enable URL previews in messages (default true)
 	BlockReply        *bool                  `json:"block_reply,omitempty"`        // override gateway block_reply (nil = inherit)

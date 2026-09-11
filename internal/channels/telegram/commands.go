@@ -85,6 +85,8 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 			"/stopall — Stop all running tasks\n" +
 			"/reset — Reset conversation history\n" +
 			"/status — Show bot status\n" +
+			"/thinking — View or set the thinking level for this chat\n" +
+			"/dev — Toggle dev mode for this chat\n" +
 			"/reactions — Show reaction emoji legend\n" +
 			"/skills — List available skills\n" +
 			"/tasks — List team tasks\n" +
@@ -198,10 +200,18 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 		return true
 
 	case "/status":
-		statusText := fmt.Sprintf("Bot status: Running\nChannel: Telegram\nBot: @%s", c.bot.Username())
-		msg := tu.Message(chatIDObj, statusText)
-		setThread(msg)
-		c.bot.SendMessage(ctx, msg)
+		dmThread := dmThreadIDFor(message, isGroup)
+		c.handleStatusCommand(ctx, chatID, chatIDStr, isGroup, isForum, messageThreadID, dmThread, setThread, commandArg(text))
+		return true
+
+	case "/thinking":
+		dmThread := dmThreadIDFor(message, isGroup)
+		c.handleThinkingCommand(ctx, chatID, chatIDStr, senderID, isGroup, isForum, messageThreadID, dmThread, setThread, commandArg(text))
+		return true
+
+	case "/dev":
+		dmThread := dmThreadIDFor(message, isGroup)
+		c.handleDevCommand(ctx, chatID, chatIDStr, senderID, isGroup, isForum, messageThreadID, dmThread, setThread, commandArg(text))
 		return true
 
 	case "/tasks":
@@ -262,4 +272,24 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 	}
 
 	return false
+}
+
+// commandArg returns everything after the first whitespace-separated token of
+// text (the command token, which may carry an @botname suffix or any case —
+// the switch above matched the normalized form). Robust against
+// "/thinking@BotName high" and "/STATUS full" in groups.
+func commandArg(text string) string {
+	if _, rest, found := strings.Cut(strings.TrimSpace(text), " "); found {
+		return strings.TrimSpace(rest)
+	}
+	return ""
+}
+
+// dmThreadIDFor mirrors handleMessage's DM-thread detection (handlers.go): a
+// non-zero message_thread_id in private chats isolates per-thread sessions.
+func dmThreadIDFor(message *telego.Message, isGroup bool) int {
+	if !isGroup && message.MessageThreadID > 0 {
+		return message.MessageThreadID
+	}
+	return 0
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -319,6 +320,27 @@ func (s *SQLiteTracingStore) GetMonthlyAgentCost(ctx context.Context, agentID uu
 	var cost float64
 	err := s.db.QueryRowContext(ctx, q, qArgs...).Scan(&cost)
 	return cost, err
+}
+
+// SessionTotalCost sums traces.total_cost for a session key. Tenant-scoped
+// unless the context is cross-tenant. SQLite twin of pg/tracing.go.
+func (s *SQLiteTracingStore) SessionTotalCost(ctx context.Context, sessionKey string) (float64, bool) {
+	q := `SELECT COALESCE(SUM(total_cost), 0), COUNT(*) FROM traces WHERE session_key = ?`
+	qArgs := []any{sessionKey}
+	if !store.IsCrossTenant(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid != uuid.Nil {
+			q += " AND tenant_id = ?"
+			qArgs = append(qArgs, tid)
+		}
+	}
+	var cost float64
+	var n int
+	if err := s.db.QueryRowContext(ctx, q, qArgs...).Scan(&cost, &n); err != nil {
+		slog.Warn("tracing: session total cost query failed", "session_key", sessionKey, "error", err)
+		return 0, false
+	}
+	return cost, n > 0
 }
 
 func (s *SQLiteTracingStore) GetCostSummary(ctx context.Context, opts store.CostSummaryOpts) ([]store.CostSummaryRow, error) {

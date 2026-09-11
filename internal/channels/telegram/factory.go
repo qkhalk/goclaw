@@ -42,7 +42,8 @@ type telegramInstanceConfig struct {
 	AllowFrom         []string                               `json:"allow_from,omitempty"`
 	Groups            map[string]*config.TelegramGroupConfig `json:"groups,omitempty"`
 	TelegramManager   *config.TelegramManagerConfig          `json:"telegram_manager,omitempty"`
-	MenuSkills        []string                               `json:"menu_skills,omitempty"`      // skill slugs pinned to the "/" bot command menu
+	MenuSkills        []string                               `json:"menu_skills,omitempty"`        // skill slugs pinned to the "/" bot command menu
+	MenuTestingSkills []string                               `json:"menu_testing_skills,omitempty"` // testing skill slugs appended to the "/" bot command menu
 	TextCoalesceMs    *int                                   `json:"text_coalesce_ms,omitempty"` // silence window merging client-split long text messages
 }
 
@@ -54,12 +55,14 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 
 // FactoryWithStores returns a ChannelFactory that includes optional stores via functional options.
 func FactoryWithStores(agentStore store.AgentStore, configPermStore store.ConfigPermissionStore, teamStore store.TeamStore, subagentTaskStore store.SubagentTaskStore, pendingStore store.PendingMessageStore) channels.ChannelFactory {
-	return FactoryWithStoresAndAudio(agentStore, configPermStore, teamStore, subagentTaskStore, pendingStore, nil, nil)
+	return FactoryWithStoresAndAudio(agentStore, configPermStore, teamStore, subagentTaskStore, pendingStore, nil, nil, nil, nil)
 }
 
 // FactoryWithStoresAndAudio returns a ChannelFactory with all stores and STT support.
 // skillsLister is optional (nil = /skills command and skill menu entries disabled).
-func FactoryWithStoresAndAudio(agentStore store.AgentStore, configPermStore store.ConfigPermissionStore, teamStore store.TeamStore, subagentTaskStore store.SubagentTaskStore, pendingStore store.PendingMessageStore, audioMgr *audio.Manager, skillsLister SkillsLister) channels.ChannelFactory {
+// sessPrefs is optional (nil = per-chat preference commands disabled).
+// statusProvider is optional (nil = /status availability notice).
+func FactoryWithStoresAndAudio(agentStore store.AgentStore, configPermStore store.ConfigPermissionStore, teamStore store.TeamStore, subagentTaskStore store.SubagentTaskStore, pendingStore store.PendingMessageStore, audioMgr *audio.Manager, skillsLister SkillsLister, sessPrefs SessionPrefsStore, statusProvider StatusProvider) channels.ChannelFactory {
 	return func(name string, creds json.RawMessage, cfg json.RawMessage,
 		msgBus *bus.MessageBus, pairingSvc store.PairingStore) (channels.Channel, error) {
 		return buildChannel(name, creds, cfg, msgBus, pairingSvc, audioMgr,
@@ -69,6 +72,8 @@ func FactoryWithStoresAndAudio(agentStore store.AgentStore, configPermStore stor
 			WithSubagentTaskStore(subagentTaskStore),
 			WithPendingMessageStore(pendingStore),
 			WithSkillsLister(skillsLister),
+			WithSessionPrefs(sessPrefs),
+			WithStatusProvider(statusProvider),
 		)
 	}
 }
@@ -128,6 +133,7 @@ func buildChannel(name string, creds json.RawMessage, cfg json.RawMessage,
 		TelegramManager:   ic.TelegramManager,
 		Groups:            ic.Groups,
 		MenuSkills:        ic.MenuSkills,
+		MenuTestingSkills: ic.MenuTestingSkills,
 		TextCoalesceMs:    ic.TextCoalesceMs,
 	}
 

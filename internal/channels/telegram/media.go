@@ -267,6 +267,47 @@ func (c *Channel) downloadMedia(ctx context.Context, fileID string, maxBytes int
 	// Use a generous timeout for media downloads (large files via local Bot API
 	// can be up to 200 MB). The shared httpClient has a 30s timeout suited for
 	// API calls, so we override per-request with a dedicated context.
+	//
+	// The download itself is retried (downloadMaxRetries, like the GetFile
+	// loop above): connections to Telegram file DCs from some networks are
+	// reset mid-stream, and without a retry the whole media is lost —
+	// production evidence 2026-09-11: "save file: read tcp ... connection
+	// reset by peer". Only the HTTP fetch loop retries; GetFile/SSRF checks
+	// run once. Each attempt gets a fresh 5-minute window.
+	dlClient := *c.httpClient
+	dlClient.Timeout = 0
+
+	ext := filepath.Ext(file.FilePath)
+	if ext == "" {
+		ext = ".bin"
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= downloadMaxRetries; attempt++ {
+		path, err := attemptMediaDownload(ctx, &dlClient, downloadURL, ext, maxBytes)
+		if err == nil {
+			return path, nil
+		}
+		lastErr = err
+		if errors.Is(err, errMediaTooLarge) {
+			return "", err // retrying cannot fix a size limit
+		}
+		if attempt < downloadMaxRetries {
+			slog.Warn("retrying media download", "file_id", fileID, "attempt", attempt, "error", err)
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(time.Duration(attempt) * time.Second):
+			}
+		}
+	}
+	return "", fmt.Errorf("download file after %d attempts: %w", downloadMaxRetries, lastErr)
+}
+
+// attemptMediaDownload performs one full HTTP download of a Telegram file to
+// a temp file: request → body copy with stall detection → size enforcement.
+// Returns the temp file path, or an error (errMediaTooLarge is terminal).
+func attemptMediaDownload(ctx context.Context, dlClient *http.Client, downloadURL, ext string, maxBytes int64) (string, error) {
 	dlCtx, dlCancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer dlCancel()
 
@@ -274,11 +315,6 @@ func (c *Channel) downloadMedia(ctx context.Context, fileID string, maxBytes int
 	if err != nil {
 		return "", fmt.Errorf("create download request: %w", err)
 	}
-
-	// Clone the shared client without the 30s Timeout so the per-request
-	// context (5 min) governs the download duration instead.
-	dlClient := *c.httpClient
-	dlClient.Timeout = 0
 
 	resp, err := dlClient.Do(req)
 	if err != nil {
@@ -288,12 +324,6 @@ func (c *Channel) downloadMedia(ctx context.Context, fileID string, maxBytes int
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download failed with status %d", resp.StatusCode)
-	}
-
-	// Determine extension from file path
-	ext := filepath.Ext(file.FilePath)
-	if ext == "" {
-		ext = ".bin"
 	}
 
 	tmpFile, err := os.CreateTemp("", "goclaw_media_*"+ext)

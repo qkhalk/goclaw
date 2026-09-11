@@ -1,7 +1,7 @@
 ---
 title: "Telegram Skill Menu and Testing Skills"
 description: "Telegram '/' menu hiển thị skill hay dùng + lệnh /skills liệt kê skill kèm mô tả; bộ skill kiểm thử mới (security-audit, loadtest L7, netstress L4, ssl-audit) cho sản phẩm trước khi lên production."
-status: pending
+status: completed
 priority: P1
 effort: "1.5d"
 tags: [telegram, skills, security, loadtest]

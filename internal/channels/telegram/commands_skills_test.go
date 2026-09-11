@@ -32,8 +32,11 @@ func TestMenuSkillSlugs_DefaultsWhenNil(t *testing.T) {
 
 func TestSkillMenuCommands_FiltersInvalidSlugs(t *testing.T) {
 	got := skillMenuCommands(context.Background(), []string{"cook", "ui-ux-pro-max", "Plan", "", strings.Repeat("a", 33)}, nil)
-	if len(got) != 1 || got[0].Command != "cook" {
-		t.Fatalf("commands = %+v, want only cook (invalid slugs skipped)", got)
+	// Hyphens sanitize to underscores (ui-ux-pro-max → ui_ux_pro_max) and
+	// case normalizes (Plan → plan; startup merge dedupes if "plan" is also
+	// configured). Empty and oversized slugs have no valid form and are skipped.
+	if len(got) != 3 || got[0].Command != "cook" || got[1].Command != "ui_ux_pro_max" || got[2].Command != "plan" {
+		t.Fatalf("commands = %+v, want cook + ui_ux_pro_max + plan", got)
 	}
 	if got[0].Description != "Run skill: cook" {
 		t.Fatalf("fallback description = %q, want %q", got[0].Description, "Run skill: cook")

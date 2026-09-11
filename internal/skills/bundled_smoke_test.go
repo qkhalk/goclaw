@@ -9,8 +9,9 @@ import (
 )
 
 // TestBundledSkills_NoRegression verifies every bundled skill scans successfully.
-// Only the testing skills (security-audit, loadtest, netstress, ssl-audit)
-// declare deps: in frontmatter; every other bundled skill must stay manifest-free.
+// Only the testing skills (security-audit, loadtest, netstress, ssl-audit,
+// recon, fuzz, dns-audit) declare deps: in frontmatter; every other bundled
+// skill must stay manifest-free.
 func TestBundledSkills_NoRegression(t *testing.T) {
 	bundled := "../../skills"
 	manifestDeps := map[string][]string{
@@ -18,6 +19,9 @@ func TestBundledSkills_NoRegression(t *testing.T) {
 		"loadtest":       {"system:wrk", "system:hey", "system:curl"},
 		"netstress":      {"system:iperf3", "system:hping3", "system:curl"},
 		"ssl-audit":      {"system:testssl.sh", "system:openssl"},
+		"recon":          {"system:nmap", "system:curl"},
+		"fuzz":           {"system:ffuf", "system:curl"},
+		"dns-audit":      {"system:dig", "system:curl"},
 	}
 	entries, err := os.ReadDir(bundled)
 	if err != nil {
@@ -74,6 +78,9 @@ func TestBundledSkills_ExpectedCoreSkillSlugs(t *testing.T) {
 		"ssl-audit":            false,
 		"workspace-organizing": false,
 		"xlsx":                 false,
+		"recon":                false,
+		"fuzz":                 false,
+		"dns-audit":            false,
 	}
 
 	entries, err := os.ReadDir(bundled)
