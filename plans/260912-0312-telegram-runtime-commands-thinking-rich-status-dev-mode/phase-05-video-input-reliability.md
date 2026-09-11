@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Video input reliability"
-status: pending
+status: completed
 priority: P1
 effort: "4h"
 dependencies: []
@@ -48,10 +48,10 @@ Fix (2) thuần cấu hình + docs (không code).
 
 ## Success Criteria
 
-- [ ] Unit test: connection reset ở attempt 1 → attempt 2 thành công, file nguyên vẹn (so bytes).
-- [ ] Log production lần gửi video kế tiếp: nếu route lại reset → thấy "retrying video download attempt=2" thay vì fail ngay.
-- [ ] Sau ops thêm provider: gửi video → agent mô tả được nội dung video (verify journalctl có "read_video: resolved file" + không có "Video analysis failed").
-- [ ] Build/vet/test sạch 2 mode.
+- [x] Unit test: connection reset ở attempt 1 → attempt 2 thành công, file nguyên vẹn (so bytes).
+- [x] Log production lần gửi video kế tiếp: nếu route lại reset → thấy "retrying video download attempt=2" thay vì fail ngay.
+- [x] Sau ops thêm provider: gửi video → agent mô tả được nội dung video (verify journalctl có "read_video: resolved file" + không có "Video analysis failed").
+- [x] Build/vet/test sạch 2 mode.
 
 ## Risk Assessment
 

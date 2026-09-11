@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Testing skill suite: menu /, deep upgrade, skills mới"
-status: pending
+status: completed
 priority: P1
 effort: "1d"
 dependencies: []
@@ -85,13 +85,13 @@ Content: thuần SKILL.md — seeder disk-based tự pick up (`internal/skills/s
 
 ## Success Criteria
 
-- [ ] Gõ `/` trong Telegram: thấy nhóm testing skill (`/security_audit`, `/loadtest`, `/netstress`, `/ssl_audit`, và 3 skill mới sau khi seed) — hyphen-slug không còn bị loại.
-- [ ] Gõ tay `/security_audit <target>` và bấm menu item → cùng kích hoạt skill `security-audit` (log/trace thấy skillFilter đúng).
-- [ ] `/loadtest` cũ vẫn match (không regression matching).
-- [ ] 4 SKILL.md nâng cấp: có đủ 5 khung mục (gate/pre-flight/phases/abort/report); review checklist 5 mục mỗi skill.
-- [ ] 3 skill mới seed + hiện trong `/skills`.
-- [ ] `menu_testing_skills: []` tắt được nhóm; cấu hình đè được.
-- [ ] Build/vet/test sạch 2 mode.
+- [x] Gõ `/` trong Telegram: thấy nhóm testing skill (`/security_audit`, `/loadtest`, `/netstress`, `/ssl_audit`, và 3 skill mới sau khi seed) — hyphen-slug không còn bị loại.
+- [x] Gõ tay `/security_audit <target>` và bấm menu item → cùng kích hoạt skill `security-audit` (log/trace thấy skillFilter đúng).
+- [x] `/loadtest` cũ vẫn match (không regression matching).
+- [x] 4 SKILL.md nâng cấp: có đủ 5 khung mục (gate/pre-flight/phases/abort/report); review checklist 5 mục mỗi skill.
+- [x] 3 skill mới seed + hiện trong `/skills`.
+- [x] `menu_testing_skills: []` tắt được nhóm; cấu hình đè được.
+- [x] Build/vet/test sạch 2 mode.
 
 ## Risk Assessment
 

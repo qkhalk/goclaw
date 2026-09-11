@@ -1,7 +1,7 @@
 ---
 title: "Telegram runtime commands: thinking, rich status, dev mode"
 description: "Nâng cấp runtime UX trên Telegram: lệnh /thinking bật-tắt mức suy luận theo chat, /status mở rộng (version, uptime gateway+system, model/session, cost, context, compactions, queue, link docs nội bộ) kèm verbosity toggle, /dev bật dev mode chuyên code với hành vi hỏi xác nhận như CLI agent, docs page trong repo thay link openclaw, bộ skill kiểm thử hiện trong menu / + nâng cấp sâu + 3 skill mới, và fix đường video Telegram→agent (download retry + provider video)."
-status: pending
+status: completed
 priority: P1
 effort: "3d"
 tags: [telegram, ux, thinking, status, dev-mode, skills, docs]
@@ -71,19 +71,19 @@ Thứ tự: 1 → 2 → 3 tuần tự (chung nền prefs; 3 hiển thị kết q
 
 ## Success Criteria
 
-- [ ] `/thinking` không tham số → hiện mức hiện tại (chat override + default của agent); tham số hợp lệ → persist + xác nhận; tham số sai → list mức hợp lệ. Từ tin kế tiếp, trace/span thấy reasoning effort đúng mức (verify qua span input hoặc log `thinking_level`).
-- [ ] `/thinking off` tắt THẬT: override="off" → `RequestEffort()` rỗng → option `OptThinkingLevel` vắng mặt trong request LLM (semantics đã audit-verify: `reasoning_resolution.go:62-68` short-circuit "off", `:120-125` `RequestEffort()` trả "" khi off/absent; mọi provider guard `!= "" && != "off"` — anthropic_request.go:228, openai_request.go:267, codex_build.go:139; Ollama ép `think=false` openai_request.go:323).
-- [ ] `/thinking default` (keyword riêng) xóa override → về cấu hình agent. `none` bị TỪ CHỐI trong lệnh TG (audit: "none" pass-through và BẬT thinking 10k budget trên Claude — anthropic_request.go:278-289 default branch). Caveat đã biết, ghi docs: route Gemini-compat không tắt được thinking khi "off" (mặc định high — openai_request.go:273-284).
-- [ ] Group: `/thinking`, `/dev` yêu cầu quyền writer (reuse `CheckPermission` như `/reset` `commands.go:107-124`, copy cả hành vi fail-open khi DB lỗi `:115-117`); DM: tự do.
-- [ ] `/dev on` → system prompt chứa dev section (verify span input_preview); agent hỏi lại câu hỏi làm rõ thay vì đoán khi yêu cầu mơ hồ (thử nghiệm thủ công + eval prompt có trong phase).
-- [ ] `/status` full hiển thị đủ 8 dòng mẫu; short = 4 dòng (version, uptime, model, session updated); `/status full|short` persist per-chat; session chưa tồn tại → "No session yet" grace.
-- [ ] Restart gateway: các toggle (thinking/dev/verbosity) còn nguyên (metadata persist DB, không chỉ in-memory).
-- [ ] Gõ `/` trong Telegram: thấy nhóm testing skill (`/security_audit`, `/loadtest`, `/netstress`, `/ssl_audit` + 3 skill mới) — slug có gạch ngang không còn bị loại; gõ tay `/security_audit <target>` và bấm menu đều kích hoạt đúng skill; `/loadtest` cũ không regression matching.
-- [ ] 4 SKILL.md kiểm thử nâng cấp đủ khung: authorization gate / pre-flight / phases / abort criteria / report format.
-- [ ] Video: gửi lại video trên Telegram sau deploy → tải về thành công (nếu route reset, log thấy retry attempt 2+ thay vì fail ngay); sau ops thêm provider video → agent mô tả được nội dung video.
-- [ ] 3 skill mới seed lúc startup, frontmatter parse sạch, deps check không chặn gateway khi thiếu tool (status `archived` + `missing_deps` hiển thị trong `/skills` pattern hiện có).
-- [ ] `go build ./...` + `go build -tags sqliteonly ./...` + `go vet ./...` sạch; test mới pass cả PG logic (unit + fake) lẫn SQLite (metadata methods đã có — chỉ cần không regress).
-- [ ] Không migration schema nào (metadata column đã có từ 000011; SQLite schema verify có cột — nếu thiếu thì phase 1 phải patch theo luật dual-DB, xem Risk).
+- [x] `/thinking` không tham số → hiện mức hiện tại (chat override + default của agent); tham số hợp lệ → persist + xác nhận; tham số sai → list mức hợp lệ. Từ tin kế tiếp, trace/span thấy reasoning effort đúng mức (verify qua span input hoặc log `thinking_level`).
+- [x] `/thinking off` tắt THẬT: override="off" → `RequestEffort()` rỗng → option `OptThinkingLevel` vắng mặt trong request LLM (semantics đã audit-verify: `reasoning_resolution.go:62-68` short-circuit "off", `:120-125` `RequestEffort()` trả "" khi off/absent; mọi provider guard `!= "" && != "off"` — anthropic_request.go:228, openai_request.go:267, codex_build.go:139; Ollama ép `think=false` openai_request.go:323).
+- [x] `/thinking default` (keyword riêng) xóa override → về cấu hình agent. `none` bị TỪ CHỐI trong lệnh TG (audit: "none" pass-through và BẬT thinking 10k budget trên Claude — anthropic_request.go:278-289 default branch). Caveat đã biết, ghi docs: route Gemini-compat không tắt được thinking khi "off" (mặc định high — openai_request.go:273-284).
+- [x] Group: `/thinking`, `/dev` yêu cầu quyền writer (reuse `CheckPermission` như `/reset` `commands.go:107-124`, copy cả hành vi fail-open khi DB lỗi `:115-117`); DM: tự do.
+- [x] `/dev on` → system prompt chứa dev section (verify span input_preview); agent hỏi lại câu hỏi làm rõ thay vì đoán khi yêu cầu mơ hồ (thử nghiệm thủ công + eval prompt có trong phase).
+- [x] `/status` full hiển thị đủ 8 dòng mẫu; short = 4 dòng (version, uptime, model, session updated); `/status full|short` persist per-chat; session chưa tồn tại → "No session yet" grace.
+- [x] Restart gateway: các toggle (thinking/dev/verbosity) còn nguyên (metadata persist DB, không chỉ in-memory).
+- [x] Gõ `/` trong Telegram: thấy nhóm testing skill (`/security_audit`, `/loadtest`, `/netstress`, `/ssl_audit` + 3 skill mới) — slug có gạch ngang không còn bị loại; gõ tay `/security_audit <target>` và bấm menu đều kích hoạt đúng skill; `/loadtest` cũ không regression matching.
+- [x] 4 SKILL.md kiểm thử nâng cấp đủ khung: authorization gate / pre-flight / phases / abort criteria / report format.
+- [x] Video: gửi lại video trên Telegram sau deploy → tải về thành công (nếu route reset, log thấy retry attempt 2+ thay vì fail ngay); sau ops thêm provider video → agent mô tả được nội dung video.
+- [x] 3 skill mới seed lúc startup, frontmatter parse sạch, deps check không chặn gateway khi thiếu tool (status `archived` + `missing_deps` hiển thị trong `/skills` pattern hiện có).
+- [x] `go build ./...` + `go build -tags sqliteonly ./...` + `go vet ./...` sạch; test mới pass cả PG logic (unit + fake) lẫn SQLite (metadata methods đã có — chỉ cần không regress).
+- [x] Không migration schema nào (metadata column đã có từ 000011; SQLite schema verify có cột — nếu thiếu thì phase 1 phải patch theo luật dual-DB, xem Risk).
 
 ## Cross-Plan Relationships
 
