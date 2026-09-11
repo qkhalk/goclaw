@@ -31,6 +31,9 @@ Current bundled core skills:
 | `loadtest` | HTTP Layer-7 capacity testing (wrk/hey ramp profiles, SLO verdicts, bottleneck correlation) |
 | `netstress` | Layer-4 resilience testing on owned infra (iperf3 throughput, rate-capped connection tests, ceiling report) |
 | `ssl-audit` | TLS/SSL health check (cert chain, protocol/cipher hygiene, HSTS, OCSP stapling) |
+| `recon` | Service discovery + attack-surface map (nmap, discovery only) |
+| `fuzz` | Content/endpoint discovery with rate-limited ffuf (cleanup-oriented) |
+| `dns-audit` | SPF/DKIM/DMARC email-safety and zone health (read-only dig) |
 
 Shared helper modules live in `skills/_shared/` and are copied alongside each skill but not registered as standalone skills.
 
@@ -109,6 +112,12 @@ skills/
 ├── netstress/
 │   └── SKILL.md
 ├── ssl-audit/
+│   └── SKILL.md
+├── recon/
+│   └── SKILL.md
+├── fuzz/
+│   └── SKILL.md
+├── dns-audit/
 │   └── SKILL.md
 └── goclaw/
     └── SKILL.md

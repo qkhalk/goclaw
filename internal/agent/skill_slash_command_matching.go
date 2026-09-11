@@ -24,6 +24,12 @@ func parseSkillSlashCommand(message, prefix string) (parsedSkillSlashCommand, bo
 	}
 	first, rest, _ := strings.Cut(after, " ")
 	first = strings.TrimSpace(first)
+	// Strip an @botname suffix from the command token: Telegram group menu
+	// clicks send "/security_audit@BotName ..." and skill slugs never
+	// contain "@" (mirrors handleBotCommand's suffix stripping).
+	if at := strings.Index(first, "@"); at > 0 {
+		first = first[:at]
+	}
 	rest = strings.TrimSpace(rest)
 	switch strings.ToLower(first) {
 	case "list-skills":
@@ -68,16 +74,16 @@ func matchSkillCommandTarget(all []skills.Info, raw string, partial bool) (skill
 		score     int
 	}
 	var matches []candidate
-	lowerRaw := strings.ToLower(raw)
+	lowerRaw := skillCommandNormalize(raw)
 	partialTarget, partialRemainder := firstWord(raw)
-	lowerPartialTarget := strings.ToLower(partialTarget)
+	lowerPartialTarget := skillCommandNormalize(partialTarget)
 	for _, skill := range all {
 		for _, value := range []string{skill.Slug, skill.Name} {
 			value = strings.TrimSpace(value)
 			if value == "" {
 				continue
 			}
-			lowerValue := strings.ToLower(value)
+			lowerValue := skillCommandNormalize(value)
 			if lowerRaw == lowerValue {
 				matches = append(matches, candidate{info: skill, matchText: value, score: len([]rune(value))})
 				continue
@@ -112,6 +118,14 @@ func matchSkillCommandTarget(all []skills.Info, raw string, partial bool) (skill
 		return skills.Info{}, false, ""
 	}
 	return best.info, true, best.remainder
+}
+
+// skillCommandNormalize lowercases and treats '_' as '-' so Telegram bot
+// commands (which only allow [a-z0-9_], e.g. /security_audit) activate skills
+// whose slugs use hyphens (security-audit). Two skills differing only by this
+// normalization tie and therefore do not match (the equal-score rule above).
+func skillCommandNormalize(value string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(value)), "_", "-")
 }
 
 func trimMatchedSkillCommandPrefix(raw, matched string) string {
