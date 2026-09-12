@@ -2,6 +2,7 @@
   "groups": {
     "core": "핵심",
     "conversations": "대화",
+    "cloud": "클라우드",
     "connectivity": "연결",
     "capabilities": "기능",
     "data": "데이터",

@@ -2,6 +2,7 @@
   "groups": {
     "core": "核心",
     "conversations": "会话",
+    "cloud": "云",
     "connectivity": "连接",
     "capabilities": "能力",
     "data": "数据",
