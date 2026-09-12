@@ -1,7 +1,7 @@
 import { useState, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, FolderOpen, FolderPlus, ListTree, PanelsTopLeft, SquareTerminal } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, FolderOpen, FolderPlus, ListTree, PanelsTopLeft, SquareTerminal } from "lucide-react";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
 import { useWorkspaces } from "@/hooks/use-workspaces";
 
@@ -38,6 +38,7 @@ export function ConsoleMenu({
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPath, setNewPath] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -69,6 +70,7 @@ export function ConsoleMenu({
     setCreating(false);
     setNewName("");
     setNewPath("");
+    setShowAdvanced(false);
     setCreateError(null);
   };
 
@@ -136,47 +138,78 @@ export function ConsoleMenu({
           )}
           {creating ? (
             <div className="px-2 py-1.5">
-              <div className="flex items-center gap-1">
-                <input
-                  autoFocus
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreate();
-                    if (e.key === "Escape") setCreating(false);
-                  }}
-                  maxLength={80}
-                  placeholder={t("workspacePicker.createPlaceholder")}
-                  className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={handleCreate}
-                  disabled={submitting}
-                  className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-accent disabled:opacity-50"
-                >
-                  {t("workspacePicker.createConfirm")}
-                </button>
-              </div>
+              {/* Name input — primary field */}
               <input
-                value={newPath}
-                onChange={(e) => setNewPath(e.target.value)}
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreate();
+                  if (e.key === "Enter" && newName.trim()) handleCreate();
                   if (e.key === "Escape") setCreating(false);
                 }}
-                maxLength={512}
-                aria-label={t("workspacePicker.pathHint")}
-                spellCheck={false}
-                placeholder={t("workspacePicker.pathPlaceholder")}
-                title={t("workspacePicker.pathHint")}
-                className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
+                maxLength={80}
+                placeholder={t("workspacePicker.createNamePlaceholder")}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
               />
+
+              {/* Location preview */}
+              <p className="mt-1.5 truncate text-2xs text-muted-foreground" title={newPath.trim() || undefined}>
+                {newPath.trim()
+                  ? t("workspacePicker.locationCustom", { path: newPath.trim() })
+                  : t("workspacePicker.locationAuto")}
+              </p>
+
+              {/* Advanced: path toggle */}
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="mt-1 flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground"
+              >
+                {showAdvanced
+                  ? <ChevronDown className="h-3 w-3" />
+                  : <ChevronRight className="h-3 w-3" />}
+                {t("workspacePicker.advancedPath")}
+              </button>
+              {showAdvanced && (
+                <input
+                  value={newPath}
+                  onChange={(e) => setNewPath(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newName.trim()) handleCreate();
+                    if (e.key === "Escape") setCreating(false);
+                  }}
+                  maxLength={512}
+                  spellCheck={false}
+                  placeholder={t("workspacePicker.pathPlaceholder")}
+                  title={t("workspacePicker.pathHint")}
+                  className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
+                />
+              )}
+
               {createError && (
                 <p className="mt-1 text-xs text-destructive">
                   {t("workspacePicker.createFailed", { message: createError })}
                 </p>
               )}
+
+              {/* Actions */}
+              <div className="mt-2 flex items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCreating(false)}
+                  className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+                >
+                  {t("workspacePicker.createCancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={!newName.trim() || submitting}
+                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {submitting ? "…" : t("workspacePicker.createConfirm")}
+                </button>
+              </div>
             </div>
           ) : (
             <MenuRow
