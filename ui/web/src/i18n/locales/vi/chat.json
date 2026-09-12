@@ -120,7 +120,8 @@
     "model": "Mô hình",
     "modelDefault": "Model của agent",
     "loadingModels": "Đang tải model…",
-    "thinking": "Mức độ suy nghĩ"
+    "thinking": "Mức độ suy nghĩ",
+    "permissionMode": "Chế độ quyền"
   },
   "thinkingLevels": {
     "adaptive": "Thích ứng",
@@ -167,5 +168,12 @@
     "architect": "Thiết kế hoặc đánh giá kiến trúc hệ thống",
     "uiux": "Rà soát và hoàn thiện UI/UX",
     "mission": "Khởi động nhiệm vụ tự chủ dài hơi"
+  },
+  "permissionModes": {
+    "default": "Mặc định của agent",
+    "plan": "Lập kế hoạch (chỉ đọc)",
+    "fullAccess": "Toàn quyền",
+    "writeApproval": "Phê duyệt khi ghi",
+    "alwaysAsk": "Luôn hỏi"
   }
 }

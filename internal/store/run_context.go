@@ -51,6 +51,10 @@ type RunContext struct {
 	SandboxCfg          *sandbox.Config
 	WaitToolCfg         *config.WaitToolPolicy
 	ShellDenyGroups     map[string]bool
+	// PermissionMode is the per-run composer override ("plan", "full_access",
+	// "write_approval", "always_ask"); empty = agent default policies apply.
+	// Enforced via ctx by the approval gate and the exec self-gate.
+	PermissionMode string
 
 	// Workspace
 	Workspace          string

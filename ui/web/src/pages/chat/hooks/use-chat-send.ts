@@ -92,6 +92,7 @@ export function useChatSend({
             ...(overrides?.providerName && { providerName: overrides.providerName }),
             ...(overrides?.model && { model: overrides.model }),
             ...(overrides?.thinkingLevel && { thinkingLevel: overrides.thinkingLevel }),
+            ...(overrides?.permissionMode && { permissionMode: overrides.permissionMode }),
           },
           600_000,
         );

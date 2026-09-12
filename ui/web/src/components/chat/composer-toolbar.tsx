@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { BrainCog, Cpu } from "lucide-react";
+import { BrainCog, Cpu, ShieldCheck } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -16,7 +16,16 @@ export interface ComposerOverrides {
   providerName?: string;
   model?: string;
   thinkingLevel?: string;
+  permissionMode?: string;
 }
+
+/** Permission modes mirrored from tools.PermMode* (chat.send permissionMode). */
+export const PERMISSION_MODES = [
+  { value: "plan", labelKey: "permissionModes.plan" },
+  { value: "full_access", labelKey: "permissionModes.fullAccess" },
+  { value: "write_approval", labelKey: "permissionModes.writeApproval" },
+  { value: "always_ask", labelKey: "permissionModes.alwaysAsk" },
+] as const;
 
 interface ComposerToolbarProps {
   value: ComposerOverrides;
@@ -150,6 +159,36 @@ export function ComposerToolbar({ value, onChange, disabled }: ComposerToolbarPr
           {thinkingLevels.map((level) => (
             <SelectItem key={level} value={level} className="text-sm">
               {levelLabel(level)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Permission mode picker — per-run tool gating override (agent default
+          when unset). plan = read-only, full_access = no gates, the ask-modes
+          route writes/exec through the approvals queue. */}
+      <Select
+        value={value.permissionMode ?? AGENT_DEFAULT}
+        onValueChange={(v) =>
+          onChange({ ...value, permissionMode: v === AGENT_DEFAULT ? undefined : v })
+        }
+        disabled={disabled}
+      >
+        <SelectTrigger
+          size="sm"
+          className="h-7 max-w-[150px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5"
+          title={t("composer.permissionMode")}
+        >
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+          <SelectValue placeholder={t("permissionModes.default")} />
+        </SelectTrigger>
+        <SelectContent position="popper" sideOffset={6} className="w-56">
+          <SelectItem value={AGENT_DEFAULT} className="text-sm">
+            {t("permissionModes.default")}
+          </SelectItem>
+          {PERMISSION_MODES.map((m) => (
+            <SelectItem key={m.value} value={m.value} className="text-sm">
+              {t(m.labelKey)}
             </SelectItem>
           ))}
         </SelectContent>

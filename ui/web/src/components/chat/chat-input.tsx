@@ -34,6 +34,7 @@ function loadComposerOverrides(): ComposerOverrides {
       providerName: typeof parsed.providerName === "string" ? parsed.providerName : undefined,
       model: typeof parsed.model === "string" ? parsed.model : undefined,
       thinkingLevel: typeof parsed.thinkingLevel === "string" ? parsed.thinkingLevel : undefined,
+      permissionMode: typeof parsed.permissionMode === "string" ? parsed.permissionMode : undefined,
     };
   } catch {
     return {};
@@ -114,6 +115,7 @@ export function ChatInput({
         providerName: overrides.providerName || undefined,
         model: overrides.model || undefined,
         thinkingLevel: overrides.thinkingLevel || undefined,
+        permissionMode: overrides.permissionMode || undefined,
       },
     );
     setValue("");
