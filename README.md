@@ -267,6 +267,16 @@ the caller's `.delegations/<delegation-id>/` directory.
 
 Document registry with `[[wikilinks]]` for bidirectional linking. Hybrid search combines full-text (BM25) and semantic (pgvector) for precise retrieval. Filesystem sync keeps vault in sync with on-disk files.
 
+## Cloud Accounts
+
+Connect your own Google accounts (Gmail + Drive) per user and let agents work with them as tools — a differentiator among self-hosted agent gateways:
+
+- **First-run setup in the browser** — an admin pastes a Google OAuth Client ID/Secret into the Cloud page once; credentials are stored encrypted and the setup form disappears. No config file editing, no restart. (Bring-your-own client: each install registers its own GCP OAuth app — see [docs/30-cloud-accounts.md](docs/30-cloud-accounts.md).)
+- **Multi-account, per-user isolation** — every user connects their own Google accounts; tokens are AES-256-GCM encrypted at rest and scoped by tenant + user.
+- **Mail tools** — `mail_search` (Gmail search syntax), `mail_read`, `mail_archive` (archive/trash/label; permanent delete does not exist by construction), and `mail_unsubscribe` (RFC 8058 — analyze first, executes only with explicit user consent).
+- **Drive tools** — `cloud_ls` / `cloud_read` / `cloud_fetch` / `cloud_about` backed by a supervised rclone daemon on loopback (bundled in every Docker variant).
+- **mail-digest skill** — schedule a daily digest by cron: 24h mail grouped by sender with newsletter candidates proposed for unsubscription (never auto-executed).
+
 ## Self-Evolution
 
 <p align="center">
