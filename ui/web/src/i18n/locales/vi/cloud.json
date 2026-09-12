@@ -58,7 +58,9 @@
     "save": "Lưu",
     "saving": "Đang lưu…",
     "cancel": "Hủy",
-    "update": "Cập nhật thông tin"
+    "update": "Cập nhật thông tin",
+    "advanced": "Dùng OAuth client riêng (nâng cao)",
+    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Công cụ Gmail cần OAuth client riêng của bạn (mục nâng cao bên dưới)."
   },
   "disconnect_confirm": {
     "title": "Ngắt kết nối tài khoản?",
@@ -67,5 +69,12 @@
   "result": {
     "connected": "Đã kết nối {email}",
     "error": "Kết nối thất bại ({code})"
+  },
+  "paste": {
+    "title": "Hoàn tất kết nối",
+    "description": "Sau khi bạn đồng ý cấp quyền, trình duyệt sẽ mở một trang không tải được — đó là bình thường. Hãy copy toàn bộ URL trên thanh địa chỉ và dán vào đây.",
+    "placeholder": "Dán URL từ thanh địa chỉ (bắt đầu bằng http://127.0.0.1:53682/…)",
+    "complete": "Hoàn tất",
+    "completing": "Đang hoàn tất…"
   }
 }

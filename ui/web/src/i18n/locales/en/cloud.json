@@ -58,7 +58,9 @@
     "save": "Save",
     "saving": "Saving…",
     "cancel": "Cancel",
-    "update": "Update credentials"
+    "update": "Update credentials",
+    "advanced": "Use your own OAuth client (advanced)",
+    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. Gmail tools require your own OAuth client (advanced below)."
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",
@@ -67,5 +69,12 @@
   "result": {
     "connected": "Connected {email}",
     "error": "Connection failed ({code})"
+  },
+  "paste": {
+    "title": "Finish connecting",
+    "description": "After you approve access, the browser lands on a page that will not load — that is expected. Copy the full URL from the address bar and paste it here.",
+    "placeholder": "Paste the address-bar URL (starts with http://127.0.0.1:53682/…)",
+    "complete": "Finish",
+    "completing": "Finishing…"
   }
 }

@@ -4,8 +4,10 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Cloud,
-  CloudCog,
+  ClipboardPaste,
   Copy,
   HardDrive,
   PackageOpen,
@@ -180,15 +182,19 @@ export function CloudPage() {
   const result = useCloudResult();
 
   const { data: cloudStatus } = useCloudStatus();
-  const { accounts, loading, refresh, disconnect, startConnect } = useCloudAccounts();
+  const { accounts, loading, refresh, disconnect, startConnect, completeConnect } = useCloudAccounts();
   const [selectedProvider, setSelectedProvider] = useState<CloudProvider | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CloudAccount | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [pasteProvider, setPasteProvider] = useState<CloudProvider | null>(null);
+  const [pasteURL, setPasteURL] = useState("");
+  const [completing, setCompleting] = useState(false);
+  const [pasteError, setPasteError] = useState("");
+  const [showByoSetup, setShowByoSetup] = useState(false);
 
   const googleConfigured = cloudStatus?.providers?.google?.configured ?? false;
   const onedriveConfigured = cloudStatus?.providers?.onedrive?.configured ?? false;
-  const cloudEnabled = cloudStatus?.enabled ?? false;
   const isConfigured = (p: CloudProvider) => (p === "google" ? googleConfigured : onedriveConfigured);
   const providersReady = LIVE_PROVIDERS.filter((p) => isConfigured(p.id)).length;
   const activeAccounts = accounts.filter((a) => a.status === "active").length;
@@ -199,11 +205,38 @@ export function CloudPage() {
 
   async function handleConnect(provider: CloudProvider) {
     setConnecting(true);
+    setPasteError("");
     try {
       const res = await startConnect(provider);
-      window.location.href = res.auth_url;
+      if (res.mode === "paste") {
+        // Embedded shared client: the consent redirects to a loopback URL
+        // nothing is listening on — keep the page alive in this tab and ask
+        // the user to paste the address-bar URL back (rclone-style).
+        setPasteProvider(provider);
+        setPasteURL("");
+        window.open(res.auth_url, "_blank", "noopener,noreferrer");
+      } else {
+        window.location.href = res.auth_url;
+      }
     } catch {
+      setPasteError("");
+    } finally {
       setConnecting(false);
+    }
+  }
+
+  async function handleComplete() {
+    if (!pasteProvider || !pasteURL.trim()) return;
+    setCompleting(true);
+    setPasteError("");
+    try {
+      await completeConnect(pasteProvider, pasteURL.trim());
+      setPasteProvider(null);
+      setPasteURL("");
+    } catch (e) {
+      setPasteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCompleting(false);
     }
   }
 
@@ -347,18 +380,29 @@ export function CloudPage() {
             </Button>
           </div>
 
-          {!isConfigured(selectedProvider) ? (
-            <>
-              <ProviderClientSetup provider={selectedProvider} />
-              {!cloudEnabled && (
-                <EmptyState
-                  icon={CloudCog}
-                  title={t("picker.select")}
-                  description={t("picker.description")}
+          {/* Paste-back panel for the embedded shared client flow */}
+          {pasteProvider === selectedProvider && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm space-y-3">
+              <p className="font-medium">{t("paste.title")}</p>
+              <p className="text-muted-foreground">{t("paste.description")}</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={pasteURL}
+                  onChange={(e) => setPasteURL(e.target.value)}
+                  placeholder={t("paste.placeholder")}
+                  className="text-base md:text-sm flex-1"
+                  autoComplete="off"
                 />
-              )}
-            </>
-          ) : (
+                <Button size="sm" onClick={handleComplete} disabled={completing || !pasteURL.trim()} className="min-h-11 sm:min-h-9 shrink-0">
+                  <ClipboardPaste className="mr-2 h-4 w-4" />
+                  {completing ? t("paste.completing") : t("paste.complete")}
+                </Button>
+              </div>
+              {pasteError && <p className="text-xs text-destructive">{pasteError}</p>}
+            </div>
+          )}
+
+          {(
             <>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium">{t("provider.accounts_title")}</p>
@@ -372,6 +416,7 @@ export function CloudPage() {
                   {t(`connect.${selectedProvider}`)}
                 </Button>
               </div>
+              <p className="-mt-3 text-xs text-muted-foreground">{t("setup.embedded_note")}</p>
               {providerAccounts.length === 0 ? (
                 <EmptyState
                   icon={PackageOpen}
@@ -419,6 +464,23 @@ export function CloudPage() {
                   </Button>
                 </div>
               )}
+
+              {/* Advanced: BYO OAuth client (branding / quota / Gmail) */}
+              <div className="rounded-lg border">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium"
+                  onClick={() => setShowByoSetup((v) => !v)}
+                >
+                  {showByoSetup ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {t("setup.advanced")}
+                </button>
+                {showByoSetup && (
+                  <div className="border-t p-4">
+                    <ProviderClientSetup provider={selectedProvider} />
+                  </div>
+                )}
+              </div>
             </>
           )}
         </>

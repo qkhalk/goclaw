@@ -58,7 +58,9 @@
     "save": "保存",
     "saving": "保存中…",
     "cancel": "取消",
-    "update": "更新凭据"
+    "update": "更新凭据",
+    "advanced": "使用您自己的 OAuth 客户端（高级）",
+    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。Gmail 工具需要您自己的 OAuth 客户端（见下方高级选项）。"
   },
   "disconnect_confirm": {
     "title": "断开账户？",
@@ -67,5 +69,12 @@
   "result": {
     "connected": "已连接 {email}",
     "error": "连接失败（{code}）"
+  },
+  "paste": {
+    "title": "完成连接",
+    "description": "同意授权后，浏览器会打开一个无法加载的页面——这是正常现象。请复制地址栏中的完整 URL 并粘贴到这里。",
+    "placeholder": "粘贴地址栏中的 URL（以 http://127.0.0.1:53682/… 开头）",
+    "complete": "完成",
+    "completing": "正在完成…"
   }
 }

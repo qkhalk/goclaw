@@ -58,7 +58,9 @@
     "save": "저장",
     "saving": "저장 중…",
     "cancel": "취소",
-    "update": "자격 증명 업데이트"
+    "update": "자격 증명 업데이트",
+    "advanced": "자체 OAuth 클라이언트 사용 (고급)",
+    "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. Gmail 도구에는 자체 OAuth 클라이언트가 필요합니다(아래 고급 옵션)."
   },
   "disconnect_confirm": {
     "title": "계정 연결을 해제하시겠습니까?",
@@ -67,5 +69,12 @@
   "result": {
     "connected": "{email} 연결됨",
     "error": "연결 실패({code})"
+  },
+  "paste": {
+    "title": "연결 완료",
+    "description": "권한을 승인하면 브라우저가 로드되지 않는 페이지로 이동합니다 — 정상입니다. 주소 표시줄의 전체 URL을 복사하여 여기에 붙여넣으세요.",
+    "placeholder": "주소 표시줄 URL 붙여넣기 (http://127.0.0.1:53682/… 로 시작)",
+    "complete": "완료",
+    "completing": "완료 중…"
   }
 }
