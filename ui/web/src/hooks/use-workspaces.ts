@@ -46,13 +46,18 @@ export function useWorkspaces() {
     refresh();
   }, [refresh]);
 
-  /** Creates a workspace via workspace.create; throws the WS error on failure. */
+  /**
+   * Creates a workspace via workspace.create; throws the WS error on failure.
+   * rootPath is optional — an absolute server path or one relative to the
+   * gateway workspace root; omitted lets the backend provision <root>/<uuid>.
+   */
   const create = useCallback(
-    async (name: string): Promise<WorkspaceInfo | null> => {
+    async (name: string, rootPath?: string): Promise<WorkspaceInfo | null> => {
       if (!connected) return null;
+      const trimmed = rootPath?.trim();
       const res = await ws.call<{ workspace: WorkspaceInfo }>(
         Methods.WORKSPACE_CREATE,
-        { name },
+        trimmed ? { name, rootPath: trimmed } : { name },
       );
       await refresh();
       return res.workspace ?? null;

@@ -42,7 +42,9 @@
     "createPlaceholder": "Tên workspace",
     "createConfirm": "Tạo",
     "createCancel": "Hủy",
-    "createFailed": "Không thể tạo workspace: {{message}}"
+    "createFailed": "Không thể tạo workspace: {{message}}",
+    "pathPlaceholder": "Đường dẫn (tùy chọn), vd /root/projects/site",
+    "pathHint": "Bỏ trống để tự tạo thư mục dưới workspace root. Nhận đường dẫn tuyệt đối hoặc tương đối tính từ workspace root."
   },
   "fileExplorer": {
     "title": "Tệp",
