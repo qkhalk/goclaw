@@ -569,7 +569,13 @@ func ExpandHome(path string) string {
 	if path == "" || path[0] != '~' {
 		return path
 	}
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		// Silently expanding "~" to "" yields root-level paths like
+		// "/.goclaw/..." — a different world from the intended home. Shout so
+		// operators notice (typical cause: systemd unit without HOME).
+		slog.Warn("home directory unresolved; tilde path expands without prefix", "path", path, "error", err)
+	}
 	if len(path) > 1 && path[1] == '/' {
 		return home + path[1:]
 	}

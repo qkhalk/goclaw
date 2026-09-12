@@ -167,7 +167,13 @@ func (m *WorkspaceFilesMethods) handleList(ctx context.Context, client *gateway.
 	info, err := os.Stat(abs)
 	if err != nil {
 		if os.IsNotExist(err) {
-			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "directory", p.Path)))
+			// Listing the root sends an empty p.Path — surface the actual
+			// root so the operator sees WHICH directory is missing.
+			pathArg := p.Path
+			if pathArg == "" {
+				pathArg = root
+			}
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "directory", pathArg)))
 		} else {
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgInternalError, "stat")))
 		}
