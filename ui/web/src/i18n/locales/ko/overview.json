@@ -66,13 +66,10 @@
     "viewAll": "전체 보기",
     "noRequests": "최근 요청 없음",
     "columns": {
-      "time": "시간",
-      "name": "이름",
-      "user": "사용자",
-      "channel": "채널",
-      "tokens": "토큰",
-      "duration": "소요 시간",
-      "status": "상태"
+      "model": "모델",
+      "in": "입력",
+      "out": "출력",
+      "when": "시간"
     }
   },
   "quotaUsage": {

@@ -10,7 +10,6 @@ import { useAuthStore } from "@/stores/use-auth-store";
 import { useWsCall } from "@/hooks/use-ws-call";
 import { useWsEvent } from "@/hooks/use-ws-event";
 import { useProviders } from "@/pages/providers/hooks/use-providers";
-import { useTraces } from "@/pages/traces/hooks/use-traces";
 import { Methods, Events } from "@/api/protocol";
 import { ROUTES } from "@/lib/constants";
 import { formatTokens, formatApiCost } from "@/lib/format";
@@ -60,7 +59,6 @@ export function OverviewPage() {
     useWsCall<ChannelStatusPayload>(Methods.CHANNELS_STATUS);
   const { providers, loading: providersLoading } = useProviders();
   const { runtimes } = useRuntimes();
-  const { traces } = useTraces({ limit: 8 });
   const { instances: channelInstances, total: channelInstanceTotal } = useChannelInstances({
     limit: MAX_OVERVIEW_CHANNEL_INSTANCES,
     offset: 0,
@@ -276,7 +274,7 @@ export function OverviewPage() {
           </div>
 
           {/* Recent Requests */}
-          <RecentRequestsCard traces={traces} />
+          <RecentRequestsCard />
 
           {/* Quota Usage */}
           {quota?.enabled && quota.entries.length > 0 && (

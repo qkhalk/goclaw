@@ -40,13 +40,10 @@
   },
   "recentRequests": {
     "columns": {
-      "channel": "Channel",
-      "duration": "Thời gian",
-      "name": "Tên",
-      "status": "Trạng thái",
-      "time": "Thời điểm",
-      "tokens": "Token",
-      "user": "User"
+      "model": "Mô hình",
+      "in": "Vào",
+      "out": "Ra",
+      "when": "Lúc"
     },
     "noRequests": "Chưa có yêu cầu nào",
     "title": "Yêu cầu gần đây",

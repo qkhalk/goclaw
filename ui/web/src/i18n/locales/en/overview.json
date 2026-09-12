@@ -66,13 +66,10 @@
     "viewAll": "View All",
     "noRequests": "No recent requests",
     "columns": {
-      "time": "Time",
-      "name": "Name",
-      "user": "User",
-      "channel": "Channel",
-      "tokens": "Tokens",
-      "duration": "Duration",
-      "status": "Status"
+      "model": "Model",
+      "in": "In",
+      "out": "Out",
+      "when": "When"
     }
   },
   "quotaUsage": {
