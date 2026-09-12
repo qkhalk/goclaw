@@ -193,10 +193,19 @@ func TestGoogleCredentialsDynamicResolution(t *testing.T) {
 		t.Fatal("secret lost on id-only update")
 	}
 
-	// Empty store (no env either) → not configured.
+	// Empty store (no env either) → still configured via the embedded shared
+	// client, and the resolved credentials are the embedded ones.
 	m2 := NewManager(CloudProviderConfig{}, &fakeAccountStore{}, testKey)
 	m2.SetSecretsStore(&fakeSecretsStore{})
-	if m2.GoogleConfigured(context.Background()) {
-		t.Fatal("empty store+env must not be configured")
+	if !m2.GoogleConfigured(context.Background()) {
+		t.Fatal("embedded shared client must keep the surface configured")
+	}
+	id2, secret2 := m2.googleCredentials(context.Background())
+	if id2 != "" && secret2 != "" {
+		t.Fatalf("expected embedded fallback, got %q", id2)
+	}
+	creds2, byo2 := m2.googleCredentialsAll(context.Background())
+	if byo2 || !creds2.Embedded || creds2.ClientID != EmbeddedGoogleClientID {
+		t.Fatalf("embedded fallback = %+v byo=%v", creds2, byo2)
 	}
 }

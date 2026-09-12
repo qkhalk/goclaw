@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -68,6 +69,11 @@ func (s *MailService) resolveAccount(ctx context.Context, name string) (*store.C
 		if a.Provider != GoogleProvider {
 			continue // mail is a Google (Gmail) capability
 		}
+		if !accountHasGmailScope(a) {
+			// Zero-config accounts use the embedded shared client (Drive-only
+			// scopes); Gmail requires a BYO OAuth client.
+			continue
+		}
 		if name != "" && !strings.EqualFold(a.Email, name) {
 			continue
 		}
@@ -81,6 +87,24 @@ func (s *MailService) resolveAccount(ctx context.Context, name string) (*store.C
 		return nil, errors.New("cloud account is revoked — reconnect on the Clouds page")
 	}
 	return nil, ErrNoAccounts
+}
+
+// accountHasGmailScope reports whether the account's granted scope set
+// includes a gmail scope (Scopes is a JSON array string).
+func accountHasGmailScope(a *store.CloudAccount) bool {
+	if a.Scopes == "" {
+		return false
+	}
+	var scopes []string
+	if err := json.Unmarshal([]byte(a.Scopes), &scopes); err != nil {
+		return false
+	}
+	for _, s := range scopes {
+		if strings.Contains(s, "/auth/gmail") {
+			return true
+		}
+	}
+	return false
 }
 
 // rateLimiter is a minimal fixed-window limiter (per account): at most rate
