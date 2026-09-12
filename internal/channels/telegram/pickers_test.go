@@ -27,6 +27,28 @@ func TestSkillPickerPages(t *testing.T) {
 	}
 }
 
+func TestSkillButton_LabelShowsNameAndDescription(t *testing.T) {
+	info := skills.Info{Slug: "security-audit", Name: "Security Audit", Description: "Pre-production security assessment with severity-ranked findings.\nSecond line."}
+	btn := skillButton(info, 3)
+	if !strings.HasPrefix(btn.Text, "Security Audit — ") {
+		t.Errorf("label = %q, want name + description prefix", btn.Text)
+	}
+	if !strings.Contains(btn.Text, "severity-ranked") {
+		t.Errorf("label = %q, want first description line", btn.Text)
+	}
+	if strings.Contains(btn.Text, "Second line") {
+		t.Errorf("label = %q, want only the first description line", btn.Text)
+	}
+	if btn.CallbackData != "sk:s:3" {
+		t.Errorf("callback = %q", btn.CallbackData)
+	}
+
+	noDesc := skillButton(skills.Info{Slug: "x", Name: "X"}, 0)
+	if noDesc.Text != "X" {
+		t.Errorf("no-desc label = %q, want bare name", noDesc.Text)
+	}
+}
+
 func makeSkills(n int) []skills.Info {
 	infos := make([]skills.Info, n)
 	for i := range infos {
@@ -47,13 +69,13 @@ func TestSkillPickerKeyboard_Pagination(t *testing.T) {
 	spc := skillPickerCtx{infos: makeSkills(25), page: 0, sel: -1, expires: time.Now().Add(time.Minute)}
 
 	first := skillPickerKeyboard(spc)
-	// Page 0: 10 skill buttons (5 rows of 2) + nav (◀ hidden, ▶ visible).
+	// Page 0: 10 full-width skill rows + nav (◀ hidden, ▶ visible).
 	firstBtns := callbackButtons(first)
 	if len(firstBtns) != 12 {
 		t.Fatalf("page0 buttons = %d, want 12 (10 skills + indicator + next)", len(firstBtns))
 	}
-	if first[5][0].Text != "1/3" {
-		t.Errorf("page indicator = %q, want 1/3", first[5][0].Text)
+	if first[10][0].Text != "1/3" {
+		t.Errorf("page indicator = %q, want 1/3", first[10][0].Text)
 	}
 	for _, b := range firstBtns {
 		if b.Text == "◀" {
@@ -498,5 +520,125 @@ func TestApplyDevPick_PersistsMode(t *testing.T) {
 	ch.applyDevPick(context.Background(), -100, 101, "agent:fox:telegram:direct:1", "off", "en")
 	if got := prefs.data["agent:fox:telegram:direct:1"]["chat_mode"]; got != "" {
 		t.Errorf("chat_mode = %q, want empty", got)
+	}
+}
+
+// Full production loop: /thinking sends the picker (recording caller returns
+// message_id 101) and the tap on THAT message must apply the level — this is
+// the regression test for the "picker has expired" report.
+func TestSendThinkingPicker_HappyPath(t *testing.T) {
+	prefs := newFakePrefsStore()
+	ch, caller := newPrefsTestChannel(t, prefs, nil)
+	ch.SetAgentID("fox")
+
+	ch.sendThinkingPicker(context.Background(), 7148278449, "7148278449", false, false, 0, 0,
+		func(*telego.SendMessageParams) {}, "thinking", "en")
+
+	var send *recordedTelegramCall
+	for i := len(caller.calls) - 1; i >= 0; i-- {
+		if caller.calls[i].method == "sendMessage" {
+			send = &caller.calls[i]
+			break
+		}
+	}
+	if send == nil {
+		t.Fatalf("sendMessage not called")
+	}
+	if _, ok := ch.pendingPickers.Load(chatMsgKey(7148278449, 101)); !ok {
+		t.Fatalf("picker entry not stored under the sent message id")
+	}
+	ch.handlePickerCallback(context.Background(), testCallbackQuery("th:high", 7148278449, 101, "en"), "th:high")
+
+	if got := prefs.data["agent:fox:telegram:direct:7148278449"]["thinking_level"]; got != "high" {
+		t.Errorf("thinking_level = %q, want high", got)
+	}
+	var edit *recordedTelegramCall
+	for i := len(caller.calls) - 1; i >= 0; i-- {
+		if caller.calls[i].method == "editMessageText" {
+			edit = &caller.calls[i]
+			break
+		}
+	}
+	if edit == nil {
+		t.Fatalf("editMessageText not called")
+	}
+	if text, _ := edit.body["text"].(string); !strings.Contains(text, "high") {
+		t.Errorf("confirm text = %q, want thinking level", text)
+	}
+}
+
+// --- /language picker ---
+
+func TestSendLanguagePicker_ShowsCurrentChoice(t *testing.T) {
+	prefs := newFakePrefsStore()
+	ch, caller := newPickerTestChannel(t, nil)
+	ch.SetAgentID("fox")
+	ch.sessionPrefs = prefs
+
+	// loc "en" (client language fallback) → English marked current.
+	ch.sendLanguagePicker(context.Background(), -100, "-100", "agent:fox:telegram:direct:1", func(*telego.SendMessageParams) {}, "en")
+
+	var send *recordedTelegramCall
+	for i := len(caller.calls) - 1; i >= 0; i-- {
+		if caller.calls[i].method == "sendMessage" {
+			send = &caller.calls[i]
+			break
+		}
+	}
+	if send == nil {
+		t.Fatalf("sendMessage not called")
+	}
+	markup, _ := send.body["reply_markup"].(map[string]any)
+	if markup == nil {
+		t.Fatalf("reply_markup missing")
+	}
+	keyboard, _ := markup["inline_keyboard"].([]any)
+	if len(keyboard) != 5 {
+		t.Fatalf("keyboard rows = %d, want 5 locales", len(keyboard))
+	}
+	// No stored override, client lang "en" → English marked current.
+	row0, _ := keyboard[0].([]any)
+	btn0, _ := row0[0].(map[string]any)
+	if !strings.HasPrefix(btn0["text"].(string), "✅") {
+		t.Errorf("first button = %v, want ✅ English", btn0["text"])
+	}
+	if _, ok := ch.pendingPickers.Load(chatMsgKey(-100, 101)); !ok {
+		t.Fatalf("language picker not stored")
+	}
+
+	// Tap Vietnamese → persisted + confirmation edit.
+	ch.handlePickerCallback(context.Background(), testCallbackQuery("lg:vi", -100, 101, "en"), "lg:vi")
+	if got := prefs.data["agent:fox:telegram:direct:1"]["locale"]; got != "vi" {
+		t.Errorf("locale = %q, want vi", got)
+	}
+}
+
+func TestSendLanguagePicker_OverrideMarkedCurrent(t *testing.T) {
+	prefs := newFakePrefsStore()
+	prefs.SetSessionMetadata(context.Background(), "agent:fox:telegram:direct:1", map[string]string{"locale": "vi"})
+	ch, caller := newPickerTestChannel(t, nil)
+	ch.SetAgentID("fox")
+	ch.sessionPrefs = prefs
+
+	ch.sendLanguagePicker(context.Background(), -100, "-100", "agent:fox:telegram:direct:1", func(*telego.SendMessageParams) {}, "")
+
+	var send *recordedTelegramCall
+	for i := len(caller.calls) - 1; i >= 0; i-- {
+		if caller.calls[i].method == "sendMessage" {
+			send = &caller.calls[i]
+			break
+		}
+	}
+	markup, _ := send.body["reply_markup"].(map[string]any)
+	keyboard, _ := markup["inline_keyboard"].([]any)
+	viRow, _ := keyboard[1].([]any)
+	viBtn, _ := viRow[0].(map[string]any)
+	if !strings.HasPrefix(viBtn["text"].(string), "✅") {
+		t.Errorf("vi button = %v, want ✅ marked", viBtn["text"])
+	}
+	enRow, _ := keyboard[0].([]any)
+	enBtn, _ := enRow[0].(map[string]any)
+	if strings.HasPrefix(enBtn["text"].(string), "✅") {
+		t.Errorf("en button = %v, want unmarked when vi is current", enBtn["text"])
 	}
 }

@@ -25,8 +25,10 @@ const (
 	// preference pickers: reply-to-run is the primary way users launch a
 	// skill from the card, often minutes or hours later.
 	skillPickerTTL = 24 * time.Hour
-	// skillBtnLabelMax truncates button labels so two fit per row.
-	skillBtnLabelMax = 20
+	// skillBtnTextMax truncates button labels ("Name — description").
+	// Telegram wraps long button text, so this is a readability cap, not a
+	// protocol limit.
+	skillBtnTextMax = 80
 )
 
 // skillPickerCtx is the mutable state behind one /skills picker message. The
@@ -147,20 +149,17 @@ func skillDetailText(info skills.Info, loc string) string {
 	return sb.String()
 }
 
-// skillPickerKeyboard builds the list-view keyboard: 2 skill buttons per row
-// plus one navigation row (prev/page/next; edge buttons hidden).
+// skillPickerKeyboard builds the list-view keyboard: one full-width button
+// per skill ("Name — what it does") plus one navigation row (prev/page/next;
+// edge buttons hidden).
 func skillPickerKeyboard(spc skillPickerCtx) [][]telego.InlineKeyboardButton {
 	pages := skillPickerPages(len(spc.infos))
 	start := spc.page * skillPickerPageSize
 	end := min(start+skillPickerPageSize, len(spc.infos))
 
-	var rows [][]telego.InlineKeyboardButton
-	for i := start; i < end; i += 2 {
-		row := []telego.InlineKeyboardButton{skillButton(spc.infos[i], i)}
-		if i+1 < end {
-			row = append(row, skillButton(spc.infos[i+1], i+1))
-		}
-		rows = append(rows, row)
+	rows := make([][]telego.InlineKeyboardButton, 0, end-start+1)
+	for i := start; i < end; i++ {
+		rows = append(rows, []telego.InlineKeyboardButton{skillButton(spc.infos[i], i)})
 	}
 
 	nav := make([]telego.InlineKeyboardButton, 0, 3)
@@ -177,15 +176,20 @@ func skillPickerKeyboard(spc skillPickerCtx) [][]telego.InlineKeyboardButton {
 	return append(rows, nav)
 }
 
-// skillButton builds one skill entry button. Callback carries the global
-// index (slug itself may not fit the 64-byte callback budget).
+// skillButton builds one skill entry button labelled "Name — short
+// description" so the list shows what each skill is for at a glance. The
+// callback carries the global index (slug + description never fit the
+// 64-byte callback budget).
 func skillButton(info skills.Info, idx int) telego.InlineKeyboardButton {
 	label := info.Name
 	if label == "" {
 		label = info.Slug
 	}
+	if desc := firstLine(info.Description); desc != "" {
+		label += " — " + desc
+	}
 	return telego.InlineKeyboardButton{
-		Text:         truncateStr(label, skillBtnLabelMax),
+		Text:         truncateStr(label, skillBtnTextMax),
 		CallbackData: fmt.Sprintf("sk:s:%d", idx),
 	}
 }

@@ -82,6 +82,9 @@ func (c *Channel) handlePickerCallback(ctx context.Context, query *telego.Callba
 	case strings.HasPrefix(payload, "ak:"):
 		c.handleAskCallback(ctx, query, payload)
 		return
+	case strings.HasPrefix(payload, "lg:"):
+		c.handleLanguageCallback(ctx, query, payload)
+		return
 	}
 
 	msgID := query.Message.GetMessageID()
@@ -101,12 +104,42 @@ func (c *Channel) handlePickerCallback(ctx context.Context, query *telego.Callba
 	}
 	loc := pc.loc
 
+	// The callback data is "th:<level>" / "dv:on|off" / "lg:<locale>" — the
+	// appliers expect the bare value ("high", "on", "vi"), not the prefixed
+	// form.
+	_, value, _ := strings.Cut(payload, ":")
+
 	switch pc.kind {
 	case "dev":
-		c.applyDevPick(ctx, chatID, msgID, pc.sessionKey, payload, loc)
+		c.applyDevPick(ctx, chatID, msgID, pc.sessionKey, value, loc)
+	case "language":
+		c.applyLanguagePick(ctx, chatID, msgID, pc.sessionKey, value, loc)
 	default: // thinking | reasoning share the value space
-		c.applyThinkingPick(ctx, chatID, msgID, pc.sessionKey, payload, loc)
+		c.applyThinkingPick(ctx, chatID, msgID, pc.sessionKey, value, loc)
 	}
+}
+
+// handleLanguageCallback applies lg:<locale> picks without a stored pickerCtx
+// when possible — the locale value itself is self-describing, but the session
+// key is not, so state is still required.
+func (c *Channel) handleLanguageCallback(ctx context.Context, query *telego.CallbackQuery, payload string) {
+	msgID := query.Message.GetMessageID()
+	chatID := query.Message.GetChat().ID
+
+	raw, ok := c.pendingPickers.LoadAndDelete(chatMsgKey(chatID, msgID))
+	if !ok {
+		loc := normalizeTGLocale(query.From.LanguageCode)
+		c.editPickerMessage(ctx, chatID, msgID, i18n.T(loc, i18n.MsgTGPickerExpired))
+		return
+	}
+	pc, ok := raw.(pickerCtx)
+	if !ok || time.Now().After(pc.expires) {
+		loc := normalizeTGLocale(query.From.LanguageCode)
+		c.editPickerMessage(ctx, chatID, msgID, i18n.T(loc, i18n.MsgTGPickerExpired))
+		return
+	}
+	_, locale, _ := strings.Cut(payload, ":")
+	c.applyLanguagePick(ctx, chatID, msgID, pc.sessionKey, locale, pc.loc)
 }
 
 // applyThinkingPick validates the payload, persists it, edits confirmation.

@@ -211,7 +211,7 @@ func (c *Channel) handleCallbackQuery(ctx context.Context, query *telego.Callbac
 	// Preference/skill/ask pickers ("th:", "dv:", "sk:", "ak:") edit their own
 	// message; they never fall through to the task-detail path.
 	if p := query.Data; strings.HasPrefix(p, "th:") || strings.HasPrefix(p, "dv:") ||
-		strings.HasPrefix(p, "sk:") || strings.HasPrefix(p, "ak:") {
+		strings.HasPrefix(p, "sk:") || strings.HasPrefix(p, "ak:") || strings.HasPrefix(p, "lg:") {
 		c.handlePickerCallback(ctx, query, p)
 		return
 	}

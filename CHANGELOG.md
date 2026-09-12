@@ -6,6 +6,23 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Added
 
+- **Telegram interactive UX polish + picker tap fix** — `/skills` buttons now
+  read "Name — what it does" (one full-width button per skill) so the list is
+  scannable without tapping; `/language` renders a native-name picker
+  keyboard (🇬🇧/🇻🇳/🇨🇳/🇰🇷/🇷🇺, ✅ current) instead of requiring typed locale
+  arguments; the `/status` header uses the agent's web-UI avatar emoji and a
+  `v`-prefixed version (`🦊 GoClaw v3.19.1`); the web UI connection indicator
+  shows the `v`-prefixed version too.
+
+### Fixed
+
+- **Inline-picker taps no longer report "expired"** — the callback dispatcher
+  forwarded the full callback payload (`th:high`) to the pick appliers, whose
+  validators expect the bare value (`high`) and rejected it as stale data,
+  editing the card to "⌛ This picker has expired" on every tap. The prefix is
+  now stripped before dispatch; covered by a full-loop happy-path regression
+  test (send picker → tap → preference persisted + confirmation edit).
+
 - **Telegram interactive UX: inline pickers, paged skills, ask_options, localized commands** —
   `/thinking`, `/reasoning`, and `/dev` now render inline keyboards and edit their card in
   place on tap (`/thinking` filters levels by model capability and always offers Default);
