@@ -667,6 +667,8 @@ func runGateway() {
 	server.SetMessageBus(msgBus)
 	server.SetExecApprovalManager(execApprovalMgr)
 	server.SetOAuthHandler(httpapi.NewOAuthHandler(pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
+	server.SetClaudeOAuthHandler(httpapi.NewClaudeOAuthHandler(pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
+	server.SetCopilotOAuthHandler(httpapi.NewCopilotOAuthHandler(pgStores.Providers, providerRegistry, msgBus))
 	// Cloud: per-user OAuth connections (Google first). Edition + config gates
 	// live inside the handler — wiring is unconditional so /v1/cloud/status
 	// answers "disabled" instead of 404 on installs without cloud config.

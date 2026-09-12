@@ -749,6 +749,16 @@ func (s *Server) SetGatewayUpgradeHandler(h *httpapi.GatewayUpgradeHandler) {
 // SetOAuthHandler sets the OAuth handler (available in all modes).
 func (s *Server) SetOAuthHandler(h *httpapi.OAuthHandler) { s.handlers = append(s.handlers, h) }
 
+// SetClaudeOAuthHandler sets the Claude Pro/Max subscription OAuth handler.
+func (s *Server) SetClaudeOAuthHandler(h *httpapi.ClaudeOAuthHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
+// SetCopilotOAuthHandler sets the GitHub Copilot device-flow OAuth handler.
+func (s *Server) SetCopilotOAuthHandler(h *httpapi.CopilotOAuthHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetCloudHandler sets the per-user cloud OAuth connections handler
 // (edition-gated; no-op paths when the Cloud surface is off).
 func (s *Server) SetCloudHandler(h *httpapi.CloudHandler) { s.handlers = append(s.handlers, h) }

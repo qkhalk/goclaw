@@ -30,6 +30,16 @@ func loopbackAddr(host string, port int) string {
 }
 
 func registerProviders(registry *providers.Registry, cfg *config.Config, modelReg providers.ModelRegistry) {
+	// Claude Pro/Max subscription OAuth endpoint overrides (empty = defaults).
+	oauth.SetClaudeOAuthConfig(oauth.ClaudeOAuthConfig{
+		AuthorizeURL: cfg.Providers.ClaudeOAuth.AuthorizeURL,
+		TokenURL:     cfg.Providers.ClaudeOAuth.TokenURL,
+		ClientID:     cfg.Providers.ClaudeOAuth.ClientID,
+		Scopes:       cfg.Providers.ClaudeOAuth.Scopes,
+		RedirectURI:  "",
+		APIBase:      cfg.Providers.ClaudeOAuth.APIBase,
+	})
+
 	if cfg.Providers.Anthropic.APIKey != "" {
 		registry.Register(providers.NewAnthropicProvider(cfg.Providers.Anthropic.APIKey,
 			providers.WithAnthropicBaseURL(cfg.Providers.Anthropic.APIBase),
@@ -401,6 +411,12 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			}
 		}
 		switch p.ProviderType {
+		case store.ProviderClaudeOAuth:
+			ts := oauth.NewClaudeDBTokenSource(provStore, secretStore, p.Name).WithTenantID(p.TenantID)
+			registry.RegisterForTenant(p.TenantID, providers.NewClaudeOAuthProvider(p.Name, ts, p.APIBase, "", modelReg))
+		case store.ProviderCopilotOAuth:
+			ts := oauth.NewCopilotDBTokenSource(provStore, p.Name).WithTenantID(p.TenantID)
+			registry.RegisterForTenant(p.TenantID, providers.NewCopilotProvider(p.Name, ts, p.APIBase, ""))
 		case store.ProviderChatGPTOAuth:
 			ts := oauth.NewDBTokenSource(provStore, secretStore, p.Name).WithTenantID(p.TenantID)
 			codex := providers.NewCodexProvider(p.Name, ts, p.APIBase, "")

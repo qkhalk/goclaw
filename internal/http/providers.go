@@ -298,6 +298,12 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) providerRu
 	}
 	apiBase := h.resolveAPIBase(p)
 	switch p.ProviderType {
+	case store.ProviderClaudeOAuth:
+		ts := oauth.NewClaudeDBTokenSource(h.store, h.secretStore, p.Name).WithTenantID(p.TenantID)
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewClaudeOAuthProvider(p.Name, ts, apiBase, "", h.modelReg))
+	case store.ProviderCopilotOAuth:
+		ts := oauth.NewCopilotDBTokenSource(h.store, p.Name).WithTenantID(p.TenantID)
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewCopilotProvider(p.Name, ts, apiBase, ""))
 	case store.ProviderChatGPTOAuth:
 		ts := oauth.NewDBTokenSource(h.store, h.secretStore, p.Name).WithTenantID(p.TenantID)
 		codex := providers.NewCodexProvider(p.Name, ts, apiBase, "")

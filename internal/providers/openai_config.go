@@ -23,6 +23,7 @@ type OpenAIProvider struct {
 	middlewares     RequestMiddleware // composed middleware chain (nil = no-op)
 	registry        ModelRegistry     // model resolution registry (nil = skip)
 	noAuthHeader    bool              // when true, doRequest() skips setting Authorization (e.g. Vertex OAuth transport injects its own)
+	tokenSource     TokenSource       // when set, Authorization comes from Token() instead of the static apiKey
 	ollamaNumCtx    *int              // optional Ollama options.num_ctx override (nil = use queried or default value)
 	thinkingEnabled *bool             // provider-level override for "think" on Ollama endpoints (nil = default off)
 }
@@ -55,6 +56,16 @@ func (p *OpenAIProvider) WithChatPath(path string) *OpenAIProvider {
 // Default is "Bearer " if not set.
 func (p *OpenAIProvider) WithAuthPrefix(prefix string) *OpenAIProvider {
 	p.authPrefix = prefix
+	return p
+}
+
+// WithTokenSource switches the provider to dynamic auth: the Authorization
+// header is resolved from Token() on every request instead of the static API
+// key. Used by OAuth-backed OpenAI-compatible providers (GitHub Copilot).
+func (p *OpenAIProvider) WithTokenSource(ts TokenSource) *OpenAIProvider {
+	if ts != nil {
+		p.tokenSource = ts
+	}
 	return p
 }
 

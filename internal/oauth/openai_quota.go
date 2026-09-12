@@ -303,6 +303,11 @@ func marshalOAuthSettingsInto(raw json.RawMessage, settings OAuthSettings) json.
 	} else {
 		delete(next, "plan_type")
 	}
+	if settings.AccountEmail != "" {
+		next["account_email"] = settings.AccountEmail
+	} else {
+		delete(next, "account_email")
+	}
 
 	data, _ := json.Marshal(next)
 	return json.RawMessage(data)
