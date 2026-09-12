@@ -120,7 +120,8 @@
     "model": "模型",
     "modelDefault": "代理默认模型",
     "loadingModels": "正在加载模型…",
-    "thinking": "思考级别"
+    "thinking": "思考级别",
+    "permissionMode": "权限模式"
   },
   "thinkingLevels": {
     "adaptive": "自适应",
@@ -167,5 +168,12 @@
     "architect": "设计或评估系统架构",
     "uiux": "UI/UX 审查与打磨",
     "mission": "启动长时自主任务"
+  },
+  "permissionModes": {
+    "default": "智能体默认",
+    "plan": "规划（只读）",
+    "fullAccess": "完全访问",
+    "writeApproval": "写入审批",
+    "alwaysAsk": "始终询问"
   }
 }

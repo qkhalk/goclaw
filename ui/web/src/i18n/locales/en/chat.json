@@ -120,7 +120,8 @@
     "model": "Model",
     "modelDefault": "Agent model",
     "loadingModels": "Loading models…",
-    "thinking": "Thinking level"
+    "thinking": "Thinking level",
+    "permissionMode": "Permission mode"
   },
   "thinkingLevels": {
     "adaptive": "Adaptive",
@@ -167,5 +168,12 @@
     "architect": "Design or evaluate system architecture",
     "uiux": "UI/UX review and polish",
     "mission": "Launch a long autonomous mission"
+  },
+  "permissionModes": {
+    "default": "Agent default",
+    "plan": "Plan (read-only)",
+    "fullAccess": "Full access",
+    "writeApproval": "Write approval",
+    "alwaysAsk": "Always ask"
   }
 }

@@ -151,10 +151,13 @@ type chatSendParams struct {
 	// Per-message composer overrides (all optional; empty = agent defaults).
 	// ProviderName resolves through the provider store + registry at dispatch;
 	// Model maps to RunRequest.ModelOverride; ThinkingLevel accepts the standard
-	// effort levels plus "adaptive" (validated by thinkingOverrideFor).
+	// effort levels plus "adaptive" (validated by thinkingOverrideFor);
+	// PermissionMode accepts the composer tool-permission modes (validated by
+	// permissionModeFor).
 	ProviderName string `json:"providerName,omitempty"`
 	Model        string `json:"model,omitempty"`
 	Thinking     string `json:"thinkingLevel,omitempty"`
+	PermMode     string `json:"permissionMode,omitempty"`
 }
 
 // thinkingOverrideFor validates a chat.send thinkingLevel param. Accepts
@@ -165,6 +168,18 @@ func thinkingOverrideFor(level string) string {
 		return level
 	}
 	return providers.NormalizeReasoningEffort(level)
+}
+
+// permissionModeFor validates a chat.send permissionMode param. Accepts the
+// composer tool-permission modes; anything else yields "" (agent default
+// policies apply — the safe direction for unknown values).
+func permissionModeFor(mode string) string {
+	switch mode {
+	case tools.PermModePlan, tools.PermModeFullAccess, tools.PermModeWriteApproval, tools.PermModeAlwaysAsk:
+		return mode
+	default:
+		return ""
+	}
 }
 
 // parseMedia handles both legacy string paths and new {path,filename} objects.
@@ -481,6 +496,7 @@ func (m *ChatMethods) dispatchChatSends(requests []chatSendRequest) {
 			ModelOverride:         params.Model,
 			ProviderOverride:      composerProvider,
 			ThinkingLevelOverride: thinkingOverride,
+			PermissionMode:        permissionModeFor(params.PermMode),
 			InjectCh:              injectCh,
 			// Wire trace ID back to the active run so force-abort can mark the
 			// correct trace as cancelled if the goroutine does not exit within 3s.

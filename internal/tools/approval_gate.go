@@ -18,6 +18,64 @@ import (
 // approval seam so cmd wiring can install it via hooks.SetApprovalGate.
 var _ hooks.ApprovalGate = (*ExecApprovalManager)(nil)
 
+// Per-run permission modes (composer selector, chat.send permissionMode).
+// They override the configured tool-class policies for a single run; the exec
+// class enforces them inside ExecTool (shell.go) like its own approval flow.
+const (
+	PermModePlan          = "plan"           // read-only: every gated tool class is denied
+	PermModeFullAccess    = "full_access"    // no gating: config policies are bypassed
+	PermModeWriteApproval = "write_approval" // mutating classes ask before running
+	PermModeAlwaysAsk     = "always_ask"     // every gated tool class asks
+)
+
+// PermissionModeFromContext returns the per-run composer permission mode
+// override ("" when no RunContext is present or no mode was set).
+func PermissionModeFromContext(ctx context.Context) string {
+	if rc := store.RunContextFromCtx(ctx); rc != nil {
+		return rc.PermissionMode
+	}
+	return ""
+}
+
+// classAction is what the permission mode wants done with a gated call.
+type classAction int
+
+const (
+	actionAllow classAction = iota
+	actionAsk
+	actionDeny
+)
+
+// permissionOverride resolves the run's permission mode for a tool class.
+// ok=false means the mode does not apply to this class and the configured
+// policy decides. The exec class always reports ok=false here: GateToolCall
+// leaves exec to ExecTool's self-gating, which enforces the mode itself via
+// ctx. Unknown (unclassified) tools are never mode-gated, matching the
+// config-policy behavior.
+func permissionOverride(mode string, class ToolClass) (classAction, bool) {
+	if class == "" || class == ToolClassExec {
+		return actionAllow, false
+	}
+	switch mode {
+	case PermModePlan:
+		return actionDeny, true
+	case PermModeFullAccess:
+		return actionAllow, true
+	case PermModeAlwaysAsk:
+		return actionAsk, true
+	case PermModeWriteApproval:
+		if class == ToolClassBrowser {
+			// Browsing reads pages; form submissions stay a known risk the
+			// user accepts by picking a mode rather than this selector.
+			return actionAllow, true
+		}
+		// workstation_exec, write_file — the mutating classes.
+		return actionAsk, true
+	default:
+		return actionAllow, false
+	}
+}
+
 // ClassifyTool maps a tool name to its approval class. Unknown tools return ""
 // (no class → never gated by tool-class policies). The exec class is absent
 // from gate decisions: ExecTool self-gates via ExecApprovalConfig so a
@@ -49,13 +107,31 @@ func (m *ExecApprovalManager) modeForClass(class ToolClass) ToolApprovalMode {
 	return m.config.ToolPolicies[class]
 }
 
-// GateToolCall implements hooks.ApprovalGate. It evaluates the per-tool-class
-// policy for a pre-tool-use call AFTER the hook chain allowed it, blocking on
-// human approval when the policy demands it. Exec-class calls return
-// immediately — ExecTool performs its own CheckCommand/RequestApproval flow,
-// and gating here too would prompt twice.
+// GateToolCall implements hooks.ApprovalGate. It evaluates the per-run
+// permission mode (composer selector) first, then the per-tool-class
+// config policy for a pre-tool-use call AFTER the hook chain allowed it,
+// blocking on human approval when a policy demands it. Exec-class calls
+// return immediately — ExecTool performs its own CheckCommand/RequestApproval
+// flow (and enforces the permission mode itself), and gating here too would
+// prompt twice.
 func (m *ExecApprovalManager) GateToolCall(ctx context.Context, q hooks.ApprovalQuery) (bool, string) {
 	class := ClassifyTool(q.ToolName)
+	if action, ok := permissionOverride(PermissionModeFromContext(ctx), class); ok {
+		switch action {
+		case actionDeny:
+			slog.Warn("security.tool_policy_denied",
+				"tool", q.ToolName,
+				"class", string(class),
+				"mode", PermissionModeFromContext(ctx),
+				"session", q.SessionKey,
+			)
+			return false, fmt.Sprintf("tool %q denied by permission mode %q (read-only)", q.ToolName, PermissionModeFromContext(ctx))
+		case actionAsk:
+			return m.askForTool(ctx, q, class)
+		default: // actionAllow
+			return true, ""
+		}
+	}
 	mode := m.modeForClass(class)
 	switch mode {
 	case ToolModeDeny:
