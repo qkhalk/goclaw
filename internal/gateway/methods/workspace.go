@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -113,6 +114,13 @@ func canManageWorkspace(client *gateway.Client, ws *store.Workspace) bool {
 	return ws.OwnerID != "" && ws.OwnerID == client.UserID()
 }
 
+// provisionWorkspaceRoot creates the workspace root directory (and parents)
+// so files.list works immediately after workspace.create. An existing
+// directory is left untouched.
+func provisionWorkspaceRoot(rootPath string) error {
+	return os.MkdirAll(rootPath, 0o755)
+}
+
 // handleCreate provisions a workspace (workspace.create). Requires operator
 // role; viewers are forbidden. Params: { name required, rootPath?, description?,
 // repoUrl?, branch? }. An omitted rootPath derives <basePath>/<workspaceID>.
@@ -178,6 +186,14 @@ func (m *WorkspaceMethods) handleCreate(ctx context.Context, client *gateway.Cli
 	if params.Branch != "" {
 		b := params.Branch
 		ws.Branch = &b
+	}
+	// Provision the root directory BEFORE registering the row: a workspace
+	// whose root does not exist fails every files.* call with "directory not
+	// found". Pre-existing directories pass through untouched.
+	if err := provisionWorkspaceRoot(rootPath); err != nil {
+		slog.Warn("workspace.provision_failed", "path", rootPath, "error", err)
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgInternalError, "provision workspace directory")))
+		return
 	}
 	if err := m.wsStore.CreateWorkspace(ctx, ws); err != nil {
 		slog.Warn("workspace.create_failed", "name", params.Name, "error", err)
