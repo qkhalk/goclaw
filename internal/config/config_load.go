@@ -207,8 +207,9 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GOCLAW_VERTEX_MODEL", &c.Providers.Vertex.Model)
 	envStr("GOCLAW_GATEWAY_TOKEN", &c.Gateway.Token)
 	envStr("GOCLAW_MCP_SERVER_TOKEN", &c.Gateway.MCPServerToken)
-	// Cloud accounts (Google OAuth client secret — never in config.json).
+	// Cloud accounts (Google/Microsoft OAuth client secrets — never in config.json).
 	envStr("GOCLAW_CLOUD_GOOGLE_CLIENT_SECRET", &c.Cloud.Google.ClientSecret)
+	envStr("GOCLAW_CLOUD_MICROSOFT_CLIENT_SECRET", &c.Cloud.Microsoft.ClientSecret)
 	// Additional model providers (OpenClaw-parity set).
 	envStr("GOCLAW_MOONSHOT_API_KEY", &c.Providers.Moonshot.APIKey)
 	envStr("GOCLAW_TOGETHER_API_KEY", &c.Providers.Together.APIKey)

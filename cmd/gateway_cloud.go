@@ -27,8 +27,10 @@ func newCloudManager(cfg *config.Config, stores *store.Stores) *cloud.Manager {
 	// Same key source as the store layer (gateway_stores_pg.go): it decrypts
 	// tokens inside the store and signs OAuth states with a derived key.
 	manager := cloud.NewManager(cloud.CloudProviderConfig{
-		GoogleClientID:     cfg.Cloud.Google.ClientID,
-		GoogleClientSecret: cfg.Cloud.Google.ClientSecret,
+		GoogleClientID:        cfg.Cloud.Google.ClientID,
+		GoogleClientSecret:    cfg.Cloud.Google.ClientSecret,
+		MicrosoftClientID:     cfg.Cloud.Microsoft.ClientID,
+		MicrosoftClientSecret: cfg.Cloud.Microsoft.ClientSecret,
 	}, stores.CloudAccounts, os.Getenv("GOCLAW_ENCRYPTION_KEY"))
 	if stores.ConfigSecrets != nil {
 		manager.SetSecretsStore(stores.ConfigSecrets)

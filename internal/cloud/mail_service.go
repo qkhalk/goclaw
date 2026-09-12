@@ -65,6 +65,9 @@ func (s *MailService) resolveAccount(ctx context.Context, name string) (*store.C
 	revoked := false
 	for i := range accounts {
 		a := &accounts[i]
+		if a.Provider != GoogleProvider {
+			continue // mail is a Google (Gmail) capability
+		}
 		if name != "" && !strings.EqualFold(a.Email, name) {
 			continue
 		}
@@ -75,7 +78,7 @@ func (s *MailService) resolveAccount(ctx context.Context, name string) (*store.C
 		return a, nil
 	}
 	if revoked {
-		return nil, errors.New("cloud account is revoked — reconnect on the Cloud page")
+		return nil, errors.New("cloud account is revoked — reconnect on the Clouds page")
 	}
 	return nil, ErrNoAccounts
 }

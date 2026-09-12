@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/cloud/storage"
@@ -55,7 +56,8 @@ func (s *StorageService) RemoveRemote(ctx context.Context, accountID string) {
 	}
 }
 
-// resolveAccount mirrors MailService.resolveAccount (prefers active accounts).
+// resolveAccount mirrors MailService.resolveAccount (prefers active accounts)
+// but only considers storage-capable providers.
 func (s *StorageService) resolveAccount(ctx context.Context, name string) (*store.CloudAccount, error) {
 	accounts, err := s.manager.store.List(ctx)
 	if err != nil {
@@ -64,6 +66,9 @@ func (s *StorageService) resolveAccount(ctx context.Context, name string) (*stor
 	revokedEmail := ""
 	for i := range accounts {
 		a := &accounts[i]
+		if !isStorageProvider(a.Provider) {
+			continue
+		}
 		if name != "" && !strings.EqualFold(a.Email, name) {
 			continue
 		}
@@ -74,9 +79,19 @@ func (s *StorageService) resolveAccount(ctx context.Context, name string) (*stor
 		return a, nil
 	}
 	if revokedEmail != "" {
-		return nil, fmt.Errorf("cloud account %s is revoked — reconnect on the Cloud page", revokedEmail)
+		return nil, fmt.Errorf("cloud account %s is revoked — reconnect on the Clouds page", revokedEmail)
 	}
 	return nil, ErrNoAccounts
+}
+
+// isStorageProvider gates which connected accounts the rclone layer may use.
+func isStorageProvider(provider string) bool {
+	switch provider {
+	case GoogleProvider, MicrosoftProvider:
+		return true
+	default:
+		return false
+	}
 }
 
 // ensureRemote makes sure the rcd process is running and the account's remote
@@ -96,10 +111,8 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 	if err != nil {
 		return "", fmt.Errorf("cloud storage: list remotes: %w", err)
 	}
-	for _, r := range remotes {
-		if r == remote {
-			return remote, nil // rclone owns token refresh from here
-		}
+	if slices.Contains(remotes, remote) {
+		return remote, nil // rclone owns token refresh from here
 	}
 	// Inject (bootstrap) the remote from the DB token.
 	token := map[string]any{
@@ -109,9 +122,30 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 		"expiry":        "0001-01-01T00:00:00Z", // force refresh via refresh_token
 	}
 	tokenJSON, _ := json.Marshal(token)
-	if err := rc.ConfigCreate(ctx, remote, "drive", map[string]any{
-		"token": string(tokenJSON),
-	}); err != nil {
+	params := map[string]any{"token": string(tokenJSON)}
+	remoteType := "drive"
+	if acct.Provider == MicrosoftProvider {
+		// The onedrive backend refuses to auto-pick a drive non-interactively:
+		// drive_id (resolved at connect time via Graph /me/drives) is required.
+		remoteType = "onedrive"
+		var settings struct {
+			DriveID   string `json:"drive_id"`
+			DriveType string `json:"drive_type"`
+		}
+		if acct.Settings != "" {
+			if err := json.Unmarshal([]byte(acct.Settings), &settings); err != nil {
+				return "", fmt.Errorf("cloud storage: account settings: %w", err)
+			}
+		}
+		if settings.DriveID == "" {
+			return "", errors.New("cloud storage: onedrive account has no drive_id — reconnect the account")
+		}
+		params["drive_id"] = settings.DriveID
+		if settings.DriveType != "" {
+			params["drive_type"] = settings.DriveType
+		}
+	}
+	if err := rc.ConfigCreate(ctx, remote, remoteType, params); err != nil {
 		return "", fmt.Errorf("cloud storage: create remote: %w", err)
 	}
 	return remote, nil
