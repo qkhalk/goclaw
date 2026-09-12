@@ -642,3 +642,34 @@ func TestSendLanguagePicker_OverrideMarkedCurrent(t *testing.T) {
 		t.Errorf("en button = %v, want unmarked when vi is current", enBtn["text"])
 	}
 }
+
+// Regression for the field-reported "Mức thinking: level%!(EXTRA string=auto)"
+// — the pick appliers must render the level with exactly one argument.
+func TestApplyThinkingPick_ConfirmationTextHasNoFormatNoise(t *testing.T) {
+	prefs := newFakePrefsStore()
+	ch, caller := newPrefsTestChannel(t, prefs, nil)
+	ch.SetAgentID("fox")
+
+	ch.applyThinkingPick(context.Background(), -100, 101, "agent:fox:telegram:direct:1", "auto", "vi")
+
+	if got := prefs.data["agent:fox:telegram:direct:1"]["thinking_level"]; got != "auto" {
+		t.Fatalf("thinking_level = %q, want auto", got)
+	}
+	var edit *recordedTelegramCall
+	for i := len(caller.calls) - 1; i >= 0; i-- {
+		if caller.calls[i].method == "editMessageText" {
+			edit = &caller.calls[i]
+			break
+		}
+	}
+	if edit == nil {
+		t.Fatalf("editMessageText not called")
+	}
+	text, _ := edit.body["text"].(string)
+	if strings.Contains(text, "%!") {
+		t.Errorf("confirmation text has format noise: %q", text)
+	}
+	if !strings.Contains(text, "auto") {
+		t.Errorf("confirmation text = %q, want the picked level", text)
+	}
+}
