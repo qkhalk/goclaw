@@ -426,6 +426,7 @@ func init() {
 		"telegram.ask.otherhint": "✏️ Reply tin nhắn này với câu trả lời của bạn.",
 		"telegram.ask.answered": "✓ Đã trả lời: %s → %s",
 		"telegram.language.unavailable": "Tùy chọn ngôn ngữ không khả dụng (chưa cấu hình session store).",
+		"telegram.language.title": "🌐 Ngôn ngữ cho chat này — chọn một:",
 		"telegram.language.current": "🌐 Ngôn ngữ: %s",
 		"telegram.language.sethint": "Đặt: /language %s",
 		"telegram.language.unsupported": "⚠️ Không hỗ trợ ngôn ngữ %s. Hợp lệ: %s",

@@ -16,7 +16,7 @@ it (falls back to the sender's Telegram client language, then English).
 | `/reasoning` | Inline ON/OFF picker for reasoning (ON = agent config, OFF = disable) |
 | `/dev` | Inline ON/OFF picker for dev mode |
 | `/dev on` / `/dev off` | Toggle dev mode for this chat (text form) |
-| `/language` | Show/set the chat language: `en` `vi` `zh` `ko` `ru` |
+| `/language` | Language picker keyboard (native-name buttons, ✅ current); `/language <locale>` sets directly |
 | `/status` | Rich status card, localized labels (verbosity below) |
 | `/status full` / `/status short` | Set the verbosity for this chat and render it |
 | `/skills` | Paged skill browser (10 per page); `/skills list` for the plain-text list |
@@ -37,10 +37,10 @@ Claude thinking (see below).
 
 ## /skills — paged browser
 
-`/skills` shows 2-column skill buttons, 10 per page, with `◀ / ▶` navigation
-edited in place. Tapping a skill shows its full description (plus an
-"unavailable on this host" note when its `requires` block is unmet) and a
-back row. **Reply to a skill card with your request to run it** — the reply
+`/skills` shows one full-width button per skill — "Name — what it does" —
+10 per page, with `◀ / ▶` navigation edited in place. Tapping a skill shows
+its full description (plus an "unavailable on this host" note when its
+`requires` block is unmet) and a back row. **Reply to a skill card with your request to run it** — the reply
 is rewritten to `/<slug> <your request>` and flows through the normal skill
 slash-command path. Replies that start with `/` run as typed; replying to
 anything else is untouched. Cards stay reply-runnable for 24 hours.
@@ -59,8 +59,9 @@ agent to end its turn and wait (no pause/resume machinery).
 
 ## /language
 
-`/language` (no args) shows the current locale and the valid list;
-`/language vi` persists `metadata.locale` on the chat session. Resolution
+`/language` (no args) renders a picker with native-name buttons (🇬🇧 English,
+🇻🇳 Tiếng Việt, 🇨🇳 中文, 🇰🇷 한국어, 🇷🇺 Русский), ✅ on the current choice;
+`/language vi` persists `metadata.locale` on the chat session directly. Resolution
 order for command replies: session locale → Telegram client language →
 English. All picker/card/status strings are localized across the 5 catalogs
 (en, vi, zh, ko, ru).
@@ -103,7 +104,7 @@ channel runs do.
 `full` (default in DMs):
 
 ```
-🦊 GoClaw 3.18.0
+🦊 GoClaw v3.19.1
 ⏱️ Uptime: gateway 2d 3h · system 5d 21h
 🤖 Agent: fox-spirit · 🧠 Model: oc/mimo-v2.5-free
 🧵 Session: telegram:direct:386246614 · updated 5m
@@ -118,7 +119,8 @@ Every line's source:
 
 | Line | Source |
 |------|--------|
-| Version | `cmd.Version` build stamp |
+| Header icon | agent's emoji avatar (web UI); falls back to 🦊 |
+| Version | `cmd.Version` build stamp, `v`-prefixed |
 | Gateway uptime | gateway server start time |
 | System uptime | `/proc/uptime` (Linux; omitted elsewhere) |
 | Agent / Model | session record (`model`, `provider`) |

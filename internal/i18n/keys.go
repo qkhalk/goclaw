@@ -449,6 +449,7 @@ const (
 	MsgTGAskOther            = "telegram.ask.other"             // "Other"
 	MsgTGAskOtherHint        = "telegram.ask.otherhint"         // "✏️ Reply to this message with your answer."
 	MsgTGAskAnswered         = "telegram.ask.answered"          // "✓ Answered: %s → %s"
+	MsgTGLangTitle           = "telegram.language.title"       // "Language for this chat — pick one:"
 	MsgTGLangUnavailable     = "telegram.language.unavailable"  // "Language preferences are not available (no session store configured)."
 	MsgTGLangCurrent         = "telegram.language.current"      // "🌐 Language: %s"
 	MsgTGLangSetHint         = "telegram.language.sethint"      // "Set: /language %s"
