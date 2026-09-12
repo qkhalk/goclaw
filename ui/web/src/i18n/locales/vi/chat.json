@@ -40,10 +40,14 @@
     "empty": "Chưa có workspace nào",
     "create": "Tạo workspace",
     "createPlaceholder": "Tên workspace",
+    "createNamePlaceholder": "Tên workspace mới",
     "createConfirm": "Tạo",
     "createCancel": "Hủy",
     "createFailed": "Không thể tạo workspace: {{message}}",
-    "pathPlaceholder": "Đường dẫn (tùy chọn), vd /root/projects/site",
+    "locationAuto": "📍 Tự tạo thư mục dưới workspace root",
+    "locationCustom": "📍 Sẽ tạo tại: {{path}}",
+    "advancedPath": "Chọn vị trí tùy chỉnh",
+    "pathPlaceholder": "Đường dẫn tuyệt đối hoặc tương đối, vd /root/projects/site",
     "pathHint": "Bỏ trống để tự tạo thư mục dưới workspace root. Nhận đường dẫn tuyệt đối hoặc tương đối tính từ workspace root."
   },
   "fileExplorer": {
