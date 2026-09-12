@@ -33,6 +33,16 @@ func (p *OpenAIProvider) doRequest(ctx context.Context, body any) (io.ReadCloser
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	switch {
+	case p.tokenSource != nil:
+		token, err := p.tokenSource.Token()
+		if err != nil {
+			return nil, fmt.Errorf("%s: auth token: %w", p.name, err)
+		}
+		prefix := p.authPrefix
+		if prefix == "" {
+			prefix = "Bearer "
+		}
+		httpReq.Header.Set("Authorization", prefix+token)
 	case p.noAuthHeader:
 		// Caller-supplied transport (e.g. Vertex oauth2.Transport) injects Authorization itself.
 	case strings.Contains(strings.ToLower(p.apiBase), "azure.com"):

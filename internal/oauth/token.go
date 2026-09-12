@@ -39,10 +39,11 @@ var refreshOpenAITokenFunc = RefreshOpenAIToken
 
 // OAuthSettings is stored in llm_providers.settings JSONB (non-sensitive metadata).
 type OAuthSettings struct {
-	ExpiresAt int64  `json:"expires_at"` // unix timestamp
-	Scopes    string `json:"scopes,omitempty"`
-	AccountID string `json:"account_id,omitempty"`
-	PlanType  string `json:"plan_type,omitempty"`
+	ExpiresAt    int64  `json:"expires_at"` // unix timestamp
+	Scopes       string `json:"scopes,omitempty"`
+	AccountID    string `json:"account_id,omitempty"`
+	PlanType     string `json:"plan_type,omitempty"`
+	AccountEmail string `json:"account_email,omitempty"` // Claude OAuth display field
 }
 
 // ProviderTypeConflictError reports that the requested OAuth provider name is

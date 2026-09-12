@@ -24,6 +24,8 @@ const (
 	ProviderDashScope       = "dashscope"
 	ProviderBailian         = "bailian"
 	ProviderChatGPTOAuth    = "chatgpt_oauth"
+	ProviderClaudeOAuth     = "claude_oauth"
+	ProviderCopilotOAuth    = "copilot_oauth"
 	ProviderClaudeCLI       = "claude_cli"
 	ProviderYesScale        = "yescale"
 	ProviderZai             = "zai"
@@ -156,6 +158,8 @@ var ValidProviderTypes = map[string]bool{
 	ProviderDashScope:       true,
 	ProviderBailian:         true,
 	ProviderChatGPTOAuth:    true,
+	ProviderClaudeOAuth:     true,
+	ProviderCopilotOAuth:    true,
 	ProviderClaudeCLI:       true,
 	ProviderYesScale:        true,
 	ProviderZai:             true,
@@ -353,6 +357,8 @@ var NoEmbeddingTypes = map[string]bool{
 	ProviderACP:             true,
 	ProviderClaudeCLI:       true,
 	ProviderChatGPTOAuth:    true,
+	ProviderClaudeOAuth:     true, // OAuth bearer tokens; no embedding surface
+	ProviderCopilotOAuth:    true, // Copilot chat completions only
 	ProviderVertex:          true, // Vertex embeddings live on a different native endpoint, not on /endpoints/openapi
 }
 

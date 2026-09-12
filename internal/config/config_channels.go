@@ -256,43 +256,44 @@ type FeishuConfig struct {
 
 // ProvidersConfig maps provider name to its config.
 type ProvidersConfig struct {
-	Anthropic      ProviderConfig  `json:"anthropic"`
-	OpenAI         ProviderConfig  `json:"openai"`
-	AtlasCloud     ProviderConfig  `json:"atlascloud"` // Atlas Cloud (OpenAI-compatible endpoint)
-	OpenRouter     ProviderConfig  `json:"openrouter"`
-	Groq           ProviderConfig  `json:"groq"`
-	Gemini         ProviderConfig  `json:"gemini"`
-	DeepSeek       ProviderConfig  `json:"deepseek"`
-	Mistral        ProviderConfig  `json:"mistral"`
-	XAI            ProviderConfig  `json:"xai"`
-	MiniMax        ProviderConfig  `json:"minimax"`
-	Cohere         ProviderConfig  `json:"cohere"`
-	Perplexity     ProviderConfig  `json:"perplexity"`
-	DashScope      ProviderConfig  `json:"dashscope"`
-	Bailian        ProviderConfig  `json:"bailian"`
-	Zai            ProviderConfig  `json:"zai"`
-	ZaiCoding      ProviderConfig  `json:"zai_coding"`
-	Ollama         OllamaConfig    `json:"ollama"`       // local Ollama instance (no API key needed)
-	OllamaCloud    ProviderConfig  `json:"ollama_cloud"` // Ollama Cloud (API key required)
-	ClaudeCLI      ClaudeCLIConfig `json:"claude_cli"`
-	ACP            ACPConfig       `json:"acp"`
-	Novita         ProviderConfig  `json:"novita"`          // Novita AI (OpenAI-compatible endpoint)
-	BytePlus       ProviderConfig  `json:"byteplus"`        // BytePlus ModelArk (Seed 2.0)
-	BytePlusCoding ProviderConfig  `json:"byteplus_coding"` // BytePlus ModelArk Coding Plan
-	Vertex         VertexConfig    `json:"vertex"`          // Google Cloud Vertex AI (OAuth2 service account + ADC)
-	Moonshot       ProviderConfig  `json:"moonshot"`        // Moonshot AI (Kimi, OpenAI-compatible)
-	Together       ProviderConfig  `json:"together"`        // Together AI (OpenAI-compatible)
-	Fireworks      ProviderConfig  `json:"fireworks"`       // Fireworks AI (OpenAI-compatible)
-	Cerebras       ProviderConfig  `json:"cerebras"`        // Cerebras (OpenAI-compatible)
-	Synthetic      ProviderConfig  `json:"synthetic"`       // Synthetic.new (Anthropic-compatible)
-	Kilocode       ProviderConfig  `json:"kilocode"`        // Kilo Code gateway (OpenAI-compatible)
-	OpenCode       ProviderConfig  `json:"opencode"`        // OpenCode Zen (OpenAI-compatible)
-	Nvidia         ProviderConfig  `json:"nvidia"`          // nvidia (OpenAI-compatible)
-	StepFun        ProviderConfig  `json:"stepfun"`         // stepfun (OpenAI-compatible)
-	Venice         ProviderConfig  `json:"venice"`          // venice (OpenAI-compatible)
-	Baseten        ProviderConfig  `json:"baseten"`         // baseten (OpenAI-compatible)
-	Chutes         ProviderConfig  `json:"chutes"`          // chutes (OpenAI-compatible)
-	HuggingFace    ProviderConfig  `json:"huggingface"`     // huggingface (OpenAI-compatible)
+	Anthropic      ProviderConfig    `json:"anthropic"`
+	OpenAI         ProviderConfig    `json:"openai"`
+	AtlasCloud     ProviderConfig    `json:"atlascloud"` // Atlas Cloud (OpenAI-compatible endpoint)
+	OpenRouter     ProviderConfig    `json:"openrouter"`
+	Groq           ProviderConfig    `json:"groq"`
+	Gemini         ProviderConfig    `json:"gemini"`
+	DeepSeek       ProviderConfig    `json:"deepseek"`
+	Mistral        ProviderConfig    `json:"mistral"`
+	XAI            ProviderConfig    `json:"xai"`
+	MiniMax        ProviderConfig    `json:"minimax"`
+	Cohere         ProviderConfig    `json:"cohere"`
+	Perplexity     ProviderConfig    `json:"perplexity"`
+	DashScope      ProviderConfig    `json:"dashscope"`
+	Bailian        ProviderConfig    `json:"bailian"`
+	Zai            ProviderConfig    `json:"zai"`
+	ZaiCoding      ProviderConfig    `json:"zai_coding"`
+	Ollama         OllamaConfig      `json:"ollama"`       // local Ollama instance (no API key needed)
+	OllamaCloud    ProviderConfig    `json:"ollama_cloud"` // Ollama Cloud (API key required)
+	ClaudeCLI      ClaudeCLIConfig   `json:"claude_cli"`
+	ACP            ACPConfig         `json:"acp"`
+	Novita         ProviderConfig    `json:"novita"`          // Novita AI (OpenAI-compatible endpoint)
+	BytePlus       ProviderConfig    `json:"byteplus"`        // BytePlus ModelArk (Seed 2.0)
+	BytePlusCoding ProviderConfig    `json:"byteplus_coding"` // BytePlus ModelArk Coding Plan
+	Vertex         VertexConfig      `json:"vertex"`          // Google Cloud Vertex AI (OAuth2 service account + ADC)
+	Moonshot       ProviderConfig    `json:"moonshot"`        // Moonshot AI (Kimi, OpenAI-compatible)
+	Together       ProviderConfig    `json:"together"`        // Together AI (OpenAI-compatible)
+	Fireworks      ProviderConfig    `json:"fireworks"`       // Fireworks AI (OpenAI-compatible)
+	Cerebras       ProviderConfig    `json:"cerebras"`        // Cerebras (OpenAI-compatible)
+	Synthetic      ProviderConfig    `json:"synthetic"`       // Synthetic.new (Anthropic-compatible)
+	Kilocode       ProviderConfig    `json:"kilocode"`        // Kilo Code gateway (OpenAI-compatible)
+	ClaudeOAuth    ClaudeOAuthConfig `json:"claude_oauth"`    // Claude Pro/Max subscription OAuth endpoint overrides
+	OpenCode       ProviderConfig    `json:"opencode"`        // OpenCode Zen (OpenAI-compatible)
+	Nvidia         ProviderConfig    `json:"nvidia"`          // nvidia (OpenAI-compatible)
+	StepFun        ProviderConfig    `json:"stepfun"`         // stepfun (OpenAI-compatible)
+	Venice         ProviderConfig    `json:"venice"`          // venice (OpenAI-compatible)
+	Baseten        ProviderConfig    `json:"baseten"`         // baseten (OpenAI-compatible)
+	Chutes         ProviderConfig    `json:"chutes"`          // chutes (OpenAI-compatible)
+	HuggingFace    ProviderConfig    `json:"huggingface"`     // huggingface (OpenAI-compatible)
 
 	// RequestTimeoutSec bounds provider verify and models-list HTTP calls.
 	// Tenant-scoped, overridable via the "providers.request_timeout_sec" system config.
@@ -458,6 +459,17 @@ func (c *Config) HasAnyProvider() bool {
 		p.Baseten.APIKey != "" ||
 		p.Chutes.APIKey != "" ||
 		p.HuggingFace.APIKey != ""
+}
+
+// ClaudeOAuthConfig overrides the Claude Pro/Max subscription OAuth endpoints
+// (public PKCE client). Empty fields fall back to the built-in defaults in
+// internal/oauth — useful when Anthropic rotates the client_id or token host.
+type ClaudeOAuthConfig struct {
+	ClientID     string `json:"client_id,omitempty"`
+	AuthorizeURL string `json:"authorize_url,omitempty"`
+	TokenURL     string `json:"token_url,omitempty"`
+	APIBase      string `json:"api_base,omitempty"`
+	Scopes       string `json:"scopes,omitempty"`
 }
 
 // QuotaWindow defines request limits per time window. Zero means unlimited.

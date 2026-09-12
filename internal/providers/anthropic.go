@@ -16,6 +16,10 @@ const (
 	defaultClaudeModel  = "claude-sonnet-4-5-20250929"
 	anthropicAPIBase    = "https://api.anthropic.com/v1"
 	anthropicAPIVersion = "2023-06-01"
+
+	// AnthropicOAuthBeta is required on Messages API calls authenticated with
+	// an OAuth access token (Claude Pro/Max subscription) instead of an API key.
+	AnthropicOAuthBeta = "oauth-2025-04-20"
 )
 
 // claudeModelAliases maps short model aliases to full Anthropic model IDs.
@@ -52,7 +56,8 @@ type AnthropicProvider struct {
 	client       *http.Client
 	retryConfig  RetryConfig
 	middlewares  RequestMiddleware // composed middleware chain (nil = no-op)
-	registry     ModelRegistry    // model resolution registry (nil = skip)
+	registry     ModelRegistry     // model resolution registry (nil = skip)
+	tokenSource  TokenSource       // OAuth mode: Authorization Bearer from source instead of x-api-key
 }
 
 // NewAnthropicProvider creates a new Anthropic provider.
@@ -104,6 +109,18 @@ func WithAnthropicBaseURL(baseURL string) AnthropicOption {
 	}
 }
 
+// WithAnthropicTokenSource switches the provider to OAuth auth: requests use
+// `Authorization: Bearer <token>` plus the OAuth beta header instead of
+// `x-api-key`, and middleware gating treats the provider as OAuth (Anthropic
+// rejects service_tier on OAuth tokens).
+func WithAnthropicTokenSource(ts TokenSource) AnthropicOption {
+	return func(p *AnthropicProvider) {
+		if ts != nil {
+			p.tokenSource = ts
+		}
+	}
+}
+
 func (p *AnthropicProvider) Name() string           { return p.name }
 func (p *AnthropicProvider) DefaultModel() string   { return p.defaultModel }
 func (p *AnthropicProvider) SupportsThinking() bool { return true }
@@ -124,11 +141,15 @@ func (p *AnthropicProvider) Capabilities() ProviderCapabilities {
 
 // middlewareConfig builds a MiddlewareConfig for the current request.
 func (p *AnthropicProvider) middlewareConfig(model string, req ChatRequest) MiddlewareConfig {
+	authType := "api_key"
+	if p.tokenSource != nil {
+		authType = "oauth"
+	}
 	return MiddlewareConfig{
 		Provider: "anthropic",
 		Model:    model,
 		Caps:     p.Capabilities(),
-		AuthType: "api_key",
+		AuthType: authType,
 		APIBase:  p.baseURL,
 		Options:  req.Options,
 	}
@@ -195,14 +216,30 @@ func (p *AnthropicProvider) doRequest(ctx context.Context, body any) (io.ReadClo
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", p.apiKey)
+	if p.tokenSource != nil {
+		token, err := p.tokenSource.Token()
+		if err != nil {
+			return nil, fmt.Errorf("anthropic: oauth token: %w", err)
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+	} else {
+		httpReq.Header.Set("x-api-key", p.apiKey)
+	}
 	httpReq.Header.Set("anthropic-version", anthropicAPIVersion)
 
-	// Add beta header for interleaved thinking when thinking is enabled
+	// Beta features are comma-merged into one anthropic-beta header. OAuth
+	// requests always carry the OAuth beta; thinking adds its own.
+	var betas []string
+	if p.tokenSource != nil {
+		betas = append(betas, AnthropicOAuthBeta)
+	}
 	if bodyMap, ok := body.(map[string]any); ok {
 		if _, hasThinking := bodyMap["thinking"]; hasThinking {
-			httpReq.Header.Set("anthropic-beta", "interleaved-thinking-2025-05-14")
+			betas = append(betas, "interleaved-thinking-2025-05-14")
 		}
+	}
+	if len(betas) > 0 {
+		httpReq.Header.Set("anthropic-beta", strings.Join(betas, ","))
 	}
 
 	resp, err := p.client.Do(httpReq)
