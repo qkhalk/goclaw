@@ -4,12 +4,11 @@ import { Bot } from "lucide-react";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ActiveRunZone } from "@/components/chat/active-run-zone";
 import { SystemNotification } from "@/components/chat/system-notification";
-import { TeamActivityPanel } from "@/components/chat/team-activity-panel";
 import { ToolCallCard } from "@/components/chat/tool-call-card";
 import { ThinkingBlock } from "@/components/chat/thinking-block";
 import { ChatImageGalleryProvider } from "@/components/chat/chat-image-gallery-context";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
-import type { ChatMessage, ToolStreamEntry, RunActivity, ActiveTeamTask } from "@/types/chat";
+import type { ChatMessage, ToolStreamEntry, RunActivity } from "@/types/chat";
 import type { LightboxImage } from "@/components/shared/image-lightbox";
 
 interface ChatThreadProps {
@@ -19,12 +18,10 @@ interface ChatThreadProps {
   toolStream: ToolStreamEntry[];
   blockReplies: ChatMessage[];
   activity: RunActivity | null;
-  teamTasks: ActiveTeamTask[];
   isRunning: boolean;
   isBusy: boolean;
   loading?: boolean;
   scrollTrigger?: number;
-  onToggleTaskPanel?: () => void;
 }
 
 /** Check if a message is tool-only (no user-visible text content) */
@@ -76,7 +73,7 @@ function buildDisplayItems(messages: ChatMessage[]): DisplayItem[] {
 
 export const ChatThread = memo(function ChatThread({
   messages, streamText, thinkingText, toolStream, blockReplies,
-  activity, teamTasks, isRunning, isBusy, loading, scrollTrigger = 0, onToggleTaskPanel,
+  activity, isRunning, isBusy, loading, scrollTrigger = 0,
 }: ChatThreadProps) {
   const { t } = useTranslation("chat");
   const { ref, onScroll } = useAutoScroll<HTMLDivElement>(
@@ -161,8 +158,6 @@ export const ChatThread = memo(function ChatThread({
                 return <MergedToolGroup key={`tools-${item.idx}`} msgs={item.msgs} />;
             }
           })}
-
-          {teamTasks.length > 0 && <TeamActivityPanel tasks={teamTasks} onTogglePanel={onToggleTaskPanel} />}
 
           <ActiveRunZone
             isRunning={isRunning}
