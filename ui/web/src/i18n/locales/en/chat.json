@@ -40,10 +40,14 @@
     "archived": "Archived",
     "create": "Create workspace",
     "createPlaceholder": "Workspace name",
+    "createNamePlaceholder": "New workspace name",
     "createConfirm": "Create",
     "createCancel": "Cancel",
     "createFailed": "Failed to create workspace: {{message}}",
-    "pathPlaceholder": "Optional path, e.g. /root/projects/site",
+    "locationAuto": "📍 Auto-created under workspace root",
+    "locationCustom": "📍 Will be created at: {{path}}",
+    "advancedPath": "Custom location",
+    "pathPlaceholder": "Absolute or relative path, e.g. /root/projects/site",
     "pathHint": "Leave empty to auto-create a folder under the workspace root. Absolute path or relative to the workspace root."
   },
   "fileExplorer": {
