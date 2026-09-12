@@ -18,6 +18,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/typing"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
 // Error patterns for graceful handling (matching TS error constants in send.ts).
@@ -245,6 +246,13 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 			_ = c.deleteMessage(ctx, chatID, pID.(int))
 		}
 		return nil
+	}
+
+	// ask_options tool: render the question with an inline keyboard and record
+	// the sent message so button presses / replies route the answer back into
+	// the session (metadata convention, see tools.MetaAskOptions).
+	if raw := msg.Metadata[tools.MetaAskOptions]; raw != "" {
+		return c.sendAskQuestion(ctx, chatID, localKey, msg.Content, raw, replyToMsgID, threadID)
 	}
 
 	// Handle media attachments if present

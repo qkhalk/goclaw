@@ -1,24 +1,69 @@
 # Telegram Runtime Commands
 
 Runtime control surface for the Telegram channel: per-chat preferences
-(thinking level, dev mode, status verbosity), the rich `/status` card, and the
-testing-skill menu. All commands reply instantly — none spend an LLM call.
+(thinking level, reasoning, dev mode, status verbosity, language), interactive
+inline pickers, the paged `/skills` browser, `ask_options` clarifying
+questions, and the rich `/status` card. All commands reply instantly — none
+spend an LLM call. Command replies follow the chat language: `/language` sets
+it (falls back to the sender's Telegram client language, then English).
 
 ## Commands
 
 | Command | What it does |
 |---------|--------------|
-| `/thinking` | Show the chat's thinking-level override + the agent default |
-| `/thinking <level>` | Set the override: `off` `minimal` `low` `medium` `high` `xhigh` `auto` `adaptive` |
-| `/thinking default` | Clear the override — the agent config applies again |
-| `/dev` | Show whether dev mode is on |
-| `/dev on` / `/dev off` | Toggle dev mode for this chat |
-| `/status` | Rich status card (verbosity below) |
+| `/thinking` | Inline picker of thinking levels (filtered by model capability, ✅ current, Default row) |
+| `/thinking <level>` | Set the override directly: `off` `minimal` `low` `medium` `high` `xhigh` `auto` `adaptive` |
+| `/reasoning` | Inline ON/OFF picker for reasoning (ON = agent config, OFF = disable) |
+| `/dev` | Inline ON/OFF picker for dev mode |
+| `/dev on` / `/dev off` | Toggle dev mode for this chat (text form) |
+| `/language` | Show/set the chat language: `en` `vi` `zh` `ko` `ru` |
+| `/status` | Rich status card, localized labels (verbosity below) |
 | `/status full` / `/status short` | Set the verbosity for this chat and render it |
-| `/skills` | List installed skills with descriptions |
+| `/skills` | Paged skill browser (10 per page); `/skills list` for the plain-text list |
 
-Group chats gate `/thinking` and `/dev` behind the file-writer permission
-(same rule as `/reset`; DB check failures fail open). DMs are unrestricted.
+Group chats gate `/thinking`, `/dev`, and `/language` behind the file-writer
+permission (same rule as `/reset`; DB check failures fail open). DMs are
+unrestricted.
+
+## Inline pickers
+
+`/thinking`, `/reasoning`, and `/dev` render an inline keyboard on the bot's
+own message and edit it in place on tap — no new messages. Picker state lives
+in memory for 10 minutes; a later tap edits the card to an "expired" notice.
+The `/thinking` level list comes from the model registry when the agent's
+model is known to have reasoning levels (GPT-5/Codex family); otherwise the
+full standard list is shown. `none` is never offered — it would *enable*
+Claude thinking (see below).
+
+## /skills — paged browser
+
+`/skills` shows 2-column skill buttons, 10 per page, with `◀ / ▶` navigation
+edited in place. Tapping a skill shows its full description (plus an
+"unavailable on this host" note when its `requires` block is unmet) and a
+back row. **Reply to a skill card with your request to run it** — the reply
+is rewritten to `/<slug> <your request>` and flows through the normal skill
+slash-command path. Replies that start with `/` run as typed; replying to
+anything else is untouched. Cards stay reply-runnable for 24 hours.
+
+## ask_options — the agent asks you
+
+When the agent is genuinely unsure (typically in dev mode), it calls the
+`ask_options` tool: the chat receives the question with 1–4 option buttons
+plus an **Other** row. Tapping an option injects
+`[Answering your question] <question> → <option>` into the session as your
+next message. Tapping Other adds a hint to reply with free text; **replying
+to the question message** (any time within 24 hours) also delivers the answer
+as `[Answering your question] <your text>`. Telegram-only in v1 — the tool
+rejects other channels with a clear error, and the tool result tells the
+agent to end its turn and wait (no pause/resume machinery).
+
+## /language
+
+`/language` (no args) shows the current locale and the valid list;
+`/language vi` persists `metadata.locale` on the chat session. Resolution
+order for command replies: session locale → Telegram client language →
+English. All picker/card/status strings are localized across the 5 catalogs
+(en, vi, zh, ko, ru).
 
 ## /thinking — how it works
 
@@ -45,11 +90,13 @@ Semantics that matter:
 
 `/dev on` stores `metadata.chat_mode=dev`. The consumer prepends a
 `DEV MODE ACTIVE` behavior section to the system prompt of every run in the
-chat: plan before acting, ask one clarifying question when a request is
-ambiguous, confirm destructive/slow operations, prefer minimal diffs, report
-honestly. It is prompt-guided behavior (plus the existing `ask_user`
-reminder mechanics) — there is no run pause/resume behind it. Prompt preview
-and replay surfaces don't include the section; live channel runs do.
+chat: plan before acting, reach for `ask_options` when a key decision is
+unclear, verify before concluding (never claim a build passes without running
+it), confirm destructive/slow operations, prefer minimal diffs, report
+honestly. It is prompt-guided behavior (plus the `ask_options` tool and the
+existing `ask_user` reminder mechanics) — there is no run pause/resume behind
+it. Prompt preview and replay surfaces don't include the section; live
+channel runs do.
 
 ## /status — the card
 

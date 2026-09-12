@@ -246,6 +246,13 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 		}
 	}
 
+	// Interactive pickers: replying to a skill detail card or an ask_options
+	// question is a direct answer to the bot — rewrite the content into the
+	// equivalent session input before command handling sees it.
+	if message.ReplyToMessage != nil {
+		content = c.transformInteractiveReply(message.ReplyToMessage, content)
+	}
+
 	// Handle bot commands BEFORE enriching with reply/forward context.
 	// Command parsing (SplitN on spaces) breaks when reply context is appended with newlines,
 	// e.g. "/addwriter@bot\n\n[Replying to ...]" — the bot-username check fails.

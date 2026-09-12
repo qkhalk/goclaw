@@ -242,7 +242,7 @@ func TestStatusCommand_FullCardHasAllSections(t *testing.T) {
 	ch, caller := newPrefsTestChannel(t, prefs, provider)
 
 	ch.handleStatusCommand(context.Background(), 1, "1", false, false, 0, 0,
-		func(*telego.SendMessageParams) {}, "")
+		func(*telego.SendMessageParams) {}, "", "")
 
 	text := lastSentText(t, caller)
 	for _, want := range []string{"GoClaw", "Uptime", "Agent:", "Model:", "Session:", "Cost", "Context", "Compactions", "Think:", "Docs:"} {
@@ -258,7 +258,7 @@ func TestStatusCommand_ShortCardTruncated(t *testing.T) {
 	ch, caller := newPrefsTestChannel(t, prefs, provider)
 
 	ch.handleStatusCommand(context.Background(), 1, "1", true, false, 0, 0,
-		func(*telego.SendMessageParams) {}, "")
+		func(*telego.SendMessageParams) {}, "", "")
 
 	text := lastSentText(t, caller)
 	if strings.Contains(text, "Compactions") {
@@ -275,7 +275,7 @@ func TestStatusCommand_VerbosityPersisted(t *testing.T) {
 	ch, _ := newPrefsTestChannel(t, prefs, provider)
 
 	ch.handleStatusCommand(context.Background(), 1, "1", true, false, 0, 0,
-		func(*telego.SendMessageParams) {}, "full")
+		func(*telego.SendMessageParams) {}, "", "full")
 
 	if got := prefs.data["agent::telegram:group:1"]["tg_status_verbosity"]; got != "full" {
 		t.Errorf("tg_status_verbosity = %q, want full", got)
