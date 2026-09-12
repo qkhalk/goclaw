@@ -60,6 +60,9 @@ const NodesPage = lazyWithRetry(() =>
 const LogsPage = lazyWithRetry(() =>
   import("@/pages/logs/logs-page").then((m) => ({ default: m.LogsPage })),
 );
+const CloudPage = lazyWithRetry(() =>
+  import("@/pages/cloud/cloud-page").then((m) => ({ default: m.CloudPage })),
+);
 const ProvidersPage = lazyWithRetry(() =>
   import("@/pages/providers/providers-page").then((m) => ({ default: m.ProvidersPage })),
 );
@@ -194,6 +197,7 @@ export function AppRoutes() {
           <Route path={ROUTES.API_KEYS} element={<RequireAdmin><ApiKeysPage /></RequireAdmin>} />
           <Route path={ROUTES.CHANNELS} element={<RequireAdmin><ChannelsPage key="list" /></RequireAdmin>} />
           <Route path={ROUTES.CHANNEL_DETAIL} element={<RequireAdmin><ChannelsPage key="detail" /></RequireAdmin>} />
+          <Route path={ROUTES.CLOUD} element={<CloudPage />} />
           <Route path={ROUTES.WEBHOOKS} element={<RequireAdmin><WebhooksPage /></RequireAdmin>} />
           <Route path={ROUTES.NODES} element={<RequireAdmin><NodesPage /></RequireAdmin>} />
           <Route path={ROUTES.WORKSTATIONS} element={<RequireAdmin><WorkstationsPage /></RequireAdmin>} />

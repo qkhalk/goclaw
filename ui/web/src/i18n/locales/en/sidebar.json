@@ -46,6 +46,7 @@
     "packages": "Packages",
     "tenants": "Tenants",
     "backupRestore": "Backup & Restore",
-    "workstations": "Workstations"
+    "workstations": "Workstations",
+    "cloud": "Cloud"
   }
 }

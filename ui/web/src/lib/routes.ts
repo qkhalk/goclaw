@@ -22,6 +22,7 @@ export const ROUTES = {
   USAGE: "/usage",
   CHANNELS: "/channels",
   CHANNEL_DETAIL: "/channels/:id",
+  CLOUD: "/cloud",
   CONTACTS: "/contacts",
   APPROVALS: "/approvals",
   NODES: "/nodes",
