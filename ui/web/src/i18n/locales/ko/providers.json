@@ -182,6 +182,7 @@
     "signInWithCopilot": "GitHub Copilot으로 로그인",
     "deviceCodeHint": "GitHub 페이지에서 이 코드를 입력하여 GoClaw을 승인하세요.",
     "copyCode": "코드 복사",
+    "copiedCode": "복사됨!",
     "waitingForGithub": "GitHub 승인 대기 중…"
   },
   "cli": {

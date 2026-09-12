@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, ExternalLink, CheckCircle, ClipboardPaste, Copy } from "lucide-react";
 import { useHttp } from "@/hooks/use-ws";
+import { useClipboard } from "@/hooks/use-clipboard";
 import { isValidSlug } from "@/lib/slug";
 import { toast } from "@/stores/use-toast-store";
 import i18next from "i18next";
@@ -57,6 +58,7 @@ export function OAuthSection({
   const [deviceCode, setDeviceCode] = useState<{ user_code: string; verification_uri: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justAuthenticated, setJustAuthenticated] = useState(false);
+  const { copied, copy } = useClipboard();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionLabel = authenticatedActionLabel || t("oauth.done");
@@ -290,10 +292,10 @@ export function OAuthSection({
                 variant="ghost"
                 size="sm"
                 className="min-h-11 shrink-0 gap-1.5 sm:min-h-9"
-                onClick={() => navigator.clipboard?.writeText(deviceCode.user_code)}
+                onClick={() => void copy(deviceCode.user_code)}
               >
-                <Copy className="h-3.5 w-3.5" />
-                {t("oauth.copyCode")}
+                {copied ? <CheckCircle className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? t("oauth.copiedCode") : t("oauth.copyCode")}
               </Button>
             </div>
           </div>

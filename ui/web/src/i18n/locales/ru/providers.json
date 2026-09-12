@@ -182,6 +182,7 @@
     "signInWithCopilot": "Войти через GitHub Copilot",
     "deviceCodeHint": "Введите этот код на странице GitHub, чтобы авторизовать GoClaw.",
     "copyCode": "Копировать код",
+    "copiedCode": "Скопировано!",
     "waitingForGithub": "Ожидание авторизации GitHub…"
   },
   "cli": {
