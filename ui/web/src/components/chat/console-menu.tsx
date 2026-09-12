@@ -1,8 +1,10 @@
-import { useState, useRef, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, ChevronRight, FolderOpen, FolderPlus, ListTree, PanelsTopLeft, SquareTerminal } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, ListTree, PanelsTopLeft, SquareTerminal } from "lucide-react";
+import { Methods } from "@/api/protocol";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
+import { useWs } from "@/hooks/use-ws";
 import { useWorkspaces } from "@/hooks/use-workspaces";
 
 interface ConsoleMenuProps {
@@ -33,6 +35,7 @@ export function ConsoleMenu({
   onToggleTerminal,
 }: ConsoleMenuProps) {
   const { t } = useTranslation("chat");
+  const ws = useWs();
   const { workspaces, loading, refresh, create } = useWorkspaces();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -41,9 +44,36 @@ export function ConsoleMenu({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // Directory suggestions for the custom-path input (workspace.suggestDirs).
+  const [dirSuggestions, setDirSuggestions] = useState<string[]>([]);
+  const [activeSug, setActiveSug] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+
+  // Debounced suggestion fetch while the path field is visible. An empty
+  // query lists the server-side workspace root, so focusing the field
+  // already offers starting points instead of typing blind.
+  useEffect(() => {
+    if (!showAdvanced) {
+      setDirSuggestions([]);
+      setActiveSug(-1);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      try {
+        const res = await ws.call<{ directories: string[] }>(
+          Methods.WORKSPACE_SUGGEST_DIRS,
+          { query: newPath },
+        );
+        setDirSuggestions(res.directories ?? []);
+        setActiveSug(-1);
+      } catch {
+        setDirSuggestions([]);
+      }
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [newPath, showAdvanced, ws]);
 
   useLayoutEffect(() => {
     if (!open || !containerRef.current) return;
@@ -171,19 +201,77 @@ export function ConsoleMenu({
                 {t("workspacePicker.advancedPath")}
               </button>
               {showAdvanced && (
-                <input
-                  value={newPath}
-                  onChange={(e) => setNewPath(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newName.trim()) handleCreate();
-                    if (e.key === "Escape") setCreating(false);
-                  }}
-                  maxLength={512}
-                  spellCheck={false}
-                  placeholder={t("workspacePicker.pathPlaceholder")}
-                  title={t("workspacePicker.pathHint")}
-                  className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
-                />
+                <>
+                  <input
+                    value={newPath}
+                    onChange={(e) => setNewPath(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (dirSuggestions.length > 0) {
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setActiveSug((i) => Math.min(i + 1, dirSuggestions.length - 1));
+                          return;
+                        }
+                        if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setActiveSug((i) => Math.max(i - 1, -1));
+                          return;
+                        }
+                        if ((e.key === "Enter" || e.key === "Tab") && activeSug >= 0) {
+                          e.preventDefault();
+                          const picked = dirSuggestions[activeSug];
+                          if (picked) setNewPath(picked);
+                          return;
+                        }
+                        if (e.key === "Escape") {
+                          // First Escape dismisses the suggestion list only;
+                          // stop propagation so the menu itself stays open.
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setDirSuggestions([]);
+                          return;
+                        }
+                      }
+                      if (e.key === "Enter" && newName.trim()) handleCreate();
+                      if (e.key === "Escape") setCreating(false);
+                    }}
+                    maxLength={512}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    placeholder={t("workspacePicker.pathPlaceholder")}
+                    title={t("workspacePicker.pathHint")}
+                    className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
+                  />
+                  {dirSuggestions.length > 0 && (
+                    <div
+                      role="listbox"
+                      aria-label={t("workspacePicker.advancedPath")}
+                      className="mt-1 max-h-48 overflow-y-auto overscroll-contain rounded-md border bg-popover"
+                    >
+                      {dirSuggestions.map((d, i) => (
+                        <button
+                          key={d}
+                          type="button"
+                          role="option"
+                          aria-selected={i === activeSug}
+                          // mousedown + preventDefault keeps input focus.
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setNewPath(d);
+                          }}
+                          onMouseEnter={() => setActiveSug(i)}
+                          className={`flex w-full items-center gap-1.5 px-2 py-1 text-left text-xs ${
+                            i === activeSug ? "bg-accent text-accent-foreground" : ""
+                          }`}
+                        >
+                          <Folder className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <span className="truncate" title={d}>{d}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
 
               {createError && (

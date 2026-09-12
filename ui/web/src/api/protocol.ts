@@ -93,6 +93,7 @@ export const Methods = {
   WORKSPACE_LIST: "workspace.list",
   WORKSPACE_GET: "workspace.get",
   WORKSPACE_CREATE: "workspace.create",
+  WORKSPACE_SUGGEST_DIRS: "workspace.suggestDirs",
   WORKSPACE_UPDATE: "workspace.update",
   WORKSPACE_DELETE: "workspace.delete",
   WORKSPACE_FILES_LIST: "workspace.files.list",
