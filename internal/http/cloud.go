@@ -58,13 +58,17 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 // --- GET /v1/cloud/status ---
 
 func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
-	configured := h.manager != nil && h.manager.GoogleConfigured(r.Context())
+	googleConfigured := h.manager != nil && h.manager.GoogleConfigured(r.Context())
+	microsoftConfigured := h.manager != nil && h.manager.MicrosoftConfigured(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled": h.enabled && configured,
+		"enabled": h.enabled && (googleConfigured || microsoftConfigured),
 		"edition": h.editionName(),
 		"providers": map[string]any{
 			"google": map[string]bool{
-				"configured": configured,
+				"configured": googleConfigured,
+			},
+			"onedrive": map[string]bool{
+				"configured": microsoftConfigured,
 			},
 		},
 	})
@@ -86,7 +90,17 @@ func (h *CloudHandler) handleGetSettings(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "cloud manager unavailable"})
 		return
 	}
-	clientID, secretSet := h.manager.GoogleCredentialsStatus(r.Context())
+	if !h.validProvider(w, r) {
+		return
+	}
+	provider := h.requestProvider(r)
+	var clientID string
+	var secretSet bool
+	if provider == cloudmgr.MicrosoftProvider {
+		clientID, secretSet = h.manager.MicrosoftCredentialsStatus(r.Context())
+	} else {
+		clientID, secretSet = h.manager.GoogleCredentialsStatus(r.Context())
+	}
 	writeJSON(w, http.StatusOK, cloudSettingsView{
 		ClientID:    clientID,
 		SecretSet:   secretSet,
@@ -107,6 +121,10 @@ func (h *CloudHandler) handlePutSettings(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "cloud manager unavailable"})
 		return
 	}
+	if !h.validProvider(w, r) {
+		return
+	}
+	provider := h.requestProvider(r)
 	var in cloudSettingsInput
 	locale := store.LocaleFromContext(r.Context())
 	if !bindJSON(w, r, locale, &in) {
@@ -118,17 +136,48 @@ func (h *CloudHandler) handlePutSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	// First-time save requires a secret; updates may omit it (keep existing).
-	if _, alreadySet := h.manager.GoogleCredentialsStatus(r.Context()); !alreadySet && in.ClientSecret == "" {
+	alreadySet := false
+	if provider == cloudmgr.MicrosoftProvider {
+		_, alreadySet = h.manager.MicrosoftCredentialsStatus(r.Context())
+	} else {
+		_, alreadySet = h.manager.GoogleCredentialsStatus(r.Context())
+	}
+	if !alreadySet && in.ClientSecret == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "client_secret is required on first save"})
 		return
 	}
-	if err := h.manager.SaveGoogleCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret)); err != nil {
+	var err error
+	if provider == cloudmgr.MicrosoftProvider {
+		err = h.manager.SaveMicrosoftCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
+	} else {
+		err = h.manager.SaveGoogleCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
+	}
+	if err != nil {
 		slog.Error("cloud: save settings failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save cloud settings"})
 		return
 	}
-	slog.Info("cloud: oauth client saved from web UI")
+	slog.Info("cloud: oauth client saved from web UI", "provider", provider)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// requestProvider resolves the per-provider settings/connect target from the
+// query string ("google" default for backward compatibility).
+func (h *CloudHandler) requestProvider(r *http.Request) string {
+	provider := r.URL.Query().Get("provider")
+	if provider == "" {
+		return cloudmgr.GoogleProvider
+	}
+	return provider
+}
+
+// validProvider writes a 400 unless the ?provider= value is connectable.
+func (h *CloudHandler) validProvider(w http.ResponseWriter, r *http.Request) bool {
+	if cloudmgr.IsSupportedProvider(h.requestProvider(r)) {
+		return true
+	}
+	writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
+	return false
 }
 
 // redirectURI computes the exact redirect URI admins must register in GCP.
@@ -184,7 +233,7 @@ func (h *CloudHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 // --- POST /v1/cloud/oauth/{provider}/start ---
 
 type cloudStartResponse struct {
-	AuthURL    string `json:"auth_url"`
+	AuthURL     string `json:"auth_url"`
 	RedirectURI string `json:"redirect_uri"`
 }
 
@@ -193,7 +242,7 @@ func (h *CloudHandler) handleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	provider := r.PathValue("provider")
-	if provider != cloudmgr.GoogleProvider {
+	if !cloudmgr.IsSupportedProvider(provider) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
 		return
 	}
@@ -210,7 +259,7 @@ func (h *CloudHandler) handleStart(w http.ResponseWriter, r *http.Request) {
 	if base == "" {
 		base = requestBaseURL(r)
 	}
-	authURL, redirectURI, err := h.manager.BuildAuthURL(r.Context(), base, tenantID.String(), userID)
+	authURL, redirectURI, err := h.manager.BuildAuthURL(r.Context(), provider, base, tenantID.String(), userID)
 	if err != nil {
 		slog.Warn("cloud: build auth url failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to build authorization URL"})
@@ -223,8 +272,10 @@ func (h *CloudHandler) handleStart(w http.ResponseWriter, r *http.Request) {
 
 func (h *CloudHandler) handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Surface must still be enabled: the callback is unauthenticated so the
-	// edition/config gate is checked here, not just at /start.
-	if !h.enabled || h.manager == nil || !h.manager.GoogleConfigured(r.Context()) {
+	// edition/config gate is checked here, not just at /start. At least one
+	// provider must have an OAuth client; the state names the provider and
+	// HandleCallback dispatches (rejecting unconfigured ones).
+	if !h.enabled || h.manager == nil || !h.manager.AnyProviderConfigured(r.Context()) {
 		h.redirectCloud(w, r, "error=disabled")
 		return
 	}

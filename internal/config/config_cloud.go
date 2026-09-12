@@ -16,6 +16,8 @@ type CloudConfig struct {
 	// Google OAuth client credentials (BYO client — each install registers its
 	// own GCP OAuth client; testing-mode clients have 7-day refresh tokens).
 	Google GoogleCloudConfig `json:"google"`
+	// Microsoft OAuth client for OneDrive (BYO Azure app registration).
+	Microsoft MicrosoftCloudConfig `json:"microsoft"`
 	// MailRatePerMinute caps Gmail API calls per account (token bucket).
 	MailRatePerMinute int `json:"mail_rate_per_minute,omitempty"`
 	// MailReadMaxBytes truncates mail_read output (default 8192).
@@ -33,6 +35,13 @@ type GoogleCloudConfig struct {
 	// ClientSecret is usually injected via GOCLAW_CLOUD_GOOGLE_CLIENT_SECRET;
 	// if set in config it is honored (self-hosted single-tenant installs may
 	// prefer file config with restricted permissions).
+	ClientSecret string `json:"client_secret,omitempty"`
+}
+
+// MicrosoftCloudConfig carries the OAuth client registration for Microsoft
+// (OneDrive). Client secret is injected via GOCLAW_CLOUD_MICROSOFT_CLIENT_SECRET.
+type MicrosoftCloudConfig struct {
+	ClientID     string `json:"client_id,omitempty"`
 	ClientSecret string `json:"client_secret,omitempty"`
 }
 
