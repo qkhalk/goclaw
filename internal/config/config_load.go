@@ -209,6 +209,14 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GOCLAW_MCP_SERVER_TOKEN", &c.Gateway.MCPServerToken)
 	// Cloud accounts (Google OAuth client secret — never in config.json).
 	envStr("GOCLAW_CLOUD_GOOGLE_CLIENT_SECRET", &c.Cloud.Google.ClientSecret)
+	// Additional model providers (OpenClaw-parity set).
+	envStr("GOCLAW_MOONSHOT_API_KEY", &c.Providers.Moonshot.APIKey)
+	envStr("GOCLAW_TOGETHER_API_KEY", &c.Providers.Together.APIKey)
+	envStr("GOCLAW_FIREWORKS_API_KEY", &c.Providers.Fireworks.APIKey)
+	envStr("GOCLAW_CEREBRAS_API_KEY", &c.Providers.Cerebras.APIKey)
+	envStr("GOCLAW_SYNTHETIC_API_KEY", &c.Providers.Synthetic.APIKey)
+	envStr("GOCLAW_KILOCODE_API_KEY", &c.Providers.Kilocode.APIKey)
+	envStr("GOCLAW_OPENCODE_API_KEY", &c.Providers.OpenCode.APIKey)
 	envStr("GOCLAW_TELEGRAM_TOKEN", &c.Channels.Telegram.Token)
 	envStr("GOCLAW_DISCORD_TOKEN", &c.Channels.Discord.Token)
 	envStr("GOCLAW_ZALO_TOKEN", &c.Channels.Zalo.Token)

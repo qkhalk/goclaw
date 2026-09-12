@@ -280,6 +280,13 @@ type ProvidersConfig struct {
 	BytePlus       ProviderConfig  `json:"byteplus"`        // BytePlus ModelArk (Seed 2.0)
 	BytePlusCoding ProviderConfig  `json:"byteplus_coding"` // BytePlus ModelArk Coding Plan
 	Vertex         VertexConfig    `json:"vertex"`          // Google Cloud Vertex AI (OAuth2 service account + ADC)
+	Moonshot       ProviderConfig  `json:"moonshot"`        // Moonshot AI (Kimi, OpenAI-compatible)
+	Together       ProviderConfig  `json:"together"`        // Together AI (OpenAI-compatible)
+	Fireworks      ProviderConfig  `json:"fireworks"`       // Fireworks AI (OpenAI-compatible)
+	Cerebras       ProviderConfig  `json:"cerebras"`        // Cerebras (OpenAI-compatible)
+	Synthetic      ProviderConfig  `json:"synthetic"`       // Synthetic.new (Anthropic-compatible)
+	Kilocode       ProviderConfig  `json:"kilocode"`        // Kilo Code gateway (OpenAI-compatible)
+	OpenCode       ProviderConfig  `json:"opencode"`        // OpenCode Zen (OpenAI-compatible)
 
 	// RequestTimeoutSec bounds provider verify and models-list HTTP calls.
 	// Tenant-scoped, overridable via the "providers.request_timeout_sec" system config.
@@ -371,6 +378,20 @@ func (p *ProvidersConfig) APIBaseForType(providerType string) string {
 		return p.BytePlus.APIBase
 	case "byteplus_coding":
 		return p.BytePlusCoding.APIBase
+	case "moonshot":
+		return p.Moonshot.APIBase
+	case "together":
+		return p.Together.APIBase
+	case "fireworks":
+		return p.Fireworks.APIBase
+	case "cerebras":
+		return p.Cerebras.APIBase
+	case "synthetic":
+		return p.Synthetic.APIBase
+	case "kilocode":
+		return p.Kilocode.APIBase
+	case "opencode":
+		return p.OpenCode.APIBase
 	case "vertex":
 		// Computed from project+region at registration time; no config-level static base.
 		return ""
@@ -405,7 +426,14 @@ func (c *Config) HasAnyProvider() bool {
 		p.Novita.APIKey != "" ||
 		p.BytePlus.APIKey != "" ||
 		p.BytePlusCoding.APIKey != "" ||
-		(p.Vertex.ProjectID != "" && p.Vertex.Region != "")
+		(p.Vertex.ProjectID != "" && p.Vertex.Region != "") ||
+		p.Moonshot.APIKey != "" ||
+		p.Together.APIKey != "" ||
+		p.Fireworks.APIKey != "" ||
+		p.Cerebras.APIKey != "" ||
+		p.Synthetic.APIKey != "" ||
+		p.Kilocode.APIKey != "" ||
+		p.OpenCode.APIKey != ""
 }
 
 // QuotaWindow defines request limits per time window. Zero means unlimited.

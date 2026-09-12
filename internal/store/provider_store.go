@@ -37,6 +37,13 @@ const (
 	ProviderVertex          = "vertex"          // Google Cloud Vertex AI (OAuth2 service account + ADC)
 	ProviderKimiCoding      = "kimi_coding"     // Moonshot Kimi Coding (OpenAI-compat, requires fixed User-Agent)
 	ProviderAtlasCloud      = "atlascloud"      // Atlas Cloud (OpenAI-compatible endpoint)
+	ProviderMoonshot        = "moonshot"        // Moonshot AI platform (Kimi models, OpenAI-compat)
+	ProviderTogether        = "together"        // Together AI (OpenAI-compat)
+	ProviderFireworks       = "fireworks"       // Fireworks AI (OpenAI-compat)
+	ProviderCerebras        = "cerebras"        // Cerebras inference (OpenAI-compat)
+	ProviderSynthetic       = "synthetic"       // Synthetic.new (Anthropic-compatible endpoint)
+	ProviderKilocode        = "kilocode"        // Kilo Code gateway (OpenAI-compat)
+	ProviderOpenCode        = "opencode"        // OpenCode Zen (OpenAI-compat)
 
 	// MiniMax defaults.
 	MiniMaxDefaultAPIBase = "https://api.minimax.io/v1"
@@ -66,6 +73,36 @@ const (
 	// Atlas Cloud defaults.
 	AtlasCloudDefaultAPIBase = "https://api.atlascloud.ai/v1"
 	AtlasCloudDefaultModel   = "qwen/qwen3.5-flash"
+
+	// Moonshot platform defaults (Kimi models via the standard API; the CN
+	// endpoint api.moonshot.cn/v1 works via api_base override).
+	MoonshotDefaultAPIBase = "https://api.moonshot.ai/v1"
+	MoonshotDefaultModel   = "kimi-k2.5"
+
+	// Together AI defaults.
+	TogetherDefaultAPIBase = "https://api.together.xyz/v1"
+	TogetherDefaultModel   = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+
+	// Fireworks AI defaults (model IDs are account-prefixed on Fireworks).
+	FireworksDefaultAPIBase = "https://api.fireworks.ai/inference/v1"
+	FireworksDefaultModel   = "accounts/fireworks/models/kimi-k2-instruct-0905"
+
+	// Cerebras defaults.
+	CerebrasDefaultAPIBase = "https://api.cerebras.ai/v1"
+	CerebrasDefaultModel   = "llama-4-maverick-17b-128e-instruct"
+
+	// Synthetic.new defaults — Anthropic-compatible wire format (base already
+	// includes the /anthropic mount; the client appends /v1/messages).
+	SyntheticDefaultAPIBase = "https://api.synthetic.new/anthropic"
+	SyntheticDefaultModel   = "hf:zai-org/GLM-4.6"
+
+	// Kilo Code gateway defaults (OpenRouter-style provider/model ids).
+	KilocodeDefaultAPIBase = "https://api.kilo.ai/api/gateway/v1"
+	KilocodeDefaultModel   = "anthropic/claude-sonnet-4.5"
+
+	// OpenCode Zen defaults.
+	OpenCodeDefaultAPIBase = "https://opencode.ai/zen/v1"
+	OpenCodeDefaultModel   = "grok-code"
 )
 
 // Vertex AI constants live in internal/providers/vertex.go to avoid a store→providers import cycle
@@ -102,6 +139,13 @@ var ValidProviderTypes = map[string]bool{
 	ProviderVertex:          true,
 	ProviderKimiCoding:      true,
 	ProviderAtlasCloud:      true,
+	ProviderMoonshot:        true,
+	ProviderTogether:        true,
+	ProviderFireworks:       true,
+	ProviderCerebras:        true,
+	ProviderSynthetic:       true,
+	ProviderKilocode:        true,
+	ProviderOpenCode:        true,
 }
 
 // VertexProviderSettings holds Vertex-specific config stored in llm_providers.settings JSONB.

@@ -178,6 +178,31 @@ func registerProviders(registry *providers.Registry, cfg *config.Config, modelRe
 			base = store.NovitaDefaultAPIBase
 		}
 		registry.Register(providers.NewOpenAIProvider("novita", cfg.Providers.Novita.APIKey, base, store.NovitaDefaultModel))
+
+	// OpenClaw-parity key providers (each falls back to its store default base).
+	registerSimple := func(name string, apiKey, apiBase, defBase, defModel string, anthropicCompat bool) {
+		if apiKey == "" {
+			return
+		}
+		b := apiBase
+		if b == "" {
+			b = defBase
+		}
+		if anthropicCompat {
+			registry.Register(providers.NewAnthropicProvider(apiKey,
+				providers.WithAnthropicName(name),
+				providers.WithAnthropicBaseURL(b)))
+			return
+		}
+		registry.Register(providers.NewOpenAIProvider(name, apiKey, b, defModel))
+	}
+	registerSimple("moonshot", cfg.Providers.Moonshot.APIKey, cfg.Providers.Moonshot.APIBase, store.MoonshotDefaultAPIBase, store.MoonshotDefaultModel, false)
+	registerSimple("together", cfg.Providers.Together.APIKey, cfg.Providers.Together.APIBase, store.TogetherDefaultAPIBase, store.TogetherDefaultModel, false)
+	registerSimple("fireworks", cfg.Providers.Fireworks.APIKey, cfg.Providers.Fireworks.APIBase, store.FireworksDefaultAPIBase, store.FireworksDefaultModel, false)
+	registerSimple("cerebras", cfg.Providers.Cerebras.APIKey, cfg.Providers.Cerebras.APIBase, store.CerebrasDefaultAPIBase, store.CerebrasDefaultModel, false)
+	registerSimple("synthetic", cfg.Providers.Synthetic.APIKey, cfg.Providers.Synthetic.APIBase, store.SyntheticDefaultAPIBase, store.SyntheticDefaultModel, true)
+	registerSimple("kilocode", cfg.Providers.Kilocode.APIKey, cfg.Providers.Kilocode.APIBase, store.KilocodeDefaultAPIBase, store.KilocodeDefaultModel, false)
+	registerSimple("opencode", cfg.Providers.OpenCode.APIKey, cfg.Providers.OpenCode.APIBase, store.OpenCodeDefaultAPIBase, store.OpenCodeDefaultModel, false)
 		slog.Info("registered provider", "name", "novita")
 	}
 
@@ -434,6 +459,51 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.BytePlusDefaultModel)
 			prov.WithProviderType(p.ProviderType)
 			registry.RegisterForTenant(p.TenantID, prov)
+		case store.ProviderMoonshot:
+			base := p.APIBase
+			if base == "" {
+				base = store.MoonshotDefaultAPIBase
+			}
+			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.MoonshotDefaultModel))
+		case store.ProviderTogether:
+			base := p.APIBase
+			if base == "" {
+				base = store.TogetherDefaultAPIBase
+			}
+			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.TogetherDefaultModel))
+		case store.ProviderFireworks:
+			base := p.APIBase
+			if base == "" {
+				base = store.FireworksDefaultAPIBase
+			}
+			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.FireworksDefaultModel))
+		case store.ProviderCerebras:
+			base := p.APIBase
+			if base == "" {
+				base = store.CerebrasDefaultAPIBase
+			}
+			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.CerebrasDefaultModel))
+		case store.ProviderSynthetic:
+			// Anthropic-compatible wire format.
+			base := p.APIBase
+			if base == "" {
+				base = store.SyntheticDefaultAPIBase
+			}
+			registry.RegisterForTenant(p.TenantID, providers.NewAnthropicProvider(p.APIKey,
+				providers.WithAnthropicName(p.Name),
+				providers.WithAnthropicBaseURL(base)))
+		case store.ProviderKilocode:
+			base := p.APIBase
+			if base == "" {
+				base = store.KilocodeDefaultAPIBase
+			}
+			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.KilocodeDefaultModel))
+		case store.ProviderOpenCode:
+			base := p.APIBase
+			if base == "" {
+				base = store.OpenCodeDefaultAPIBase
+			}
+			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.OpenCodeDefaultModel))
 		case store.ProviderKimiCoding:
 			// Moonshot Kimi Coding requires a fixed User-Agent on every request.
 			// OpenAI-compatible wire shape otherwise.
