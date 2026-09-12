@@ -2,6 +2,7 @@
   "groups": {
     "core": "Основное",
     "conversations": "Беседы",
+    "cloud": "Облако",
     "connectivity": "Подключения",
     "capabilities": "Возможности",
     "data": "Данные",

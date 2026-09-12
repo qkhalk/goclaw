@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { CloudCog, Copy, Pencil, Plus, RefreshCw, Unplug } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";
@@ -151,6 +152,15 @@ function GoogleClientSetup() {
   );
 }
 
+/** rclone-style backend catalog. Google is live today (OAuth + Gmail + Drive);
+ * the rest share the same rclone engine once their per-provider OAuth apps land. */
+const STORAGE_PROVIDERS: { name: string; live?: boolean }[] = [
+  { name: "Google Drive", live: true },
+  { name: "Microsoft OneDrive" },
+  { name: "Dropbox" },
+  { name: "Amazon S3 / compatible" },
+];
+
 export function CloudPage() {
   const { t } = useTranslation("cloud");
   const result = useCloudResult();
@@ -276,6 +286,37 @@ export function CloudPage() {
           )}
         </div>
       )}
+
+      <div className="rounded-lg border p-4">
+        <p className="text-sm font-medium">{t("providers_section.title")}</p>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {STORAGE_PROVIDERS.map((p) => (
+            <div
+              key={p.name}
+              className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{p.name}</p>
+                {p.live && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {t("providers_section.google_desc")}
+                  </p>
+                )}
+              </div>
+              {p.live ? (
+                <Badge variant="outline" className="shrink-0 border-green-500/40 text-green-600">
+                  {t("providers_section.available")}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="shrink-0 text-muted-foreground">
+                  {t("providers_section.coming_soon")}
+                </Badge>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">{t("providers_section.more_via_rclone")}</p>
+      </div>
 
       <ConfirmDialog
         open={deleteTarget !== null}

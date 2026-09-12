@@ -104,11 +104,14 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
           <SidebarItem to={ROUTES.CONTACTS} icon={Contact} label={t("nav.contacts")} collapsed={collapsed} />
         </SidebarGroup>
 
+        {cloudAccountsEnabled && (
+          <SidebarGroup label={t("groups.cloud")} collapsed={collapsed}>
+            <SidebarItem to={ROUTES.CLOUD} icon={CloudCog} label={t("nav.cloud")} collapsed={collapsed} />
+          </SidebarGroup>
+        )}
+
         <SidebarGroup label={t("groups.connectivity")} collapsed={collapsed}>
           <SidebarItem to={ROUTES.CHANNELS} icon={Radio} label={t("nav.channels")} collapsed={collapsed} />
-          {cloudAccountsEnabled && (
-            <SidebarItem to={ROUTES.CLOUD} icon={CloudCog} label={t("nav.cloud")} collapsed={collapsed} />
-          )}
           {isAdmin && (
             <SidebarItem to={ROUTES.WEBHOOKS} icon={Cable} label={t("nav.webhooks")} collapsed={collapsed} />
           )}
