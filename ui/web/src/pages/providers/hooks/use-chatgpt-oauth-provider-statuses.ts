@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { OAUTH_PROVIDER_TYPES } from "@/constants/providers";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
 import type { ProviderData } from "@/types/provider";
@@ -19,7 +20,7 @@ export interface ChatGPTOAuthProviderStatus {
 export function useChatGPTOAuthProviderStatuses(providers: ProviderData[], enabled = true) {
   const http = useHttp();
   const oauthProviders = useMemo(
-    () => providers.filter((provider) => provider.provider_type === "chatgpt_oauth"),
+    () => providers.filter((provider) => provider.provider_type in OAUTH_PROVIDER_TYPES),
     [providers],
   );
   const providerKeys = oauthProviders.map((provider) => `${provider.name}:${provider.enabled ? "1" : "0"}`);
@@ -39,8 +40,9 @@ export function useChatGPTOAuthProviderStatuses(providers: ProviderData[], enabl
         }
 
         try {
+          const flavor = OAUTH_PROVIDER_TYPES[provider.provider_type] ?? 'chatgpt';
           const status = await http.get<ChatGPTOAuthStatusResponse>(
-            `/v1/auth/chatgpt/${encodeURIComponent(provider.name)}/status`,
+            `/v1/auth/${flavor}/${encodeURIComponent(provider.name)}/status`,
           );
           return {
             provider,

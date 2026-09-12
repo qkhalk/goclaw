@@ -177,7 +177,12 @@
     "oauthFailed": "Ошибка OAuth",
     "exchangeFailed": "Ошибка обмена",
     "logoutFailed": "Ошибка выхода",
-    "done": "Готово"
+    "done": "Готово",
+    "signInWithClaude": "Войти через Claude",
+    "signInWithCopilot": "Войти через GitHub Copilot",
+    "deviceCodeHint": "Введите этот код на странице GitHub, чтобы авторизовать GoClaw.",
+    "copyCode": "Копировать код",
+    "waitingForGithub": "Ожидание авторизации GitHub…"
   },
   "cli": {
     "description": "Claude CLI использует ваш локальный",

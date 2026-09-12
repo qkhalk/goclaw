@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, ExternalLink, CheckCircle, ClipboardPaste } from "lucide-react";
+import { Loader2, ExternalLink, CheckCircle, ClipboardPaste, Copy } from "lucide-react";
 import { useHttp } from "@/hooks/use-ws";
 import { isValidSlug } from "@/lib/slug";
 import { toast } from "@/stores/use-toast-store";
@@ -19,7 +19,11 @@ interface OAuthStatus {
 interface StartResponse {
   auth_url?: string;
   status?: string;
+  user_code?: string;
+  verification_uri?: string;
 }
+
+export type OAuthFlavor = "chatgpt" | "claude" | "copilot";
 
 interface OAuthSectionProps {
   onSuccess: () => void;
@@ -27,6 +31,8 @@ interface OAuthSectionProps {
   providerName?: string;
   displayName?: string;
   apiBase?: string;
+  /** OAuth backend flavor: endpoint set + UX (paste-redirect vs device code). */
+  flavor?: OAuthFlavor;
 }
 
 export function OAuthSection({
@@ -35,7 +41,9 @@ export function OAuthSection({
   providerName,
   displayName,
   apiBase,
+  flavor = "chatgpt",
 }: OAuthSectionProps) {
+  const flavorPath = flavor; // endpoint segment: chatgpt | claude | copilot
   const { t } = useTranslation("providers");
   const queryClient = useQueryClient();
   const http = useHttp();
@@ -46,6 +54,7 @@ export function OAuthSection({
   const [starting, setStarting] = useState(false);
   const [waitingCallback, setWaitingCallback] = useState(false);
   const [pasteUrl, setPasteUrl] = useState("");
+  const [deviceCode, setDeviceCode] = useState<{ user_code: string; verification_uri: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justAuthenticated, setJustAuthenticated] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -53,11 +62,13 @@ export function OAuthSection({
   const actionLabel = authenticatedActionLabel || t("oauth.done");
   const renderUsageHint = (provider: string) => (
     <div className="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-      <div className="flex flex-wrap gap-1.5">
-        <Badge variant="outline" className="bg-background/80">{t("oauth.poolBadge")}</Badge>
-        <Badge variant="outline" className="bg-background/80">{t("oauth.roundRobinBadge")}</Badge>
-      </div>
-      <p className="mt-2">{t("oauth.multiAccountHint")}</p>
+      {flavor === "chatgpt" && (
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="outline" className="bg-background/80">{t("oauth.poolBadge")}</Badge>
+          <Badge variant="outline" className="bg-background/80">{t("oauth.roundRobinBadge")}</Badge>
+        </div>
+      )}
+      <p className={flavor === "chatgpt" ? "mt-2" : ""}>{t("oauth.multiAccountHint")}</p>
       <p className="mt-1">
         {t("oauth.modelPrefixHint")} <code className="rounded bg-muted px-1 font-mono">{provider}/</code>{" "}
         {t("oauth.modelPrefixExample", {
@@ -79,7 +90,7 @@ export function OAuthSection({
       return null;
     }
     try {
-      const res = await http.get<OAuthStatus>(`/v1/auth/chatgpt/${encodeURIComponent(resolvedProviderName)}/status`);
+      const res = await http.get<OAuthStatus>(`/v1/auth/${flavorPath}/${encodeURIComponent(resolvedProviderName)}/status`);
       setStatus(res);
       return res;
     } catch {
@@ -105,13 +116,30 @@ export function OAuthSection({
     if (!hasValidProvider) return;
     setStarting(true);
     try {
-      const res = await http.post<StartResponse>(`/v1/auth/chatgpt/${encodeURIComponent(resolvedProviderName)}/start`, {
+      const res = await http.post<StartResponse>(`/v1/auth/${flavorPath}/${encodeURIComponent(resolvedProviderName)}/start`, {
         display_name: displayName?.trim() || undefined,
         api_base: apiBase?.trim() || undefined,
       });
       if (res.status === "already_authenticated") {
         await fetchStatus();
         showSuccess();
+        return;
+      }
+      if (flavor === "copilot" && res.user_code && res.verification_uri) {
+        setDeviceCode({ user_code: res.user_code, verification_uri: res.verification_uri });
+        window.open(res.verification_uri, "_blank", "noopener,noreferrer");
+        setWaitingCallback(true);
+        pollRef.current = setInterval(async () => {
+          const s = await fetchStatus();
+          if (s?.authenticated) {
+            stopPolling();
+            showSuccess();
+          }
+        }, 2000);
+        timeoutRef.current = setTimeout(() => {
+          stopPolling();
+          setWaitingCallback(false);
+        }, 6 * 60 * 1000);
         return;
       }
       if (res.auth_url) {
@@ -142,7 +170,7 @@ export function OAuthSection({
     if (!url || !hasValidProvider) return;
     setSubmitting(true);
     try {
-      await http.post(`/v1/auth/chatgpt/${encodeURIComponent(resolvedProviderName)}/callback`, { redirect_url: url });
+      await http.post(`/v1/auth/${flavorPath}/${encodeURIComponent(resolvedProviderName)}/callback`, { redirect_url: url });
       stopPolling();
       setPasteUrl("");
       await fetchStatus();
@@ -157,7 +185,7 @@ export function OAuthSection({
   const handleLogout = async () => {
     if (!hasValidProvider) return;
     try {
-      await http.post(`/v1/auth/chatgpt/${encodeURIComponent(resolvedProviderName)}/logout`);
+      await http.post(`/v1/auth/${flavorPath}/${encodeURIComponent(resolvedProviderName)}/logout`);
       setStatus({ authenticated: false });
       queryClient.invalidateQueries({ queryKey: ["providers"] });
       toast.success(i18next.t("providers:oauth.loggedOut"), i18next.t("providers:oauth.loggedOutDesc"));
@@ -248,7 +276,29 @@ export function OAuthSection({
           })}
         </p>
       </div>
-      {waitingCallback ? (
+      {waitingCallback && flavor === "copilot" && deviceCode ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-sm text-blue-700 dark:text-blue-400">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            <span>{t("oauth.waitingForGithub")}</span>
+          </div>
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+            <p className="text-xs text-amber-700 dark:text-amber-400">{t("oauth.deviceCodeHint")}</p>
+            <div className="flex items-center gap-2">
+              <code className="rounded bg-muted px-2 py-1 font-mono text-lg font-semibold tracking-widest">{deviceCode.user_code}</code>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 shrink-0 gap-1.5 sm:min-h-9"
+                onClick={() => navigator.clipboard?.writeText(deviceCode.user_code)}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                {t("oauth.copyCode")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : waitingCallback && flavor !== "copilot" ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-sm text-blue-700 dark:text-blue-400">
             <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
@@ -282,7 +332,13 @@ export function OAuthSection({
       ) : (
         <Button size="sm" onClick={handleStart} disabled={starting} className="gap-1.5">
           {starting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-          {starting ? t("oauth.starting") : t("oauth.signInWithChatGPT")}
+          {starting
+            ? t("oauth.starting")
+            : flavor === "copilot"
+              ? t("oauth.signInWithCopilot")
+              : flavor === "claude"
+                ? t("oauth.signInWithClaude")
+                : t("oauth.signInWithChatGPT")}
         </Button>
       )}
     </div>
