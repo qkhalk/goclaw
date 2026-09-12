@@ -86,5 +86,13 @@
     "title": "Embedding",
     "notConfigured": "Not configured",
     "configure": "Configure in Providers →"
+  },
+  "routing": {
+    "title": "Model routing",
+    "window": "24h",
+    "noData": "No routing data yet",
+    "req": "{{count}} req",
+    "moreProviders": "+{{count}} more providers",
+    "moreModels": "+{{count}} more models"
   }
 }

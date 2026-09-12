@@ -33,6 +33,7 @@ func (h *UsageHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/usage/events/breakdown", h.authMiddleware(h.handleEventBreakdown))
 	mux.HandleFunc("GET /v1/usage/events/summary", h.authMiddleware(h.handleEventSummary))
 	mux.HandleFunc("GET /v1/usage/recent-requests", h.authMiddleware(h.handleRecentRequests))
+	mux.HandleFunc("GET /v1/usage/routing", h.authMiddleware(h.handleRouting))
 }
 
 // handleRecentRequests returns the newest LLM API calls (llm_call spans) for
@@ -61,6 +62,46 @@ func (h *UsageHandler) handleRecentRequests(w http.ResponseWriter, r *http.Reque
 		requests = []store.RecentLLMRequest{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"requests": requests})
+}
+
+// handleRouting aggregates llm_call spans into provider→model pairs for the
+// dashboard routing graph (provider → gateway → model).
+func (h *UsageHandler) handleRouting(w http.ResponseWriter, r *http.Request) {
+	if h.tracing == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "tracing store unavailable"})
+		return
+	}
+	hours := 24
+	if v := r.URL.Query().Get("hours"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "hours must be a positive integer"})
+			return
+		}
+		hours = n
+	}
+	if hours > 720 {
+		hours = 720
+	}
+	limit := 12
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
+			return
+		}
+		limit = n
+	}
+	edges, err := h.tracing.ListRoutingEdges(r.Context(), time.Now().UTC().Add(-time.Duration(hours)*time.Hour), limit)
+	if err != nil {
+		slog.Error("usage.routing query failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	if edges == nil {
+		edges = []store.UsageRoutingEdge{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"window_hours": hours, "edges": edges})
 }
 
 func (h *UsageHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {

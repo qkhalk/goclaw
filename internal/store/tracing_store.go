@@ -176,6 +176,17 @@ type RecentLLMRequest struct {
 	CostUSD      *float64  `json:"cost_usd,omitempty"`
 }
 
+// UsageRoutingEdge is one provider→model pair aggregated over a time window
+// for the dashboard routing graph (provider → gateway → model).
+type UsageRoutingEdge struct {
+	Provider     string `json:"provider"`
+	Model        string `json:"model"`
+	Calls        int64  `json:"calls"`
+	InputTokens  int64  `json:"input_tokens"`
+	OutputTokens int64  `json:"output_tokens"`
+	Errors       int64  `json:"errors"`
+}
+
 // TracingStore manages LLM traces and spans.
 type TracingStore interface {
 	CreateTrace(ctx context.Context, trace *TraceData) error
@@ -187,6 +198,11 @@ type TracingStore interface {
 	// ListRecentLLMRequests returns the newest llm_call spans (newest first),
 	// scoped to the ctx tenant. limit is clamped to [1, 100].
 	ListRecentLLMRequests(ctx context.Context, limit int) ([]RecentLLMRequest, error)
+
+	// ListRoutingEdges aggregates llm_call spans into provider→model pairs
+	// (busiest first, spans with empty provider/model excluded), scoped to
+	// the ctx tenant, since the given time. limit is clamped to [1, 50].
+	ListRoutingEdges(ctx context.Context, since time.Time, limit int) ([]UsageRoutingEdge, error)
 
 	CreateSpan(ctx context.Context, span *SpanData) error
 	UpdateSpan(ctx context.Context, spanID uuid.UUID, updates map[string]any) error

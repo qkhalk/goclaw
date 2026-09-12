@@ -496,3 +496,50 @@ func (s *SQLiteTracingStore) ListRecentLLMRequests(ctx context.Context, limit in
 	}
 	return result, rows.Err()
 }
+
+// ListRoutingEdges aggregates llm_call spans into provider→model pairs
+// (busiest first, spans with empty provider/model excluded), scoped to the
+// ctx tenant, since the given time. limit is clamped to [1, 50].
+func (s *SQLiteTracingStore) ListRoutingEdges(ctx context.Context, since time.Time, limit int) ([]store.UsageRoutingEdge, error) {
+	if limit <= 0 {
+		limit = 12
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	q := `SELECT COALESCE(provider, ''), COALESCE(model, ''),
+		 COUNT(*),
+		 COALESCE(SUM(COALESCE(input_tokens, 0)), 0),
+		 COALESCE(SUM(COALESCE(output_tokens, 0)), 0),
+		 COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0)
+		 FROM spans
+		 WHERE span_type = 'llm_call' AND start_time >= ?
+		   AND COALESCE(provider, '') <> '' AND COALESCE(model, '') <> ''`
+	args := []any{since}
+	if !store.IsCrossTenant(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid == uuid.Nil {
+			return nil, fmt.Errorf("tenant_id required")
+		}
+		args = append(args, tid)
+		q += " AND tenant_id = ?"
+	}
+	args = append(args, limit)
+	q += " GROUP BY 1, 2 ORDER BY 3 DESC LIMIT ?"
+
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list routing edges: %w", err)
+	}
+	defer rows.Close()
+
+	var result []store.UsageRoutingEdge
+	for rows.Next() {
+		var e store.UsageRoutingEdge
+		if err := rows.Scan(&e.Provider, &e.Model, &e.Calls, &e.InputTokens, &e.OutputTokens, &e.Errors); err != nil {
+			return nil, fmt.Errorf("scan routing edge: %w", err)
+		}
+		result = append(result, e)
+	}
+	return result, rows.Err()
+}
