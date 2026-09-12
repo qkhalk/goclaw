@@ -353,6 +353,51 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) providerRu
 			"User-Agent": store.KimiCodingRequiredUserAgent,
 		})
 		h.providerReg.RegisterForTenant(p.TenantID, prov)
+	case store.ProviderMoonshot:
+		base := apiBase
+		if base == "" {
+			base = store.MoonshotDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.MoonshotDefaultModel))
+	case store.ProviderTogether:
+		base := apiBase
+		if base == "" {
+			base = store.TogetherDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.TogetherDefaultModel))
+	case store.ProviderFireworks:
+		base := apiBase
+		if base == "" {
+			base = store.FireworksDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.FireworksDefaultModel))
+	case store.ProviderCerebras:
+		base := apiBase
+		if base == "" {
+			base = store.CerebrasDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.CerebrasDefaultModel))
+	case store.ProviderSynthetic:
+		// Anthropic-compatible wire format.
+		base := apiBase
+		if base == "" {
+			base = store.SyntheticDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewAnthropicProvider(p.APIKey,
+			providers.WithAnthropicName(p.Name),
+			providers.WithAnthropicBaseURL(base)))
+	case store.ProviderKilocode:
+		base := apiBase
+		if base == "" {
+			base = store.KilocodeDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.KilocodeDefaultModel))
+	case store.ProviderOpenCode:
+		base := apiBase
+		if base == "" {
+			base = store.OpenCodeDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.OpenCodeDefaultModel))
 	case store.ProviderAIMLAPI:
 		prov := providers.NewAIMLAPIProvider(p.Name, p.APIKey, apiBase)
 		prov.WithProviderType(p.ProviderType)
