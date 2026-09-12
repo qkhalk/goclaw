@@ -12,8 +12,8 @@ import (
 func authCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",
-		Short: "Authenticate named ChatGPT OAuth accounts",
-		Long:  "Manage ChatGPT OAuth authentication via the running gateway. Requires the gateway to be running.",
+		Short: "Authenticate named OAuth subscription accounts (ChatGPT, Claude, Copilot)",
+		Long:  "Manage OAuth subscription authentication via the running gateway. Requires the gateway to be running.",
 	}
 	cmd.AddCommand(authStatusCmd())
 	cmd.AddCommand(authLogoutCmd())
@@ -26,15 +26,44 @@ func gatewayRequest(method, path string) (map[string]any, error) {
 	return gatewayHTTPDo(method, path, nil)
 }
 
+// oauthAuthBase returns the gateway route segment for a provider alias. The
+// alias's provider type decides the flow (chatgpt|claude|copilot); unknown
+// aliases fall back to the chatgpt routes, which own the legacy default.
+func oauthAuthBase(provider string) string {
+	base := "/v1/auth/chatgpt"
+	if provider != oauth.DefaultProviderName {
+		if result, err := gatewayRequest("GET", "/v1/providers?page_size=200"); err == nil {
+			if items, ok := result["providers"].([]any); ok {
+				for _, it := range items {
+					p, ok := it.(map[string]any)
+					if !ok {
+						continue
+					}
+					if name, _ := p["name"].(string); name == provider {
+						switch t, _ := p["provider_type"].(string); t {
+						case "claude_oauth":
+							base = "/v1/auth/claude"
+						case "copilot_oauth":
+							base = "/v1/auth/copilot"
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+	return base
+}
+
 func authStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status [provider]",
 		Short: "Show OAuth authentication status",
-		Long:  "Check if a named ChatGPT OAuth account is authenticated on the running gateway.",
+		Long:  "Check if a named OAuth subscription account (ChatGPT, Claude, Copilot) is authenticated on the running gateway.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := resolveOAuthProviderArg(args)
-			result, err := gatewayRequest("GET", fmt.Sprintf("/v1/auth/chatgpt/%s/status", url.PathEscape(provider)))
+			result, err := gatewayRequest("GET", fmt.Sprintf("%s/%s/status", oauthAuthBase(provider), url.PathEscape(provider)))
 			if err != nil {
 				return err
 			}
@@ -44,11 +73,11 @@ func authStatusCmd() *cobra.Command {
 				if name == "" {
 					name = provider
 				}
-				fmt.Printf("ChatGPT OAuth account: active (alias: %s)\n", name)
-				fmt.Printf("Use model prefix '%s/' in agent config (e.g. %s/gpt-5.5).\n", name, name)
+				fmt.Printf("OAuth account: active (alias: %s)\n", name)
+				fmt.Printf("Use model prefix '%s/' in agent config (e.g. %s/<model>).\n", name, name)
 			} else {
-				fmt.Printf("No ChatGPT OAuth tokens found for alias '%s'.\n", provider)
-				fmt.Println("Use the web UI to authenticate this ChatGPT OAuth account.")
+				fmt.Printf("No OAuth tokens found for alias '%s'.\n", provider)
+				fmt.Println("Use the web UI (Providers page) to authenticate this OAuth account.")
 			}
 			return nil
 		},
@@ -58,16 +87,16 @@ func authStatusCmd() *cobra.Command {
 func authLogoutCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout [provider]",
-		Short: "Disconnect stored ChatGPT OAuth tokens",
+		Short: "Disconnect stored OAuth tokens",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := resolveOAuthProviderArg(args)
-			_, err := gatewayRequest("POST", fmt.Sprintf("/v1/auth/chatgpt/%s/logout", url.PathEscape(provider)))
+			_, err := gatewayRequest("POST", fmt.Sprintf("%s/%s/logout", oauthAuthBase(provider), url.PathEscape(provider)))
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("ChatGPT OAuth account disconnected for alias '%s'.\n", provider)
+			fmt.Printf("OAuth account disconnected for alias '%s'.\n", provider)
 			return nil
 		},
 	}
