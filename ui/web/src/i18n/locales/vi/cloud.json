@@ -2,21 +2,36 @@
   "title": "Cloud",
   "description": "Kết nối các tài khoản cloud của bạn (Google, sắp có thêm) để agent đọc và sắp xếp giúp bạn.",
   "refresh": "Làm mới",
-  "connect.google": "Kết nối tài khoản Google",
-  "connect.another": "Kết nối tài khoản khác",
+  "connect": {
+    "google": "Kết nối tài khoản Google",
+    "another": "Kết nối tài khoản khác"
+  },
   "disconnect": "Ngắt kết nối",
-  "status.active": "Hoạt động",
-  "status.expired": "Hết hạn",
-  "status.revoked": "Bị thu hồi",
-  "status.error": "Lỗi",
-  "empty.title": "Chưa có tài khoản cloud nào",
-  "empty.description": "Kết nối tài khoản Google để agent tìm kiếm email, dọn newsletter và duyệt Drive giúp bạn.",
-  "setup.title": "Cloud chưa được cấu hình",
-  "setup.body": "GoClaw dùng OAuth client Google của riêng bạn (BYO client). Thiết lập một lần:",
-  "setup.step1": "Tạo OAuth client (loại \"Web application\") trong Google Cloud console.",
-  "setup.step2": "Publish app lên production (unverified vẫn được) để refresh token không hết hạn sau 7 ngày.",
-  "setup.step3": "Nhập Client ID và Client Secret bên dưới rồi bấm Lưu — thông tin được lưu mã hóa và form này sẽ không hiện lại.",
-  "setup.step4": "Đăng ký chính xác redirect URI này trong Google Cloud console:",
+  "status": {
+    "active": "Hoạt động",
+    "expired": "Hết hạn",
+    "revoked": "Bị thu hồi",
+    "error": "Lỗi"
+  },
+  "empty": {
+    "title": "Chưa có tài khoản cloud nào",
+    "description": "Kết nối tài khoản Google để agent tìm kiếm email, dọn newsletter và duyệt Drive giúp bạn."
+  },
+  "setup": {
+    "title": "Cloud chưa được cấu hình",
+    "body": "GoClaw dùng OAuth client Google của riêng bạn (BYO client). Thiết lập một lần:",
+    "step1": "Tạo OAuth client (loại \"Web application\") trong Google Cloud console.",
+    "step2": "Publish app lên production (unverified vẫn được) để refresh token không hết hạn sau 7 ngày.",
+    "step3": "Nhập Client ID và Client Secret bên dưới rồi bấm Lưu — thông tin được lưu mã hóa và form này sẽ không hiện lại.",
+    "step4": "Đăng ký chính xác redirect URI này trong Google Cloud console:",
+    "client_id": "Google OAuth Client ID",
+    "client_secret": "Client Secret",
+    "client_secret_keep": "Client Secret (để trống nếu muốn giữ cái đã lưu)",
+    "save": "Lưu",
+    "saving": "Đang lưu…",
+    "cancel": "Hủy",
+    "update": "Cập nhật credentials"
+  },
   "disconnect_confirm": {
     "title": "Ngắt kết nối tài khoản?",
     "description": "\"{email}\" sẽ bị xóa khỏi GoClaw. Email và file của bạn không bị ảnh hưởng; bạn có thể kết nối lại bất kỳ lúc nào."
@@ -25,11 +40,11 @@
     "connected": "Đã kết nối {email}",
     "error": "Kết nối thất bại ({code})"
   },
-  "setup.client_id": "Google OAuth Client ID",
-  "setup.client_secret": "Client Secret",
-  "setup.client_secret_keep": "Client Secret (để trống nếu muốn giữ cái đã lưu)",
-  "setup.save": "Lưu",
-  "setup.saving": "Đang lưu…",
-  "setup.cancel": "Hủy",
-  "setup.update": "Cập nhật credentials"
+  "providers_section": {
+    "title": "Nhà cung cấp lưu trữ được hỗ trợ",
+    "available": "Khả dụng",
+    "google_desc": "Gmail + Drive, agent thao tác đầy đủ",
+    "coming_soon": "Sắp ra mắt",
+    "more_via_rclone": "Hơn 40 kho lưu trữ khác (S3, WebDAV, FTP, …) sẽ dùng chung nền rclone"
+  }
 }
