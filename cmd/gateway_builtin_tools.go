@@ -114,6 +114,17 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		{Name: "list_group_members", DisplayName: "List Group Members", Description: "List the members of the current group chat", Category: "messaging", Enabled: true},
 		{Name: "zalo_list_groups", DisplayName: "Zalo List Groups", Description: "Resolve a Zalo group's real chat ID from its display name", Category: "messaging", Enabled: true},
 
+		// cloud (connected Google accounts; registered only when configured)
+		{Name: "cloud_accounts", DisplayName: "Cloud Accounts", Description: "List the user's connected cloud accounts (Gmail/Drive) with capabilities", Category: "cloud", Enabled: true},
+		{Name: "mail_search", DisplayName: "Mail Search", Description: "Search a connected Gmail account using Gmail search-box syntax", Category: "cloud", Enabled: true},
+		{Name: "mail_read", DisplayName: "Mail Read", Description: "Read one email's content by id from mail_search", Category: "cloud", Enabled: true},
+		{Name: "mail_archive", DisplayName: "Mail Archive", Description: "Archive, trash, mark-read, or label emails by id (no permanent delete)", Category: "cloud", Enabled: true},
+		{Name: "mail_unsubscribe", DisplayName: "Mail Unsubscribe", Description: "Analyze or perform newsletter unsubscription (execution requires explicit user consent)", Category: "cloud", Enabled: true},
+		{Name: "cloud_ls", DisplayName: "Cloud List", Description: "List a folder in the user's connected Google Drive (via rclone)", Category: "cloud", Enabled: true},
+		{Name: "cloud_read", DisplayName: "Cloud Read", Description: "Fetch a small Drive file into the workspace to read", Category: "cloud", Enabled: true},
+		{Name: "cloud_fetch", DisplayName: "Cloud Fetch", Description: "Download a Drive file into the workspace (size-capped)", Category: "cloud", Enabled: true},
+		{Name: "cloud_about", DisplayName: "Cloud About", Description: "Show Google Drive quota for a connected account", Category: "cloud", Enabled: true},
+
 		// scheduling
 		{Name: "cron", DisplayName: "Cron Scheduler", Description: "Schedule or manage recurring tasks using cron expressions, at-times, or intervals", Category: "scheduling", Enabled: true,
 			Metadata: json.RawMessage(`{"config_hint":"Config → Cron"}`),
