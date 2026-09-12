@@ -59,7 +59,8 @@
     "model": "모델",
     "modelDefault": "에이전트 기본 모델",
     "loadingModels": "모델 로드 중…",
-    "thinking": "사고 수준"
+    "thinking": "사고 수준",
+    "permissionMode": "권한 모드"
   },
   "thinkingLevels": {
     "adaptive": "적응형",
@@ -116,5 +117,12 @@
   "terminal": {
     "title": "터미널",
     "noWorkspace": "터미널을 열 워크스페이스를 선택하세요"
+  },
+  "permissionModes": {
+    "default": "에이전트 기본값",
+    "plan": "계획(읽기 전용)",
+    "fullAccess": "전체 액세스",
+    "writeApproval": "쓰기 승인",
+    "alwaysAsk": "항상 묻기"
   }
 }

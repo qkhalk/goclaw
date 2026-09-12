@@ -463,6 +463,7 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		SandboxCfg:          l.sandboxCfg,
 		WaitToolCfg:         waitToolCfg,
 		ShellDenyGroups:     l.shellDenyGroups,
+		PermissionMode:      req.PermissionMode,
 		Workspace:           tools.ToolWorkspaceFromCtx(ctx),
 		TeamWorkspace:       tools.ToolTeamWorkspaceFromCtx(ctx),
 		TeamID:              tools.ToolTeamIDFromCtx(ctx),

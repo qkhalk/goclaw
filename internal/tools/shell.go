@@ -409,18 +409,40 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *Result {
 		}
 	}
 
-	// Exec approval check (matching TS exec-approval.ts pipeline)
-	if t.approvalMgr != nil {
-		switch t.approvalMgr.CheckCommand(command) {
-		case "deny":
-			return ErrorResult("command denied by exec approval policy")
-		case "ask":
+	// Exec approval check (matching TS exec-approval.ts pipeline). The
+	// per-run permission mode (composer selector) overrides the configured
+	// policy: plan blocks exec outright (read-only run), the ask-modes force
+	// the approval flow, full access skips it. Without an approval manager
+	// the ask-modes degrade to ungated execution (nothing to ask), but plan
+	// still denies — it must hold even on bare setups.
+	switch PermissionModeFromContext(ctx) {
+	case PermModePlan:
+		return ErrorResult("exec blocked: permission mode \"plan\" is read-only")
+	case PermModeAlwaysAsk, PermModeWriteApproval:
+		if t.approvalMgr != nil {
 			decision, err := t.approvalMgr.RequestApproval(ctx, command, t.agentID, 2*time.Minute)
 			if err != nil {
 				return ErrorResult(fmt.Sprintf("exec approval: %v", err))
 			}
 			if decision == ApprovalDeny {
 				return ErrorResult("command denied by user")
+			}
+		}
+	case PermModeFullAccess:
+		// Skip the configured policy for this run.
+	default:
+		if t.approvalMgr != nil {
+			switch t.approvalMgr.CheckCommand(command) {
+			case "deny":
+				return ErrorResult("command denied by exec approval policy")
+			case "ask":
+				decision, err := t.approvalMgr.RequestApproval(ctx, command, t.agentID, 2*time.Minute)
+				if err != nil {
+					return ErrorResult(fmt.Sprintf("exec approval: %v", err))
+				}
+				if decision == ApprovalDeny {
+					return ErrorResult("command denied by user")
+				}
 			}
 		}
 	}
