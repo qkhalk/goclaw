@@ -5,6 +5,11 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 ## Unreleased
 
 ### Added
+- **6 more OpenClaw-parity API-key providers** — NVIDIA NIM, StepFun,
+  Venice AI, Baseten, Chutes, and Hugging Face Router (all OpenAI-compat:
+  defaults, `GOCLAW_*_API_KEY` env overlay, gateway + tenant registration,
+  web UI entries).
+
 - **7 new API-key providers** — Moonshot AI (Kimi Platform), Together AI,
   Fireworks AI, Cerebras, Synthetic.new (Anthropic-compatible), Kilo Code
   Gateway, and OpenCode Zen. Backend: default base URLs/models, env overlay
@@ -40,7 +45,11 @@ All notable changes to GoClaw are documented here. For full documentation, see [
   `v`-prefixed version (`🦊 GoClaw v3.19.1`); the web UI connection indicator
   shows the `v`-prefixed version too.
 
-### Fixed
+- **Provider type combobox no longer opens by itself** — opening the
+  Add Provider dialog auto-focused the combobox (Radix focuses the first
+  field) and its dropdown popped open without user input. The dropdown now
+  opens only on click, ArrowDown, or typing.
+
 - **Cloud page i18n** — `cloud.json` used flat dotted keys while i18next
   resolves nested keys (default `keySeparator: "."`), and the `cloud`
   namespace was never registered, so the Cloud page rendered raw keys.
