@@ -6,7 +6,8 @@
   "readOnly": "읽기 전용 — 이 세션은 다른 사용자의 것입니다",
   "contextUsage": {
     "tooltip": "{{used}} / {{max}} 토큰 ({{percent}}%) · {{compactions}}회 압축 · 마지막: {{lastCompact}}",
-    "never": "없음"
+    "never": "없음",
+    "linkSessions": "세션 세부 정보 열기"
   },
   "empty": {
     "title": "대화 시작",
@@ -61,5 +62,40 @@
     "medium": "중간",
     "high": "높음",
     "xhigh": "최대"
+  },
+  "console": {
+    "button": "콘솔"
+  },
+  "phase": {
+    "thinking": "생각 중…",
+    "tool": "{{tool}} 실행 중…",
+    "tools": "도구 실행 중…",
+    "streaming": "작성 중…",
+    "compacting": "컨텍스트 최적화 중…",
+    "retrying": "재시도 ({{attempt}}/{{max}})…",
+    "leaderProcessing": "팀 결과 처리 중…",
+    "working": "작업 중…",
+    "step": "단계 {{n}}"
+  },
+  "teamTasks": {
+    "pill": "팀: 실행 중인 태스크 {{n}}개",
+    "panelTitle": "실행 중인 태스크 ({{n}})",
+    "empty": "활성 태스크 없음",
+    "unassigned": "미할당"
+  },
+  "dropzone": {
+    "title": "여기에 파일을 놓으세요"
+  },
+  "command": {
+    "plan": "코드 작성 전 구현 계획 수립",
+    "fix": "버그 또는 실패한 테스트 진단 및 수정",
+    "cook": "작업 설명에 따라 변경 구현",
+    "review": "최근 변경 사항 검토",
+    "test": "테스트 스위트 실행 및 복구",
+    "debug": "문제의 근본 원인 디버깅",
+    "docs": "프로젝트 문서 작성 또는 갱신",
+    "architect": "시스템 아키텍처 설계 또는 평가",
+    "uiux": "UI/UX 검토 및 개선",
+    "mission": "장기 자율 임무 시작"
   }
 }
