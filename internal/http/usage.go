@@ -17,11 +17,12 @@ import (
 type UsageHandler struct {
 	snapshots   store.SnapshotStore
 	usageEvents store.UsageEventStore
+	tracing     store.TracingStore // optional; backs /v1/usage/recent-requests
 	db          *sql.DB
 }
 
-func NewUsageHandler(snapshots store.SnapshotStore, usageEvents store.UsageEventStore, db *sql.DB) *UsageHandler {
-	return &UsageHandler{snapshots: snapshots, usageEvents: usageEvents, db: db}
+func NewUsageHandler(snapshots store.SnapshotStore, usageEvents store.UsageEventStore, tracing store.TracingStore, db *sql.DB) *UsageHandler {
+	return &UsageHandler{snapshots: snapshots, usageEvents: usageEvents, tracing: tracing, db: db}
 }
 
 func (h *UsageHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -31,6 +32,35 @@ func (h *UsageHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/usage/events/timeseries", h.authMiddleware(h.handleEventTimeSeries))
 	mux.HandleFunc("GET /v1/usage/events/breakdown", h.authMiddleware(h.handleEventBreakdown))
 	mux.HandleFunc("GET /v1/usage/events/summary", h.authMiddleware(h.handleEventSummary))
+	mux.HandleFunc("GET /v1/usage/recent-requests", h.authMiddleware(h.handleRecentRequests))
+}
+
+// handleRecentRequests returns the newest LLM API calls (llm_call spans) for
+// dashboard "recent requests" tables: model / in-out tokens / when rows.
+func (h *UsageHandler) handleRecentRequests(w http.ResponseWriter, r *http.Request) {
+	if h.tracing == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "tracing store unavailable"})
+		return
+	}
+	limit := 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
+			return
+		}
+		limit = n
+	}
+	requests, err := h.tracing.ListRecentLLMRequests(r.Context(), limit)
+	if err != nil {
+		slog.Error("usage.recent-requests query failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	if requests == nil {
+		requests = []store.RecentLLMRequest{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"requests": requests})
 }
 
 func (h *UsageHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {

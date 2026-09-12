@@ -38,7 +38,7 @@ func TestUsageSummaryIncludesLiveCurrentHourCost(t *testing.T) {
 	db, tenantID := usageLiveTestDB(t)
 	insertUsageLiveTrace(t, db, tenantID, time.Now().UTC())
 
-	h := NewUsageHandler(emptyUsageSnapshotStore{}, nil, db)
+	h := NewUsageHandler(emptyUsageSnapshotStore{}, nil, nil, db)
 	req := httptest.NewRequest(http.MethodGet, "/v1/usage/summary?period=24h", nil)
 	req = req.WithContext(store.WithTenantID(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
@@ -68,7 +68,7 @@ func TestUsageSummaryIncludesLiveCurrentHourCost(t *testing.T) {
 func TestUsageSummaryHandlesEmptyLiveCurrentHour(t *testing.T) {
 	db, tenantID := usageLiveTestDB(t)
 
-	h := NewUsageHandler(emptyUsageSnapshotStore{}, nil, db)
+	h := NewUsageHandler(emptyUsageSnapshotStore{}, nil, nil, db)
 	req := httptest.NewRequest(http.MethodGet, "/v1/usage/summary?period=24h", nil)
 	req = req.WithContext(store.WithTenantID(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
@@ -94,7 +94,7 @@ func TestUsageBreakdownIncludesLiveCurrentHourProviderModelCost(t *testing.T) {
 	now := time.Now().UTC()
 	insertUsageLiveTrace(t, db, tenantID, now)
 
-	h := NewUsageHandler(emptyUsageSnapshotStore{}, nil, db)
+	h := NewUsageHandler(emptyUsageSnapshotStore{}, nil, nil, db)
 	target := fmt.Sprintf(
 		"/v1/usage/breakdown?from=%s&to=%s&group_by=provider_model",
 		now.Add(-time.Hour).Format(time.RFC3339),

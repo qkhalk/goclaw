@@ -70,6 +70,10 @@ func (m *mockTracingStore) RecoverStaleRunningTraces(context.Context, time.Time)
 func (m *mockTracingStore) ListCodexPoolSpans(context.Context, uuid.UUID, uuid.UUID, []string, int) ([]store.CodexPoolSpan, error) {
 	return nil, nil
 }
+func (m *mockTracingStore) ListRecentLLMRequests(context.Context, int) ([]store.RecentLLMRequest, error) {
+	return nil, nil
+}
+
 func (m *mockTracingStore) ListCodexPoolSpansByProviders(context.Context, uuid.UUID, []string, int) ([]store.CodexPoolProviderSpan, error) {
 	return nil, nil
 }

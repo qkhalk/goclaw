@@ -591,3 +591,52 @@ func (s *PGTracingStore) RecoverStaleRunningTraces(ctx context.Context, cutoff t
 	}
 	return res.RowsAffected()
 }
+
+// ListRecentLLMRequests returns the newest llm_call spans (newest first),
+// scoped to the ctx tenant. limit is clamped to [1, 100].
+func (s *PGTracingStore) ListRecentLLMRequests(ctx context.Context, limit int) ([]store.RecentLLMRequest, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	q := `SELECT id, trace_id,
+		 COALESCE(model, ''), COALESCE(provider, ''),
+		 COALESCE(input_tokens, 0), COALESCE(output_tokens, 0),
+		 COALESCE(status, ''), COALESCE(error, ''),
+		 start_time, COALESCE(duration_ms, 0), total_cost
+		 FROM spans
+		 WHERE span_type = 'llm_call'`
+	args := []any{}
+	if !store.IsCrossTenant(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid == uuid.Nil {
+			return nil, fmt.Errorf("tenant_id required")
+		}
+		args = append(args, tid)
+		q += fmt.Sprintf(" AND tenant_id = $%d", len(args))
+	}
+	args = append(args, limit)
+	q += fmt.Sprintf(" ORDER BY start_time DESC LIMIT $%d", len(args))
+
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list recent llm requests: %w", err)
+	}
+	defer rows.Close()
+
+	var result []store.RecentLLMRequest
+	for rows.Next() {
+		var r store.RecentLLMRequest
+		if err := rows.Scan(
+			&r.SpanID, &r.TraceID, &r.Model, &r.Provider,
+			&r.InputTokens, &r.OutputTokens, &r.Status, &r.Error,
+			&r.StartTime, &r.DurationMS, &r.CostUSD,
+		); err != nil {
+			return nil, fmt.Errorf("scan recent llm request: %w", err)
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}

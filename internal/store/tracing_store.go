@@ -160,6 +160,22 @@ type CodexPoolSpan struct {
 	Metadata   json.RawMessage
 }
 
+// RecentLLMRequest is one recent LLM API call (llm_call span) for dashboard
+// "recent requests" views — model / in-out tokens / when rows.
+type RecentLLMRequest struct {
+	SpanID       uuid.UUID `json:"span_id"`
+	TraceID      uuid.UUID `json:"trace_id"`
+	Model        string    `json:"model"`
+	Provider     string    `json:"provider"`
+	InputTokens  int64     `json:"input_tokens"`
+	OutputTokens int64     `json:"output_tokens"`
+	Status       string    `json:"status"`
+	Error        string    `json:"error,omitempty"`
+	StartTime    time.Time `json:"start_time"`
+	DurationMS   int       `json:"duration_ms"`
+	CostUSD      *float64  `json:"cost_usd,omitempty"`
+}
+
 // TracingStore manages LLM traces and spans.
 type TracingStore interface {
 	CreateTrace(ctx context.Context, trace *TraceData) error
@@ -167,6 +183,10 @@ type TracingStore interface {
 	GetTrace(ctx context.Context, traceID uuid.UUID) (*TraceData, error)
 	ListTraces(ctx context.Context, opts TraceListOpts) ([]TraceData, error)
 	CountTraces(ctx context.Context, opts TraceListOpts) (int, error)
+
+	// ListRecentLLMRequests returns the newest llm_call spans (newest first),
+	// scoped to the ctx tenant. limit is clamped to [1, 100].
+	ListRecentLLMRequests(ctx context.Context, limit int) ([]RecentLLMRequest, error)
 
 	CreateSpan(ctx context.Context, span *SpanData) error
 	UpdateSpan(ctx context.Context, spanID uuid.UUID, updates map[string]any) error

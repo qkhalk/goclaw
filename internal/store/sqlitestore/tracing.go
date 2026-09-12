@@ -443,3 +443,56 @@ func (s *SQLiteTracingStore) ListCodexPoolSpans(_ context.Context, _, _ uuid.UUI
 func (s *SQLiteTracingStore) ListCodexPoolSpansByProviders(_ context.Context, _ uuid.UUID, _ []string, _ int) ([]store.CodexPoolProviderSpan, error) {
 	return nil, nil
 }
+
+// ListRecentLLMRequests returns the newest llm_call spans (newest first),
+// scoped to the ctx tenant. limit is clamped to [1, 100].
+func (s *SQLiteTracingStore) ListRecentLLMRequests(ctx context.Context, limit int) ([]store.RecentLLMRequest, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	q := `SELECT id, trace_id,
+		 COALESCE(model, ''), COALESCE(provider, ''),
+		 COALESCE(input_tokens, 0), COALESCE(output_tokens, 0),
+		 COALESCE(status, ''), COALESCE(error, ''),
+		 start_time, COALESCE(duration_ms, 0), total_cost
+		 FROM spans
+		 WHERE span_type = 'llm_call'`
+	args := []any{}
+	if !store.IsCrossTenant(ctx) {
+		tid := store.TenantIDFromContext(ctx)
+		if tid == uuid.Nil {
+			return nil, fmt.Errorf("tenant_id required")
+		}
+		args = append(args, tid)
+		q += " AND tenant_id = ?"
+	}
+	args = append(args, limit)
+	q += " ORDER BY start_time DESC LIMIT ?"
+
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list recent llm requests: %w", err)
+	}
+	defer rows.Close()
+
+	var result []store.RecentLLMRequest
+	for rows.Next() {
+		var r store.RecentLLMRequest
+		var startTime sqliteTime
+		var cost *float64
+		if err := rows.Scan(
+			&r.SpanID, &r.TraceID, &r.Model, &r.Provider,
+			&r.InputTokens, &r.OutputTokens, &r.Status, &r.Error,
+			&startTime, &r.DurationMS, &cost,
+		); err != nil {
+			return nil, fmt.Errorf("scan recent llm request: %w", err)
+		}
+		r.StartTime = startTime.Time
+		r.CostUSD = cost
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
