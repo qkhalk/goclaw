@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Ask-options tool (3 lựa chọn + Other)"
-status: pending
+status: completed
 priority: P1
 effort: "1d"
 dependencies: ["phase-1"]

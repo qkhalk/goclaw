@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Dev mode v2 + polish"
-status: pending
+status: completed
 priority: P2
 effort: "4h"
 dependencies: ["phase-3", "phase-4"]
