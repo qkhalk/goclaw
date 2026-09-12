@@ -32,6 +32,7 @@ import {
   Webhook,
   Cable,
   MonitorCog,
+  CloudCog,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SidebarGroup } from "./sidebar-group";
@@ -40,6 +41,7 @@ import { ConnectionStatus } from "./connection-status";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { usePendingPairingsCount } from "@/hooks/use-pending-pairings-count";
+import { useEdition } from "@/hooks/use-edition";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useTenants } from "@/hooks/use-tenants";
 import { getRuntimeBranding } from "@/lib/branding";
@@ -55,6 +57,8 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
   const role = useAuthStore((s) => s.role);
   const { isOwner } = useTenants();
   const isAdmin = role === "admin" || role === "owner";
+  const { data: edition } = useEdition();
+  const cloudAccountsEnabled = edition?.cloud_accounts_enabled ?? false;
   const branding = getRuntimeBranding();
 
   return (
@@ -102,6 +106,9 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
 
         <SidebarGroup label={t("groups.connectivity")} collapsed={collapsed}>
           <SidebarItem to={ROUTES.CHANNELS} icon={Radio} label={t("nav.channels")} collapsed={collapsed} />
+          {cloudAccountsEnabled && (
+            <SidebarItem to={ROUTES.CLOUD} icon={CloudCog} label={t("nav.cloud")} collapsed={collapsed} />
+          )}
           {isAdmin && (
             <SidebarItem to={ROUTES.WEBHOOKS} icon={Cable} label={t("nav.webhooks")} collapsed={collapsed} />
           )}

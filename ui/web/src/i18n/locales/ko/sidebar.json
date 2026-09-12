@@ -43,6 +43,7 @@
     "apiDocs": "API 문서",
     "packages": "패키지",
     "tenants": "테넌트",
-    "backupRestore": "백업 & 복원"
+    "backupRestore": "백업 & 복원",
+    "cloud": "클라우드"
   }
 }
