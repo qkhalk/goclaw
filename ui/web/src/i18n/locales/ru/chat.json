@@ -60,7 +60,8 @@
     "model": "Модель",
     "modelDefault": "Модель агента",
     "loadingModels": "Загрузка моделей…",
-    "thinking": "Уровень размышлений"
+    "thinking": "Уровень размышлений",
+    "permissionMode": "Режим разрешений"
   },
   "thinkingLevels": {
     "adaptive": "Адаптивно",
@@ -117,5 +118,12 @@
   "terminal": {
     "title": "Терминал",
     "noWorkspace": "Выберите рабочее пространство, чтобы открыть терминал"
+  },
+  "permissionModes": {
+    "default": "По умолчанию",
+    "plan": "План (только чтение)",
+    "fullAccess": "Полный доступ",
+    "writeApproval": "Подтверждение записи",
+    "alwaysAsk": "Всегда спрашивать"
   }
 }
