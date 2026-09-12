@@ -9,6 +9,8 @@ import (
 
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
+
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 )
 
 // --- /status — rich runtime status ---
@@ -63,7 +65,7 @@ const (
 // handleStatusCommand implements /status [full|short]. It renders runtime
 // facts from the injected StatusProvider plus chat-level preferences
 // (thinking override, dev mode) — no LLM call. Output is plain text.
-func (c *Channel) handleStatusCommand(ctx context.Context, chatID int64, chatIDStr string, isGroup, isForum bool, messageThreadID, dmThreadID int, setThread func(*telego.SendMessageParams), arg string) {
+func (c *Channel) handleStatusCommand(ctx context.Context, chatID int64, chatIDStr string, isGroup, isForum bool, messageThreadID, dmThreadID int, setThread func(*telego.SendMessageParams), tgLang, arg string) {
 	chatIDObj := tu.ID(chatID)
 	send := func(text string) {
 		msg := tu.Message(chatIDObj, text)
@@ -73,12 +75,13 @@ func (c *Channel) handleStatusCommand(ctx context.Context, chatID int64, chatIDS
 		}
 	}
 
+	sessionKey := c.chatSessionKey(chatIDStr, isGroup, isForum, messageThreadID, dmThreadID)
+	loc := c.chatLocale(ctx, sessionKey, tgLang)
+
 	if c.statusProvider == nil {
-		send("Status is not available (no provider configured).")
+		send(i18n.T(loc, i18n.MsgTGStatusUnavailable))
 		return
 	}
-
-	sessionKey := c.chatSessionKey(chatIDStr, isGroup, isForum, messageThreadID, dmThreadID)
 
 	// Resolve verbosity: explicit argument (persisted) > stored pref > default.
 	verbosity := strings.ToLower(strings.TrimSpace(arg))
@@ -100,12 +103,12 @@ func (c *Channel) handleStatusCommand(ctx context.Context, chatID int64, chatIDS
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "🦊 GoClaw %s\n", gw.Version)
 	if gw.StartedAt.IsZero() {
-		sb.WriteString("⏱️ Uptime: gateway unknown")
+		sb.WriteString(i18n.T(loc, i18n.MsgTGStatusUptimeUnknown))
 	} else {
-		sb.WriteString("⏱️ Uptime: gateway " + humanizeDuration(time.Since(gw.StartedAt)))
+		sb.WriteString(i18n.T(loc, i18n.MsgTGStatusUptime, humanizeDuration(time.Since(gw.StartedAt))))
 	}
 	if gw.SystemUptime > 0 {
-		sb.WriteString(" · system " + humanizeDuration(gw.SystemUptime))
+		sb.WriteString(i18n.T(loc, i18n.MsgTGStatusSysUptime, humanizeDuration(gw.SystemUptime)))
 	}
 	sb.WriteString("\n")
 
@@ -116,42 +119,42 @@ func (c *Channel) handleStatusCommand(ctx context.Context, chatID int64, chatIDS
 	if model == "" {
 		model = "unknown"
 	}
-	fmt.Fprintf(&sb, "🤖 Agent: %s · 🧠 Model: %s\n", c.AgentID(), model)
+	fmt.Fprintf(&sb, "%s\n", i18n.T(loc, i18n.MsgTGStatusAgentModel, c.AgentID(), model))
 
 	if verbosity == statusVerbosityShort {
 		if hasSession {
-			fmt.Fprintf(&sb, "🧵 Session updated %s\n", humanizeDuration(time.Since(sess.UpdatedAt)))
+			fmt.Fprintf(&sb, "%s\n", i18n.T(loc, i18n.MsgTGStatusSessUpdShort, humanizeDuration(time.Since(sess.UpdatedAt))))
 		} else {
-			sb.WriteString("🧵 No session yet\n")
+			sb.WriteString(i18n.T(loc, i18n.MsgTGStatusNoSession) + "\n")
 		}
 	} else {
 		if hasSession {
-			fmt.Fprintf(&sb, "🧵 Session: %s · updated %s\n", shortenSessionKey(sessionKey), humanizeDuration(time.Since(sess.UpdatedAt)))
+			fmt.Fprintf(&sb, "%s\n", i18n.T(loc, i18n.MsgTGStatusSessFull, shortenSessionKey(sessionKey), humanizeDuration(time.Since(sess.UpdatedAt))))
 		} else {
-			sb.WriteString("🧵 No session yet\n")
+			sb.WriteString(i18n.T(loc, i18n.MsgTGStatusNoSession) + "\n")
 		}
 
 		if hasSession {
 			if cost, ok := c.statusProvider.SessionCost(ctx, sessionKey); ok {
-				fmt.Fprintf(&sb, "💵 Cost (session): $%.4f", cost)
+				fmt.Fprintf(&sb, "%s", i18n.T(loc, i18n.MsgTGStatusCost, cost))
 			} else {
-				sb.WriteString("💵 Cost (session): —")
+				sb.WriteString(i18n.T(loc, i18n.MsgTGStatusCostNA))
 			}
-			fmt.Fprintf(&sb, " · 🔢 Tokens: %s in / %s out\n", humanizeTokens(sess.InputTokens), humanizeTokens(sess.OutputTokens))
+			fmt.Fprintf(&sb, "%s\n", i18n.T(loc, i18n.MsgTGStatusTokens, humanizeTokens(sess.InputTokens), humanizeTokens(sess.OutputTokens)))
 
 			if sess.ContextWindow > 0 {
 				if sess.LastPromptTokens > 0 {
 					pct := 100 * sess.LastPromptTokens / sess.ContextWindow
-					fmt.Fprintf(&sb, "📚 Context: %s/%s (%d%%)", humanizeTokens(int64(sess.LastPromptTokens)), humanizeTokens(int64(sess.ContextWindow)), pct)
+					fmt.Fprintf(&sb, "%s", i18n.T(loc, i18n.MsgTGStatusCtxPct, humanizeTokens(int64(sess.LastPromptTokens)), humanizeTokens(int64(sess.ContextWindow)), pct))
 				} else {
-					fmt.Fprintf(&sb, "📚 Context: ?/%s", humanizeTokens(int64(sess.ContextWindow)))
+					fmt.Fprintf(&sb, "%s", i18n.T(loc, i18n.MsgTGStatusCtx, humanizeTokens(int64(sess.ContextWindow))))
 				}
 			} else {
-				sb.WriteString("📚 Context: ?")
+				sb.WriteString(i18n.T(loc, i18n.MsgTGStatusCtxUnknown))
 			}
-			fmt.Fprintf(&sb, " · 🧹 Compactions: %d\n", sess.CompactionCount)
+			fmt.Fprintf(&sb, "%s\n", i18n.T(loc, i18n.MsgTGStatusCompactions, sess.CompactionCount))
 		} else {
-			sb.WriteString("💵 Cost (session): — · 🧹 Compactions: 0\n")
+			sb.WriteString(i18n.T(loc, i18n.MsgTGStatusCostNA) + i18n.T(loc, i18n.MsgTGStatusCompactions, 0) + "\n")
 		}
 
 		// Chat-level runtime preferences.
@@ -163,16 +166,16 @@ func (c *Channel) handleStatusCommand(ctx context.Context, chatID int64, chatIDS
 				think = "auto"
 			}
 		}
-		fmt.Fprintf(&sb, "⚙️ Think: %s · Mode: %s", think, devModeStatusLine(c.chatPrefsValue(ctx, sessionKey, MetaKeyChatMode)))
+		fmt.Fprintf(&sb, "%s", i18n.T(loc, i18n.MsgTGStatusThinkMode, think, devModeStatusLine(c.chatPrefsValue(ctx, sessionKey, MetaKeyChatMode))))
 		if gw.LaneName != "" {
-			fmt.Fprintf(&sb, " · 🪢 Queue: %s %d/%d active, %d pending", gw.LaneName, gw.LaneActive, gw.LaneConcurrency, gw.LanePending)
+			fmt.Fprintf(&sb, "%s", i18n.T(loc, i18n.MsgTGStatusQueue, gw.LaneName, gw.LaneActive, gw.LaneConcurrency, gw.LanePending))
 		}
 		sb.WriteString("\n")
 		sb.WriteString("📖 Docs: https://github.com/qkhalk/goclaw/blob/dev/docs/25-telegram-runtime-commands.md\n")
 	}
 
 	if verbosity == statusVerbosityShort && strings.TrimSpace(arg) == "" && isGroup {
-		sb.WriteString("\n/status full — show everything")
+		sb.WriteString("\n" + i18n.T(loc, i18n.MsgTGStatusFullHint))
 	}
 
 	send(strings.TrimRight(sb.String(), "\n"))

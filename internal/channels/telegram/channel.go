@@ -55,6 +55,9 @@ type Channel struct {
 	handlerWg         sync.WaitGroup              // tracks in-flight handler goroutines for graceful shutdown
 	handlerSem        chan struct{}               // bounded semaphore for concurrent handler goroutines
 	pendingDraftID    sync.Map                    // localKey string → int (draftID)
+	pendingPickers    sync.Map                    // "chatID|msgID" → pickerCtx (thinking/reasoning/dev inline keyboards, TTL-swept)
+	pendingSkills     sync.Map                    // "chatID|msgID" → skillPickerCtx (/skills inline keyboard, TTL-swept)
+	pendingAsks       sync.Map                    // "chatID|msgID" → askCtx (ask_options question keyboard, TTL-swept)
 	audioMgr          *audio.Manager              // unified STT via audio.Manager (nil = no STT)
 	albumAgg          *albumAggregator            // coalesces Telegram album members into a single dispatch; nil before Start
 	writerHealMu      sync.Mutex                  // guards writerHealLastTry for /writers self-heal
@@ -349,6 +352,14 @@ func (c *Channel) Start(ctx context.Context) error {
 						go func(q *telego.CallbackQuery) {
 							defer c.handlerWg.Done()
 							defer func() { <-c.handlerSem }()
+							// Mirror the message-handler panic guard: a panic in
+							// one callback must not crash the whole gateway.
+							defer func() {
+								if r := recover(); r != nil {
+									slog.Error("telegram: handleCallbackQuery panic recovered",
+										"channel", c.Name(), "panic", r, "stack", string(debug.Stack()))
+								}
+							}()
 							c.handleCallbackQuery(pollCtx, q)
 						}(update.CallbackQuery)
 					case <-pollCtx.Done():

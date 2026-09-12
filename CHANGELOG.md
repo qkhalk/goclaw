@@ -4,6 +4,21 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ## Unreleased
 
+### Added
+
+- **Telegram interactive UX: inline pickers, paged skills, ask_options, localized commands** —
+  `/thinking`, `/reasoning`, and `/dev` now render inline keyboards and edit their card in
+  place on tap (`/thinking` filters levels by model capability and always offers Default);
+  `/skills` becomes a 2-column paged browser (10 per page, tap for the full description,
+  reply to a skill card with a request to run it); the new `ask_options` tool lets the agent
+  ask a clarifying question with 1–4 option buttons plus Other (tap an option or reply to
+  the question — both flow into the session as the user's answer; Telegram only);
+  `/language` persists the chat locale and every picker/card/`/status` label is localized
+  across the 5 catalogs (en/vi/zh/ko/ru, falling back to the sender's Telegram client
+  language, then English); dev mode prompt now teaches ask_options usage and
+  verify-before-conclude. Callback handlers gained the same panic guard as message
+  handlers. See `docs/25-telegram-runtime-commands.md`.
+
 ### Changed
 
 - **Bitrix24 channel migrated to imbot v2 messaging API** — outbound text now uses

@@ -63,6 +63,8 @@ func wireExtraTools(
 
 	// Message tool (send to channels)
 	toolsReg.Register(tools.NewMessageTool(workspace, agentCfg.RestrictToWorkspace))
+	// Ask-options tool (clarifying question with tappable options, Telegram)
+	toolsReg.Register(tools.NewAskOptionsTool())
 	// Send file tool (deliver existing workspace file as attachment)
 	toolsReg.Register(tools.NewSendFileTool(workspace, agentCfg.RestrictToWorkspace))
 	// Group members tool (list members in group chats)
@@ -148,6 +150,12 @@ func wireExtraTools(
 	}
 	// Wire BusAware on message tool
 	if t, ok := toolsReg.Get("message"); ok {
+		if ba, ok := t.(tools.BusAware); ok {
+			ba.SetMessageBus(msgBus)
+		}
+	}
+	// Wire BusAware on ask_options tool
+	if t, ok := toolsReg.Get("ask_options"); ok {
 		if ba, ok := t.(tools.BusAware); ok {
 			ba.SetMessageBus(msgBus)
 		}
