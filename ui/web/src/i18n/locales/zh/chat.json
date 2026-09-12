@@ -40,10 +40,14 @@
     "empty": "暂无可用工作区",
     "create": "创建工作区",
     "createPlaceholder": "工作区名称",
+    "createNamePlaceholder": "新工作区名称",
     "createConfirm": "创建",
     "createCancel": "取消",
     "createFailed": "创建工作区失败：{{message}}",
-    "pathPlaceholder": "可选路径，例如 /root/projects/site",
+    "locationAuto": "📍 在工作区根目录下自动创建",
+    "locationCustom": "📍 将创建于：{{path}}",
+    "advancedPath": "自定义位置",
+    "pathPlaceholder": "绝对路径或相对路径，例如 /root/projects/site",
     "pathHint": "留空则在工作区根目录下自动创建文件夹。支持绝对路径或相对工作区根目录的路径。"
   },
   "fileExplorer": {
