@@ -2,15 +2,16 @@ import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Bot, ChevronDown } from "lucide-react";
-import { useHttp } from "@/hooks/use-ws";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
+import { useAgents } from "@/hooks/use-agents";
 import { stripLeadingEmoji } from "@/lib/agent-emoji";
-import { useAuthStore } from "@/stores/use-auth-store";
 import type { AgentData } from "@/types/agent";
 
 interface AgentSelectorProps {
   value: string;
   onChange: (agentId: string) => void;
+  /** Increment to open the dropdown programmatically (empty-state CTA). */
+  openSignal?: number;
 }
 
 /** Extract emoji from agent top-level field */
@@ -18,26 +19,20 @@ function agentEmoji(agent: AgentData): string | undefined {
   return agent.emoji || undefined;
 }
 
-export function AgentSelector({ value, onChange }: AgentSelectorProps) {
+export function AgentSelector({ value, onChange, openSignal }: AgentSelectorProps) {
   const { t } = useTranslation("common");
-  const http = useHttp();
-  const connected = useAuthStore((s) => s.connected);
-  const [agents, setAgents] = useState<AgentData[]>([]);
+  const { data: allAgents = [] } = useAgents();
+  const agents = allAgents.filter((a) => a.status === "active");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
+  // Open the dropdown when a parent asks (empty-state CTA increments the signal).
   useEffect(() => {
-    if (!connected) return;
-    http
-      .get<{ agents: AgentData[] }>("/v1/agents")
-      .then((res) => {
-        const active = (res.agents ?? []).filter((a) => a.status === "active");
-        setAgents(active);
-      })
-      .catch((err) => console.error("[AgentSelector] fetch agents failed:", err));
-  }, [http, connected]);
+    if (openSignal === undefined || openSignal === 0) return;
+    setOpen(true);
+  }, [openSignal]);
 
   useLayoutEffect(() => {
     if (!open || !containerRef.current) return;

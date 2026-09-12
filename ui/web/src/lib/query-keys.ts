@@ -14,6 +14,7 @@ export const queryKeys = {
   agents: {
     all: ["agents"] as const,
     detail: (id: string) => ["agents", id] as const,
+    chatList: ["agents", "chat-http-list"] as const,
     files: (agentKey: string) => ["agents", agentKey, "files"] as const,
     links: (agentId: string) => ["agents", agentId, "links"] as const,
     instances: (agentId: string) => ["agents", agentId, "instances"] as const,

@@ -10,13 +10,12 @@ import { ChatThread } from "./chat-thread";
 import { ChatInput, type AttachedFile, type ComposerOverrides } from "@/components/chat/chat-input";
 import { ChatTopBar } from "@/components/chat/chat-top-bar";
 import { DropZone } from "@/components/chat/drop-zone";
-import { AgentPickerPrompt } from "@/components/chat/agent-picker-prompt";
+import { TeamTasksPill } from "@/components/chat/team-tasks-pill";
 import { useChatSessions } from "./hooks/use-chat-sessions";
 import { useChatMessages } from "./hooks/use-chat-messages";
 import { useChatSend } from "./hooks/use-chat-send";
 import { isOwnSession, parseSessionKey } from "@/lib/session-key";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
-import { TaskPanel } from "@/components/chat/task-panel";
 import { FileExplorerPanel } from "@/components/chat/file-explorer-panel";
 import { JobsTasksPanel } from "@/components/chat/jobs-tasks-panel";
 import { TerminalPanel } from "@/components/chat/terminal-panel";
@@ -155,23 +154,14 @@ export function ChatPage() {
   const isMobile = useIsMobile();
   useVirtualKeyboard();
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
-  const [taskPanelOpen, setTaskPanelOpen] = useState(false);
+  // Incremented by the empty-state CTA to open the sidebar AgentSelector dropdown.
+  const [agentSelectorOpenSignal, setAgentSelectorOpenSignal] = useState(0);
   // Paseo Phase 3 console panels: workspace selection + right-side tools.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [filesPanelOpen, setFilesPanelOpen] = useState(false);
   const [jobsPanelOpen, setJobsPanelOpen] = useState(false);
   // Paseo Phase 4 (§25): web terminal side panel.
   const [termOpen, setTermOpen] = useState(false);
-
-  // Auto-open task panel when first task appears, auto-close when all done.
-  const prevTaskCountRef = useRef(0);
-  useEffect(() => {
-    const prev = prevTaskCountRef.current;
-    const curr = teamTasks.length;
-    if (prev === 0 && curr > 0) setTaskPanelOpen(true);
-    if (curr === 0 && prev > 0) setTaskPanelOpen(false);
-    prevTaskCountRef.current = curr;
-  }, [teamTasks.length]);
 
   const handleSessionSelectMobile = useCallback(
     (key: string) => {
@@ -212,6 +202,7 @@ export function ChatPage() {
               onSessionSelect={handleSessionSelectMobile}
               onDeleteSession={handleDeleteSession}
               onNewChat={handleNewChatMobile}
+              agentSelectorOpenSignal={agentSelectorOpenSignal}
             />
           </div>
         </>
@@ -225,6 +216,7 @@ export function ChatPage() {
           onSessionSelect={handleSessionSelect}
           onDeleteSession={handleDeleteSession}
           onNewChat={handleNewChat}
+          agentSelectorOpenSignal={agentSelectorOpenSignal}
         />
       )}
 
@@ -246,11 +238,7 @@ export function ChatPage() {
           <ChatTopBar
             agentId={agentId}
             isRunning={isRunning}
-            isBusy={isBusy}
             activity={activity}
-            teamTasks={teamTasks}
-            onToggleTaskPanel={() => setTaskPanelOpen((v) => !v)}
-            taskPanelOpen={taskPanelOpen}
             session={sessions.find((s) => s.key === sessionKey) ?? null}
             onToggleFiles={() => setFilesPanelOpen((v) => !v)}
             filesPanelOpen={filesPanelOpen}
@@ -277,12 +265,10 @@ export function ChatPage() {
             toolStream={toolStream}
             blockReplies={blockReplies}
             activity={activity}
-            teamTasks={teamTasks}
             isRunning={isRunning}
             isBusy={isBusy}
             loading={messagesLoading}
             scrollTrigger={scrollTrigger}
-            onToggleTaskPanel={() => setTaskPanelOpen((v) => !v)}
           />
 
           {!isOwn ? (
@@ -291,40 +277,46 @@ export function ChatPage() {
               {t("readOnly")}
             </div>
           ) : !agentConfirmed ? (
-            <AgentPickerPrompt onSelect={handleAgentChange} />
+            <div className="mx-3 mb-3 safe-bottom">
+              <div className="rounded-xl border bg-background/95 backdrop-blur-sm shadow-sm p-4 text-center">
+                <p className="text-sm font-medium mb-1">{t("selectAgent.title")}</p>
+                <p className="text-xs text-muted-foreground mb-3">{t("selectAgent.description")}</p>
+                <button
+                  type="button"
+                  onClick={() => setAgentSelectorOpenSignal((n) => n + 1)}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border bg-muted/60 px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                >
+                  {t("selectAgent.title")}
+                </button>
+              </div>
+            </div>
           ) : (
-            <ChatInput
-              onSend={handleSend}
-              onAbort={handleAbort}
-              isBusy={isBusy}
-              disabled={!connected}
-              files={files}
-              onFilesChange={setFiles}
-            />
+            <>
+              <TeamTasksPill tasks={teamTasks} />
+              <ChatInput
+                onSend={handleSend}
+                onAbort={handleAbort}
+                isBusy={isBusy}
+                disabled={!connected}
+                files={files}
+                onFilesChange={setFiles}
+              />
+            </>
           )}
         </DropZone>
       </div>
 
-      {/* Mobile overlay backdrop — must render before TaskPanel so panel sits above */}
-      {isMobile && taskPanelOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setTaskPanelOpen(false)} />
-      )}
-
-      {/* Paseo Phase 3 console panels — one open at a time */}
-      {filesPanelOpen && !jobsPanelOpen && !taskPanelOpen && isMobile && (
+      {/* Mobile overlay backdrops for the console panels — one open at a time */}
+      {filesPanelOpen && !jobsPanelOpen && isMobile && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setFilesPanelOpen(false)} />
       )}
-      {jobsPanelOpen && !taskPanelOpen && isMobile && (
+      {jobsPanelOpen && isMobile && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setJobsPanelOpen(false)} />
       )}
-      {termOpen && !filesPanelOpen && !jobsPanelOpen && !taskPanelOpen && isMobile && (
+      {termOpen && !filesPanelOpen && !jobsPanelOpen && isMobile && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setTermOpen(false)} />
       )}
 
-      {/* Task panel — toggleable sidebar on the right */}
-      {!filesPanelOpen && !jobsPanelOpen && (
-        <TaskPanel tasks={teamTasks} open={taskPanelOpen} onClose={() => setTaskPanelOpen(false)} />
-      )}
       <FileExplorerPanel
         open={filesPanelOpen}
         onClose={() => setFilesPanelOpen(false)}
