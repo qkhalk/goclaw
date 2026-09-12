@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -79,9 +81,14 @@ func (m *Manager) googleCredentials(ctx context.Context) (clientID, clientSecret
 }
 
 // GoogleConfigured reports whether the Google OAuth client is present.
+// The embedded shared client (rclone's) is always available, so the storage
+// surface is on by default; a BYO client only overrides it.
 func (m *Manager) GoogleConfigured(ctx context.Context) bool {
 	id, secret := m.googleCredentials(ctx)
-	return id != "" && secret != ""
+	if id != "" && secret != "" {
+		return true
+	}
+	return true // embedded shared client
 }
 
 // microsoftCredentials resolves the Microsoft OAuth client at call time
@@ -99,10 +106,14 @@ func (m *Manager) microsoftCredentials(ctx context.Context) (clientID, clientSec
 	return m.cfg.MicrosoftClientID, m.cfg.MicrosoftClientSecret
 }
 
-// MicrosoftConfigured reports whether the Microsoft OAuth client is present.
+// MicrosoftConfigured reports whether the Microsoft OAuth client is present
+// (embedded shared client always available, same as Google).
 func (m *Manager) MicrosoftConfigured(ctx context.Context) bool {
 	id, secret := m.microsoftCredentials(ctx)
-	return id != "" && secret != ""
+	if id != "" && secret != "" {
+		return true
+	}
+	return true // embedded shared client
 }
 
 // ProviderConfigured dispatches the per-provider OAuth client check.
@@ -181,28 +192,67 @@ func (m *Manager) credentialsStatus(ctx context.Context, idKey, secretKey, envID
 // BuildAuthURL returns the consent URL for the given storage provider
 // ("google" | "onedrive") for a (tenant, user), plus the redirect URI that
 // must be registered in the provider's console.
-func (m *Manager) BuildAuthURL(ctx context.Context, provider, baseURL, tenantID, userID string) (authURL, redirectURI string, err error) {
+func (m *Manager) BuildAuthURL(ctx context.Context, provider, baseURL, tenantID, userID string) (authURL, redirectURI, mode string, err error) {
 	switch provider {
 	case GoogleProvider:
 		return m.buildGoogleAuthURL(ctx, baseURL, tenantID, userID)
 	case MicrosoftProvider:
 		return m.buildMicrosoftAuthURL(ctx, baseURL, tenantID, userID)
 	default:
-		return "", "", fmt.Errorf("cloud: unsupported provider %q", provider)
+		return "", "", "", fmt.Errorf("cloud: unsupported provider %q", provider)
 	}
 }
 
-func (m *Manager) buildGoogleAuthURL(ctx context.Context, baseURL, tenantID, userID string) (authURL, redirectURI string, err error) {
-	clientID, clientSecret := m.googleCredentials(ctx)
-	if clientID == "" || clientSecret == "" {
-		return "", "", errors.New("cloud: google oauth client not configured")
+// ParseRedirectedURL extracts the authorization code and state from a full
+// redirect URL the user pasted back (the rclone-style copy/paste flow: the
+// browser lands on a loopback address nothing is listening on). Accepts query
+// and fragment forms plus optional surrounding whitespace.
+func ParseRedirectedURL(rawURL string) (code, state string, err error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return "", "", errors.New("cloud: empty redirected URL")
 	}
-	redirectURI = RedirectURI(baseURL)
-	cfg := NewGoogleTokenConfig(clientID, clientSecret, redirectURI)
+	if !strings.Contains(rawURL, "://") {
+		return "", "", errors.New("cloud: not a URL — paste the full address-bar URL")
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", "", fmt.Errorf("cloud: parse redirected URL: %w", err)
+	}
+	q := u.Query()
+	code = q.Get("code")
+	state = q.Get("state")
+	if code == "" || state == "" {
+		if u.Fragment != "" {
+			frag, ferr := url.ParseQuery(u.Fragment)
+			if ferr == nil {
+				code = frag.Get("code")
+				state = frag.Get("state")
+			}
+		}
+	}
+	if code == "" || state == "" {
+		return "", "", errors.New("cloud: redirected URL has no code/state — paste the full URL including ?code= and &state=")
+	}
+	return code, state, nil
+}
+
+func (m *Manager) buildGoogleAuthURL(ctx context.Context, baseURL, tenantID, userID string) (authURL, redirectURI, mode string, err error) {
+	creds, byo := m.googleCredentialsAll(ctx)
+	// BYO clients use the server callback; the embedded shared client uses
+	// rclone's registered loopback target + the paste-back flow.
+	mode = "callback"
+	if byo {
+		redirectURI = RedirectURI(baseURL)
+	} else {
+		mode = "paste"
+		redirectURI = LoopbackRedirectGoogle
+	}
+	cfg := NewGoogleTokenConfig(creds.ClientID, creds.ClientSecret, redirectURI)
 
 	verifier, err := NewVerifier()
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	state, err := EncodeState(StatePayload{
 		Provider: GoogleProvider,
@@ -212,7 +262,11 @@ func (m *Manager) buildGoogleAuthURL(ctx context.Context, baseURL, tenantID, use
 		Redirect: redirectURI,
 	}, m.encKey)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
+	}
+
+	if !byo {
+		cfg.Scopes = EmbeddedGoogleScopes // shared client: Drive-only, no Gmail
 	}
 
 	// access_type=offline is mandatory for a refresh token; prompt=consent
@@ -224,20 +278,23 @@ func (m *Manager) buildGoogleAuthURL(ctx context.Context, baseURL, tenantID, use
 		oauth2.SetAuthURLParam("code_challenge", VerifierChallenge(verifier)),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 	)
-	return url, redirectURI, nil
+	return url, redirectURI, mode, nil
 }
 
-func (m *Manager) buildMicrosoftAuthURL(ctx context.Context, baseURL, tenantID, userID string) (authURL, redirectURI string, err error) {
-	clientID, clientSecret := m.microsoftCredentials(ctx)
-	if clientID == "" || clientSecret == "" {
-		return "", "", errors.New("cloud: microsoft oauth client not configured")
+func (m *Manager) buildMicrosoftAuthURL(ctx context.Context, baseURL, tenantID, userID string) (authURL, redirectURI, mode string, err error) {
+	creds, byo := m.microsoftCredentialsAll(ctx)
+	mode = "callback"
+	if byo {
+		redirectURI = RedirectURI(baseURL)
+	} else {
+		mode = "paste"
+		redirectURI = LoopbackRedirectMicrosoft
 	}
-	redirectURI = RedirectURI(baseURL)
-	cfg := NewMicrosoftTokenConfig(clientID, clientSecret, redirectURI)
+	cfg := NewMicrosoftTokenConfig(creds.ClientID, creds.ClientSecret, redirectURI)
 
 	verifier, err := NewVerifier()
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	state, err := EncodeState(StatePayload{
 		Provider: MicrosoftProvider,
@@ -247,7 +304,7 @@ func (m *Manager) buildMicrosoftAuthURL(ctx context.Context, baseURL, tenantID, 
 		Redirect: redirectURI,
 	}, m.encKey)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	// response_mode=query puts the code in the query string (the callback
@@ -258,7 +315,7 @@ func (m *Manager) buildMicrosoftAuthURL(ctx context.Context, baseURL, tenantID, 
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 		oauth2.SetAuthURLParam("response_mode", "query"),
 	)
-	return url, redirectURI, nil
+	return url, redirectURI, mode, nil
 }
 
 // HandleCallback verifies the signed state, exchanges the code with the
@@ -303,8 +360,8 @@ func (m *Manager) HandleCallback(ctx context.Context, code, state string) (*stor
 func (m *Manager) handleGoogleCallback(ctx context.Context, code string, payload StatePayload) (*store.CloudAccount, error) {
 	// RFC 6749 §4.1.3: the token exchange MUST repeat the exact redirect_uri
 	// used in the authorization request — Google rejects the exchange otherwise.
-	clientID, clientSecret := m.googleCredentials(ctx)
-	cfg := NewGoogleTokenConfig(clientID, clientSecret, payload.Redirect)
+	creds, _ := m.googleCredentialsAll(ctx)
+	cfg := NewGoogleTokenConfig(creds.ClientID, creds.ClientSecret, payload.Redirect)
 	tok, err := ExchangeGoogleCode(ctx, cfg, code, payload.Verifier)
 	if err != nil {
 		return nil, fmt.Errorf("cloud: token exchange: %w", err)
@@ -331,15 +388,22 @@ func (m *Manager) handleGoogleCallback(ctx context.Context, code string, payload
 		Status:         "active",
 	}
 	if acct.Scopes == "null" || acct.Scopes == "" {
-		scopes, _ = json.Marshal(GoogleScopes)
+		fallback := GoogleScopes
+		if creds.Embedded {
+			fallback = EmbeddedGoogleScopes
+		}
+		scopes, _ = json.Marshal(fallback)
 		acct.Scopes = string(scopes)
 	}
+	// Stamp the issuing client so token refreshes (GoClaw + rclone) use the
+	// same OAuth client the user consented to.
+	acct.Settings = stampSettings("", map[string]string{"client_id": creds.ClientID})
 	return acct, nil
 }
 
 func (m *Manager) handleMicrosoftCallback(ctx context.Context, code string, payload StatePayload) (*store.CloudAccount, error) {
-	clientID, clientSecret := m.microsoftCredentials(ctx)
-	cfg := NewMicrosoftTokenConfig(clientID, clientSecret, payload.Redirect)
+	creds, _ := m.microsoftCredentialsAll(ctx)
+	cfg := NewMicrosoftTokenConfig(creds.ClientID, creds.ClientSecret, payload.Redirect)
 	tok, err := ExchangeMicrosoftCode(ctx, cfg, code, payload.Verifier)
 	if err != nil {
 		return nil, fmt.Errorf("cloud: token exchange: %w", err)
@@ -360,7 +424,8 @@ func (m *Manager) handleMicrosoftCallback(ctx context.Context, code string, payl
 	if err != nil {
 		return nil, fmt.Errorf("cloud: drives: %w", err)
 	}
-	settings, _ := json.Marshal(map[string]string{
+	settings := stampSettings("", map[string]string{
+		"client_id":  creds.ClientID,
 		"drive_id":   drive.ID,
 		"drive_type": drive.DriveType,
 	})
@@ -415,11 +480,11 @@ func (m *Manager) TokenSource(ctx context.Context, accountID string) (oauth2.Tok
 	switch acct.Provider {
 	case GoogleProvider:
 		// x/oauth2's refresh only needs client credentials — no redirect URI.
-		clientID, clientSecret := m.googleCredentials(ctx)
-		cfg = NewGoogleTokenConfig(clientID, clientSecret, "")
+		creds := m.credentialsForAccount(ctx, acct)
+		cfg = NewGoogleTokenConfig(creds.ClientID, creds.ClientSecret, "")
 	case MicrosoftProvider:
-		clientID, clientSecret := m.microsoftCredentials(ctx)
-		cfg = NewMicrosoftTokenConfig(clientID, clientSecret, "")
+		creds := m.credentialsForAccount(ctx, acct)
+		cfg = NewMicrosoftTokenConfig(creds.ClientID, creds.ClientSecret, "")
 	default:
 		return nil, fmt.Errorf("cloud: unsupported provider %q", acct.Provider)
 	}

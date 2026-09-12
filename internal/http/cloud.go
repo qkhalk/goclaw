@@ -52,6 +52,7 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/cloud/accounts", requireAuth("", h.handleList))
 	mux.HandleFunc("DELETE /v1/cloud/accounts/{id}", requireAuth("", h.handleDelete))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/start", requireAuth("", h.handleStart))
+	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/complete", requireAuth("", h.handleComplete))
 	mux.HandleFunc("GET /v1/cloud/oauth/callback", h.handleCallback)
 }
 
@@ -235,6 +236,10 @@ func (h *CloudHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 type cloudStartResponse struct {
 	AuthURL     string `json:"auth_url"`
 	RedirectURI string `json:"redirect_uri"`
+	// Mode tells the UI how the flow finishes: "callback" (BYO client — the
+	// browser lands back on the server callback) or "paste" (embedded shared
+	// client — the browser lands on a loopback URL the user pastes back).
+	Mode string `json:"mode"`
 }
 
 func (h *CloudHandler) handleStart(w http.ResponseWriter, r *http.Request) {
@@ -259,13 +264,57 @@ func (h *CloudHandler) handleStart(w http.ResponseWriter, r *http.Request) {
 	if base == "" {
 		base = requestBaseURL(r)
 	}
-	authURL, redirectURI, err := h.manager.BuildAuthURL(r.Context(), provider, base, tenantID.String(), userID)
+	authURL, redirectURI, mode, err := h.manager.BuildAuthURL(r.Context(), provider, base, tenantID.String(), userID)
 	if err != nil {
 		slog.Warn("cloud: build auth url failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to build authorization URL"})
 		return
 	}
-	writeJSON(w, http.StatusOK, cloudStartResponse{AuthURL: authURL, RedirectURI: redirectURI})
+	writeJSON(w, http.StatusOK, cloudStartResponse{AuthURL: authURL, RedirectURI: redirectURI, Mode: mode})
+}
+
+// --- POST /v1/cloud/oauth/{provider}/complete ---
+
+type cloudCompleteInput struct {
+	URL string `json:"url"`
+}
+
+// handleComplete finishes the paste-back flow: the user's browser landed on
+// a loopback redirect target (nothing listening), they copied the URL from
+// the address bar and the UI posts it here. The embedded state param is
+// HMAC-verified exactly like the server callback.
+func (h *CloudHandler) handleComplete(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	provider := r.PathValue("provider")
+	if !cloudmgr.IsSupportedProvider(provider) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
+		return
+	}
+	userID := store.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing user identity"})
+		return
+	}
+	var in cloudCompleteInput
+	locale := store.LocaleFromContext(r.Context())
+	if !bindJSON(w, r, locale, &in) {
+		return
+	}
+	code, state, err := cloudmgr.ParseRedirectedURL(in.URL)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	acct, err := h.manager.HandleCallback(r.Context(), code, state)
+	if err != nil {
+		slog.Warn("cloud: paste-back complete failed", "error", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "connection failed — the link may have expired, try again"})
+		return
+	}
+	slog.Info("cloud: account connected (paste-back)", "provider", acct.Provider, "email", acct.Email)
+	writeJSON(w, http.StatusOK, map[string]string{"email": acct.Email})
 }
 
 // --- GET /v1/cloud/oauth/callback ---

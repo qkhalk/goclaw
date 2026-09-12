@@ -145,6 +145,15 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 			params["drive_type"] = settings.DriveType
 		}
 	}
+	// Refresh tokens are bound to the issuing OAuth client: pin the client the
+	// account consented to, or rclone refreshes with ITS own defaults and
+	// Google/Microsoft reject the grant once the access token expires.
+	if creds := s.manager.credentialsForAccount(ctx, acct); creds.ClientID != "" {
+		params["client_id"] = creds.ClientID
+		if creds.ClientSecret != "" {
+			params["client_secret"] = creds.ClientSecret
+		}
+	}
 	if err := rc.ConfigCreate(ctx, remote, remoteType, params); err != nil {
 		return "", fmt.Errorf("cloud storage: create remote: %w", err)
 	}
