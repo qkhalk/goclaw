@@ -157,7 +157,7 @@ func (c *Channel) applyThinkingPick(ctx context.Context, chatID int64, msgID int
 	}
 	c.setChatPrefs(ctx, sessionKey, map[string]string{MetaKeyThinkingLevel: level})
 	slog.Info("chat prefs: thinking level set via picker", "session", sessionKey, "level", level)
-	c.editPickerMessage(ctx, chatID, msgID, i18n.T(loc, i18n.MsgTGThinkingSet, "level", level))
+	c.editPickerMessage(ctx, chatID, msgID, i18n.T(loc, i18n.MsgTGThinkingSet, level))
 }
 
 // applyDevPick handles dv:on / dv:off.
@@ -237,9 +237,9 @@ func (c *Channel) sendThinkingPicker(ctx context.Context, chatID int64, chatIDSt
 		title = i18n.T(loc, i18n.MsgTGReasoningTitle)
 	}
 	if current != "" {
-		title += "\n" + i18n.T(loc, i18n.MsgTGThinkingCurrent, "level", current)
+		title += "\n" + i18n.T(loc, i18n.MsgTGThinkingCurrent, current)
 	} else if agent != nil && agent.ThinkingLevel != "" {
-		title += "\n" + i18n.T(loc, i18n.MsgTGThinkingAgentDef, "level", agent.ThinkingLevel)
+		title += "\n" + i18n.T(loc, i18n.MsgTGThinkingAgentDef, agent.ThinkingLevel)
 	}
 
 	var rows [][]telego.InlineKeyboardButton
@@ -283,7 +283,7 @@ func (c *Channel) sendReasoningPicker(ctx context.Context, chatID int64, chatIDS
 
 	title := i18n.T(loc, i18n.MsgTGReasoningTitle)
 	if current != "" {
-		title += "\n" + i18n.T(loc, i18n.MsgTGThinkingCurrent, "level", current)
+		title += "\n" + i18n.T(loc, i18n.MsgTGThinkingCurrent, current)
 	}
 
 	onLabel := i18n.T(loc, i18n.MsgTGReasoningOn)
