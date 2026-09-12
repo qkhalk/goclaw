@@ -94,7 +94,8 @@
     "oauthAliasHint": "Строчный псевдоним, используемый в маршрутизации и пулах.",
     "oauthDisplayNamePlaceholder": "Основной аккаунт Codex",
     "oauthDisplayNameHint": "Необязательная метка, отображаемая в панели управления.",
-    "lowercaseHint": "Строчные буквы, цифры, дефисы"
+    "lowercaseHint": "Строчные буквы, цифры, дефисы",
+    "provider_search": "Поиск провайдера…"
   },
   "delete": {
     "title": "Удалить провайдера",

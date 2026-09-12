@@ -94,7 +94,8 @@
     "oauthAliasHint": "라우팅 및 풀에서 사용되는 소문자 별칭입니다.",
     "oauthDisplayNamePlaceholder": "기본 Codex 계정",
     "oauthDisplayNameHint": "대시보드에 표시되는 선택적 레이블입니다.",
-    "lowercaseHint": "소문자, 숫자, 하이픈"
+    "lowercaseHint": "소문자, 숫자, 하이픈",
+    "provider_search": "공급자 검색…"
   },
   "delete": {
     "title": "공급자 삭제",
