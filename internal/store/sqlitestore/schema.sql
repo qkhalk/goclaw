@@ -3024,7 +3024,8 @@ CREATE INDEX IF NOT EXISTS idx_nodes_tenant_trust
     ON nodes (tenant_id, trust);
 CREATE INDEX IF NOT EXISTS idx_nodes_tenant_created
     ON nodes (tenant_id, created_at DESC);
-=======
+
+-- =======
 -- Table: routing_rules (PG 000117)
 -- Inbound routing rules (inheritance plan Phase 4): tenant-scoped,
 -- evaluated between config-binding peer matches and channel matches.
