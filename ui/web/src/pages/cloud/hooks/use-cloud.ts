@@ -15,10 +15,12 @@ export interface CloudAccount {
   created_at: string;
 }
 
+export type CloudProvider = "google" | "onedrive";
+
 export interface CloudStatus {
   enabled: boolean;
   edition: string;
-  providers: { google?: { configured: boolean } };
+  providers: { google?: { configured: boolean }; onedrive?: { configured: boolean } };
 }
 
 export interface CloudStartResponse {
@@ -35,28 +37,28 @@ export function useCloudStatus() {
   });
 }
 
-/** Admin view of the OAuth client config (secret never returned). */
+/** Admin view of one provider's OAuth client config (secret never returned). */
 export interface CloudSettings {
   client_id: string;
   secret_set: boolean;
   redirect_uri: string;
 }
 
-export function useCloudSettings(enabled: boolean) {
+export function useCloudSettings(provider: CloudProvider, enabled: boolean) {
   const http = useHttp();
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: ["cloud", "settings"],
+    queryKey: ["cloud", "settings", provider],
     enabled,
-    queryFn: () => http.get<CloudSettings>("/v1/cloud/settings"),
+    queryFn: () => http.get<CloudSettings>(`/v1/cloud/settings?provider=${provider}`),
   });
 
   const saveSettings = useCallback(
     async (client_id: string, client_secret: string) => {
-      await http.put("/v1/cloud/settings", { client_id, client_secret });
+      await http.put(`/v1/cloud/settings?provider=${provider}`, { client_id, client_secret });
       await queryClient.invalidateQueries({ queryKey: ["cloud"] });
     },
-    [http, queryClient],
+    [http, provider, queryClient],
   );
 
   return { settings: query.data, saveSettings };
@@ -85,7 +87,7 @@ export function useCloudAccounts() {
   );
 
   const startConnect = useCallback(
-    async (provider = "google") =>
+    async (provider: CloudProvider) =>
       http.post<CloudStartResponse>(`/v1/cloud/oauth/${provider}/start`),
     [http],
   );

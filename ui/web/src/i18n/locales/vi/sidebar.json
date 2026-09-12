@@ -2,7 +2,7 @@
   "groups": {
     "core": "Chính",
     "conversations": "Hội thoại",
-    "cloud": "Cloud",
+    "cloud": "Clouds",
     "connectivity": "Kết nối",
     "capabilities": "Khả năng",
     "data": "Dữ liệu",
@@ -47,6 +47,6 @@
     "tenants": "Tổ chức",
     "backupRestore": "Sao lưu & Khôi phục",
     "workstations": "Workstations",
-    "cloud": "Cloud"
+    "cloud": "Clouds"
   }
 }

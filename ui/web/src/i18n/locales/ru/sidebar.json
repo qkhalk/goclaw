@@ -2,7 +2,7 @@
   "groups": {
     "core": "Основное",
     "conversations": "Беседы",
-    "cloud": "Облако",
+    "cloud": "Облака",
     "connectivity": "Подключения",
     "capabilities": "Возможности",
     "data": "Данные",
@@ -48,6 +48,6 @@
     "tenants": "Арендаторы",
     "backupRestore": "Резервное копирование и восстановление",
     "workstations": "Рабочие станции",
-    "cloud": "Облако"
+    "cloud": "Облака"
   }
 }
