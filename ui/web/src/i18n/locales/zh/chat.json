@@ -1,7 +1,8 @@
 {
   "contextUsage": {
     "tooltip": "{{used}} / {{max}} tokens ({{percent}}%) · 压缩 {{compactions}} 次 · 最近：{{lastCompact}}",
-    "never": "无"
+    "never": "无",
+    "linkSessions": "打开会话详情"
   },
   "empty": {
     "description": "发送消息开始与Agent对话。",
@@ -125,5 +126,40 @@
     "medium": "中",
     "high": "高",
     "xhigh": "超高"
+  },
+  "console": {
+    "button": "控制台"
+  },
+  "phase": {
+    "thinking": "思考中…",
+    "tool": "正在运行 {{tool}}…",
+    "tools": "正在运行工具…",
+    "streaming": "正在撰写…",
+    "compacting": "正在优化上下文…",
+    "retrying": "重试 ({{attempt}}/{{max}})…",
+    "leaderProcessing": "正在处理团队结果…",
+    "working": "工作中…",
+    "step": "第 {{n}} 步"
+  },
+  "teamTasks": {
+    "pill": "团队：{{n}} 个任务进行中",
+    "panelTitle": "进行中的任务 ({{n}})",
+    "empty": "暂无任务",
+    "unassigned": "未分配"
+  },
+  "dropzone": {
+    "title": "将文件拖到此处"
+  },
+  "command": {
+    "plan": "写代码前先制定实现计划",
+    "fix": "诊断并修复 bug 或失败的测试",
+    "cook": "根据任务描述实现更改",
+    "review": "审查近期更改以发现问题",
+    "test": "运行并修复测试套件",
+    "debug": "调试问题直至根因",
+    "docs": "创建或更新项目文档",
+    "architect": "设计或评估系统架构",
+    "uiux": "UI/UX 审查与打磨",
+    "mission": "启动长时自主任务"
   }
 }

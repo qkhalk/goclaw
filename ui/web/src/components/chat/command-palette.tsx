@@ -35,28 +35,29 @@ interface PaletteItem {
   name?: string;
 }
 
-const GC_COMMANDS: Array<{ kind: string; group: "workflow" | "control"; description: string }> = [
-  { kind: "plan", group: "workflow", description: "Draft an implementation plan before writing code" },
-  { kind: "fix", group: "workflow", description: "Diagnose and fix a bug or failing test" },
-  { kind: "cook", group: "workflow", description: "Implement a change from a task description" },
-  { kind: "review", group: "workflow", description: "Review recent changes for issues" },
-  { kind: "test", group: "workflow", description: "Run and repair the test suite" },
-  { kind: "debug", group: "workflow", description: "Debug a problem down to root cause" },
-  { kind: "docs", group: "workflow", description: "Create or refresh project documentation" },
-  { kind: "architect", group: "workflow", description: "Design or evaluate system architecture" },
-  { kind: "uiux", group: "workflow", description: "UI/UX review and polish" },
-  { kind: "mission", group: "workflow", description: "Launch a long autonomous mission" },
-  { kind: "status", group: "control", description: "Show control plane status" },
-  { kind: "runs", group: "control", description: "List recent runs" },
-  { kind: "doctor", group: "control", description: "Run environment health checks" },
-  { kind: "approve", group: "control", description: "Approve a pending action" },
+/**
+ * Prompt-style workflow commands only. Control-plane commands (status, runs,
+ * doctor, approve) were removed — they have dedicated pages (/runs, /approvals)
+ * and the palette only inserts text; it cannot execute anything.
+ */
+const GC_COMMANDS: Array<{ kind: string }> = [
+  { kind: "plan" },
+  { kind: "fix" },
+  { kind: "cook" },
+  { kind: "review" },
+  { kind: "test" },
+  { kind: "debug" },
+  { kind: "docs" },
+  { kind: "architect" },
+  { kind: "uiux" },
+  { kind: "mission" },
 ];
 
-function buildItems(skills: SkillInfo[]): PaletteItem[] {
-  const commands: PaletteItem[] = GC_COMMANDS.map(({ kind, description }) => ({
+function buildItems(skills: SkillInfo[], describe: (kind: string) => string): PaletteItem[] {
+  const commands: PaletteItem[] = GC_COMMANDS.map(({ kind }) => ({
     token: `gc:${kind}`,
     label: `/gc:${kind}`,
-    description,
+    description: describe(kind),
     badge: kind,
   }));
   const skillItems: PaletteItem[] = skills
@@ -100,7 +101,10 @@ export function CommandPalette({ open, query, onSelect, onClose }: CommandPalett
     enabled: connected && open,
   });
 
-  const items = useMemo(() => filterItems(buildItems(skills), query), [skills, query]);
+  const items = useMemo(
+    () => filterItems(buildItems(skills, (kind) => t(`command.${kind}`)), query),
+    [skills, query, t],
+  );
   const clampedIndex = Math.min(activeIndex, Math.max(items.length - 1, 0));
 
   useEffect(() => {

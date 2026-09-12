@@ -15,6 +15,8 @@ interface ChatSidebarProps {
   onSessionSelect: (key: string) => void;
   onDeleteSession?: (key: string) => void;
   onNewChat: () => void;
+  /** Increment to open the agent dropdown programmatically (empty-state CTA). */
+  agentSelectorOpenSignal?: number;
 }
 
 export const ChatSidebar = memo(function ChatSidebar({
@@ -26,13 +28,14 @@ export const ChatSidebar = memo(function ChatSidebar({
   onSessionSelect,
   onDeleteSession,
   onNewChat,
+  agentSelectorOpenSignal,
 }: ChatSidebarProps) {
   const { t } = useTranslation("chat");
   return (
     <div className="flex h-full w-72 max-w-[85vw] flex-col border-r bg-background">
       {/* Agent selector */}
       <div className="border-b p-3">
-        <AgentSelector value={agentId} onChange={onAgentChange} />
+        <AgentSelector value={agentId} onChange={onAgentChange} openSignal={agentSelectorOpenSignal} />
       </div>
 
       {/* New chat button */}
