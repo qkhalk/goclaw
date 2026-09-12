@@ -85,8 +85,10 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 			"/stopall — Stop all running tasks\n" +
 			"/reset — Reset conversation history\n" +
 			"/status — Show bot status\n" +
-			"/thinking — View or set the thinking level for this chat\n" +
+			"/thinking — View or pick the thinking level for this chat\n" +
+			"/reasoning — Toggle reasoning on/off\n" +
 			"/dev — Toggle dev mode for this chat\n" +
+			"/language — Set the reply language\n" +
 			"/reactions — Show reaction emoji legend\n" +
 			"/skills — List available skills\n" +
 			"/tasks — List team tasks\n" +
@@ -201,17 +203,54 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 
 	case "/status":
 		dmThread := dmThreadIDFor(message, isGroup)
-		c.handleStatusCommand(ctx, chatID, chatIDStr, isGroup, isForum, messageThreadID, dmThread, setThread, commandArg(text))
+		c.handleStatusCommand(ctx, chatID, chatIDStr, isGroup, isForum, messageThreadID, dmThread, setThread, userLanguage(message), commandArg(text))
 		return true
 
 	case "/thinking":
 		dmThread := dmThreadIDFor(message, isGroup)
+		if arg := commandArg(text); arg == "" && c.sessionPrefs != nil {
+			if !c.requireChatWriter(ctx, chatID, isGroup, chatIDStr, senderID, setThread) {
+				return true
+			}
+			sessionKey := c.chatSessionKey(chatIDStr, isGroup, isForum, messageThreadID, dmThread)
+			loc := c.chatLocale(ctx, sessionKey, userLanguage(message))
+			c.sendThinkingPicker(ctx, chatID, chatIDStr, isGroup, isForum, messageThreadID, dmThread, setThread, "thinking", loc)
+			return true
+		}
 		c.handleThinkingCommand(ctx, chatID, chatIDStr, senderID, isGroup, isForum, messageThreadID, dmThread, setThread, commandArg(text))
+		return true
+
+	case "/reasoning":
+		dmThread := dmThreadIDFor(message, isGroup)
+		if !c.requireChatWriter(ctx, chatID, isGroup, chatIDStr, senderID, setThread) {
+			return true
+		}
+		if arg := commandArg(text); arg == "on" || arg == "off" || arg == "default" {
+			c.handleThinkingCommand(ctx, chatID, chatIDStr, senderID, isGroup, isForum, messageThreadID, dmThread, setThread, arg)
+			return true
+		}
+		sessionKey := c.chatSessionKey(chatIDStr, isGroup, isForum, messageThreadID, dmThread)
+		loc := c.chatLocale(ctx, sessionKey, userLanguage(message))
+		c.sendReasoningPicker(ctx, chatID, chatIDStr, isGroup, isForum, messageThreadID, dmThread, setThread, loc)
 		return true
 
 	case "/dev":
 		dmThread := dmThreadIDFor(message, isGroup)
+		if arg := commandArg(text); arg == "" && c.sessionPrefs != nil {
+			if !c.requireChatWriter(ctx, chatID, isGroup, chatIDStr, senderID, setThread) {
+				return true
+			}
+			sessionKey := c.chatSessionKey(chatIDStr, isGroup, isForum, messageThreadID, dmThread)
+			loc := c.chatLocale(ctx, sessionKey, userLanguage(message))
+			c.sendDevPicker(ctx, chatID, chatIDStr, isGroup, isForum, messageThreadID, dmThread, setThread, loc)
+			return true
+		}
 		c.handleDevCommand(ctx, chatID, chatIDStr, senderID, isGroup, isForum, messageThreadID, dmThread, setThread, commandArg(text))
+		return true
+
+	case "/language":
+		dmThread := dmThreadIDFor(message, isGroup)
+		c.handleLanguageCommand(ctx, chatID, chatIDStr, senderID, isGroup, isForum, messageThreadID, dmThread, setThread, userLanguage(message), commandArg(text))
 		return true
 
 	case "/tasks":
@@ -219,7 +258,11 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 		return true
 
 	case "/skills":
-		c.handleSkillsList(ctx, chatID, chatIDStr, messageThreadID, setThread)
+		if arg := commandArg(text); arg == "list" || c.sessionPrefs == nil {
+			c.handleSkillsList(ctx, chatID, chatIDStr, messageThreadID, setThread)
+			return true
+		}
+		c.handleSkillsPicker(ctx, chatID, chatIDStr, isGroup, isForum, messageThreadID, dmThreadIDFor(message, isGroup), setThread, userLanguage(message))
 		return true
 
 	case "/task_detail":
@@ -281,6 +324,15 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 func commandArg(text string) string {
 	if _, rest, found := strings.Cut(strings.TrimSpace(text), " "); found {
 		return strings.TrimSpace(rest)
+	}
+	return ""
+}
+
+// userLanguage returns the sender's Telegram client language code ("" when
+// absent — channels fall back to per-chat locale metadata or "en").
+func userLanguage(message *telego.Message) string {
+	if message.From != nil {
+		return message.From.LanguageCode
 	}
 	return ""
 }
