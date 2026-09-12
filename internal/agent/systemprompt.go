@@ -234,6 +234,17 @@ var coreToolSummaries = map[string]string{
 	"vault_search":           "Search documents in the knowledge vault (hybrid keyword + semantic). Pass the returned doc_id to vault_read for full content",
 	"vault_read":             "Read full content of a vault document by doc_id (from vault_search). Use for shared/personal/team vault docs that read_file cannot reach",
 
+	// Cloud (connected Google accounts)
+	"cloud_accounts":   "List the user's connected cloud accounts (Gmail/Drive) — call first when the user mentions mail or cloud files",
+	"mail_search":      "Search a connected Gmail account (Gmail search-box syntax, e.g. from:x is:unread)",
+	"mail_read":        "Read one email's content by id from mail_search (body truncated, attachments listed)",
+	"mail_archive":     "Archive/trash/mark-read/label emails by id — NO permanent delete exists; confirm bulk cleanups with the user first",
+	"mail_unsubscribe": "Analyze (execute=false, default) or perform (execute=true — ONLY after explicit user consent) newsletter unsubscription per RFC 8058",
+	"cloud_ls":         "List a folder in the user's Google Drive (non-recursive)",
+	"cloud_read":       "Fetch a small Drive file into the workspace to read (use read_file on the returned path)",
+	"cloud_fetch":      "Download a Drive file into the workspace (cloud/<name>) so workspace tools can process it",
+	"cloud_about":      "Show Google Drive quota (used/total/free) for a connected account",
+
 	// Tool aliases (edit_file, sessions_spawn, Read, Write, Edit, Bash, etc.)
 	// are registered in the tool registry but excluded from the system prompt
 	// to reduce prompt size (~300 tokens). They work without being listed here.
