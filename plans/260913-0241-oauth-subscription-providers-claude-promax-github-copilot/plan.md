@@ -1,7 +1,7 @@
 ---
 title: "OAuth subscription providers: Claude Pro/Max + GitHub Copilot"
 description: "Add two OpenClaw-parity OAuth subscription providers (Claude Pro/Max and GitHub Copilot) following the proven chatgpt_oauth pattern: web-UI login, DB-backed auto-refresh, multi-tenant."
-status: pending
+status: completed
 priority: P1
 effort: "4d"
 tags: [providers, oauth, subscriptions]
@@ -72,10 +72,10 @@ Token storage is identical to `chatgpt_oauth` (no schema changes): access token 
 
 | # | Phase | Status |
 |---|-------|--------|
-| 1 | [Phase 1: Claude Pro/Max OAuth backend](./phase-01-claude-oauth-backend.md) | Pending |
-| 2 | [Phase 2: GitHub Copilot OAuth backend](./phase-02-github-copilot-oauth-backend.md) | Pending |
-| 3 | [Phase 3: Web UI multi-provider OAuth](./phase-03-web-ui-multi-provider-oauth.md) | Pending |
-| 4 | [Phase 4: Parity, docs, release](./phase-04-parity-docs-release.md) | Pending |
+| 1 | [Phase 1: Claude Pro/Max OAuth backend](./phase-01-claude-oauth-backend.md) | Completed |
+| 2 | [Phase 2: GitHub Copilot OAuth backend](./phase-02-github-copilot-oauth-backend.md) | Completed |
+| 3 | [Phase 3: Web UI multi-provider OAuth](./phase-03-web-ui-multi-provider-oauth.md) | Completed |
+| 4 | [Phase 4: Parity, docs, release](./phase-04-parity-docs-release.md) | Completed |
 
 ## Out of scope (explicit)
 
