@@ -5,6 +5,19 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 ## Unreleased
 
 ### Added
+- **7 new API-key providers** — Moonshot AI (Kimi Platform), Together AI,
+  Fireworks AI, Cerebras, Synthetic.new (Anthropic-compatible), Kilo Code
+  Gateway, and OpenCode Zen. Backend: default base URLs/models, env overlay
+  (`GOCLAW_MOONSHOT_API_KEY` etc.), gateway startup + DB switch, tenant
+  registration endpoints. Web UI: new provider entries plus a searchable
+  provider type selector in the add-provider form.
+
+- **Cloud: dedicated sidebar group + storage provider catalog** — the Cloud
+  page moved out of Connectivity into its own sidebar group right after
+  Conversations, and the page now lists supported storage providers
+  (Google Drive available; OneDrive / Dropbox / S3 marked coming soon on the
+  shared rclone engine).
+
 
 - **Cloud Accounts (Google OAuth: Gmail + Drive)** — new Web UI **Cloud** page
   where each user connects their own Google accounts (multi-account,
@@ -28,6 +41,12 @@ All notable changes to GoClaw are documented here. For full documentation, see [
   shows the `v`-prefixed version too.
 
 ### Fixed
+- **Cloud page i18n** — `cloud.json` used flat dotted keys while i18next
+  resolves nested keys (default `keySeparator: "."`), and the `cloud`
+  namespace was never registered, so the Cloud page rendered raw keys.
+  Keys converted to nested structure and the namespace registered for all
+  5 locales.
+
 
 - **Inline-picker taps no longer report "expired"** — the callback dispatcher
   forwarded the full callback payload (`th:high`) to the pick appliers, whose
