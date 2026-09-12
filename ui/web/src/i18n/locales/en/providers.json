@@ -94,7 +94,8 @@
     "oauthAliasHint": "Lowercase alias used in routing and pools.",
     "oauthDisplayNamePlaceholder": "Primary Codex account",
     "oauthDisplayNameHint": "Optional label shown in the dashboard.",
-    "lowercaseHint": "Lowercase, numbers, hyphens"
+    "lowercaseHint": "Lowercase, numbers, hyphens",
+    "provider_search": "Search provider…"
   },
   "delete": {
     "title": "Delete Provider",

@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
@@ -15,13 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { ProviderData, ProviderInput } from "./hooks/use-providers";
 import { slugify } from "@/lib/slug";
 import { DEFAULT_CODEX_OAUTH_ALIAS, PROVIDER_TYPES, suggestUniqueProviderAlias } from "@/constants/providers";
@@ -284,28 +278,29 @@ function ProviderTypeSelect({ value, hasClaudeCLI, alreadyAddedLabel, providerTy
   providerTypeLabel: string;
   onChange: (value: string) => void;
 }) {
+  const { t } = useTranslation("providers");
+  // Searchable picker: 30+ provider types — filter as the user types.
+  const options = useMemo(
+    () =>
+      PROVIDER_TYPES.filter((pt) => !(pt.value === "claude_cli" && hasClaudeCLI)).map((pt) => ({
+        value: pt.value,
+        label:
+          pt.value === "claude_cli" && hasClaudeCLI
+            ? `${pt.label} (${alreadyAddedLabel})`
+            : pt.label,
+      })),
+    [hasClaudeCLI, alreadyAddedLabel],
+  );
+
   return (
     <div className="space-y-2">
       <Label>{providerTypeLabel}</Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {PROVIDER_TYPES.map((pt) => (
-            <SelectItem
-              key={pt.value}
-              value={pt.value}
-              disabled={pt.value === "claude_cli" && hasClaudeCLI}
-            >
-              {pt.label}
-              {pt.value === "claude_cli" && hasClaudeCLI && (
-                <span className="ml-1 text-xs opacity-60">{alreadyAddedLabel}</span>
-              )}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={t("form.provider_search")}
+      />
     </div>
   );
 }
