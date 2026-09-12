@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "GitHub Copilot OAuth backend"
-status: pending
+status: completed
 priority: P1
 effort: "1d"
 dependencies: []
@@ -50,9 +50,9 @@ Add the `copilot_oauth` provider type via GitHub device flow: the UI displays a 
 
 ## Todo
 
-- [ ] Steps 1-6 above, in order
-- [ ] `go build ./...` + vet + `go test ./internal/oauth/... ./internal/http/... -run "Copilot" -race` green
-- [ ] `go build -tags sqliteonly ./...` green
+- [x] Steps 1-6 above, in order
+- [x] `go build ./...` + vet + `go test ./internal/oauth/... ./internal/http/... -run "Copilot" -race` green
+- [x] `go build -tags sqliteonly ./...` green
 
 ## Success Criteria
 

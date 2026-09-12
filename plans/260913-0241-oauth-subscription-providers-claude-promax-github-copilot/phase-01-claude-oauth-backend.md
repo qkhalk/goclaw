@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Claude Pro/Max OAuth backend"
-status: pending
+status: completed
 priority: P1
 effort: "1.5d"
 dependencies: []
@@ -71,10 +71,10 @@ Mirror `internal/oauth/openai.go` + `token.go` in the same `internal/oauth` pack
 
 ## Todo
 
-- [ ] Steps 1-7 above, in order
-- [ ] `go build ./...` + `go vet ./internal/... ./cmd/...` green
-- [ ] `go test ./internal/oauth/... ./internal/http/... -run "Claude" -race` green
-- [ ] `go build -tags sqliteonly ./...` green
+- [x] Steps 1-7 above, in order
+- [x] `go build ./...` + `go vet ./internal/... ./cmd/...` green
+- [x] `go test ./internal/oauth/... ./internal/http/... -run "Claude" -race` green
+- [x] `go build -tags sqliteonly ./...` green
 
 ## Success Criteria
 
