@@ -247,6 +247,7 @@
     "signInWithCopilot": "Đăng nhập bằng GitHub Copilot",
     "deviceCodeHint": "Nhập mã này trên trang GitHub để cấp quyền cho GoClaw.",
     "copyCode": "Sao chép mã",
+    "copiedCode": "Đã sao chép!",
     "waitingForGithub": "Đang chờ cấp quyền trên GitHub…"
   },
   "cli": {

@@ -264,6 +264,7 @@
     "signInWithCopilot": "使用 GitHub Copilot 登录",
     "deviceCodeHint": "在 GitHub 页面上输入此代码以授权 GoClaw。",
     "copyCode": "复制代码",
+    "copiedCode": "已复制！",
     "waitingForGithub": "正在等待 GitHub 授权…"
   },
   "cli": {
