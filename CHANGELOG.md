@@ -5,6 +5,17 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 ## Unreleased
 
 ### Added
+- **OAuth subscription providers: Claude Pro/Max + GitHub Copilot** — two new
+  provider types join `chatgpt_oauth`. `claude_oauth`: sign in with a Claude
+  Pro/Max account (claude.ai PKCE, paste-back callback) and chat via the
+  Anthropic Messages API with the OAuth beta header; refresh tokens auto-rotate
+  in the encrypted secrets store. `copilot_oauth`: GitHub device flow — the UI
+  shows a one-time code, GoClaw validates Copilot access and resolves the
+  account API base (SSRF-allowlisted). Shared chatgpt_oauth token architecture
+  (access token encrypted in `llm_providers`, on-demand refresh with a 5-minute
+  margin, stale-token fallback). CLI `goclaw auth status|logout` resolves the
+  flow per provider type; docs in `docs/31-provider-oauth-subscriptions.md`.
+
 - **6 more OpenClaw-parity API-key providers** — NVIDIA NIM, StepFun,
   Venice AI, Baseten, Chutes, and Hugging Face Router (all OpenAI-compat:
   defaults, `GOCLAW_*_API_KEY` env overlay, gateway + tenant registration,

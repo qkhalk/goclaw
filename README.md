@@ -5,7 +5,7 @@
 <p align="center"><strong>Multi-Tenant AI Agent Platform</strong></p>
 
 <p align="center">
-Multi-agent AI gateway built in Go. 20+ LLM providers. 7 channels. Multi-tenant PostgreSQL.<br/>
+Multi-agent AI gateway built in Go. 40+ LLM providers (API-key + OAuth subscriptions). 7 channels. Multi-tenant PostgreSQL.<br/>
 Single binary. Production-tested. Agents that orchestrate for you.
 </p>
 
@@ -291,7 +291,7 @@ Agents improve themselves through a 3-stage guardrailed pipeline: metrics collec
   <img src="_statics/Provider Adapter System.jpg" alt="Provider Adapters" width="800" />
 </p>
 
-20+ LLM providers unified through a single adapter interface. Capability-based routing, encrypted API keys (AES-256-GCM), extended thinking support per-provider, and prompt caching for Anthropic + OpenAI.
+40+ LLM providers — API keys, OAuth subscriptions (ChatGPT, Claude Pro/Max, GitHub Copilot) — unified through a single adapter interface. Capability-based routing, encrypted API keys (AES-256-GCM), extended thinking support per-provider, and prompt caching for Anthropic + OpenAI.
 
 ## Event-Driven Architecture
 
