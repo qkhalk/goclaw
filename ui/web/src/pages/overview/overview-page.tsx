@@ -28,6 +28,7 @@ import { SystemHealthCard } from "./system-health-card";
 import { ConnectedClientsCard } from "./connected-clients-card";
 import { CronJobsCard } from "./cron-jobs-card";
 import { RecentRequestsCard } from "./recent-requests-card";
+import { RoutingGraphCard } from "./routing-graph-card";
 import { QuotaUsageCard } from "./quota-usage-card";
 import { useRuntimes } from "@/pages/skills/hooks/use-runtimes";
 import {
@@ -273,8 +274,15 @@ export function OverviewPage() {
             <CronJobsCard jobs={cronData?.jobs ?? []} />
           </div>
 
-          {/* Recent Requests */}
-          <RecentRequestsCard />
+          {/* Routing graph + Recent Requests (9router-style dashboard) */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-2">
+              <RoutingGraphCard />
+            </div>
+            <div className="lg:col-span-3">
+              <RecentRequestsCard />
+            </div>
+          </div>
 
           {/* Quota Usage */}
           {quota?.enabled && quota.entries.length > 0 && (

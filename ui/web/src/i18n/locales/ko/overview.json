@@ -86,5 +86,13 @@
     "title": "임베딩",
     "notConfigured": "설정되지 않음",
     "configure": "공급자에서 설정 →"
+  },
+  "routing": {
+    "title": "모델 라우팅",
+    "window": "24시간",
+    "noData": "라우팅 데이터가 없습니다",
+    "req": "요청 {{count}}회",
+    "moreProviders": "제공자 {{count}}개 더보기",
+    "moreModels": "모델 {{count}}개 더보기"
   }
 }

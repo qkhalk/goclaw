@@ -86,5 +86,13 @@
     "title": "Embedding",
     "notConfigured": "Chưa cấu hình",
     "configure": "Cấu hình trong Providers →"
+  },
+  "routing": {
+    "title": "Định tuyến mô hình",
+    "window": "24 giờ",
+    "noData": "Chưa có dữ liệu định tuyến",
+    "req": "{{count}} req",
+    "moreProviders": "+{{count}} nhà cung cấp khác",
+    "moreModels": "+{{count}} mô hình khác"
   }
 }

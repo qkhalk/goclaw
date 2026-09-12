@@ -86,5 +86,13 @@
     "title": "Embedding",
     "notConfigured": "未配置",
     "configure": "在Providers中配置 →"
+  },
+  "routing": {
+    "title": "模型路由",
+    "window": "24小时",
+    "noData": "暂无路由数据",
+    "req": "{{count}} 次请求",
+    "moreProviders": "还有 {{count}} 个提供商",
+    "moreModels": "还有 {{count}} 个模型"
   }
 }

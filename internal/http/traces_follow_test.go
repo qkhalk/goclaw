@@ -74,6 +74,10 @@ func (m *mockTracingStore) ListRecentLLMRequests(context.Context, int) ([]store.
 	return nil, nil
 }
 
+func (m *mockTracingStore) ListRoutingEdges(context.Context, time.Time, int) ([]store.UsageRoutingEdge, error) {
+	return nil, nil
+}
+
 func (m *mockTracingStore) ListCodexPoolSpansByProviders(context.Context, uuid.UUID, []string, int) ([]store.CodexPoolProviderSpan, error) {
 	return nil, nil
 }
