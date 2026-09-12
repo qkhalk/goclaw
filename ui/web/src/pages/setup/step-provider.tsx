@@ -43,7 +43,7 @@ export function StepProvider({ onComplete, existingProvider }: StepProviderProps
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const isOAuth = providerType === "chatgpt_oauth";
+  const isOAuth = providerType === "chatgpt_oauth" || providerType === "claude_oauth" || providerType === "copilot_oauth";
   const isCLI = providerType === "claude_cli";
   // Local Ollama uses no API key — the server accepts any non-empty Bearer value internally
   const isOllama = providerType === "ollama";
@@ -52,7 +52,7 @@ export function StepProvider({ onComplete, existingProvider }: StepProviderProps
     setProviderType(value);
     const preset = PROVIDER_TYPES.find((t) => t.value === value);
     setName(value === "chatgpt_oauth"
-      ? (providerType === "chatgpt_oauth"
+      ? (providerType === "chatgpt_oauth" || providerType === "claude_oauth" || providerType === "copilot_oauth"
         ? name
         : suggestUniqueProviderAlias(providers, { excludeName: existingProvider?.name }))
       : slugify(value));
@@ -186,6 +186,7 @@ export function StepProvider({ onComplete, existingProvider }: StepProviderProps
               </div>
 
               <OAuthSection
+                flavor={providerType === "claude_oauth" ? "claude" : providerType === "copilot_oauth" ? "copilot" : "chatgpt"}
                 providerName={name}
                 displayName={oauthDisplayName}
                 apiBase={apiBase}

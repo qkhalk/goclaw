@@ -242,7 +242,12 @@
     "oauthFailed": "OAuth thất bại",
     "exchangeFailed": "Trao đổi thất bại",
     "logoutFailed": "Đăng xuất thất bại",
-    "done": "Xong"
+    "done": "Xong",
+    "signInWithClaude": "Đăng nhập bằng Claude",
+    "signInWithCopilot": "Đăng nhập bằng GitHub Copilot",
+    "deviceCodeHint": "Nhập mã này trên trang GitHub để cấp quyền cho GoClaw.",
+    "copyCode": "Sao chép mã",
+    "waitingForGithub": "Đang chờ cấp quyền trên GitHub…"
   },
   "cli": {
     "description": "Claude CLI sử dụng tệp nhị phân",

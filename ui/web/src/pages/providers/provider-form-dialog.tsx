@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { ProviderData, ProviderInput } from "./hooks/use-providers";
 import { slugify } from "@/lib/slug";
-import { DEFAULT_CODEX_OAUTH_ALIAS, PROVIDER_TYPES, suggestUniqueProviderAlias } from "@/constants/providers";
+import { DEFAULT_CLAUDE_OAUTH_ALIAS, DEFAULT_CODEX_OAUTH_ALIAS, DEFAULT_COPILOT_OAUTH_ALIAS, OAUTH_PROVIDER_TYPES, PROVIDER_TYPES, suggestUniqueProviderAlias } from "@/constants/providers";
 import { OAuthSection } from "./provider-oauth-section";
 import { CLISection } from "./provider-cli-section";
 import { ACPSection } from "./provider-acp-section";
@@ -61,7 +61,8 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
   const name = watch("name");
 
   const hasClaudeCLI = existingProviders.some((p) => p.provider_type === "claude_cli");
-  const isOAuth = providerType === "chatgpt_oauth";
+  const isOAuth = providerType in OAUTH_PROVIDER_TYPES;
+  const oauthFlavor = OAUTH_PROVIDER_TYPES[providerType];
   const isCLI = providerType === "claude_cli";
   const isACP = providerType === "acp";
 
@@ -115,12 +116,20 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
     setValue("providerType", v, { shouldValidate: true });
     const preset = PROVIDER_TYPES.find((pt) => pt.value === v);
     setValue("apiBase", preset?.apiBase || "");
-    if (v === "chatgpt_oauth") {
-      if (!name || providerType !== "chatgpt_oauth") {
-        setValue("name", suggestUniqueProviderAlias(existingProviders));
+    if (v in OAUTH_PROVIDER_TYPES) {
+      if (!name || providerType in OAUTH_PROVIDER_TYPES) {
+        const base =
+          v === "claude_oauth"
+            ? DEFAULT_CLAUDE_OAUTH_ALIAS
+            : v === "copilot_oauth"
+              ? DEFAULT_COPILOT_OAUTH_ALIAS
+              : DEFAULT_CODEX_OAUTH_ALIAS;
+        setValue("name", suggestUniqueProviderAlias(existingProviders, { baseAlias: base }));
       }
     } else {
-      if (name === DEFAULT_CODEX_OAUTH_ALIAS) setValue("name", "");
+      if (name === DEFAULT_CODEX_OAUTH_ALIAS || name === DEFAULT_CLAUDE_OAUTH_ALIAS || name === DEFAULT_COPILOT_OAUTH_ALIAS) {
+        setValue("name", "");
+      }
     }
   };
 
@@ -164,6 +173,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
                 </div>
               </div>
               <OAuthSection
+                flavor={oauthFlavor}
                 providerName={name}
                 displayName={watch("displayName") || ""}
                 apiBase={watch("apiBase") || ""}

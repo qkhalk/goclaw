@@ -177,7 +177,12 @@
     "oauthFailed": "OAuth failed",
     "exchangeFailed": "Exchange failed",
     "logoutFailed": "Logout failed",
-    "done": "Done"
+    "done": "Done",
+    "signInWithClaude": "Sign in with Claude",
+    "signInWithCopilot": "Sign in with GitHub Copilot",
+    "deviceCodeHint": "Enter this code on the GitHub page to authorize GoClaw.",
+    "copyCode": "Copy code",
+    "waitingForGithub": "Waiting for GitHub authorization…"
   },
   "cli": {
     "description": "Claude CLI uses your local",

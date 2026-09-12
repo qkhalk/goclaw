@@ -10,10 +10,21 @@ export interface ProviderTypeInfo {
 type ProviderAliasSource = string | { name?: string | null };
 
 export const DEFAULT_CODEX_OAUTH_ALIAS = "openai-codex";
+export const DEFAULT_CLAUDE_OAUTH_ALIAS = "claude-pro";
+export const DEFAULT_COPILOT_OAUTH_ALIAS = "github-copilot";
+
+/** Provider types rendered through the OAuth section (no API key field). */
+export const OAUTH_PROVIDER_TYPES: Record<string, "chatgpt" | "claude" | "copilot"> = {
+  chatgpt_oauth: "chatgpt",
+  claude_oauth: "claude",
+  copilot_oauth: "copilot",
+};
 
 export const PROVIDER_TYPES: ProviderTypeInfo[] = [
   { value: "aimlapi", label: "AI/ML API", apiBase: "https://api.aimlapi.com/v1", placeholder: "" },
   { value: "chatgpt_oauth", label: "ChatGPT Subscription (OAuth)", apiBase: "", placeholder: "" },
+  { value: "claude_oauth", label: "Claude Subscription (OAuth)", apiBase: "", placeholder: "" },
+  { value: "copilot_oauth", label: "GitHub Copilot (OAuth)", apiBase: "", placeholder: "" },
   { value: "anthropic_native", label: "Anthropic (Native)", apiBase: "", placeholder: "https://api.anthropic.com" },
   { value: "openai_compat", label: "OpenAI Compatible", apiBase: "", placeholder: "https://api.openai.com/v1" },
   { value: "gemini_native", label: "Google Gemini", apiBase: "https://generativelanguage.googleapis.com/v1beta/openai", placeholder: "" },
