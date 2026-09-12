@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Interactive pickers: /thinking + /reasoning"
-status: pending
+status: completed
 priority: P1
 effort: "5h"
 dependencies: []

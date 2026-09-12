@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Locale Web UI + i18n lệnh"
-status: pending
+status: completed
 priority: P1
 effort: "6h"
 dependencies: []

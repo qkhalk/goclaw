@@ -1,7 +1,7 @@
 ---
 title: "Telegram interactive UX: inline pickers, ask-options, locale i18n, dev mode v2"
 description: "Nâng cấp tương tác Telegram 2.0: /thinking và /reasoning dùng inline keyboard chọn mức (lọc theo capability của model), /skills thành danh sách nút bấm phân trang 10/page + reply-to-run, /dev nút bật tắt, tool ask-options để agent hỏi làm rõ bằng 3 lựa chọn + Other (bấm hoặc reply), ngôn ngữ lệnh Telegram theo locale Web UI (i18n đầy đủ 5 catalog), dev mode v2 sâu hơn."
-status: pending
+status: completed
 priority: P1
 effort: "2.5d"
 tags: [telegram, ux, inline-keyboard, callback-query, i18n, ask-options, dev-mode]

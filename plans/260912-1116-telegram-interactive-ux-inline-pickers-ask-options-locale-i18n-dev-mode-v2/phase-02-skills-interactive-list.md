@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "/skills phân trang + reply-to-run"
-status: pending
+status: completed
 priority: P1
 effort: "4h"
 dependencies: ["phase-1"]
