@@ -238,7 +238,6 @@ export function ChatPage() {
           <ChatTopBar
             agentId={agentId}
             isRunning={isRunning}
-            activity={activity}
             session={sessions.find((s) => s.key === sessionKey) ?? null}
             onToggleFiles={() => setFilesPanelOpen((v) => !v)}
             filesPanelOpen={filesPanelOpen}
@@ -283,7 +282,10 @@ export function ChatPage() {
                 <p className="text-xs text-muted-foreground mb-3">{t("selectAgent.description")}</p>
                 <button
                   type="button"
-                  onClick={() => setAgentSelectorOpenSignal((n) => n + 1)}
+                  onClick={() => {
+                    if (isMobile) setChatSidebarOpen(true);
+                    setAgentSelectorOpenSignal((n) => n + 1);
+                  }}
                   className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border bg-muted/60 px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
                 >
                   {t("selectAgent.title")}
