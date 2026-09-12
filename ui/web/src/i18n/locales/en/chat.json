@@ -6,7 +6,8 @@
   "readOnly": "Read-only — this session belongs to another user",
   "contextUsage": {
     "tooltip": "{{used}} / {{max}} tokens ({{percent}}%) · {{compactions}} compactions · last: {{lastCompact}}",
-    "never": "never"
+    "never": "never",
+    "linkSessions": "Open session details"
   },
   "empty": {
     "title": "Start a conversation",
@@ -125,5 +126,40 @@
     "medium": "Medium",
     "high": "High",
     "xhigh": "Ultra"
+  },
+  "console": {
+    "button": "Console"
+  },
+  "phase": {
+    "thinking": "Thinking…",
+    "tool": "Running {{tool}}…",
+    "tools": "Running tools…",
+    "streaming": "Writing…",
+    "compacting": "Optimizing context…",
+    "retrying": "Retrying ({{attempt}}/{{max}})…",
+    "leaderProcessing": "Processing team results…",
+    "working": "Working…",
+    "step": "Step {{n}}"
+  },
+  "teamTasks": {
+    "pill": "Team: {{n}} active task(s)",
+    "panelTitle": "Running Tasks ({{n}})",
+    "empty": "No active tasks",
+    "unassigned": "unassigned"
+  },
+  "dropzone": {
+    "title": "Drop files here"
+  },
+  "command": {
+    "plan": "Draft an implementation plan before writing code",
+    "fix": "Diagnose and fix a bug or failing test",
+    "cook": "Implement a change from a task description",
+    "review": "Review recent changes for issues",
+    "test": "Run and repair the test suite",
+    "debug": "Debug a problem down to root cause",
+    "docs": "Create or refresh project documentation",
+    "architect": "Design or evaluate system architecture",
+    "uiux": "UI/UX review and polish",
+    "mission": "Launch a long autonomous mission"
   }
 }
