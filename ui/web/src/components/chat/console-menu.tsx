@@ -165,7 +165,8 @@ export function ConsoleMenu({
                   if (e.key === "Enter") handleCreate();
                   if (e.key === "Escape") setCreating(false);
                 }}
-                maxLength={200}
+                maxLength={512}
+                aria-label={t("workspacePicker.pathHint")}
                 spellCheck={false}
                 placeholder={t("workspacePicker.pathPlaceholder")}
                 title={t("workspacePicker.pathHint")}
