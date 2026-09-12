@@ -40,6 +40,7 @@ func (m *WorkspaceMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodWorkspaceGet, m.handleGet)
 	router.Register(protocol.MethodWorkspaceUpdate, m.handleUpdate)
 	router.Register(protocol.MethodWorkspaceDelete, m.handleDelete)
+	router.Register(protocol.MethodWorkspaceSuggestDirs, m.handleSuggestDirs)
 }
 
 // workspaceJSON is the camelCase wire form of store.Workspace.

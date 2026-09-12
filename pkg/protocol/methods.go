@@ -90,11 +90,12 @@ const (
 	// Workspace domain (Paseo plan Phase 2): first-class workspace objects
 	// with canonical workspace_id, sandboxed root paths, and optional git
 	// binding. Handlers live in internal/gateway/methods/workspace.go.
-	MethodWorkspaceCreate = "workspace.create"
-	MethodWorkspaceList   = "workspace.list"
-	MethodWorkspaceGet    = "workspace.get"
-	MethodWorkspaceUpdate = "workspace.update"
-	MethodWorkspaceDelete = "workspace.delete"
+	MethodWorkspaceCreate      = "workspace.create"
+	MethodWorkspaceList        = "workspace.list"
+	MethodWorkspaceGet         = "workspace.get"
+	MethodWorkspaceUpdate      = "workspace.update"
+	MethodWorkspaceDelete      = "workspace.delete"
+	MethodWorkspaceSuggestDirs = "workspace.suggestDirs"
 
 	// Agent jobs (Paseo plan Phase 2 / §21): execution lifecycle separate
 	// from sessions — only restart-surviving state is persisted; hot runtime
