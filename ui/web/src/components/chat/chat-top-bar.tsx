@@ -1,7 +1,6 @@
 import { Loader2, Bot } from "lucide-react";
 import { useAgents } from "@/hooks/use-agents";
 import { stripLeadingEmoji } from "@/lib/agent-emoji";
-import type { RunActivity } from "@/types/chat";
 import type { SessionInfo } from "@/types/session";
 import { ConsoleMenu } from "@/components/chat/console-menu";
 import { ContextMeter } from "@/components/chat/context-meter";
@@ -9,7 +8,6 @@ import { ContextMeter } from "@/components/chat/context-meter";
 interface ChatTopBarProps {
   agentId: string;
   isRunning: boolean;
-  activity: RunActivity | null;
   /** Current session — when provided, the bar renders the context meter. */
   session?: SessionInfo | null;
   /** Paseo Phase 3 console panels: workspace-scoped tools on the right. */

@@ -37,6 +37,8 @@ export function ConsoleMenu({
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
@@ -65,16 +67,21 @@ export function ConsoleMenu({
     onWorkspaceChange(id);
     setCreating(false);
     setNewName("");
+    setCreateError(null);
   };
 
   const handleCreate = async () => {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || submitting) return;
+    setSubmitting(true);
+    setCreateError(null);
     try {
       const ws = await create(name);
       if (ws) pickWorkspace(ws.id);
     } catch (err) {
-      console.error("[ConsoleMenu] create workspace failed:", err);
+      setCreateError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -124,25 +131,34 @@ export function ConsoleMenu({
             ))
           )}
           {creating ? (
-            <div className="flex items-center gap-1 px-2 py-1.5">
-              <input
-                autoFocus
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreate();
-                  if (e.key === "Escape") setCreating(false);
-                }}
-                placeholder={t("workspacePicker.createPlaceholder")}
-                className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
-              />
-              <button
-                type="button"
-                onClick={handleCreate}
-                className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-accent"
-              >
-                {t("workspacePicker.createConfirm")}
-              </button>
+            <div className="px-2 py-1.5">
+              <div className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCreate();
+                    if (e.key === "Escape") setCreating(false);
+                  }}
+                  maxLength={80}
+                  placeholder={t("workspacePicker.createPlaceholder")}
+                  className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={submitting}
+                  className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-accent disabled:opacity-50"
+                >
+                  {t("workspacePicker.createConfirm")}
+                </button>
+              </div>
+              {createError && (
+                <p className="mt-1 text-xs text-destructive">
+                  {t("workspacePicker.createFailed", { message: createError })}
+                </p>
+              )}
             </div>
           ) : (
             <MenuRow

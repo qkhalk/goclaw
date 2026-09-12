@@ -21,11 +21,12 @@ export function TeamTasksPill({ tasks }: { tasks: ActiveTeamTask[] }) {
   useLayoutEffect(() => {
     if (!open || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
+    const width = Math.min(rect.width + 160, 384);
     setDropdownStyle({
       position: "fixed",
       bottom: window.innerHeight - rect.top + 6,
-      left: Math.max(rect.left, 8),
-      width: Math.min(rect.width + 160, 384),
+      left: Math.min(Math.max(rect.left, 8), Math.max(window.innerWidth - width - 8, 8)),
+      width,
       zIndex: 9999,
     });
   }, [open]);
