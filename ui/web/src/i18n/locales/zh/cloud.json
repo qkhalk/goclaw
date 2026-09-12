@@ -2,21 +2,36 @@
   "title": "云账户",
   "description": "连接你的云账户（Google，更多即将推出），让智能体帮你阅读和整理。",
   "refresh": "刷新",
-  "connect.google": "连接 Google 账户",
-  "connect.another": "连接其他账户",
+  "connect": {
+    "google": "连接 Google 账户",
+    "another": "连接其他账户"
+  },
   "disconnect": "断开连接",
-  "status.active": "正常",
-  "status.expired": "已过期",
-  "status.revoked": "已撤销",
-  "status.error": "错误",
-  "empty.title": "尚未连接云账户",
-  "empty.description": "连接 Google 账户，让智能体搜索邮件、清理订阅邮件并浏览你的云端硬盘。",
-  "setup.title": "云功能尚未配置",
-  "setup.body": "GoClaw 使用你自己的 Google OAuth 客户端（BYO client）。一次性设置：",
-  "setup.step1": "在 Google Cloud 控制台创建 OAuth 客户端（类型为 \"Web application\"）。",
-  "setup.step2": "将应用发布到生产环境（未验证即可），以免刷新令牌 7 天后过期。",
-  "setup.step3": "在下方输入 Client ID 和 Client Secret 并点击保存 — 凭据加密存储，此后不再显示此表单。",
-  "setup.step4": "在 Google Cloud 控制台注册此精确的重定向 URI：",
+  "status": {
+    "active": "正常",
+    "expired": "已过期",
+    "revoked": "已撤销",
+    "error": "错误"
+  },
+  "empty": {
+    "title": "尚未连接云账户",
+    "description": "连接 Google 账户，让智能体搜索邮件、清理订阅邮件并浏览你的云端硬盘。"
+  },
+  "setup": {
+    "title": "云功能尚未配置",
+    "body": "GoClaw 使用你自己的 Google OAuth 客户端（BYO client）。一次性设置：",
+    "step1": "在 Google Cloud 控制台创建 OAuth 客户端（类型为 \"Web application\"）。",
+    "step2": "将应用发布到生产环境（未验证即可），以免刷新令牌 7 天后过期。",
+    "step3": "在下方输入 Client ID 和 Client Secret 并点击保存 — 凭据加密存储，此后不再显示此表单。",
+    "step4": "在 Google Cloud 控制台注册此精确的重定向 URI：",
+    "client_id": "Google OAuth Client ID",
+    "client_secret": "Client Secret",
+    "client_secret_keep": "Client Secret（留空表示保留已保存的）",
+    "save": "保存",
+    "saving": "保存中…",
+    "cancel": "取消",
+    "update": "更新凭据"
+  },
   "disconnect_confirm": {
     "title": "断开账户连接？",
     "description": "“{email}”将从 GoClaw 中移除。您的邮件和文件不受影响；随时可以重新连接。"
@@ -25,11 +40,11 @@
     "connected": "已连接 {email}",
     "error": "连接失败（{code}）"
   },
-  "setup.client_id": "Google OAuth Client ID",
-  "setup.client_secret": "Client Secret",
-  "setup.client_secret_keep": "Client Secret（留空表示保留已保存的）",
-  "setup.save": "保存",
-  "setup.saving": "保存中…",
-  "setup.cancel": "取消",
-  "setup.update": "更新凭据"
+  "providers_section": {
+    "title": "支持的存储服务商",
+    "available": "可用",
+    "google_desc": "Gmail + 云端硬盘，Agent 完整操作",
+    "coming_soon": "即将推出",
+    "more_via_rclone": "计划基于同一 rclone 引擎支持 40+ 种存储（S3、WebDAV、FTP 等）"
+  }
 }

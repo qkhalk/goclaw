@@ -2,21 +2,36 @@
   "title": "Cloud",
   "description": "Connect your cloud accounts (Google, more coming) so your agents can read and organize them for you.",
   "refresh": "Refresh",
-  "connect.google": "Connect Google account",
-  "connect.another": "Connect another account",
+  "connect": {
+    "google": "Connect Google account",
+    "another": "Connect another account"
+  },
   "disconnect": "Disconnect",
-  "status.active": "Active",
-  "status.expired": "Expired",
-  "status.revoked": "Revoked",
-  "status.error": "Error",
-  "empty.title": "No cloud accounts connected",
-  "empty.description": "Connect a Google account to let your agent search your email, clean up newsletters, and browse your Drive.",
-  "setup.title": "Cloud is not configured yet",
-  "setup.body": "GoClaw uses your own Google OAuth client (bring your own client). One-time setup:",
-  "setup.step1": "Create an OAuth client (type \"Web application\") in the Google Cloud console.",
-  "setup.step2": "Publish the app to production (unverified is fine) so refresh tokens do not expire after 7 days.",
-  "setup.step3": "Enter the Client ID and Client Secret below and press Save — the credentials are stored encrypted and this form will not appear again.",
-  "setup.step4": "Register this exact redirect URI in the Google Cloud console:",
+  "status": {
+    "active": "Active",
+    "expired": "Expired",
+    "revoked": "Revoked",
+    "error": "Error"
+  },
+  "empty": {
+    "title": "No cloud accounts connected",
+    "description": "Connect a Google account to let your agent search your email, clean up newsletters, and browse your Drive."
+  },
+  "setup": {
+    "title": "Cloud is not configured yet",
+    "body": "GoClaw uses your own Google OAuth client (bring your own client). One-time setup:",
+    "step1": "Create an OAuth client (type \"Web application\") in the Google Cloud console.",
+    "step2": "Publish the app to production (unverified is fine) so refresh tokens do not expire after 7 days.",
+    "step3": "Enter the Client ID and Client Secret below and press Save — the credentials are stored encrypted and this form will not appear again.",
+    "step4": "Register this exact redirect URI in the Google Cloud console:",
+    "client_id": "Google OAuth Client ID",
+    "client_secret": "Client Secret",
+    "client_secret_keep": "Client Secret (leave empty to keep the saved one)",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "update": "Update credentials"
+  },
   "disconnect_confirm": {
     "title": "Disconnect account?",
     "description": "\"{email}\" will be removed from GoClaw. Your emails and files are untouched; you can connect again anytime."
@@ -25,11 +40,11 @@
     "connected": "Connected {email}",
     "error": "Connection failed ({code})"
   },
-  "setup.client_id": "Google OAuth Client ID",
-  "setup.client_secret": "Client Secret",
-  "setup.client_secret_keep": "Client Secret (leave empty to keep the saved one)",
-  "setup.save": "Save",
-  "setup.saving": "Saving…",
-  "setup.cancel": "Cancel",
-  "setup.update": "Update credentials"
+  "providers_section": {
+    "title": "Supported storage providers",
+    "available": "Available",
+    "google_desc": "Gmail + Drive, full agent access",
+    "coming_soon": "Coming soon",
+    "more_via_rclone": "40+ more storages (S3, WebDAV, FTP, …) planned on the same rclone engine"
+  }
 }

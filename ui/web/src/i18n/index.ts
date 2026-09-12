@@ -44,6 +44,7 @@ import enBackup from "./locales/en/backup.json";
 import enHooks from "./locales/en/hooks.json";
 import enWebhooks from "./locales/en/webhooks.json";
 import enWorkstations from "./locales/en/workstations.json";
+import enCloud from "./locales/en/cloud.json";
 
 // --- VI namespaces ---
 import viCommon from "./locales/vi/common.json";
@@ -88,6 +89,7 @@ import viBackup from "./locales/vi/backup.json";
 import viHooks from "./locales/vi/hooks.json";
 import viWebhooks from "./locales/vi/webhooks.json";
 import viWorkstations from "./locales/vi/workstations.json";
+import viCloud from "./locales/vi/cloud.json";
 
 // --- KO namespaces ---
 import koCommon from "./locales/ko/common.json";
@@ -129,6 +131,7 @@ import koSystemSettings from "./locales/ko/system-settings.json";
 import koImportExport from "./locales/ko/import-export.json";
 import koV3Capabilities from "./locales/ko/v3-capabilities.json";
 import koBackup from "./locales/ko/backup.json";
+import koCloud from "./locales/ko/cloud.json";
 
 // --- ZH namespaces ---
 import zhCommon from "./locales/zh/common.json";
@@ -173,6 +176,7 @@ import zhBackup from "./locales/zh/backup.json";
 import zhHooks from "./locales/zh/hooks.json";
 import zhWebhooks from "./locales/zh/webhooks.json";
 import zhWorkstations from "./locales/zh/workstations.json";
+import zhCloud from "./locales/zh/cloud.json";
 
 // --- RU namespaces ---
 import ruCommon from "./locales/ru/common.json";
@@ -217,6 +221,7 @@ import ruBackup from "./locales/ru/backup.json";
 import ruHooks from "./locales/ru/hooks.json";
 import ruWebhooks from "./locales/ru/webhooks.json";
 import ruWorkstations from "./locales/ru/workstations.json";
+import ruCloud from "./locales/ru/cloud.json";
 
 const STORAGE_KEY = "goclaw:language";
 
@@ -243,6 +248,7 @@ const ns = [
   "hooks",
   "webhooks",
   "workstations",
+  "cloud",
 ] as const;
 
 i18n.use(initReactI18next).init({
@@ -267,6 +273,7 @@ i18n.use(initReactI18next).init({
       hooks: enHooks,
       webhooks: enWebhooks,
       workstations: enWorkstations,
+      cloud: enCloud,
     },
     vi: {
       common: viCommon, sidebar: viSidebar, topbar: viTopbar, login: viLogin,
@@ -288,6 +295,7 @@ i18n.use(initReactI18next).init({
       hooks: viHooks,
       webhooks: viWebhooks,
       workstations: viWorkstations,
+      cloud: viCloud,
     },
     zh: {
       common: zhCommon, sidebar: zhSidebar, topbar: zhTopbar, login: zhLogin,
@@ -309,6 +317,7 @@ i18n.use(initReactI18next).init({
       hooks: zhHooks,
       webhooks: zhWebhooks,
       workstations: zhWorkstations,
+      cloud: zhCloud,
     },
     ko: {
       common: koCommon, sidebar: koSidebar, topbar: koTopbar, login: koLogin,
@@ -327,6 +336,7 @@ i18n.use(initReactI18next).init({
       "import-export": koImportExport,
       "v3-capabilities": koV3Capabilities,
       backup: koBackup,
+      cloud: koCloud,
     },
     ru: {
       common: ruCommon, sidebar: ruSidebar, topbar: ruTopbar, login: ruLogin,
@@ -348,6 +358,7 @@ i18n.use(initReactI18next).init({
       hooks: ruHooks,
       webhooks: ruWebhooks,
       workstations: ruWorkstations,
+      cloud: ruCloud,
     },
   },
   ns: [...ns],
