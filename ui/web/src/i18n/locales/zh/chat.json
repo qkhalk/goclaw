@@ -42,7 +42,9 @@
     "createPlaceholder": "工作区名称",
     "createConfirm": "创建",
     "createCancel": "取消",
-    "createFailed": "创建工作区失败：{{message}}"
+    "createFailed": "创建工作区失败：{{message}}",
+    "pathPlaceholder": "可选路径，例如 /root/projects/site",
+    "pathHint": "留空则在工作区根目录下自动创建文件夹。支持绝对路径或相对工作区根目录的路径。"
   },
   "fileExplorer": {
     "title": "文件",

@@ -37,6 +37,7 @@ export function ConsoleMenu({
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newPath, setNewPath] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,16 +68,18 @@ export function ConsoleMenu({
     onWorkspaceChange(id);
     setCreating(false);
     setNewName("");
+    setNewPath("");
     setCreateError(null);
   };
 
   const handleCreate = async () => {
     const name = newName.trim();
+    const path = newPath.trim();
     if (!name || submitting) return;
     setSubmitting(true);
     setCreateError(null);
     try {
-      const ws = await create(name);
+      const ws = await create(name, path || undefined);
       if (ws) pickWorkspace(ws.id);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
@@ -127,6 +130,7 @@ export function ConsoleMenu({
                 onClick={() => pickWorkspace(ws.id)}
                 icon={<FolderOpen className="h-4 w-4 shrink-0" />}
                 label={ws.name}
+                subtext={ws.rootPath}
               />
             ))
           )}
@@ -154,6 +158,19 @@ export function ConsoleMenu({
                   {t("workspacePicker.createConfirm")}
                 </button>
               </div>
+              <input
+                value={newPath}
+                onChange={(e) => setNewPath(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreate();
+                  if (e.key === "Escape") setCreating(false);
+                }}
+                maxLength={200}
+                spellCheck={false}
+                placeholder={t("workspacePicker.pathPlaceholder")}
+                title={t("workspacePicker.pathHint")}
+                className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-base outline-none focus:ring-1 focus:ring-ring md:text-sm"
+              />
               {createError && (
                 <p className="mt-1 text-xs text-destructive">
                   {t("workspacePicker.createFailed", { message: createError })}
@@ -204,6 +221,7 @@ function MenuRow({
   onClick,
   icon,
   label,
+  subtext,
   disabled,
   title,
 }: {
@@ -211,6 +229,8 @@ function MenuRow({
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
+  /** Secondary line (workspace root path) — also used as the row tooltip. */
+  subtext?: string;
   disabled?: boolean;
   title?: string;
 }) {
@@ -219,13 +239,18 @@ function MenuRow({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={title}
+      title={title ?? subtext}
       className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm disabled:pointer-events-none disabled:opacity-50 ${
         active ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
       }`}
     >
       {icon}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">{label}</span>
+        {subtext && (
+          <span className="block truncate text-2xs font-normal text-muted-foreground">{subtext}</span>
+        )}
+      </span>
       {active && <Check className="h-3.5 w-3.5 shrink-0" />}
     </button>
   );
