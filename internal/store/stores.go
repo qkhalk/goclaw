@@ -128,4 +128,9 @@ type Stores struct {
 	// plan Phase 4): evaluated between config-binding peer matches and
 	// channel matches, lowest priority number first.
 	RoutingRules RoutingRulesStore
+
+	// CloudAccounts persists per-user OAuth cloud connections (Cloud plan
+	// Phase 1; PG 000118). Token columns encrypted at rest; queries scoped by
+	// ctx tenant+user.
+	CloudAccounts CloudAccountStore
 }
