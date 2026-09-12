@@ -3045,3 +3045,27 @@ CREATE TABLE IF NOT EXISTS routing_rules (
 );
 CREATE INDEX IF NOT EXISTS idx_routing_rules_eval
     ON routing_rules (tenant_id, enabled, priority, created_at);
+
+-- Cloud accounts: per-user OAuth connections to cloud providers (Google first).
+-- Token columns are AES-256-GCM encrypted by the store layer ("aes-gcm:" prefix).
+CREATE TABLE IF NOT EXISTS cloud_accounts (
+    id               TEXT NOT NULL PRIMARY KEY,
+    tenant_id        TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id          TEXT NOT NULL,
+    provider         TEXT NOT NULL,
+    email            TEXT NOT NULL,
+    display_name     TEXT NOT NULL DEFAULT '',
+    scopes           TEXT NOT NULL DEFAULT '[]',
+    access_token     TEXT NOT NULL,
+    refresh_token    TEXT NOT NULL DEFAULT '',
+    token_expires_at TEXT,
+    status           TEXT NOT NULL DEFAULT 'active',
+    status_message   TEXT NOT NULL DEFAULT '',
+    settings         TEXT NOT NULL DEFAULT '{}',
+    created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS cloud_accounts_uq
+    ON cloud_accounts (tenant_id, user_id, provider, email);
+CREATE INDEX IF NOT EXISTS idx_cloud_accounts_lookup
+    ON cloud_accounts (tenant_id, user_id, provider);

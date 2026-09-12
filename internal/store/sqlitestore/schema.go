@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 81
+const SchemaVersion = 82
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1520,7 +1520,34 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_hook_executions_dedup
 	updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_routing_rules_eval
-	ON routing_rules (tenant_id, enabled, priority, created_at);`,}
+	ON routing_rules (tenant_id, enabled, priority, created_at);`,
+
+	// Version 81 → 82: per-user OAuth cloud accounts (PG 000118). Token columns
+	// hold AES-256-GCM ciphertext produced by the store layer ("aes-gcm:"
+	// prefix). Key is the SOURCE version: applied when upgrading from 81 to
+	// reach SchemaVersion 82.
+	81: `CREATE TABLE IF NOT EXISTS cloud_accounts (
+	id               TEXT NOT NULL PRIMARY KEY,
+	tenant_id        TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+	user_id          TEXT NOT NULL,
+	provider         TEXT NOT NULL,
+	email            TEXT NOT NULL,
+	display_name     TEXT NOT NULL DEFAULT '',
+	scopes           TEXT NOT NULL DEFAULT '[]',
+	access_token     TEXT NOT NULL,
+	refresh_token    TEXT NOT NULL DEFAULT '',
+	token_expires_at TEXT,
+	status           TEXT NOT NULL DEFAULT 'active',
+	status_message   TEXT NOT NULL DEFAULT '',
+	settings         TEXT NOT NULL DEFAULT '{}',
+	created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS cloud_accounts_uq
+	ON cloud_accounts (tenant_id, user_id, provider, email);
+CREATE INDEX IF NOT EXISTS idx_cloud_accounts_lookup
+	ON cloud_accounts (tenant_id, user_id, provider);`,
+	}
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.
 // Mirrors PG migrations 000070 (pricing catalog + overrides), 000071 (usage cap
 // tables), 000072 (agent budget source), and 000104 (warn_at_percent).
