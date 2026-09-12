@@ -408,6 +408,7 @@ func init() {
 		"telegram.ask.otherhint": "✏️ Ответьте на это сообщение своим ответом.",
 		"telegram.ask.answered": "✓ Ответ: %s → %s",
 		"telegram.language.unavailable": "Настройки языка недоступны (хранилище сессий не настроено).",
+		"telegram.language.title": "🌐 Язык для этого чата — выберите:",
 		"telegram.language.current": "🌐 Язык: %s",
 		"telegram.language.sethint": "Установить: /language %s",
 		"telegram.language.unsupported": "⚠️ Язык %s не поддерживается. Доступны: %s",

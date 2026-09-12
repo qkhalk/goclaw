@@ -3,6 +3,15 @@ import { useAuthStore } from "@/stores/use-auth-store";
 import { cn } from "@/lib/utils";
 import { cleanVersion } from "@/lib/clean-version";
 
+// formatVersion normalizes the server version and ensures the release "v"
+// prefix ("3.19.0" -> "v3.19.0"); "dev" and already-prefixed values pass
+// through untouched.
+function formatVersion(v: string): string {
+  const cleaned = cleanVersion(v);
+  if (!cleaned || cleaned === "dev" || cleaned.startsWith("v")) return cleaned;
+  return `v${cleaned}`;
+}
+
 const ROLE_STYLES: Record<string, string> = {
   admin: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   owner: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
@@ -43,7 +52,9 @@ export function ConnectionStatus({ collapsed }: { collapsed?: boolean }) {
           <span className="truncate">
             {connected ? t("connected") : t("disconnected")}
             {connected && serverVersion && (
-              <span className="ml-1 opacity-60">· {cleanVersion(serverVersion)}</span>
+              <span className="ml-1 opacity-60">
+                · {formatVersion(serverVersion)}
+              </span>
             )}
           </span>
         )}

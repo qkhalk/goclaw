@@ -101,7 +101,17 @@ func (c *Channel) handleStatusCommand(ctx context.Context, chatID int64, chatIDS
 	sess, hasSession := c.statusProvider.Session(ctx, sessionKey)
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "🦊 GoClaw %s\n", gw.Version)
+	// Header icon mirrors the agent's web-UI avatar emoji; version carries the
+	// release "v" prefix ("dev" stamps stay unprefixed).
+	icon := "🦊"
+	if ag := c.resolveAgentData(ctx); ag != nil && ag.Emoji != "" {
+		icon = ag.Emoji
+	}
+	version := gw.Version
+	if version != "" && version != "dev" && !strings.HasPrefix(version, "v") {
+		version = "v" + version
+	}
+	fmt.Fprintf(&sb, "%s GoClaw %s\n", icon, version)
 	if gw.StartedAt.IsZero() {
 		sb.WriteString(i18n.T(loc, i18n.MsgTGStatusUptimeUnknown))
 	} else {

@@ -426,6 +426,7 @@ func init() {
 		"telegram.ask.otherhint": "✏️ Reply to this message with your answer.",
 		"telegram.ask.answered": "✓ Answered: %s → %s",
 		"telegram.language.unavailable": "Language preferences are not available (no session store configured).",
+		"telegram.language.title": "🌐 Language for this chat — pick one:",
 		"telegram.language.current": "🌐 Language: %s",
 		"telegram.language.sethint": "Set: /language %s",
 		"telegram.language.unsupported": "⚠️ Unsupported language %s. Valid: %s",
