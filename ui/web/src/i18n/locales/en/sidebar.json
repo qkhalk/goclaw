@@ -2,7 +2,7 @@
   "groups": {
     "core": "Core",
     "conversations": "Conversations",
-    "cloud": "Cloud",
+    "cloud": "Clouds",
     "connectivity": "Connectivity",
     "capabilities": "Capabilities",
     "data": "Data",
@@ -48,6 +48,6 @@
     "tenants": "Tenants",
     "backupRestore": "Backup & Restore",
     "workstations": "Workstations",
-    "cloud": "Cloud"
+    "cloud": "Clouds"
   }
 }

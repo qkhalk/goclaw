@@ -1,50 +1,71 @@
 {
-  "title": "云账户",
-  "description": "连接你的云账户（Google，更多即将推出），让智能体帮你阅读和整理。",
+  "title": "云盘",
+  "description": "连接云存储账户，让您的智能体浏览和整理文件。",
   "refresh": "刷新",
   "connect": {
     "google": "连接 Google 账户",
+    "onedrive": "连接 OneDrive 账户",
     "another": "连接其他账户"
   },
   "disconnect": "断开连接",
   "status": {
     "active": "正常",
     "expired": "已过期",
-    "revoked": "已撤销",
+    "revoked": "已吊销",
     "error": "错误"
   },
   "empty": {
     "title": "尚未连接云账户",
-    "description": "连接 Google 账户，让智能体搜索邮件、清理订阅邮件并浏览你的云端硬盘。"
+    "description": "先在上方选择存储提供商，完成一次性配置，然后连接账户，让智能体浏览您的云盘。"
+  },
+  "dashboard": {
+    "title": "总览",
+    "accounts": "已连接账户",
+    "active": "活跃",
+    "providers_ready": "就绪的提供商",
+    "needs_setup": "待配置"
+  },
+  "picker": {
+    "title": "选择存储提供商",
+    "description": "请先选择提供商——账户按提供商分别连接，互不混淆。",
+    "select": "设置",
+    "available": "可用",
+    "coming_soon": "即将推出",
+    "google_desc": "通过您自己的 GCP OAuth 客户端访问 Google Drive，附带 Gmail 工具。",
+    "onedrive_desc": "通过您自己的 Azure 应用访问 Microsoft OneDrive（个人或工作/学校账户）。",
+    "more_via_rclone": "更多存储（Dropbox、S3、WebDAV 等）将基于同一 rclone 引擎陆续推出"
+  },
+  "provider": {
+    "back": "所有提供商",
+    "accounts_title": "已连接账户"
   },
   "setup": {
-    "title": "云功能尚未配置",
-    "body": "GoClaw 使用你自己的 Google OAuth 客户端（BYO client）。一次性设置：",
-    "step1": "在 Google Cloud 控制台创建 OAuth 客户端（类型为 \"Web application\"）。",
-    "step2": "将应用发布到生产环境（未验证即可），以免刷新令牌 7 天后过期。",
-    "step3": "在下方输入 Client ID 和 Client Secret 并点击保存 — 凭据加密存储，此后不再显示此表单。",
-    "step4": "在 Google Cloud 控制台注册此精确的重定向 URI：",
-    "client_id": "Google OAuth Client ID",
-    "client_secret": "Client Secret",
-    "client_secret_keep": "Client Secret（留空表示保留已保存的）",
+    "title_google": "Google 尚未配置",
+    "title_onedrive": "OneDrive 尚未配置",
+    "body": "GoClaw 使用您自己的 OAuth 客户端（自带客户端）。一次性配置：",
+    "google_step1": "在 Google Cloud 控制台创建 OAuth 客户端（类型为 Web application）。",
+    "google_step2": "将应用发布到生产环境（无需验证），以免刷新令牌 7 天后过期。",
+    "google_step3": "在下方输入 Client ID 和 Client Secret 并保存——凭据加密存储，此表单不会再次出现。",
+    "google_step4": "在 Google Cloud 控制台注册这个精确的重定向 URI：",
+    "google_client_id": "Google OAuth Client ID",
+    "onedrive_step1": "在 Azure 门户注册新应用（Microsoft Entra ID > 应用注册）。支持的账户类型：任何组织目录中的账户和个人 Microsoft 账户。",
+    "onedrive_step2": "在身份验证中添加 Web 平台并注册下方的重定向 URI。",
+    "onedrive_step3": "创建客户端密码（证书和密码）并复制其值。",
+    "onedrive_step4": "在 Azure 应用中注册这个精确的重定向 URI：",
+    "onedrive_client_id": "Azure 应用程序 (客户端) ID",
+    "client_secret": "客户端密码",
+    "client_secret_keep": "客户端密码（留空则保留已保存的密码）",
     "save": "保存",
     "saving": "保存中…",
     "cancel": "取消",
     "update": "更新凭据"
   },
   "disconnect_confirm": {
-    "title": "断开账户连接？",
-    "description": "“{email}”将从 GoClaw 中移除。您的邮件和文件不受影响；随时可以重新连接。"
+    "title": "断开账户？",
+    "description": "「{email}」将从 GoClaw 中移除。您的文件不受影响；随时可以重新连接。"
   },
   "result": {
     "connected": "已连接 {email}",
     "error": "连接失败（{code}）"
-  },
-  "providers_section": {
-    "title": "支持的存储服务商",
-    "available": "可用",
-    "google_desc": "Gmail + 云端硬盘，Agent 完整操作",
-    "coming_soon": "即将推出",
-    "more_via_rclone": "计划基于同一 rclone 引擎支持 40+ 种存储（S3、WebDAV、FTP 等）"
   }
 }

@@ -1,9 +1,10 @@
 {
-  "title": "Cloud",
-  "description": "Connect your cloud accounts (Google, more coming) so your agents can read and organize them for you.",
+  "title": "Clouds",
+  "description": "Connect cloud storage accounts so your agents can browse and organize your files.",
   "refresh": "Refresh",
   "connect": {
     "google": "Connect Google account",
+    "onedrive": "Connect OneDrive account",
     "another": "Connect another account"
   },
   "disconnect": "Disconnect",
@@ -15,16 +16,43 @@
   },
   "empty": {
     "title": "No cloud accounts connected",
-    "description": "Connect a Google account to let your agent search your email, clean up newsletters, and browse your Drive."
+    "description": "Pick a storage provider above, finish the one-time setup, then connect an account to let your agent browse your Drive."
+  },
+  "dashboard": {
+    "title": "Overview",
+    "accounts": "Connected accounts",
+    "active": "Active",
+    "providers_ready": "Providers ready",
+    "needs_setup": "needs setup"
+  },
+  "picker": {
+    "title": "Choose a storage provider",
+    "description": "Pick a provider first — accounts are connected per provider, so nothing gets mixed up.",
+    "select": "Set up",
+    "available": "Available",
+    "coming_soon": "Coming soon",
+    "google_desc": "Google Drive via your own GCP OAuth client. Gmail tools included.",
+    "onedrive_desc": "Microsoft OneDrive (personal or work/school) via your own Azure app.",
+    "more_via_rclone": "More storages (Dropbox, S3, WebDAV, …) planned on the same rclone engine"
+  },
+  "provider": {
+    "back": "All providers",
+    "accounts_title": "Connected accounts"
   },
   "setup": {
-    "title": "Cloud is not configured yet",
-    "body": "GoClaw uses your own Google OAuth client (bring your own client). One-time setup:",
-    "step1": "Create an OAuth client (type \"Web application\") in the Google Cloud console.",
-    "step2": "Publish the app to production (unverified is fine) so refresh tokens do not expire after 7 days.",
-    "step3": "Enter the Client ID and Client Secret below and press Save — the credentials are stored encrypted and this form will not appear again.",
-    "step4": "Register this exact redirect URI in the Google Cloud console:",
-    "client_id": "Google OAuth Client ID",
+    "title_google": "Google is not configured yet",
+    "title_onedrive": "OneDrive is not configured yet",
+    "body": "GoClaw uses your own OAuth client (bring your own client). One-time setup:",
+    "google_step1": "Create an OAuth client (type \"Web application\") in the Google Cloud console.",
+    "google_step2": "Publish the app to production (unverified is fine) so refresh tokens do not expire after 7 days.",
+    "google_step3": "Enter the Client ID and Client Secret below and press Save — the credentials are stored encrypted and this form will not appear again.",
+    "google_step4": "Register this exact redirect URI in the Google Cloud console:",
+    "google_client_id": "Google OAuth Client ID",
+    "onedrive_step1": "In the Azure portal, register a new app (Microsoft Entra ID > App registrations). Supported account types: accounts in any organizational directory and personal Microsoft accounts.",
+    "onedrive_step2": "Under Authentication, add the Web platform and register the redirect URI below.",
+    "onedrive_step3": "Create a client secret (Certificates & secrets) and copy its Value.",
+    "onedrive_step4": "Register this exact redirect URI in the Azure app:",
+    "onedrive_client_id": "Azure Application (client) ID",
     "client_secret": "Client Secret",
     "client_secret_keep": "Client Secret (leave empty to keep the saved one)",
     "save": "Save",
@@ -34,17 +62,10 @@
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",
-    "description": "\"{email}\" will be removed from GoClaw. Your emails and files are untouched; you can connect again anytime."
+    "description": "\"{email}\" will be removed from GoClaw. Your files are untouched; you can connect again anytime."
   },
   "result": {
     "connected": "Connected {email}",
     "error": "Connection failed ({code})"
-  },
-  "providers_section": {
-    "title": "Supported storage providers",
-    "available": "Available",
-    "google_desc": "Gmail + Drive, full agent access",
-    "coming_soon": "Coming soon",
-    "more_via_rclone": "40+ more storages (S3, WebDAV, FTP, …) planned on the same rclone engine"
   }
 }
