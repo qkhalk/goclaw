@@ -31,6 +31,7 @@ Single binary. Production-tested. Agents that orchestrate for you.
 - **4-Mode Prompt System** — Full / Task / Minimal / None with section gating, cache boundary optimization, and per-session mode resolution
 - **3-Tier Memory** — Working (conversation) → Episodic (session summaries) → Semantic (knowledge graph). Progressive loading L0/L1/L2
 - **Knowledge Vault** — Document registry with [[wikilinks]], hybrid search (FTS + pgvector), filesystem sync
+- **Cloud Accounts** — Connect your own Google accounts (Gmail + Drive) per user; agents search/read/clean mail (no permanent delete, consent-gated unsubscribe) and browse/download Drive files via rclone
 - **Agent Teams & Orchestration** — Shared task boards, inter-agent delegation (sync/async), 3 orchestration modes (auto/explicit/manual)
 - **Self-Evolution** — Metrics → suggestions → auto-adapt with guardrails. Agents refine their own communication style
 - **Multi-Tenant PostgreSQL** — Per-user workspaces, per-user context files, encrypted API keys (AES-256-GCM), RBAC, isolated sessions

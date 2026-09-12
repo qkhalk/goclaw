@@ -6,6 +6,19 @@ All notable changes to GoClaw are documented here. For full documentation, see [
 
 ### Added
 
+- **Cloud Accounts (Google OAuth: Gmail + Drive)** — new Web UI **Cloud** page
+  where each user connects their own Google accounts (multi-account,
+  per-tenant isolation, tokens AES-256-GCM encrypted at rest in the new
+  `cloud_accounts` table). OAuth is bring-your-own client (BYO) with PKCE +
+  HMAC-signed state; the callback redirects back to `/cloud`. Agent tools:
+  `cloud_accounts`, `mail_search` / `mail_read` / `mail_archive` (label ops
+  only — no permanent delete anywhere), `mail_unsubscribe` (RFC 8058 analyze
+  by default, execution consent-gated), and rclone-backed Drive tools
+  `cloud_ls` / `cloud_read` / `cloud_fetch` / `cloud_about` (rcd on loopback
+  with random basic-auth). Standard edition; docs in
+  `docs/30-cloud-accounts.md`; `mail-digest` skill for scheduled daily
+  digests via cron.
+
 - **Telegram interactive UX polish + picker tap fix** — `/skills` buttons now
   read "Name — what it does" (one full-width button per skill) so the list is
   scannable without tapping; `/language` renders a native-name picker
