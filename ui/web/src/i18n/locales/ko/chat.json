@@ -45,7 +45,9 @@
     "createPlaceholder": "워크스페이스 이름",
     "createConfirm": "생성",
     "createCancel": "취소",
-    "createFailed": "워크스페이스 생성 실패: {{message}}"
+    "createFailed": "워크스페이스 생성 실패: {{message}}",
+    "pathPlaceholder": "선택적 경로, 예: /root/projects/site",
+    "pathHint": "비워 두면 워크스페이스 루트 아래에 자동 생성됩니다. 절대 경로 또는 워크스페이스 루트 기준 상대 경로."
   },
   "composer": {
     "provider": "공급자",

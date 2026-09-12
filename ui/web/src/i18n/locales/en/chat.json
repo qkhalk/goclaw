@@ -42,7 +42,9 @@
     "createPlaceholder": "Workspace name",
     "createConfirm": "Create",
     "createCancel": "Cancel",
-    "createFailed": "Failed to create workspace: {{message}}"
+    "createFailed": "Failed to create workspace: {{message}}",
+    "pathPlaceholder": "Optional path, e.g. /root/projects/site",
+    "pathHint": "Leave empty to auto-create a folder under the workspace root. Absolute path or relative to the workspace root."
   },
   "fileExplorer": {
     "title": "Files",
