@@ -128,6 +128,10 @@ func TestCanAccess_WriteMethods(t *testing.T) {
 		protocol.MethodSessionsDelete,
 		protocol.MethodSessionsCompact,
 		protocol.MethodCronCreate,
+		// Regression guard: suggestDirs launched unclassified (RoleNone →
+		// fail-closed) and the create-form autocomplete got permission_denied
+		// for owner sessions. It must stay on the operator floor.
+		protocol.MethodWorkspaceSuggestDirs,
 	}
 	for _, method := range writeMethods {
 		t.Run(method, func(t *testing.T) {
