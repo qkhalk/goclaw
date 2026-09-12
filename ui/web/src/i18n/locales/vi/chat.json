@@ -1,7 +1,8 @@
 {
   "contextUsage": {
     "tooltip": "{{used}} / {{max}} token ({{percent}}%) · {{compactions}} lần compact · gần nhất: {{lastCompact}}",
-    "never": "chưa có"
+    "never": "chưa có",
+    "linkSessions": "Mở chi tiết session"
   },
   "empty": {
     "description": "Gửi tin nhắn để bắt đầu trò chuyện với agent.",
@@ -125,5 +126,40 @@
     "medium": "Vừa",
     "high": "Cao",
     "xhigh": "Siêu cao"
+  },
+  "console": {
+    "button": "Bảng điều khiển"
+  },
+  "phase": {
+    "thinking": "Đang suy nghĩ…",
+    "tool": "Đang chạy {{tool}}…",
+    "tools": "Đang chạy công cụ…",
+    "streaming": "Đang viết…",
+    "compacting": "Đang tối ưu context…",
+    "retrying": "Thử lại ({{attempt}}/{{max}})…",
+    "leaderProcessing": "Đang xử lý kết quả team…",
+    "working": "Đang làm việc…",
+    "step": "Bước {{n}}"
+  },
+  "teamTasks": {
+    "pill": "Team: {{n}} tác vụ đang chạy",
+    "panelTitle": "Tác vụ đang chạy ({{n}})",
+    "empty": "Không có tác vụ nào",
+    "unassigned": "chưa gán"
+  },
+  "dropzone": {
+    "title": "Thả tệp vào đây"
+  },
+  "command": {
+    "plan": "Soạn kế hoạch triển khai trước khi viết code",
+    "fix": "Chẩn đoán và sửa lỗi hoặc test thất bại",
+    "cook": "Triển khai thay đổi từ mô tả công việc",
+    "review": "Rà soát thay đổi gần đây để tìm vấn đề",
+    "test": "Chạy và sửa bộ test",
+    "debug": "Truy vấn vấn đề đến gốc rễ",
+    "docs": "Tạo hoặc cập nhật tài liệu dự án",
+    "architect": "Thiết kế hoặc đánh giá kiến trúc hệ thống",
+    "uiux": "Rà soát và hoàn thiện UI/UX",
+    "mission": "Khởi động nhiệm vụ tự chủ dài hơi"
   }
 }
