@@ -201,20 +201,35 @@ export function Combobox({
       setOpen(false);
       return;
     }
+    if (e.key === "ArrowDown" && !open && options.length > 0) {
+      e.preventDefault();
+      inputDirtyRef.current = false;
+      setInputDirty(false);
+      setOpen(true);
+      return;
+    }
     if (e.key === "Enter" && allowCustom && isCustomValue) {
       e.preventDefault();
       handleSelect(search.trim());
     }
   };
 
-  const handleFocus = (e: React.FocusEvent) => {
+  // Dropdown opens only on explicit user interaction (click/ArrowDown/typing).
+  // Never on focus: Radix Dialog auto-focuses the first field on open, and that
+  // focus event carries relatedTarget (the button that opened the dialog), so a
+  // focus guard cannot distinguish it from a real click — and the provider-type
+  // combobox opened its dropdown by itself whenever the dialog appeared.
+  const handlePointerDown = () => {
     if (disabled) return;
-    // Only open dropdown on user-initiated focus (click/tab), not programmatic.
-    // relatedTarget is null for programmatic focus or first tab into page.
-    if (!e.relatedTarget && document.hasFocus()) return;
     inputDirtyRef.current = false;
     setInputDirty(false);
     if (options.length > 0) setOpen(true);
+  };
+
+  const handleFocus = () => {
+    if (disabled) return;
+    inputDirtyRef.current = false;
+    setInputDirty(false);
     requestAnimationFrame(() => inputRef.current?.select());
   };
 
@@ -261,6 +276,7 @@ export function Combobox({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={handleFocus}
+        onPointerDown={handlePointerDown}
         disabled={disabled}
         placeholder={placeholder}
         className={cn(
