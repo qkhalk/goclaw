@@ -179,30 +179,36 @@ func registerProviders(registry *providers.Registry, cfg *config.Config, modelRe
 		}
 		registry.Register(providers.NewOpenAIProvider("novita", cfg.Providers.Novita.APIKey, base, store.NovitaDefaultModel))
 
-	// OpenClaw-parity key providers (each falls back to its store default base).
-	registerSimple := func(name string, apiKey, apiBase, defBase, defModel string, anthropicCompat bool) {
-		if apiKey == "" {
-			return
+		// OpenClaw-parity key providers (each falls back to its store default base).
+		registerSimple := func(name string, apiKey, apiBase, defBase, defModel string, anthropicCompat bool) {
+			if apiKey == "" {
+				return
+			}
+			b := apiBase
+			if b == "" {
+				b = defBase
+			}
+			if anthropicCompat {
+				registry.Register(providers.NewAnthropicProvider(apiKey,
+					providers.WithAnthropicName(name),
+					providers.WithAnthropicBaseURL(b)))
+				return
+			}
+			registry.Register(providers.NewOpenAIProvider(name, apiKey, b, defModel))
 		}
-		b := apiBase
-		if b == "" {
-			b = defBase
-		}
-		if anthropicCompat {
-			registry.Register(providers.NewAnthropicProvider(apiKey,
-				providers.WithAnthropicName(name),
-				providers.WithAnthropicBaseURL(b)))
-			return
-		}
-		registry.Register(providers.NewOpenAIProvider(name, apiKey, b, defModel))
-	}
-	registerSimple("moonshot", cfg.Providers.Moonshot.APIKey, cfg.Providers.Moonshot.APIBase, store.MoonshotDefaultAPIBase, store.MoonshotDefaultModel, false)
-	registerSimple("together", cfg.Providers.Together.APIKey, cfg.Providers.Together.APIBase, store.TogetherDefaultAPIBase, store.TogetherDefaultModel, false)
-	registerSimple("fireworks", cfg.Providers.Fireworks.APIKey, cfg.Providers.Fireworks.APIBase, store.FireworksDefaultAPIBase, store.FireworksDefaultModel, false)
-	registerSimple("cerebras", cfg.Providers.Cerebras.APIKey, cfg.Providers.Cerebras.APIBase, store.CerebrasDefaultAPIBase, store.CerebrasDefaultModel, false)
-	registerSimple("synthetic", cfg.Providers.Synthetic.APIKey, cfg.Providers.Synthetic.APIBase, store.SyntheticDefaultAPIBase, store.SyntheticDefaultModel, true)
-	registerSimple("kilocode", cfg.Providers.Kilocode.APIKey, cfg.Providers.Kilocode.APIBase, store.KilocodeDefaultAPIBase, store.KilocodeDefaultModel, false)
-	registerSimple("opencode", cfg.Providers.OpenCode.APIKey, cfg.Providers.OpenCode.APIBase, store.OpenCodeDefaultAPIBase, store.OpenCodeDefaultModel, false)
+		registerSimple("moonshot", cfg.Providers.Moonshot.APIKey, cfg.Providers.Moonshot.APIBase, store.MoonshotDefaultAPIBase, store.MoonshotDefaultModel, false)
+		registerSimple("together", cfg.Providers.Together.APIKey, cfg.Providers.Together.APIBase, store.TogetherDefaultAPIBase, store.TogetherDefaultModel, false)
+		registerSimple("fireworks", cfg.Providers.Fireworks.APIKey, cfg.Providers.Fireworks.APIBase, store.FireworksDefaultAPIBase, store.FireworksDefaultModel, false)
+		registerSimple("cerebras", cfg.Providers.Cerebras.APIKey, cfg.Providers.Cerebras.APIBase, store.CerebrasDefaultAPIBase, store.CerebrasDefaultModel, false)
+		registerSimple("synthetic", cfg.Providers.Synthetic.APIKey, cfg.Providers.Synthetic.APIBase, store.SyntheticDefaultAPIBase, store.SyntheticDefaultModel, true)
+		registerSimple("kilocode", cfg.Providers.Kilocode.APIKey, cfg.Providers.Kilocode.APIBase, store.KilocodeDefaultAPIBase, store.KilocodeDefaultModel, false)
+		registerSimple("opencode", cfg.Providers.OpenCode.APIKey, cfg.Providers.OpenCode.APIBase, store.OpenCodeDefaultAPIBase, store.OpenCodeDefaultModel, false)
+		registerSimple("nvidia", cfg.Providers.Nvidia.APIKey, cfg.Providers.Nvidia.APIBase, store.NvidiaDefaultAPIBase, store.NvidiaDefaultModel, false)
+		registerSimple("stepfun", cfg.Providers.StepFun.APIKey, cfg.Providers.StepFun.APIBase, store.StepFunDefaultAPIBase, store.StepFunDefaultModel, false)
+		registerSimple("venice", cfg.Providers.Venice.APIKey, cfg.Providers.Venice.APIBase, store.VeniceDefaultAPIBase, store.VeniceDefaultModel, false)
+		registerSimple("baseten", cfg.Providers.Baseten.APIKey, cfg.Providers.Baseten.APIBase, store.BasetenDefaultAPIBase, store.BasetenDefaultModel, false)
+		registerSimple("chutes", cfg.Providers.Chutes.APIKey, cfg.Providers.Chutes.APIBase, store.ChutesDefaultAPIBase, store.ChutesDefaultModel, false)
+		registerSimple("huggingface", cfg.Providers.HuggingFace.APIKey, cfg.Providers.HuggingFace.APIBase, store.HuggingFaceDefaultAPIBase, store.HuggingFaceDefaultModel, false)
 		slog.Info("registered provider", "name", "novita")
 	}
 

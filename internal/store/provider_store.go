@@ -44,6 +44,12 @@ const (
 	ProviderSynthetic       = "synthetic"       // Synthetic.new (Anthropic-compatible endpoint)
 	ProviderKilocode        = "kilocode"        // Kilo Code gateway (OpenAI-compat)
 	ProviderOpenCode        = "opencode"        // OpenCode Zen (OpenAI-compat)
+	ProviderNvidia          = "nvidia"          // nvidia (OpenAI-compat)
+	ProviderStepFun         = "stepfun"         // stepfun (OpenAI-compat)
+	ProviderVenice          = "venice"          // venice (OpenAI-compat)
+	ProviderBaseten         = "baseten"         // baseten (OpenAI-compat)
+	ProviderChutes          = "chutes"          // chutes (OpenAI-compat)
+	ProviderHuggingFace     = "huggingface"     // huggingface (OpenAI-compat)
 
 	// MiniMax defaults.
 	MiniMaxDefaultAPIBase = "https://api.minimax.io/v1"
@@ -69,6 +75,30 @@ const (
 	KimiCodingDefaultAPIBase    = "https://api.kimi.com/coding/v1"
 	KimiCodingDefaultModel      = "kimi-k2-turbo-preview"
 	KimiCodingRequiredUserAgent = "claude-code/0.1.0"
+
+	// Nvidia defaults.
+	NvidiaDefaultAPIBase = "https://integrate.api.nvidia.com/v1"
+	NvidiaDefaultModel   = "meta/llama-3.3-70b-instruct"
+
+	// StepFun defaults.
+	StepFunDefaultAPIBase = "https://api.stepfun.com/v1"
+	StepFunDefaultModel   = "step-2-16k"
+
+	// Venice defaults.
+	VeniceDefaultAPIBase = "https://api.venice.ai/api/v1"
+	VeniceDefaultModel   = "deepseek-r1-671b"
+
+	// Baseten defaults.
+	BasetenDefaultAPIBase = "https://inference.baseten.co/v1"
+	BasetenDefaultModel   = "deepseek-ai/DeepSeek-V3.1"
+
+	// Chutes defaults.
+	ChutesDefaultAPIBase = "https://api.chutes.ai/v1"
+	ChutesDefaultModel   = "deepseek-ai/DeepSeek-R1"
+
+	// HuggingFace defaults.
+	HuggingFaceDefaultAPIBase = "https://router.huggingface.co/v1"
+	HuggingFaceDefaultModel   = "meta-llama/Llama-3.1-8B-Instruct"
 
 	// Atlas Cloud defaults.
 	AtlasCloudDefaultAPIBase = "https://api.atlascloud.ai/v1"
@@ -146,6 +176,12 @@ var ValidProviderTypes = map[string]bool{
 	ProviderSynthetic:       true,
 	ProviderKilocode:        true,
 	ProviderOpenCode:        true,
+	ProviderNvidia:          true,
+	ProviderStepFun:         true,
+	ProviderVenice:          true,
+	ProviderBaseten:         true,
+	ProviderChutes:          true,
+	ProviderHuggingFace:     true,
 }
 
 // VertexProviderSettings holds Vertex-specific config stored in llm_providers.settings JSONB.

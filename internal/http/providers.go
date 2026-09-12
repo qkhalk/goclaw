@@ -398,6 +398,42 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) providerRu
 			base = store.OpenCodeDefaultAPIBase
 		}
 		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.OpenCodeDefaultModel))
+	case store.ProviderNvidia:
+		base := apiBase
+		if base == "" {
+			base = store.NvidiaDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NvidiaDefaultModel))
+	case store.ProviderStepFun:
+		base := apiBase
+		if base == "" {
+			base = store.StepFunDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.StepFunDefaultModel))
+	case store.ProviderVenice:
+		base := apiBase
+		if base == "" {
+			base = store.VeniceDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.VeniceDefaultModel))
+	case store.ProviderBaseten:
+		base := apiBase
+		if base == "" {
+			base = store.BasetenDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.BasetenDefaultModel))
+	case store.ProviderChutes:
+		base := apiBase
+		if base == "" {
+			base = store.ChutesDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.ChutesDefaultModel))
+	case store.ProviderHuggingFace:
+		base := apiBase
+		if base == "" {
+			base = store.HuggingFaceDefaultAPIBase
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.HuggingFaceDefaultModel))
 	case store.ProviderAIMLAPI:
 		prov := providers.NewAIMLAPIProvider(p.Name, p.APIKey, apiBase)
 		prov.WithProviderType(p.ProviderType)

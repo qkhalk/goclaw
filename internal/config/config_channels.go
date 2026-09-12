@@ -77,26 +77,26 @@ type TelegramConfig struct {
 	Proxy             string                 `json:"proxy,omitempty"`
 	APIServer         string                 `json:"api_server,omitempty"` // custom Telegram Bot API server URL (e.g. "http://localhost:8081")
 	AllowFrom         FlexibleStringSlice    `json:"allow_from"`
-	DMPolicy          string                 `json:"dm_policy,omitempty"`          // "pairing" (default), "allowlist", "open", "disabled"
-	GroupPolicy       string                 `json:"group_policy,omitempty"`       // "open" (default), "allowlist", "disabled"
-	RequireMention    *bool                  `json:"require_mention,omitempty"`    // require @bot mention in groups (default true)
-	MentionMode       string                 `json:"mention_mode,omitempty"`       // "strict" (default) = only respond when mentioned; "yield" = respond unless another bot is mentioned
-	HistoryLimit      int                    `json:"history_limit,omitempty"`      // max pending group messages for context (default 50, 0=disabled)
-	DMStream          *bool                  `json:"dm_stream,omitempty"`          // enable streaming for DMs (default false) — edits placeholder progressively
-	GroupStream       *bool                  `json:"group_stream,omitempty"`       // enable streaming for groups (default false) — sends new message, edits progressively
-	DraftTransport    *bool                  `json:"draft_transport,omitempty"`    // use sendMessageDraft for DM streaming (default true) — stealth preview, no notifications per edit
-	ReasoningDelivery string                 `json:"reasoning_delivery,omitempty"` // off, streaming_only, always_bubbles
-	ReasoningStream   *bool                  `json:"reasoning_stream,omitempty"`   // show reasoning as separate message when provider emits thinking events (default true)
-	ReactionLevel     string                 `json:"reaction_level,omitempty"`     // "off" (default), "minimal", "full" — status emoji reactions
-	MediaMaxBytes     int64                  `json:"media_max_bytes,omitempty"`    // max media download size in bytes (default 20MB)
-	MenuSkills        []string               `json:"menu_skills,omitempty"`        // skill slugs pinned to the "/" bot command menu (nil = defaults: cook, plan, fix, review, test; [] = none)
+	DMPolicy          string                 `json:"dm_policy,omitempty"`           // "pairing" (default), "allowlist", "open", "disabled"
+	GroupPolicy       string                 `json:"group_policy,omitempty"`        // "open" (default), "allowlist", "disabled"
+	RequireMention    *bool                  `json:"require_mention,omitempty"`     // require @bot mention in groups (default true)
+	MentionMode       string                 `json:"mention_mode,omitempty"`        // "strict" (default) = only respond when mentioned; "yield" = respond unless another bot is mentioned
+	HistoryLimit      int                    `json:"history_limit,omitempty"`       // max pending group messages for context (default 50, 0=disabled)
+	DMStream          *bool                  `json:"dm_stream,omitempty"`           // enable streaming for DMs (default false) — edits placeholder progressively
+	GroupStream       *bool                  `json:"group_stream,omitempty"`        // enable streaming for groups (default false) — sends new message, edits progressively
+	DraftTransport    *bool                  `json:"draft_transport,omitempty"`     // use sendMessageDraft for DM streaming (default true) — stealth preview, no notifications per edit
+	ReasoningDelivery string                 `json:"reasoning_delivery,omitempty"`  // off, streaming_only, always_bubbles
+	ReasoningStream   *bool                  `json:"reasoning_stream,omitempty"`    // show reasoning as separate message when provider emits thinking events (default true)
+	ReactionLevel     string                 `json:"reaction_level,omitempty"`      // "off" (default), "minimal", "full" — status emoji reactions
+	MediaMaxBytes     int64                  `json:"media_max_bytes,omitempty"`     // max media download size in bytes (default 20MB)
+	MenuSkills        []string               `json:"menu_skills,omitempty"`         // skill slugs pinned to the "/" bot command menu (nil = defaults: cook, plan, fix, review, test; [] = none)
 	MenuTestingSkills []string               `json:"menu_testing_skills,omitempty"` // testing skill slugs appended to the menu (nil = defaults: security-audit, loadtest, netstress, ssl-audit, recon, fuzz, dns-audit; [] = none)
-	TextCoalesceMs    *int                   `json:"text_coalesce_ms,omitempty"`   // silence window merging client-split long text messages into one inbound (default 1000; 0 = off)
-	LinkPreview       *bool                  `json:"link_preview,omitempty"`       // enable URL previews in messages (default true)
-	BlockReply        *bool                  `json:"block_reply,omitempty"`        // override gateway block_reply (nil = inherit)
-	ChatBehavior      *ChatBehaviorConfig    `json:"chat_behavior,omitempty"`      // override gateway chat behavior (nil = inherit)
-	ForceIPv4         bool                   `json:"force_ipv4,omitempty"`         // force IPv4 for all Telegram API requests (use when IPv6 routing is broken)
-	TelegramManager   *TelegramManagerConfig `json:"telegram_manager,omitempty"`   // hidden Telegram-only management tool permissions
+	TextCoalesceMs    *int                   `json:"text_coalesce_ms,omitempty"`    // silence window merging client-split long text messages into one inbound (default 1000; 0 = off)
+	LinkPreview       *bool                  `json:"link_preview,omitempty"`        // enable URL previews in messages (default true)
+	BlockReply        *bool                  `json:"block_reply,omitempty"`         // override gateway block_reply (nil = inherit)
+	ChatBehavior      *ChatBehaviorConfig    `json:"chat_behavior,omitempty"`       // override gateway chat behavior (nil = inherit)
+	ForceIPv4         bool                   `json:"force_ipv4,omitempty"`          // force IPv4 for all Telegram API requests (use when IPv6 routing is broken)
+	TelegramManager   *TelegramManagerConfig `json:"telegram_manager,omitempty"`    // hidden Telegram-only management tool permissions
 
 	// Optional STT (Speech-to-Text) pipeline for voice/audio inbound messages.
 	// When stt_proxy_url is set, audio/voice messages are transcribed before being forwarded to the agent.
@@ -287,6 +287,12 @@ type ProvidersConfig struct {
 	Synthetic      ProviderConfig  `json:"synthetic"`       // Synthetic.new (Anthropic-compatible)
 	Kilocode       ProviderConfig  `json:"kilocode"`        // Kilo Code gateway (OpenAI-compatible)
 	OpenCode       ProviderConfig  `json:"opencode"`        // OpenCode Zen (OpenAI-compatible)
+	Nvidia         ProviderConfig  `json:"nvidia"`          // nvidia (OpenAI-compatible)
+	StepFun        ProviderConfig  `json:"stepfun"`         // stepfun (OpenAI-compatible)
+	Venice         ProviderConfig  `json:"venice"`          // venice (OpenAI-compatible)
+	Baseten        ProviderConfig  `json:"baseten"`         // baseten (OpenAI-compatible)
+	Chutes         ProviderConfig  `json:"chutes"`          // chutes (OpenAI-compatible)
+	HuggingFace    ProviderConfig  `json:"huggingface"`     // huggingface (OpenAI-compatible)
 
 	// RequestTimeoutSec bounds provider verify and models-list HTTP calls.
 	// Tenant-scoped, overridable via the "providers.request_timeout_sec" system config.
@@ -392,6 +398,18 @@ func (p *ProvidersConfig) APIBaseForType(providerType string) string {
 		return p.Kilocode.APIBase
 	case "opencode":
 		return p.OpenCode.APIBase
+	case "nvidia":
+		return p.Nvidia.APIBase
+	case "stepfun":
+		return p.StepFun.APIBase
+	case "venice":
+		return p.Venice.APIBase
+	case "baseten":
+		return p.Baseten.APIBase
+	case "chutes":
+		return p.Chutes.APIBase
+	case "huggingface":
+		return p.HuggingFace.APIBase
 	case "vertex":
 		// Computed from project+region at registration time; no config-level static base.
 		return ""
@@ -433,7 +451,13 @@ func (c *Config) HasAnyProvider() bool {
 		p.Cerebras.APIKey != "" ||
 		p.Synthetic.APIKey != "" ||
 		p.Kilocode.APIKey != "" ||
-		p.OpenCode.APIKey != ""
+		p.OpenCode.APIKey != "" ||
+		p.Nvidia.APIKey != "" ||
+		p.StepFun.APIKey != "" ||
+		p.Venice.APIKey != "" ||
+		p.Baseten.APIKey != "" ||
+		p.Chutes.APIKey != "" ||
+		p.HuggingFace.APIKey != ""
 }
 
 // QuotaWindow defines request limits per time window. Zero means unlimited.
