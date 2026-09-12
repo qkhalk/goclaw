@@ -421,8 +421,11 @@ func isWriteMethod(method string) bool {
 
 		// Workspace domain (Paseo Phase 2) — create/update/delete mutate the
 		// workspace registry; list/get are reads but classified here would be
-		// wrong, so they live in isReadMethod below.
+		// wrong, so they live in isReadMethod below. suggestDirs backs the
+		// create-form path autocomplete (filesystem listing outside a single
+		// workspace root) so it rides the same operator floor as create.
 		protocol.MethodWorkspaceCreate,
+		protocol.MethodWorkspaceSuggestDirs,
 		protocol.MethodWorkspaceUpdate,
 		protocol.MethodWorkspaceDelete,
 
