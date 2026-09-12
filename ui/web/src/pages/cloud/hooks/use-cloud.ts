@@ -26,6 +26,9 @@ export interface CloudStatus {
 export interface CloudStartResponse {
   auth_url: string;
   redirect_uri: string;
+  /** "callback" = browser lands back on the server; "paste" = user pastes the
+   * loopback redirect URL back (embedded shared client, zero config). */
+  mode: "callback" | "paste";
 }
 
 export function useCloudStatus() {
@@ -92,5 +95,16 @@ export function useCloudAccounts() {
     [http],
   );
 
-  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect };
+  /** Finish the paste-back flow: submit the address-bar URL the browser
+   * landed on after consent (loopback redirect, nothing listening). */
+  const completeConnect = useCallback(
+    async (provider: CloudProvider, url: string) => {
+      const res = await http.post<{ email: string }>(`/v1/cloud/oauth/${provider}/complete`, { url });
+      await invalidate();
+      return res;
+    },
+    [http, invalidate],
+  );
+
+  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect };
 }

@@ -1,8 +1,8 @@
-# Cloud Accounts — Google OAuth (Gmail + Drive)
+# Clouds — Google Drive / OneDrive / Gmail (OAuth)
 
-Kết nối tài khoản Google của bạn với GoClaw để agent đọc/tìm kiếm/dọn hộp thư
-(Gmail) và duyệt/tải file Drive. Tài khoản thuộc về **mỗi user** — mỗi thành
-viên tự kết nối tài khoản của mình trên trang **Cloud**.
+Kết nối tài khoản cloud của bạn với GoClaw để agent đọc/tìm kiếm/dọn hộp thư
+(Gmail) và duyệt/tải file Drive/OneDrive. Tài khoản thuộc về **mỗi user** —
+mỗi thành viên tự kết nối tài khoản của mình trên trang **Clouds**.
 
 ## Cách hoạt động
 
@@ -24,10 +24,35 @@ Bảo mật:
   khi bạn đồng ý rõ ràng với sender đó.
 - State OAuth ký HMAC + hết hạn 10 phút (chống CSRF).
 
-## Thiết lập Google OAuth client (một lần, ngay trên Web UI)
+## Zero-config: bấm Connect là chạy (mặc định)
 
-GoClaw **không** dùng chung client ID — mỗi server tự đăng ký (quyền riêng tư
-+ tránh giới hạn 100 test users của Google).
+Từ v4.0.6, GoClaw nhúng sẵn **OAuth client dùng chung của rclone** (cùng cơ
+chế với rclone CLI). Không cần cấu hình gì:
+
+1. Trang **Clouds** → chọn **Google Drive** hoặc **Microsoft OneDrive** →
+   bấm **Kết nối**.
+2. Trình duyệt mở trang đồng ý của Google/Microsoft (bạn sẽ thấy tên app
+   "rclone" — đúng như vậy, storage đi qua engine rclone).
+3. Sau khi đồng ý, trình duyệt dừng ở một trang **không tải được**
+   (`http://127.0.0.1:53682/...`) — đó là bình thường. **Copy toàn bộ URL
+   trên thanh địa chỉ**, dán vào ô trên trang Clouds rồi bấm **Hoàn tất**.
+
+Giới hạn của đường zero-config (do dùng client dùng chung):
+
+- **Quota chia sẻ** với toàn bộ người dùng rclone — Google/Microsoft có thể
+  throttle khi quá tải.
+- Google chỉ cấp scope **Drive (đọc)** — **không có Gmail**. Muốn dùng mail
+  tools, hãy cấu hình OAuth client riêng (phần dưới).
+- rclone có thể rotate secret trong bản phát hành tương lai; khi đó cần cập
+  nhật GoClaw.
+- Refresh token gắn với client đã cấp quyền: tài khoản kết nối nhanh luôn
+  refresh bằng client nhúng, tài khoản BYO luôn refresh bằng client BYO
+  (client_id được ghi vào `cloud_accounts.settings`).
+
+## Thiết lập OAuth client riêng — BYO (tùy chọn, cho Gmail/quota riêng)
+
+Muốn dùng Gmail tools (và có quota/branding riêng), admin tự đăng ký OAuth
+client một lần ngay trên Web UI.
 
 ### Bước chuẩn bị trên Google Cloud Console
 
