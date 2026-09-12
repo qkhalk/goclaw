@@ -20,19 +20,23 @@ type Edition struct {
 	VectorSearch          bool           `json:"vector_search"`    // false = FTS5 only
 	SupportsPipNpm        bool           `json:"supports_pip_npm"` // false for Lite desktop
 	SupportsApk           bool           `json:"supports_apk"`     // false for Lite desktop (no apk on macOS/Windows)
+	// CloudAccountsEnabled gates the Cloud surface (per-user OAuth cloud
+	// connections + mail/storage agent tools). Standard only in v1.
+	CloudAccountsEnabled bool `json:"cloud_accounts_enabled"`
 }
 
 // --- Presets ---
 
 // Standard is the default edition: all features enabled, no limits.
 var Standard = Edition{
-	Name:           "standard",
-	KGEnabled:      true,
-	RBACEnabled:    true,
-	TeamFullMode:   true,
-	VectorSearch:   true,
-	SupportsPipNpm: true,
-	SupportsApk:    true,
+	Name:                 "standard",
+	KGEnabled:            true,
+	RBACEnabled:          true,
+	TeamFullMode:         true,
+	VectorSearch:         true,
+	SupportsPipNpm:       true,
+	SupportsApk:          true,
+	CloudAccountsEnabled: true,
 }
 
 // Lite is the desktop/self-hosted edition with sensible limits.

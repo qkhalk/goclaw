@@ -66,6 +66,7 @@ type Config struct {
 	Hooks     HooksConfig     `json:"hooks"`
 	Packages  PackagesConfig  `json:"packages"` // runtime package mgmt (GitHub updater)
 	Messages  SystemMsgConfig `json:"system_messages,omitempty"`
+	Cloud     CloudConfig     `json:"cloud,omitempty"` // per-user OAuth cloud accounts (Google first)
 	mu        sync.RWMutex
 }
 

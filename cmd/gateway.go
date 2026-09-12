@@ -635,6 +635,10 @@ func runGateway() {
 	cleanupWorkstation := wireWorkstationTools(pgStores, toolsReg, domainBus)
 	defer cleanupWorkstation()
 
+	// Register cloud tools (cloud_accounts / mail_* / cloud_* — Standard
+	// edition + configured Google OAuth client only).
+	defer wireCloudTools(cfg, pgStores, toolsReg, workspace, dataDir)()
+
 	// Create all agents — resolved lazily from database by the managed resolver.
 	agentRouter := agent.NewRouter()
 	if traceCollector != nil {
@@ -663,6 +667,10 @@ func runGateway() {
 	server.SetMessageBus(msgBus)
 	server.SetExecApprovalManager(execApprovalMgr)
 	server.SetOAuthHandler(httpapi.NewOAuthHandler(pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
+	// Cloud: per-user OAuth connections (Google first). Edition + config gates
+	// live inside the handler — wiring is unconditional so /v1/cloud/status
+	// answers "disabled" instead of 404 on installs without cloud config.
+	wireCloud(server, cfg, pgStores)
 
 	// contextFileInterceptor is created inside wireExtras.
 	// Declared here so it can be passed to registerAllMethods → AgentsMethods
