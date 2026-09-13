@@ -360,6 +360,16 @@ export function DriveFileArea({
   return (
     <>
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DropZone
+          onDrop={(files) => {
+            if (!canWrite) {
+              handleWriteBlocked();
+              return;
+            }
+            uploads.enqueue(files, path);
+          }}
+          title={canWrite ? t("files.drop_overlay") : t("files.write_disabled_hint")}
+        >
         <DriveShell
           accountId={account.id}
           railTitle={t("drive.my_drives")}
@@ -441,16 +451,6 @@ export function DriveFileArea({
               </div>
             )}
 
-            <DropZone
-              onDrop={(files) => {
-                if (!canWrite) {
-                  handleWriteBlocked();
-                  return;
-                }
-                uploads.enqueue(files, path);
-              }}
-              title={canWrite ? t("files.drop_overlay") : t("files.write_disabled_hint")}
-            >
               {files.isLoading ? (
                 <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -552,9 +552,9 @@ export function DriveFileArea({
                   }}
                 />
               )}
-            </DropZone>
           </div>
         </DriveShell>
+        </DropZone>
 
         {/* Bulk action bar */}
         {selection.count > 0 && (
