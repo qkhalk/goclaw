@@ -64,11 +64,11 @@
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",
-    "description": "\"{email}\" will be removed from GoClaw. Your files are untouched; you can connect again anytime."
+    "description": "\"{{email}}\" will be removed from GoClaw. Your files are untouched; you can connect again anytime."
   },
   "result": {
-    "connected": "Connected {email}",
-    "error": "Connection failed ({code})"
+    "connected": "Connected {{email}}",
+    "error": "Connection failed ({{code}})"
   },
   "paste": {
     "title": "Finish connecting",
@@ -100,7 +100,7 @@
     "mail_btn": "Mailbox",
     "quota_unavailable": "Quota unavailable for this account",
     "loading_quota": "Loading quota…",
-    "used_of": "Used {used} of {total}",
+    "used_of": "Used {{used}} of {{total}}",
     "root": "Root",
     "loading_files": "Loading files…",
     "files_unavailable": "Could not list files (is rclone installed on the server?)",
@@ -108,7 +108,7 @@
     "col_name": "Name",
     "col_size": "Size",
     "col_modified": "Modified",
-    "readonly_note": "Read-only view via rclone ({provider}). Ask the agent to fetch or organize files.",
+    "readonly_note": "Read-only view via rclone ({{provider}}). Ask the agent to fetch or organize files.",
     "mailbox": "Mailbox",
     "loading_mail": "Loading mailbox…",
     "mail_unavailable": "Could not read the mailbox",

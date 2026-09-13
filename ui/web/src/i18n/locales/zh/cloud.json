@@ -64,11 +64,11 @@
   },
   "disconnect_confirm": {
     "title": "断开账户？",
-    "description": "「{email}」将从 GoClaw 中移除。您的文件不受影响；随时可以重新连接。"
+    "description": "「{{email}}」将从 GoClaw 中移除。您的文件不受影响；随时可以重新连接。"
   },
   "result": {
-    "connected": "已连接 {email}",
-    "error": "连接失败（{code}）"
+    "connected": "已连接 {{email}}",
+    "error": "连接失败（{{code}}）"
   },
   "paste": {
     "title": "完成连接",
@@ -100,7 +100,7 @@
     "mail_btn": "邮箱",
     "quota_unavailable": "该账户无法查看配额",
     "loading_quota": "正在加载配额…",
-    "used_of": "已用 {used} / {total}",
+    "used_of": "已用 {{used}} / {{total}}",
     "root": "根目录",
     "loading_files": "正在加载文件…",
     "files_unavailable": "无法列出文件（服务器装了 rclone 吗？）",
@@ -108,7 +108,7 @@
     "col_name": "名称",
     "col_size": "大小",
     "col_modified": "修改时间",
-    "readonly_note": "通过 rclone 只读浏览（{provider}）。让智能体帮您获取或整理文件。",
+    "readonly_note": "通过 rclone 只读浏览（{{provider}}）。让智能体帮您获取或整理文件。",
     "mailbox": "邮箱",
     "loading_mail": "正在加载邮箱…",
     "mail_unavailable": "无法读取邮箱",
