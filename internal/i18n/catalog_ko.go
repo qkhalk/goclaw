@@ -245,5 +245,13 @@ func init() {
 		"telegram.status.thinkmode": "⚙️ Think: %s · 모드: %s",
 		"telegram.status.queue": " · 🪢 대기열: %s %d/%d 활성, %d 대기",
 		"telegram.status.fullhint": "/status full — 모두 표시",
-})
+
+		// Video render pipeline
+		MsgVideoJobCreated:   "비디오 렌더 작업 %s 생성됨",
+		MsgVideoJobFailed:    "비디오 렌더 작업 %s 실패: %s",
+		MsgVideoJobCancelled: "비디오 렌더 작업 %s 취소됨",
+		MsgVideoJobDone:      "비디오 렌더 작업 %s 완료됨",
+		MsgVideoDisabled:     "이 게이트웨이에서 비디오 렌더링이 활성화되지 않았습니다",
+		MsgVideoWorkerUnavail: "비디오 워커에 접근할 수 없습니다",
+	})
 }

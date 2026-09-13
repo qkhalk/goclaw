@@ -449,5 +449,13 @@ func init() {
 		"telegram.status.thinkmode": "⚙️ Think: %s · Chế độ: %s",
 		"telegram.status.queue": " · 🪢 Hàng đợi: %s %d/%d đang chạy, %d chờ",
 		"telegram.status.fullhint": "/status full — xem đầy đủ",
-})
+
+		// Video render pipeline
+		MsgVideoJobCreated:   "đã tạo job render video %s",
+		MsgVideoJobFailed:    "job render video %s thất bại: %s",
+		MsgVideoJobCancelled: "đã hủy job render video %s",
+		MsgVideoJobDone:      "job render video %s đã hoàn thành",
+		MsgVideoDisabled:     "render video chưa được bật trên gateway này",
+		MsgVideoWorkerUnavail: "worker video không thể truy cập",
+	})
 }
