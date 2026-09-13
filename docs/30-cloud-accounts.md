@@ -163,3 +163,32 @@ nó). Nếu token trong GoClaw hết hiệu lực (đổi mật khẩu Google, t
 | `DELETE /v1/cloud/accounts/{id}` | Ngắt kết nối |
 | `POST /v1/cloud/oauth/google/start` | Lấy `auth_url` + `redirect_uri` |
 | `GET /v1/cloud/oauth/callback` | Redirect target của Google (state ký HMAC) |
+
+### File operations (ghi trên Drive)
+
+Toàn bộ endpoint dưới đây yêu cầu `Authorization` (bearer gateway token) và
+account phải truy cập được (của mình hoặc tenant-shared). **Write guard:**
+chỉ **owner** của account hoặc **tenant admin** được ghi — member dùng account
+shared chỉ đọc. **Scope guard:** account phải được grant quyền ghi (Google
+`https://www.googleapis.com/auth/drive`, OneDrive `Files.ReadWrite.All`) —
+account connect trước đợt nâng cấp scope trả
+`403 {"code": "cloud_write_scope_required"}` cho đến khi owner bấm re-grant
+trên trang Cloud. Path là đường dẫn tương tự remote (không nhận `..`, `.`).
+
+| Endpoint | Body / Query | Kết quả |
+|---|---|---|
+| `POST /v1/cloud/accounts/{id}/files` | multipart: `file` + `path` (thư mục đích, bỏ trống = root) | `200 {"path","filename","size"}` — vượt cap `cloud.fetch_size_cap_mb` → `413` |
+| `POST /v1/cloud/accounts/{id}/folders` | `{"path"}` | `200 {"ok":true}` |
+| `PATCH /v1/cloud/accounts/{id}/files` | `{"from","to"}` (rename + move cùng remote) | `200 {"from","to"}` |
+| `POST /v1/cloud/accounts/{id}/files/copy` | `{"from","to"}` | `200 {"from","to"}` |
+| `POST /v1/cloud/accounts/{id}/files/copyurl` | `{"url","path"}` — url phải là http(s) tuyệt đối | `200 {"ok":true}` |
+| `DELETE /v1/cloud/accounts/{id}/files` | `?path=&isDir=` | `200 {"ok":true}` — **xóa vĩnh viễn** (Drive không có trash qua rclone); thư mục chỉ rỗng |
+| `GET /v1/cloud/accounts/{id}/files/download` | `?path=` (chỉ cần quyền đọc) | stream file; vượt cap → `413` |
+| `POST /v1/cloud/accounts/{id}/files/publiclink` | `{"path"}` (guard như write — link công khai) | `200 {"url"}` |
+| `POST /v1/cloud/transfer` | `{"source_account_id","source_path","target_account_id","target_path","mode"}` — mode `"copy"` (mặc định) hoặc `"move"`; nguồn chỉ cần truy cập được, đích cần write guard + scope | file: `200 {"ok":true}`; thư mục: `202 {"job_id"}` (async) |
+| `GET /v1/cloud/transfers/{job_id}` | poll job transfer (chỉ chủ job mới thấy) | `200 {"job_id","finished","success","error"}`; job lạ → `404` |
+
+Lỗi chung: path sai → `400 {"error":"invalid path"}` (+ log
+`security.cloud_path_traversal`); thiếu write guard → `403`; account không
+phải storage provider / rclone lỗi → `502`; thiếu rclone binary → `503`.
+Upload đi qua file tạm + `operations/copyfile` (chạy được với mọi bản rclone).
