@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nextlevelbuilder/goclaw/internal/cloud"
 	"github.com/nextlevelbuilder/goclaw/internal/cloud/mail"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -55,7 +56,7 @@ type cloudAccountsTool struct{ parent *CloudMailTools }
 
 func (t *cloudAccountsTool) Name() string { return "cloud_accounts" }
 func (t *cloudAccountsTool) Description() string {
-	return "List the user's connected cloud accounts (e.g. Gmail) with their capabilities. " +
+	return "List the cloud accounts usable by the caller (own accounts plus tenant-shared ones), with their capabilities. " +
 		"Call this first when the user asks about mail or cloud files and no account was specified. " +
 		"The returned email values are the `account` argument for the other cloud_* / mail_* tools."
 }
@@ -74,14 +75,16 @@ func (t *cloudAccountsTool) Execute(ctx context.Context, _ map[string]any) *Resu
 		Email    string `json:"email"`
 		Provider string `json:"provider"`
 		Status   string `json:"status"`
+		Shared   bool   `json:"shared"`
 		Mail     bool   `json:"mail"`
 		Storage  bool   `json:"storage"`
 	}
 	out := make([]acctOut, 0, len(accounts))
 	for _, a := range accounts {
 		out = append(out, acctOut{
-			Email: a.Email, Provider: a.Provider, Status: a.Status,
-			Mail: true, Storage: true,
+			Email: a.Email, Provider: a.Provider, Status: a.Status, Shared: a.Shared,
+			Mail:    a.Provider == cloud.GoogleProvider && cloud.AccountHasGmailScope(&a),
+			Storage: cloud.IsStorageProvider(a.Provider),
 		})
 	}
 	data, _ := json.Marshal(out)

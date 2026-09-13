@@ -75,6 +75,10 @@ func isStorageProvider(provider string) bool {
 	}
 }
 
+// IsStorageProvider reports whether the provider is usable by the rclone
+// storage tools. Exported for the agent-facing cloud_accounts tool.
+func IsStorageProvider(provider string) bool { return isStorageProvider(provider) }
+
 // ensureRemote makes sure the rcd process is running and the account's remote
 // exists in its config with a non-stale bootstrap token.
 func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAccount) (string, error) {

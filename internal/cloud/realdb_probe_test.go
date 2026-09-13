@@ -56,6 +56,20 @@ func TestRealDBResolverProbe(t *testing.T) {
 	m.SetBindingStore(accounts)
 	m.SetSecretsStore(nil)
 
+	// accessibleAccounts is the exact listing path the agent-facing
+	// cloud_accounts tool takes (MailService.Accounts → Manager.accessibleAccounts).
+	accessible, err := m.accessibleAccounts(ctx)
+	if err != nil {
+		t.Fatalf("accessibleAccounts: %v", err)
+	}
+	t.Logf("accessible=%d", len(accessible))
+	for i := range accessible {
+		t.Logf("  accessible[%d]: provider=%s email=%s shared=%v", i, accessible[i].Provider, accessible[i].Email, accessible[i].Shared)
+	}
+	if len(accessible) == 0 {
+		t.Fatal("accessibleAccounts returned 0 — the cloud_accounts tool would report 'no accounts'")
+	}
+
 	acct, err := m.ResolveAccount(ctx, "", []string{GoogleProvider, MicrosoftProvider}, func(a *store.CloudAccount) bool {
 		return a.Provider == GoogleProvider || a.Provider == MicrosoftProvider
 	})
