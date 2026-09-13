@@ -139,9 +139,9 @@ export function DriveRail({
                   className={cn(RAIL_ROW, "flex-1 px-2", providerActive && "bg-muted font-medium")}
                 >
                   <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
                   {items.length > 0 && (
-                    <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+                    <span className="ml-1 shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
                       {items.length}
                     </span>
                   )}

@@ -469,6 +469,7 @@ export function DriveFileArea({
                         key={e.name}
                         entry={e}
                         path={childPath(path, e.name)}
+                        accountId={account.id}
                         canWrite={canWrite}
                         selected={selection.has(e.name)}
                         anySelected={selection.count > 0}

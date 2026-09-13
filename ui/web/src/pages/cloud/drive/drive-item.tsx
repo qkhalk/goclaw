@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { CloudFileEntry } from "../hooks/use-cloud";
 import { buildItemActions, type ItemAction, type ItemActionHandlers } from "./drive-item-menu";
+import { FileThumbnail } from "./file-thumbnail";
 
 /** One cloud file entry for grid (card) and list (row) mode: selection
  * checkbox, ⋮ actions menu, right-click context menu (same action list),
@@ -207,6 +208,8 @@ export interface DriveItemProps {
   entry: CloudFileEntry;
   /** Full remote path of this entry (encoded form). */
   path: string;
+  /** Cloud account ID for thumbnail fetches. */
+  accountId?: string;
   canWrite: boolean;
   selected: boolean;
   anySelected: boolean;
@@ -287,8 +290,17 @@ export function DriveGridItem(props: DriveItemProps) {
               <StarBadge />
             </span>
           )}
-          <div className="flex h-24 items-center justify-center" aria-hidden>
-            <EntryIcon entry={entry} large />
+          <div className="flex h-24 items-center justify-center overflow-hidden rounded-md" aria-hidden>
+            {props.accountId ? (
+              <FileThumbnail
+                entry={entry}
+                accountId={props.accountId}
+                path={props.path}
+                className="h-full w-full"
+              />
+            ) : (
+              <EntryIcon entry={entry} large />
+            )}
           </div>
           <div className="mt-2 flex items-start gap-1">
             <RenameText
