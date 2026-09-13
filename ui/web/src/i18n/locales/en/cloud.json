@@ -184,6 +184,7 @@
     "selected_count": "{{count}} selected",
     "bulk_clear": "Clear selection",
     "readonly_banner": "Read-only account — re-grant access to upload, rename, move or delete files.",
+    "write_disabled_hint": "This account is read-only — use “Re-grant access” to restore write permission.",
     "op_failed": "Operation failed",
     "scope_required": "This account is missing write access — re-grant access and try again.",
     "done": "Done",

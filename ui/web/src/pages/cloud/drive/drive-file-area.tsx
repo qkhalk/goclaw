@@ -10,6 +10,7 @@ import { DropZone } from "@/components/shared/drop-zone";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { toast } from "@/stores/use-toast-store";
 import {
@@ -346,6 +347,13 @@ export function DriveFileArea({
     uploads.enqueue(Array.from(files), path);
   }
 
+  /** Write controls on a read-only account: explain why and point at the
+   * re-grant action (the amber banner keeps the actual "Re-grant access"
+   * button). The upload/mkdir itself stays gated — the backend 403s. */
+  function handleWriteBlocked() {
+    toast.warning(t("files.readonly_banner"), t("files.write_disabled_hint"));
+  }
+
   const selectedEntries = entries.filter((e) => selection.has(e.name));
   const selectedSources = selectedEntries.map((e) => childPath(path, e.name));
 
@@ -370,38 +378,44 @@ export function DriveFileArea({
               onRefresh={onRefresh}
               right={
                 <>
-                  {canWrite && (
-                    <>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          handleFileInput(e.target.files);
-                          e.target.value = "";
-                        }}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t("files.new_folder")}
-                        title={t("files.new_folder")}
-                        onClick={() => setNewFolderOpen(true)}
-                      >
-                        <FolderPlus className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t("files.upload")}
-                        title={t("files.upload")}
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <Upload className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      handleFileInput(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("files.new_folder")}
+                    title={canWrite ? t("files.new_folder") : t("files.write_disabled_hint")}
+                    aria-disabled={!canWrite}
+                    className={cn(
+                      !canWrite &&
+                        "text-muted-foreground/60 hover:bg-transparent hover:text-muted-foreground/60 dark:hover:bg-transparent",
+                    )}
+                    onClick={() => (canWrite ? setNewFolderOpen(true) : handleWriteBlocked())}
+                  >
+                    <FolderPlus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("files.upload")}
+                    title={canWrite ? t("files.upload") : t("files.write_disabled_hint")}
+                    aria-disabled={!canWrite}
+                    className={cn(
+                      !canWrite &&
+                        "text-muted-foreground/60 hover:bg-transparent hover:text-muted-foreground/60 dark:hover:bg-transparent",
+                    )}
+                    onClick={() => (canWrite ? fileInputRef.current?.click() : handleWriteBlocked())}
+                  >
+                    <Upload className="h-4 w-4" />
+                  </Button>
                   {right}
                 </>
               }
@@ -427,7 +441,16 @@ export function DriveFileArea({
               </div>
             )}
 
-            <DropZone onDrop={(files) => uploads.enqueue(files, path)} title={t("files.drop_overlay")}>
+            <DropZone
+              onDrop={(files) => {
+                if (!canWrite) {
+                  handleWriteBlocked();
+                  return;
+                }
+                uploads.enqueue(files, path);
+              }}
+              title={canWrite ? t("files.drop_overlay") : t("files.write_disabled_hint")}
+            >
               {files.isLoading ? (
                 <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />

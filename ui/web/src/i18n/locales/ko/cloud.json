@@ -184,6 +184,7 @@
     "selected_count": "{{count}}개 선택됨",
     "bulk_clear": "선택 취소",
     "readonly_banner": "읽기 전용 계정입니다 — 업로드, 이름 바꾸기, 이동, 삭제를 하려면 권한을 다시 부여하세요.",
+    "write_disabled_hint": "이 계정은 읽기 전용입니다 — ‘권한 다시 부여’를 사용해 쓰기 권한을 복원하세요.",
     "op_failed": "작업 실패",
     "scope_required": "이 계정에 쓰기 권한이 없습니다 — 권한을 다시 부여한 후 다시 시도하세요.",
     "done": "완료",

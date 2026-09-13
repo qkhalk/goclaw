@@ -184,6 +184,7 @@
     "selected_count": "Đã chọn {{count}} mục",
     "bulk_clear": "Bỏ chọn tất cả",
     "readonly_banner": "Tài khoản chỉ đọc — cấp quyền lại để tải lên, đổi tên, di chuyển hoặc xóa tệp.",
+    "write_disabled_hint": "Tài khoản này chỉ đọc — dùng “Cấp quyền lại” để khôi phục quyền ghi.",
     "op_failed": "Thao tác thất bại",
     "scope_required": "Tài khoản chưa có quyền ghi — hãy cấp quyền lại rồi thử lại.",
     "done": "Hoàn tất",
