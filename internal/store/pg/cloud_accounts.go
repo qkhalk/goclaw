@@ -178,7 +178,7 @@ func (s *PGCloudAccountStore) Delete(ctx context.Context, id string) error {
 
 const cloudAccountColumns = `id, tenant_id, user_id, provider, email, display_name,
 	scopes, access_token, refresh_token, token_expires_at, status,
-	COALESCE(status_message,''), COALESCE(settings,'{}'), created_at, updated_at`
+	COALESCE(status_message,''), COALESCE(settings,'{}'), COALESCE(shared,false), created_at, updated_at`
 
 // queryOne runs a scoped SELECT and decrypts token columns. A row outside the
 // caller's tenant/user scope returns ErrCloudAccountNotFound (no existence leak).
@@ -200,7 +200,7 @@ func (s *PGCloudAccountStore) scan(rs interface{ Scan(dest ...any) error }) (*st
 	var statusMessage, settings sql.NullString
 	if err := rs.Scan(&acct.ID, &acct.TenantID, &acct.UserID, &acct.Provider, &acct.Email,
 		&acct.DisplayName, &acct.Scopes, &accessEnc, &refreshEnc, &acct.TokenExpiresAt,
-		&acct.Status, &statusMessage, &settings, &acct.CreatedAt, &acct.UpdatedAt); err != nil {
+		&acct.Status, &statusMessage, &settings, &acct.Shared, &acct.CreatedAt, &acct.UpdatedAt); err != nil {
 		return nil, err
 	}
 	if statusMessage.Valid {
@@ -219,3 +219,102 @@ func (s *PGCloudAccountStore) scan(rs interface{ Scan(dest ...any) error }) (*st
 	}
 	return &acct, nil
 }
+
+// ListShared returns the tenant-wide shared accounts (any owner), newest first.
+func (s *PGCloudAccountStore) ListShared(ctx context.Context) ([]store.CloudAccount, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+cloudAccountColumns+`
+		FROM cloud_accounts WHERE tenant_id=$1 AND shared = true
+		ORDER BY created_at DESC`,
+		store.TenantIDFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []store.CloudAccount
+	for rows.Next() {
+		acct, scanErr := s.scan(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, *acct)
+	}
+	return out, rows.Err()
+}
+
+// SetShared toggles the tenant-wide shared flag on one account (owner-scoped).
+func (s *PGCloudAccountStore) SetShared(ctx context.Context, id string, shared bool) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE cloud_accounts SET shared=$1, updated_at=NOW()
+		 WHERE id=$2 AND tenant_id=$3 AND user_id=$4`,
+		shared, id, store.TenantIDFromContext(ctx), store.UserIDFromContext(ctx))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return store.ErrCloudAccountNotFound
+	}
+	return nil
+}
+
+// --- CloudBindingStore (same DB handle) ---
+
+// ListBindings returns every binding of the ctx tenant.
+func (s *PGCloudAccountStore) ListBindings(ctx context.Context) ([]store.CloudBinding, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+cloudBindingColumns+`
+		FROM cloud_account_bindings WHERE tenant_id=$1 ORDER BY created_at DESC`,
+		store.TenantIDFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []store.CloudBinding
+	for rows.Next() {
+		var b store.CloudBinding
+		if err := rows.Scan(&b.ID, &b.TenantID, &b.ScopeType, &b.ScopeKey, &b.Provider,
+			&b.AccountID, &b.CreatedBy, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// UpsertBinding inserts or updates by (tenant, scope_type, scope_key, provider).
+func (s *PGCloudAccountStore) UpsertBinding(ctx context.Context, b *store.CloudBinding) error {
+	tenantID := store.TenantIDFromContext(ctx)
+	if tenantID == uuid.Nil {
+		return errors.New("cloud_account_bindings: missing tenant in context")
+	}
+	if b.ID == "" {
+		b.ID = uuid.NewString()
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO cloud_account_bindings
+		  (id, tenant_id, scope_type, scope_key, provider, account_id, created_by)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		ON CONFLICT (tenant_id, scope_type, scope_key, provider) DO UPDATE SET
+		  account_id = EXCLUDED.account_id,
+		  created_by = EXCLUDED.created_by,
+		  updated_at = NOW()`,
+		b.ID, tenantID, b.ScopeType, b.ScopeKey, b.Provider, b.AccountID, b.CreatedBy)
+	return err
+}
+
+// DeleteBinding removes one binding by ID (tenant-scoped).
+func (s *PGCloudAccountStore) DeleteBinding(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM cloud_account_bindings WHERE id=$1 AND tenant_id=$2`,
+		id, store.TenantIDFromContext(ctx))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return store.ErrCloudAccountNotFound
+	}
+	return nil
+}
+
+const cloudBindingColumns = `id, tenant_id, scope_type, scope_key, provider,
+	account_id, COALESCE(created_by,''), created_at, updated_at`

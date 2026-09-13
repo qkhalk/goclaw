@@ -3062,10 +3062,28 @@ CREATE TABLE IF NOT EXISTS cloud_accounts (
     status           TEXT NOT NULL DEFAULT 'active',
     status_message   TEXT NOT NULL DEFAULT '',
     settings         TEXT NOT NULL DEFAULT '{}',
+    shared           INTEGER NOT NULL DEFAULT 0,
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS cloud_accounts_uq
     ON cloud_accounts (tenant_id, user_id, provider, email);
+
+CREATE TABLE IF NOT EXISTS cloud_account_bindings (
+    id          TEXT NOT NULL PRIMARY KEY,
+    tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    scope_type  TEXT NOT NULL CHECK (scope_type IN ('tenant', 'user', 'group')),
+    scope_key   TEXT NOT NULL DEFAULT '',
+    provider    TEXT NOT NULL,
+    account_id  TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+    created_by  TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    CHECK ((scope_type = 'tenant' AND scope_key = '') OR (scope_type <> 'tenant' AND scope_key <> ''))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS cloud_account_bindings_uq
+    ON cloud_account_bindings (tenant_id, scope_type, scope_key, provider);
+CREATE INDEX IF NOT EXISTS cloud_account_bindings_lookup
+    ON cloud_account_bindings (tenant_id, scope_type);
 CREATE INDEX IF NOT EXISTS idx_cloud_accounts_lookup
     ON cloud_accounts (tenant_id, user_id, provider);

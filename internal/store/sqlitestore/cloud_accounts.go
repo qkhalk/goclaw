@@ -29,7 +29,7 @@ func NewSQLiteCloudAccountStore(db *sql.DB, encryptionKey string) *SQLiteCloudAc
 
 const sqliteCloudAccountColumns = `id, tenant_id, user_id, provider, email, display_name,
 	scopes, access_token, refresh_token, token_expires_at, status,
-	COALESCE(status_message,''), COALESCE(settings,'{}'), created_at, updated_at`
+	COALESCE(status_message,''), COALESCE(settings,'{}'), COALESCE(shared,0), created_at, updated_at`
 
 func (s *SQLiteCloudAccountStore) Upsert(ctx context.Context, acct *store.CloudAccount) error {
 	tenantID := store.TenantIDFromContext(ctx).String()
@@ -198,11 +198,13 @@ func (s *SQLiteCloudAccountStore) scan(rs interface{ Scan(dest ...any) error }) 
 	var expiresAtStr sql.NullString
 	var statusMessage, settings sql.NullString
 	var createdStr, updatedStr string
+	var sharedInt int
 	if err := rs.Scan(&acct.ID, &acct.TenantID, &acct.UserID, &acct.Provider, &acct.Email,
 		&acct.DisplayName, &acct.Scopes, &accessEnc, &refreshEnc, &expiresAtStr,
-		&acct.Status, &statusMessage, &settings, &createdStr, &updatedStr); err != nil {
+		&acct.Status, &statusMessage, &settings, &sharedInt, &createdStr, &updatedStr); err != nil {
 		return nil, err
 	}
+	acct.Shared = sharedInt != 0
 	if expiresAtStr.Valid && expiresAtStr.String != "" {
 		if t, err := time.Parse(time.RFC3339Nano, expiresAtStr.String); err == nil {
 			acct.TokenExpiresAt = &t
@@ -238,3 +240,109 @@ func joinSQLiteSets(sets []string) string {
 	}
 	return out
 }
+
+// ListShared returns the tenant-wide shared accounts (any owner), newest first.
+func (s *SQLiteCloudAccountStore) ListShared(ctx context.Context) ([]store.CloudAccount, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+sqliteCloudAccountColumns+`
+		FROM cloud_accounts WHERE tenant_id=? AND shared = 1
+		ORDER BY created_at DESC`,
+		store.TenantIDFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []store.CloudAccount
+	for rows.Next() {
+		acct, scanErr := s.scan(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, *acct)
+	}
+	return out, rows.Err()
+}
+
+// SetShared toggles the tenant-wide shared flag on one account (owner-scoped).
+func (s *SQLiteCloudAccountStore) SetShared(ctx context.Context, id string, shared bool) error {
+	sharedInt := 0
+	if shared {
+		sharedInt = 1
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE cloud_accounts SET shared=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		 WHERE id=? AND tenant_id=? AND user_id=?`,
+		sharedInt, id, store.TenantIDFromContext(ctx), store.UserIDFromContext(ctx))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return store.ErrCloudAccountNotFound
+	}
+	return nil
+}
+
+// --- CloudBindingStore (same DB handle) ---
+
+// ListBindings returns every binding of the ctx tenant.
+func (s *SQLiteCloudAccountStore) ListBindings(ctx context.Context) ([]store.CloudBinding, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+sqliteCloudBindingColumns+`
+		FROM cloud_account_bindings WHERE tenant_id=? ORDER BY created_at DESC`,
+		store.TenantIDFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []store.CloudBinding
+	for rows.Next() {
+		var b store.CloudBinding
+		var createdStr, updatedStr string
+		if err := rows.Scan(&b.ID, &b.TenantID, &b.ScopeType, &b.ScopeKey, &b.Provider,
+			&b.AccountID, &b.CreatedBy, &createdStr, &updatedStr); err != nil {
+			return nil, err
+		}
+		b.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdStr)
+		b.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updatedStr)
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// UpsertBinding inserts or updates by (tenant, scope_type, scope_key, provider).
+func (s *SQLiteCloudAccountStore) UpsertBinding(ctx context.Context, b *store.CloudBinding) error {
+	tenantID := store.TenantIDFromContext(ctx)
+	if tenantID == uuid.Nil {
+		return errors.New("cloud_account_bindings: missing tenant in context")
+	}
+	if b.ID == "" {
+		b.ID = store.GenNewID().String()
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO cloud_account_bindings
+		  (id, tenant_id, scope_type, scope_key, provider, account_id, created_by)
+		VALUES (?,?,?,?,?,?,?)
+		ON CONFLICT (tenant_id, scope_type, scope_key, provider) DO UPDATE SET
+		  account_id = excluded.account_id,
+		  created_by = excluded.created_by,
+		  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
+		b.ID, tenantID, b.ScopeType, b.ScopeKey, b.Provider, b.AccountID, b.CreatedBy)
+	return err
+}
+
+// DeleteBinding removes one binding by ID (tenant-scoped).
+func (s *SQLiteCloudAccountStore) DeleteBinding(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM cloud_account_bindings WHERE id=? AND tenant_id=?`,
+		id, store.TenantIDFromContext(ctx))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return store.ErrCloudAccountNotFound
+	}
+	return nil
+}
+
+const sqliteCloudBindingColumns = `id, tenant_id, scope_type, scope_key, provider,
+	account_id, COALESCE(created_by,''), created_at, updated_at`
