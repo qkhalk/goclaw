@@ -67,9 +67,8 @@
     "noRequests": "최근 요청 없음",
     "columns": {
       "model": "모델",
-      "in": "입력",
-      "out": "출력",
-      "when": "시간"
+      "when": "시간",
+      "inOut": "입력 / 출력"
     }
   },
   "quotaUsage": {
