@@ -18,6 +18,9 @@ import {
   type CloudProvider,
 } from "./hooks/use-cloud";
 
+/** Sentinel for "no account bound" (Radix Select forbids empty values). */
+const NONE = "__none__";
+
 /** Derive group-chat candidates from session keys
  * (`agent:<agent>:<channel>:group:<chatId>[:topic:<n>]`). */
 function useGroupCandidates() {
@@ -108,11 +111,13 @@ export function ScopeBindingsPanel({ provider }: { provider: CloudProvider }) {
 
   const emailOf = (id: string) => providerAccounts.find((a) => a.id === id)?.email ?? id;
 
-  async function handleSetTenant(accountID: string) {
+  // Radix Select forbids empty-string item values — use a sentinel for "no
+  // default account" and translate it to a delete.
+  async function handleSetTenant(selection: string) {
     setError("");
     try {
-      if (accountID) {
-        await upsertBinding({ scope_type: "tenant", scope_key: "", provider, account_id: accountID });
+      if (selection !== NONE) {
+        await upsertBinding({ scope_type: "tenant", scope_key: "", provider, account_id: selection });
       } else if (tenantBinding) {
         await deleteBinding(tenantBinding.id);
       }
@@ -174,9 +179,9 @@ export function ScopeBindingsPanel({ provider }: { provider: CloudProvider }) {
           {t("scope.tenant_default")}
         </div>
         <AccountSelect
-          value={tenantBinding?.account_id ?? ""}
+          value={tenantBinding?.account_id || NONE}
           onChange={(v) => void handleSetTenant(v)}
-          options={[{ id: "", label: t("scope.none") }, ...accountOptions]}
+          options={[{ id: NONE, label: t("scope.none") }, ...accountOptions]}
           placeholder={t("scope.none")}
         />
       </div>
