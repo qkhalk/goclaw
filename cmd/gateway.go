@@ -635,9 +635,9 @@ func runGateway() {
 	cleanupWorkstation := wireWorkstationTools(pgStores, toolsReg, domainBus)
 	defer cleanupWorkstation()
 
-	// Cloud stack: one manager + one rclone StorageService shared by the HTTP
-	// handler (account detail views) and the agent tools.
-	cloudMgr, cloudStorage, cloudMail := newCloudStack(cfg, pgStores, dataDir)
+	// Cloud stack: one manager + one rclone StorageService + one sync worker,
+	// shared by the HTTP handler (account detail views) and the agent tools.
+	cloudMgr, cloudStorage, cloudMail, cloudSync := newCloudStack(cfg, pgStores, dataDir)
 	defer wireCloudTools(cloudMgr, cloudStorage, cfg, toolsReg, workspace)()
 
 	// Create all agents — resolved lazily from database by the managed resolver.
@@ -673,7 +673,7 @@ func runGateway() {
 	// Cloud: per-user OAuth connections (Google first). Edition + config gates
 	// live inside the handler — wiring is unconditional so /v1/cloud/status
 	// answers "disabled" instead of 404 on installs without cloud config.
-	wireCloud(server, cfg, pgStores, cloudMgr, cloudMail)
+	wireCloud(server, cfg, pgStores, cloudMgr, cloudMail, cloudSync)
 
 	// contextFileInterceptor is created inside wireExtras.
 	// Declared here so it can be passed to registerAllMethods → AgentsMethods
@@ -1166,6 +1166,12 @@ func runGateway() {
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Cloud sync-pairs worker: sweeps tenant pairs on a ticker and honors
+	// manual "run now" requests; stops with the gateway context.
+	if cloudSync != nil {
+		cloudSync.Start(ctx)
+	}
 
 	go backfillTraceCostsAfterPricingSync(ctx, pgStores, snapshotWorker)
 	usagepricing.StartOpenRouterCatalogAutoSync(ctx, pgStores.UsageCaps, usagepricing.DefaultOpenRouterCatalogSyncInterval, func(syncCtx context.Context, _ int) {

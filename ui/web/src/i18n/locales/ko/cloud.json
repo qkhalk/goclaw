@@ -187,5 +187,65 @@
     "uploads_title": "업로드",
     "clear_finished": "지우기",
     "menu": "작업"
+  },
+  "transfer": {
+    "menu_item": "다른 계정으로 전송",
+    "title": "다른 계정으로 전송",
+    "target_account": "대상 계정",
+    "target_folder": "대상 폴더",
+    "choose_folder": "선택…",
+    "use_folder": "이 폴더 사용",
+    "mode": {
+      "label": "모드",
+      "copy": "복사",
+      "move": "이동"
+    },
+    "move_folder_hint": "폴더는 '이동'을 선택해도 항상 복사됩니다 — 원본 폴더는 삭제되지 않습니다.",
+    "start": "전송",
+    "running": "전송 중…",
+    "hide": "숨기기",
+    "done": "전송 완료",
+    "some_failed": "{{count}}개 항목 전송 실패",
+    "background_running": "대용량 폴더는 백그라운드에서 계속 전송됩니다.",
+    "status": {
+      "running": "실행 중",
+      "done": "완료",
+      "background": "백그라운드",
+      "error": "실패"
+    }
+  },
+  "sync": {
+    "section_title": "데이터 동기화",
+    "section_description": "한 계정의 폴더를 다른 계정으로 단방향 미러링합니다. 파일은 복사만 되며 대상에서 절대 삭제되지 않습니다.",
+    "add_pair": "동기화 쌍 추가",
+    "source": "소스",
+    "target": "대상",
+    "choose_source_folder": "폴더…",
+    "choose_target_folder": "폴더…",
+    "schedule": {
+      "label": "일정",
+      "manual": "수동만",
+      "hourly": "매시간",
+      "daily": "매일",
+      "custom_minutes": "사용자 지정…",
+      "every_n_minutes": "{{count}}분마다"
+    },
+    "interval_minutes": "분",
+    "last_run": "마지막 실행",
+    "enabled": "사용",
+    "status": {
+      "ok": "정상",
+      "error": "오류",
+      "running": "실행 중",
+      "never": "실행 없음"
+    },
+    "run_now": "지금 실행",
+    "run_queued": "동기화가 대기열에 추가되었습니다 — 잠시 후 상태를 확인하세요",
+    "created": "동기화 쌍이 생성되었습니다",
+    "delete_confirm_title": "동기화 쌍을 삭제하시겠습니까?",
+    "delete_confirm": "이미 복사된 파일은 대상에 유지되며 일정이 중지됩니다.",
+    "same_pair_error": "소스와 대상은 달라야 합니다 (계정 + 폴더).",
+    "empty": "구성된 동기화 쌍이 없습니다.",
+    "account_missing": "(계정을 사용할 수 없음)"
   }
 }

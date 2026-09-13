@@ -263,6 +263,29 @@ func (s *SQLiteCloudAccountStore) ListShared(ctx context.Context) ([]store.Cloud
 	return out, rows.Err()
 }
 
+// ListTenant returns EVERY account of the ctx tenant (any owner). Worker scope
+// only — the sync service resolves sync-pair endpoints without a user context.
+func (s *SQLiteCloudAccountStore) ListTenant(ctx context.Context) ([]store.CloudAccount, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+sqliteCloudAccountColumns+`
+		FROM cloud_accounts WHERE tenant_id=?
+		ORDER BY created_at DESC`,
+		store.TenantIDFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []store.CloudAccount
+	for rows.Next() {
+		acct, scanErr := s.scan(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, *acct)
+	}
+	return out, rows.Err()
+}
+
 // SetShared toggles the tenant-wide shared flag on one account (owner-scoped).
 func (s *SQLiteCloudAccountStore) SetShared(ctx context.Context, id string, shared bool) error {
 	sharedInt := 0

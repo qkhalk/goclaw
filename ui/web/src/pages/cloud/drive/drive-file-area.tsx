@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { ArrowRight, Download, FolderPlus, KeyRound, Loader2, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, Download, FolderPlus, KeyRound, Loader2, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import { DriveTable } from "./drive-table";
 import { DriveGridItem, DriveTableRow } from "./drive-item";
 import { NewFolderDialog } from "./new-folder-dialog";
 import { MoveCopyDialog } from "./move-copy-dialog";
+import { TransferDialog } from "./transfer-dialog";
 import { useSelection } from "./use-selection";
 import { useCloudUploads } from "./use-cloud-uploads";
 import { UploadPanel } from "./upload-panel";
@@ -70,13 +71,15 @@ export function DriveFileArea({
   const isAdmin = role === "admin" || role === "owner";
 
   const ops = useCloudFileOps(account.id);
-  const { startConnect, completeConnect } = useCloudAccounts();
+  const { accounts, startConnect, completeConnect } = useCloudAccounts();
   const uploads = useCloudUploads(account.id);
 
   // Write access mirrors the backend guard: write OAuth scopes + owner/admin.
   const canWrite =
     account.can_write !== false && (account.user_id === userId || isAdmin);
   const canRegrant = !account.shared || account.user_id === userId;
+  // Cross-account transfer is only meaningful with somewhere to go.
+  const canTransfer = accounts.length > 1;
 
   const files = useQuery({
     queryKey: queryKeys.cloud.files(account.id, path),
@@ -114,6 +117,7 @@ export function DriveFileArea({
   // ---- dialogs / menus state -------------------------------------------------
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [moveCopy, setMoveCopy] = useState<{ mode: "move" | "copy"; sources: string[] } | null>(null);
+  const [transferSources, setTransferSources] = useState<CloudFileEntry[] | null>(null);
   const [deleteTargets, setDeleteTargets] = useState<CloudFileEntry[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -381,6 +385,7 @@ export function DriveFileArea({
                           onCopy: canWrite
                             ? () => setMoveCopy({ mode: "copy", sources: [childPath(path, e.name)] })
                             : undefined,
+                          onTransfer: canTransfer ? () => setTransferSources([e]) : undefined,
                           onDelete: canWrite ? () => setDeleteTargets([e]) : undefined,
                         }}
                         dndEnabled
@@ -412,6 +417,7 @@ export function DriveFileArea({
                           onCopy: canWrite
                             ? () => setMoveCopy({ mode: "copy", sources: [childPath(path, e.name)] })
                             : undefined,
+                          onTransfer: canTransfer ? () => setTransferSources([e]) : undefined,
                           onDelete: canWrite ? () => setDeleteTargets([e]) : undefined,
                         }}
                         dndEnabled
@@ -443,6 +449,17 @@ export function DriveFileArea({
                 <ArrowRight className="mr-1.5 h-4 w-4" />
                 {t("files.move")}
               </Button>
+              {canTransfer && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="min-h-11 sm:min-h-8"
+                  onClick={() => setTransferSources(selectedEntries)}
+                >
+                  <ArrowRightLeft className="mr-1.5 h-4 w-4" />
+                  {t("transfer.menu_item")}
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="ghost"
@@ -478,6 +495,16 @@ export function DriveFileArea({
           mode={moveCopy.mode}
           sources={moveCopy.sources}
           initialPath={path}
+        />
+      )}
+
+      {transferSources && (
+        <TransferDialog
+          open
+          onOpenChange={(open) => !open && setTransferSources(null)}
+          sourceAccount={account}
+          sources={transferSources}
+          sourcePath={path}
         />
       )}
 

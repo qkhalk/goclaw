@@ -10,6 +10,9 @@ export const queryKeys = {
     mail: (accountId: string) => ["cloud", "mail", accountId] as const,
     bindings: ["cloud", "bindings"] as const,
     settings: (provider: string) => ["cloud", "settings", provider] as const,
+    syncPairs: ["cloud", "sync-pairs"] as const,
+    transferJob: (jobId: string) => ["cloud", "transfer-job", jobId] as const,
+    starred: ["cloud", "starred"] as const,
   },
   apiKeys: {
     all: ["apiKeys"] as const,

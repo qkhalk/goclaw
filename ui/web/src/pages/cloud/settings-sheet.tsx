@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { ProviderClientSetup } from "./provider-client-setup";
 import { ScopeBindingsPanel } from "./scope-bindings-panel";
+import { SyncSection } from "./sync-section";
 import { useAuthStore } from "@/stores/use-auth-store";
 import type { CloudProvider } from "./hooks/use-cloud";
 
@@ -71,6 +72,7 @@ export function SettingsSheet({
 
           {isAdmin && <ProviderClientSetup provider={provider} />}
           {isAdmin && <ScopeBindingsPanel provider={provider} />}
+          {isAdmin && <SyncSection />}
         </div>
       </SheetContent>
     </Sheet>

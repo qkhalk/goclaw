@@ -187,5 +187,65 @@
     "uploads_title": "Uploads",
     "clear_finished": "Clear",
     "menu": "Actions"
+  },
+  "transfer": {
+    "menu_item": "Transfer to another account",
+    "title": "Transfer to another account",
+    "target_account": "Target account",
+    "target_folder": "Target folder",
+    "choose_folder": "Choose…",
+    "use_folder": "Use this folder",
+    "mode": {
+      "label": "Mode",
+      "copy": "Copy",
+      "move": "Move"
+    },
+    "move_folder_hint": "Folders are always copied, even in Move mode — the source folder is never deleted.",
+    "start": "Transfer",
+    "running": "Transferring…",
+    "hide": "Hide",
+    "done": "Transfer complete",
+    "some_failed": "{{count}} item(s) failed to transfer",
+    "background_running": "Large folders keep transferring in the background.",
+    "status": {
+      "running": "Running",
+      "done": "Done",
+      "background": "Background",
+      "error": "Failed"
+    }
+  },
+  "sync": {
+    "section_title": "Data sync",
+    "section_description": "One-way mirror of a folder from one account into another. Files are only copied — nothing is ever deleted at the target.",
+    "add_pair": "Add sync pair",
+    "source": "Source",
+    "target": "Target",
+    "choose_source_folder": "Folder…",
+    "choose_target_folder": "Folder…",
+    "schedule": {
+      "label": "Schedule",
+      "manual": "Manual only",
+      "hourly": "Every hour",
+      "daily": "Every day",
+      "custom_minutes": "Custom…",
+      "every_n_minutes": "Every {{count}} min"
+    },
+    "interval_minutes": "minutes",
+    "last_run": "Last run",
+    "enabled": "Enabled",
+    "status": {
+      "ok": "OK",
+      "error": "Error",
+      "running": "Running",
+      "never": "Never"
+    },
+    "run_now": "Run now",
+    "run_queued": "Sync queued — check the status in a moment",
+    "created": "Sync pair created",
+    "delete_confirm_title": "Delete sync pair?",
+    "delete_confirm": "Files already copied stay at the target. The schedule stops.",
+    "same_pair_error": "Source and target must differ (account + folder).",
+    "empty": "No sync pairs configured yet.",
+    "account_missing": "(account unavailable)"
   }
 }

@@ -32,18 +32,21 @@ import (
 //	POST   /v1/cloud/oauth/{provider}/start — returns {auth_url, redirect_uri}
 //	GET    /v1/cloud/oauth/callback         — provider redirect (unauthenticated; signed state)
 //
-// Plus the file-operation surface (Phase 4) under /v1/cloud/accounts/{id}/files
-// and the cross-account transfer endpoints (see RegisterRoutes) — writes are
-// gated on owner-or-tenant-admin AND the account's write OAuth scopes.
+// Plus the file-operation surface (Phase 4) under /v1/cloud/accounts/{id}/files,
+// the cross-account transfer endpoints and the tenant-admin sync-pair config
+// (Phase 6, see RegisterRoutes) — writes are gated on owner-or-tenant-admin
+// AND the account's write OAuth scopes.
 type CloudHandler struct {
 	manager      *cloudmgr.Manager
 	accounts     store.CloudAccountStore
 	bindings     store.CloudBindingStore // optional (same DB handle as accounts)
-	tenants      store.TenantStore       // for requireTenantAdmin on shared/bindings writes
-	mail         *cloudmgr.MailService   // optional; backs the per-account mailbox view
-	enabled      bool                    // edition gate AND config kill-switch (cloud.enabled); credentials are dynamic
-	redirectBase string                  // cloud.redirect_base_url (empty = derive from request)
-	fetchCapMB   int64                   // cloud.fetch_size_cap_mb — upload/download size cap
+	syncPairs    store.CloudSyncPairStore // optional (same DB handle as accounts)
+	sync         *cloudmgr.SyncService    // optional; backs POST .../sync-pairs/{id}/run
+	tenants      store.TenantStore        // for requireTenantAdmin on shared/bindings writes
+	mail         *cloudmgr.MailService    // optional; backs the per-account mailbox view
+	enabled      bool                     // edition gate AND config kill-switch (cloud.enabled); credentials are dynamic
+	redirectBase string                   // cloud.redirect_base_url (empty = derive from request)
+	fetchCapMB   int64                    // cloud.fetch_size_cap_mb — upload/download size cap
 }
 
 // NewCloudHandler creates a CloudHandler.
@@ -65,6 +68,14 @@ func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore
 		redirectBase: redirectBase,
 		fetchCapMB:   fetchCapMB,
 	}
+}
+
+// SetSync wires the sync-pair surface: the tenant-scoped pair store (same DB
+// handle as the account store) and the worker backing "run now". Optional —
+// without it the sync-pair endpoints answer 503.
+func (h *CloudHandler) SetSync(pairs store.CloudSyncPairStore, sync *cloudmgr.SyncService) {
+	h.syncPairs = pairs
+	h.sync = sync
 }
 
 // RegisterRoutes registers all cloud routes on the given mux.
@@ -101,6 +112,14 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files/publiclink", requireAuth("", h.handleAccountPublicLink))
 	mux.HandleFunc("POST /v1/cloud/transfer", requireAuth("", h.handleTransfer))
 	mux.HandleFunc("GET /v1/cloud/transfers/{id}", requireAuth("", h.handleTransferStatus))
+
+	// Sync pairs (Phase 6): tenant-level config — every endpoint is
+	// tenant-admin gated (members get 403), like the binding rules above.
+	mux.HandleFunc("GET /v1/cloud/sync-pairs", requireAuth("", h.handleListSyncPairs))
+	mux.HandleFunc("POST /v1/cloud/sync-pairs", requireAuth("", h.handleCreateSyncPair))
+	mux.HandleFunc("PUT /v1/cloud/sync-pairs/{id}", requireAuth("", h.handleUpdateSyncPair))
+	mux.HandleFunc("DELETE /v1/cloud/sync-pairs/{id}", requireAuth("", h.handleDeleteSyncPair))
+	mux.HandleFunc("POST /v1/cloud/sync-pairs/{id}/run", requireAuth("", h.handleRunSyncPair))
 }
 
 // --- GET /v1/cloud/status ---
@@ -1055,9 +1074,259 @@ func (h *CloudHandler) handleTransferStatus(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// --- Sync pairs (Phase 6) ---
+
+// syncPairStore resolves the pair store or writes the 503 when the sync
+// surface is not wired. Caller must already have passed h.available().
+func (h *CloudHandler) syncPairStore(w http.ResponseWriter) store.CloudSyncPairStore {
+	if h.syncPairs == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "sync pairs store unavailable"})
+		return nil
+	}
+	return h.syncPairs
+}
+
+// handleListSyncPairs returns the tenant's sync pairs (tenant-admin gated).
+func (h *CloudHandler) handleListSyncPairs(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !h.tenantAdmin(w, r) {
+		return
+	}
+	pairs := h.syncPairStore(w)
+	if pairs == nil {
+		return
+	}
+	list, err := pairs.List(r.Context())
+	if err != nil {
+		slog.Error("cloud: list sync pairs failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list sync pairs"})
+		return
+	}
+	if list == nil {
+		list = []store.CloudSyncPair{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pairs": list})
+}
+
+type cloudSyncPairInput struct {
+	SourceAccountID string `json:"source_account_id"`
+	SourcePath      string `json:"source_path"`
+	TargetAccountID string `json:"target_account_id"`
+	TargetPath      string `json:"target_path"`
+	// IntervalMinutes: 0 = manual only; nil = keep/create with 0.
+	IntervalMinutes *int `json:"interval_minutes,omitempty"`
+	Enabled         *bool `json:"enabled,omitempty"`
+}
+
+// maxSyncIntervalMinutes caps the custom schedule at 30 days.
+const maxSyncIntervalMinutes = 60 * 24 * 30
+
+// validateSyncPairInput normalizes + validates the create/update payload and
+// resolves both endpoint accounts (accessible to the tenant, storage-capable).
+// Writes the error response and returns ok=false on any problem.
+func (h *CloudHandler) validateSyncPairInput(w http.ResponseWriter, r *http.Request, in *cloudSyncPairInput) (srcPath, dstPath string, src, dst *store.CloudAccount, interval int, ok bool) {
+	in.SourceAccountID = strings.TrimSpace(in.SourceAccountID)
+	in.TargetAccountID = strings.TrimSpace(in.TargetAccountID)
+	if _, err := uuid.Parse(in.SourceAccountID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid source_account_id"})
+		return "", "", nil, nil, 0, false
+	}
+	if _, err := uuid.Parse(in.TargetAccountID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid target_account_id"})
+		return "", "", nil, nil, 0, false
+	}
+	// CleanRemoteDir (not Path): "/" (drive root) is a valid sync endpoint.
+	srcPath, err := cloudmgr.CleanRemoteDir(in.SourcePath)
+	if err != nil {
+		rejectBadPath(w, "sync-pair.source", in.SourcePath)
+		return "", "", nil, nil, 0, false
+	}
+	dstPath, err = cloudmgr.CleanRemoteDir(in.TargetPath)
+	if err != nil {
+		rejectBadPath(w, "sync-pair.target", in.TargetPath)
+		return "", "", nil, nil, 0, false
+	}
+	if srcPath == "" {
+		srcPath = "/"
+	}
+	if dstPath == "" {
+		dstPath = "/"
+	}
+	interval = 0
+	if in.IntervalMinutes != nil {
+		interval = *in.IntervalMinutes
+		if interval < 0 || interval > maxSyncIntervalMinutes {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("interval_minutes must be between 0 and %d", maxSyncIntervalMinutes)})
+			return "", "", nil, nil, 0, false
+		}
+	}
+	src = h.accountByID(w, r, in.SourceAccountID)
+	if src == nil {
+		return "", "", nil, nil, 0, false
+	}
+	dst = h.accountByID(w, r, in.TargetAccountID)
+	if dst == nil {
+		return "", "", nil, nil, 0, false
+	}
+	if !cloudmgr.IsStorageProvider(src.Provider) || !cloudmgr.IsStorageProvider(dst.Provider) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "both endpoints must be storage-capable accounts"})
+		return "", "", nil, nil, 0, false
+	}
+	// A pair syncing a path onto itself would be a no-op at best.
+	if src.ID == dst.ID && srcPath == dstPath {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "source and target account+path must differ"})
+		return "", "", nil, nil, 0, false
+	}
+	return srcPath, dstPath, src, dst, interval, true
+}
+
+// handleCreateSyncPair inserts one sync pair (tenant-admin gated).
+func (h *CloudHandler) handleCreateSyncPair(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !h.tenantAdmin(w, r) {
+		return
+	}
+	pairs := h.syncPairStore(w)
+	if pairs == nil {
+		return
+	}
+	var in cloudSyncPairInput
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	srcPath, dstPath, _, _, interval, ok := h.validateSyncPairInput(w, r, &in)
+	if !ok {
+		return
+	}
+	enabled := true
+	if in.Enabled != nil {
+		enabled = *in.Enabled
+	}
+	p := &store.CloudSyncPair{
+		SourceAccountID: strings.TrimSpace(in.SourceAccountID),
+		SourcePath:      srcPath,
+		TargetAccountID: strings.TrimSpace(in.TargetAccountID),
+		TargetPath:      dstPath,
+		IntervalMinutes: interval,
+		Enabled:         enabled,
+		CreatedBy:       store.UserIDFromContext(r.Context()),
+	}
+	if err := pairs.Create(r.Context(), p); err != nil {
+		slog.Error("cloud: create sync pair failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create sync pair"})
+		return
+	}
+	p.TenantID = store.TenantIDFromContext(r.Context()).String()
+	slog.Info("cloud: sync pair created", "pair_id", p.ID, "source", p.SourceAccountID, "target", p.TargetAccountID, "interval", p.IntervalMinutes)
+	writeJSON(w, http.StatusCreated, p)
+}
+
+// handleUpdateSyncPair replaces the mutable fields of one sync pair.
+func (h *CloudHandler) handleUpdateSyncPair(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !h.tenantAdmin(w, r) {
+		return
+	}
+	pairs := h.syncPairStore(w)
+	if pairs == nil {
+		return
+	}
+	id := r.PathValue("id")
+	p, err := pairs.Get(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrCloudSyncPairNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "sync pair not found"})
+			return
+		}
+		slog.Error("cloud: get sync pair failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load sync pair"})
+		return
+	}
+	var in cloudSyncPairInput
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	srcPath, dstPath, _, _, interval, ok := h.validateSyncPairInput(w, r, &in)
+	if !ok {
+		return
+	}
+	p.SourceAccountID = strings.TrimSpace(in.SourceAccountID)
+	p.SourcePath = srcPath
+	p.TargetAccountID = strings.TrimSpace(in.TargetAccountID)
+	p.TargetPath = dstPath
+	p.IntervalMinutes = interval
+	if in.Enabled != nil {
+		p.Enabled = *in.Enabled
+	}
+	if err := pairs.Update(r.Context(), p); err != nil {
+		if errors.Is(err, store.ErrCloudSyncPairNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "sync pair not found"})
+			return
+		}
+		slog.Error("cloud: update sync pair failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update sync pair"})
+		return
+	}
+	slog.Info("cloud: sync pair updated", "pair_id", p.ID, "interval", p.IntervalMinutes, "enabled", p.Enabled)
+	writeJSON(w, http.StatusOK, p)
+}
+
+// handleDeleteSyncPair removes one sync pair.
+func (h *CloudHandler) handleDeleteSyncPair(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !h.tenantAdmin(w, r) {
+		return
+	}
+	pairs := h.syncPairStore(w)
+	if pairs == nil {
+		return
+	}
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid sync pair id"})
+		return
+	}
+	if err := pairs.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, store.ErrCloudSyncPairNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "sync pair not found"})
+			return
+		}
+		slog.Error("cloud: delete sync pair failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete sync pair"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleRunSyncPair queues one manual run on the worker loop (never executed
+// inside the request — folder syncs are async and far exceed HTTP timeouts).
+func (h *CloudHandler) handleRunSyncPair(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !h.tenantAdmin(w, r) {
+		return
+	}
+	pairs := h.syncPairStore(w)
+	if pairs == nil {
+		return
+	}
+	if h.sync == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "sync worker unavailable"})
+		return
+	}
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid sync pair id"})
+		return
+	}
+	if err := h.sync.RunNow(r.Context(), id); err != nil {
+		if errors.Is(err, store.ErrCloudSyncPairNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "sync pair not found"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	slog.Info("cloud: sync pair queued for manual run", "pair_id", id)
+	writeJSON(w, http.StatusAccepted, map[string]bool{"ok": true})
+}
+
 // storageError maps rclone-layer failures to status codes.
-func (h *CloudHandler) storageError(w http.ResponseWriter, err error) {
-	if errors.Is(err, cloudmgr.ErrRCloneMissing) {
+func (h *CloudHandler) storageError(w http.ResponseWriter, err error) {	if errors.Is(err, cloudmgr.ErrRCloneMissing) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 		return
 	}

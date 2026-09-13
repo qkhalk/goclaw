@@ -187,5 +187,65 @@
     "uploads_title": "Tải lên",
     "clear_finished": "Dọn dẹp",
     "menu": "Thao tác"
+  },
+  "transfer": {
+    "menu_item": "Chuyển tới tài khoản khác",
+    "title": "Chuyển tới tài khoản khác",
+    "target_account": "Tài khoản đích",
+    "target_folder": "Thư mục đích",
+    "choose_folder": "Chọn…",
+    "use_folder": "Dùng thư mục này",
+    "mode": {
+      "label": "Chế độ",
+      "copy": "Sao chép",
+      "move": "Chuyển đi"
+    },
+    "move_folder_hint": "Thư mục luôn được sao chép kể cả khi chọn \"Chuyển đi\" — thư mục nguồn không bao giờ bị xóa.",
+    "start": "Chuyển",
+    "running": "Đang chuyển…",
+    "hide": "Ẩn",
+    "done": "Chuyển hoàn tất",
+    "some_failed": "{{count}} mục chuyển thất bại",
+    "background_running": "Thư mục lớn vẫn tiếp tục chạy nền.",
+    "status": {
+      "running": "Đang chạy",
+      "done": "Xong",
+      "background": "Nền",
+      "error": "Lỗi"
+    }
+  },
+  "sync": {
+    "section_title": "Đồng bộ dữ liệu",
+    "section_description": "Bản sao một chiều từ thư mục của tài khoản này sang tài khoản khác. Chỉ sao chép thêm — không bao giờ xóa ở đích.",
+    "add_pair": "Thêm cặp đồng bộ",
+    "source": "Nguồn",
+    "target": "Đích",
+    "choose_source_folder": "Thư mục…",
+    "choose_target_folder": "Thư mục…",
+    "schedule": {
+      "label": "Lịch",
+      "manual": "Chỉ thủ công",
+      "hourly": "Mỗi giờ",
+      "daily": "Mỗi ngày",
+      "custom_minutes": "Tùy chọn…",
+      "every_n_minutes": "Mỗi {{count}} phút"
+    },
+    "interval_minutes": "phút",
+    "last_run": "Lần chạy cuối",
+    "enabled": "Bật",
+    "status": {
+      "ok": "Thành công",
+      "error": "Lỗi",
+      "running": "Đang chạy",
+      "never": "Chưa chạy"
+    },
+    "run_now": "Chạy ngay",
+    "run_queued": "Đã xếp hàng đồng bộ — xem trạng thái sau ít phút",
+    "created": "Đã tạo cặp đồng bộ",
+    "delete_confirm_title": "Xóa cặp đồng bộ?",
+    "delete_confirm": "File đã sao chép vẫn ở đích. Lịch sẽ dừng.",
+    "same_pair_error": "Nguồn và đích phải khác nhau (tài khoản + thư mục).",
+    "empty": "Chưa có cặp đồng bộ nào.",
+    "account_missing": "(tài khoản không khả dụng)"
   }
 }
