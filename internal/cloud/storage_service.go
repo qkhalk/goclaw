@@ -95,10 +95,23 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 	if slices.Contains(remotes, remote) {
 		return remote, nil // rclone owns token refresh from here
 	}
-	// Inject (bootstrap) the remote from the DB token.
+	// Inject (bootstrap) the remote from a live token: the TokenSource
+	// auto-refreshes (this also proves the grant works for this account's
+	// pinned OAuth client). Falls back to the stored token if refresh fails.
+	accessToken, refreshToken := acct.AccessToken, acct.RefreshToken
+	if ts, terr := s.manager.TokenSource(ctx, acct.ID); terr == nil {
+		if tok, terr := ts.Token(); terr == nil && tok.AccessToken != "" {
+			accessToken = tok.AccessToken
+			if tok.RefreshToken != "" {
+				refreshToken = tok.RefreshToken
+			}
+		}
+	} else {
+		slog.Warn("cloud storage: live token refresh failed, using stored token", "account", acct.ID, "error", terr)
+	}
 	token := map[string]any{
-		"access_token":  acct.AccessToken,
-		"refresh_token": acct.RefreshToken,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
 		"token_type":    "Bearer",
 		"expiry":        "0001-01-01T00:00:00Z", // force refresh via refresh_token
 	}
@@ -125,6 +138,10 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 		if settings.DriveType != "" {
 			params["drive_type"] = settings.DriveType
 		}
+		// MSA refresh MUST repeat the original grant scopes, otherwise
+		// Microsoft returns a compact (non-JWT) token Graph rejects with
+		// IDX14100. Mirror exactly what the connect flow requested.
+		params["scope"] = strings.Join(MicrosoftScopes, " ")
 	}
 	// Refresh tokens are bound to the issuing OAuth client: pin the client the
 	// account consented to, or rclone refreshes with ITS own defaults and
