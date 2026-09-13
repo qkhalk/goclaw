@@ -28,9 +28,11 @@ func NewMailService(manager *Manager, ratePerMinute int) *MailService {
 	return &MailService{manager: manager, limiter: newRateLimiter(ratePerMinute)}
 }
 
-// Accounts lists the caller's connected accounts (ctx-scoped).
+// Accounts lists the accounts the caller may use (ctx-scoped): own accounts
+// plus tenant-shared ones — matching what resolveAccount would accept, so the
+// agent-facing cloud_accounts tool does not hide shared accounts.
 func (s *MailService) Accounts(ctx context.Context) ([]store.CloudAccount, error) {
-	return s.manager.store.List(ctx)
+	return s.manager.accessibleAccounts(ctx)
 }
 
 // MailClient returns an authorized Gmail client for the named account
@@ -84,6 +86,10 @@ func accountHasGmailScope(a *store.CloudAccount) bool {
 	}
 	return false
 }
+
+// AccountHasGmailScope reports whether the account's granted scope set
+// includes a gmail scope. Exported for the agent-facing cloud_accounts tool.
+func AccountHasGmailScope(a *store.CloudAccount) bool { return accountHasGmailScope(a) }
 
 // rateLimiter is a minimal fixed-window limiter (per account): at most rate
 // acquisitions per minute; excess returns the wait until the window resets.
