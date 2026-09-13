@@ -94,5 +94,26 @@
     "key_placeholder_user": "User id (e.g. 123456…)",
     "key_hint_group": "Pick a group the agent has talked in, or paste its chat id.",
     "key_hint_user": "Pick a user id from recent conversations, or paste one."
+  },
+  "detail": {
+    "files_btn": "Browse files",
+    "mail_btn": "Mailbox",
+    "quota_unavailable": "Quota unavailable for this account",
+    "loading_quota": "Loading quota…",
+    "used_of": "Used {used} of {total}",
+    "root": "Root",
+    "loading_files": "Loading files…",
+    "files_unavailable": "Could not list files (is rclone installed on the server?)",
+    "no_files": "This folder is empty",
+    "col_name": "Name",
+    "col_size": "Size",
+    "col_modified": "Modified",
+    "readonly_note": "Read-only view via rclone ({provider}). Ask the agent to fetch or organize files.",
+    "mailbox": "Mailbox",
+    "loading_mail": "Loading mailbox…",
+    "mail_unavailable": "Could not read the mailbox",
+    "no_mail": "Inbox is empty",
+    "no_subject": "(no subject)",
+    "mail_readonly_note": "Preview only — ask the agent to search, read or clean up mail."
   }
 }

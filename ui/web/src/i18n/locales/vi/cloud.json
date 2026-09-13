@@ -94,5 +94,26 @@
     "key_placeholder_user": "User id (vd 123456…)",
     "key_hint_group": "Chọn nhóm agent đã trò chuyện, hoặc dán chat id.",
     "key_hint_user": "Chọn user id từ các hội thoại gần đây, hoặc dán vào."
+  },
+  "detail": {
+    "files_btn": "Duyệt tệp",
+    "mail_btn": "Hộp thư",
+    "quota_unavailable": "Không xem được dung lượng của tài khoản này",
+    "loading_quota": "Đang tải dung lượng…",
+    "used_of": "Đã dùng {used} / {total}",
+    "root": "Gốc",
+    "loading_files": "Đang tải tệp…",
+    "files_unavailable": "Không liệt kê được tệp (rclone đã cài trên server chưa?)",
+    "no_files": "Thư mục này trống",
+    "col_name": "Tên",
+    "col_size": "Dung lượng",
+    "col_modified": "Sửa đổi",
+    "readonly_note": "Chế độ chỉ đọc qua rclone ({provider}). Hãy bảo agent tải hoặc sắp xếp tệp giúp bạn.",
+    "mailbox": "Hộp thư",
+    "loading_mail": "Đang tải hộp thư…",
+    "mail_unavailable": "Không đọc được hộp thư",
+    "no_mail": "Hộp thư trống",
+    "no_subject": "(không có tiêu đề)",
+    "mail_readonly_note": "Chỉ xem trước — hãy bảo agent tìm kiếm, đọc hoặc dọn hộp thư giúp bạn."
   }
 }
