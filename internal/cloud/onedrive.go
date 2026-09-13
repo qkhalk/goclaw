@@ -22,6 +22,10 @@ const (
 	MicrosoftTokenURL    = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 	MicrosoftGraphMeURL  = "https://graph.microsoft.com/v1.0/me"
 	MicrosoftGraphDrivesURL = "https://graph.microsoft.com/v1.0/me/drives"
+	// MicrosoftGraphDefaultDriveURL is THE user's default drive — /me/drives
+	// may list legacy/sidecar drives ("b!…" ids) that a consumer token cannot
+	// address, so the default drive endpoint is authoritative.
+	MicrosoftGraphDefaultDriveURL = "https://graph.microsoft.com/v1.0/me/drive"
 )
 
 // MicrosoftScopes is the v1 scope set. Order is stable: tests assert it to
@@ -115,12 +119,16 @@ type MicrosoftDrive struct {
 	DriveType string `json:"driveType"` // "personal" | "business" | "documentLibrary"
 }
 
-// fetchMicrosoftDefaultDrive picks the drive rclone should mount. The
-// connect token is the USER's own, so prefer the personal OneDrive; business
-// drives of tenants the user is a guest in are not accessible to a consumer
-// token (Graph answers "ObjectHandle is Invalid" for the root). Personal →
-// business → first entry.
+// fetchMicrosoftDefaultDrive resolves the drive rclone should mount:
+// /me/drive (the user's authoritative default) with a /me/drives fallback
+// preferring personal, then business, then the first entry.
 func fetchMicrosoftDefaultDrive(ctx context.Context, accessToken string) (*MicrosoftDrive, error) {
+	if body, err := fetchMicrosoftGraph(ctx, MicrosoftGraphDefaultDriveURL, accessToken); err == nil {
+		var drive MicrosoftDrive
+		if jerr := json.Unmarshal(body, &drive); jerr == nil && drive.ID != "" {
+			return &drive, nil
+		}
+	}
 	body, err := fetchMicrosoftGraph(ctx, MicrosoftGraphDrivesURL, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("graph drives: %w", err)

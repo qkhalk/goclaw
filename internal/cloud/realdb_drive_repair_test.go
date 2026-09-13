@@ -62,9 +62,30 @@ func TestRealDBDriveRepair(t *testing.T) {
 	if err != nil {
 		t.Fatalf("token: %v", err)
 	}
+	// List every drive first so the repair log shows the full picture.
+	all, err := fetchMicrosoftGraph(ctx, MicrosoftGraphDrivesURL, tok.AccessToken)
+	if err != nil {
+		t.Fatalf("drives list: %v", err)
+	}
+	var enumerated struct {
+		Value []MicrosoftDrive `json:"value"`
+	}
+	_ = json.Unmarshal(all, &enumerated)
+	for i, d := range enumerated.Value {
+		prefix := d.ID
+		if len(prefix) > 12 {
+			prefix = prefix[:12] + "…"
+		}
+		t.Logf("drive[%d]: id=%s type=%s", i, prefix, d.DriveType)
+	}
+
 	drive, err := fetchMicrosoftDefaultDrive(ctx, tok.AccessToken)
 	if err != nil {
 		t.Fatalf("drives: %v", err)
+	}
+	if override := os.Getenv("DRIVE_ID_OVERRIDE"); override != "" {
+		drive = &MicrosoftDrive{ID: override, DriveType: "personal"}
+		t.Log("drive overridden via DRIVE_ID_OVERRIDE")
 	}
 	t.Logf("default drive: id=%s type=%s", drive.ID[:8]+"…", drive.DriveType)
 
@@ -80,4 +101,9 @@ func TestRealDBDriveRepair(t *testing.T) {
 		t.Fatalf("update settings: %v", err)
 	}
 	t.Log("settings updated")
+	if os.Getenv("DRIVE_LIST_FULL") != "" {
+		for i, d := range enumerated.Value {
+			t.Logf("FULL[%d]: %s", i, d.ID)
+		}
+	}
 }
