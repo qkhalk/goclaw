@@ -482,7 +482,7 @@ export function CloudPage() {
           )}
 
           <div>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium">{t("provider.accounts_title")}</p>
               <Button
                 size="sm"
@@ -494,7 +494,7 @@ export function CloudPage() {
                 {t(`connect.${activeProvider}`)}
               </Button>
             </div>
-            <p className="-mt-3 text-xs text-muted-foreground">{t("setup.embedded_note")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("setup.embedded_note")}</p>
             {loading ? (
               <div className="mt-3">
                 <TableSkeleton rows={2} />
