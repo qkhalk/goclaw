@@ -161,7 +161,8 @@
       "list": "Dạng danh sách"
     },
     "not_found": "Không tìm thấy tài khoản hoặc tài khoản không còn truy cập được",
-    "back_home": "Về trang Clouds"
+    "back_home": "Về trang Clouds",
+    "toggle_accounts": "Ẩn/hiện tài khoản"
   },
   "files": {
     "upload": "Tải lên",

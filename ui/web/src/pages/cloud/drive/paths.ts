@@ -17,6 +17,8 @@ export type ViewMode = "grid" | "list";
 
 export const VIEW_MODE_STORAGE_KEY = "cloud.viewMode";
 export const SORT_STORAGE_KEY = "cloud.sort";
+/** Rail provider groups the user collapsed (JSON array of provider ids). */
+export const RAIL_COLLAPSED_STORAGE_KEY = "cloud.railCollapsed";
 
 /** Normalize a raw ?path= param to a canonical encoded path ("/" for root). */
 export function normalizePath(raw: string | null | undefined): string {

@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Building2, Clock, Cloud, HardDrive, Inbox, Loader2, Star } from "lucide-react";
+import { Building2, ChevronDown, Clock, Cloud, HardDrive, Inbox, Loader2, Star } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
+import { RAIL_COLLAPSED_STORAGE_KEY } from "./paths";
 import { useCloudAccounts, useCloudStarred, type CloudAccount, type CloudProvider } from "../hooks/use-cloud";
 import { accountCanMail, MailboxPreview } from "./mailbox-preview";
 
@@ -44,6 +45,30 @@ export function DriveRail({
   const starred = useCloudStarred();
   const [mailAccountId, setMailAccountId] = useState<string | null>(null);
   const activeView = params.get("view") ?? "";
+
+  // Collapsed provider groups (localStorage, default expanded).
+  const [collapsed, setCollapsed] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(RAIL_COLLAPSED_STORAGE_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) return parsed.filter((v): v is string => typeof v === "string");
+    } catch {
+      /* ignore malformed JSON */
+    }
+    return [];
+  });
+
+  function toggleCollapsed(id: string) {
+    setCollapsed((prev) => {
+      const next = prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id];
+      try {
+        localStorage.setItem(RAIL_COLLAPSED_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* storage unavailable — state still applies for this session */
+      }
+      return next;
+    });
+  }
 
   /** Starred / recent pseudo-views live on /cloud itself (?view=…). */
   function openView(view: "starred" | "recent") {
@@ -96,25 +121,39 @@ export function DriveRail({
         {CLOUD_PROVIDERS.map((p) => {
           const items = byProvider.get(p.id) ?? [];
           const providerActive = routeProvider === p.id;
+          const isCollapsed = collapsed.includes(p.id);
           return (
             <div key={p.id}>
-              <button
-                type="button"
-                onClick={() => openProvider(p.id)}
-                className={cn(
-                  "flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
-                  providerActive && "bg-muted font-medium",
-                )}
-              >
-                <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => openProvider(p.id)}
+                  className={cn(
+                    "flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
+                    providerActive && "bg-muted font-medium",
+                  )}
+                >
+                  <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  {items.length > 0 && (
+                    <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+                      {items.length}
+                    </span>
+                  )}
+                </button>
                 {items.length > 0 && (
-                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
-                    {items.length}
-                  </span>
+                  <button
+                    type="button"
+                    aria-label={t("drive.toggle_accounts")}
+                    aria-expanded={!isCollapsed}
+                    onClick={() => toggleCollapsed(p.id)}
+                    className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:min-w-[44px]"
+                  >
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", isCollapsed && "-rotate-90")} />
+                  </button>
                 )}
-              </button>
-              {items.length > 0 && (
+              </div>
+              {items.length > 0 && !isCollapsed && (
                 <ul className="flex flex-col gap-0.5 pl-6">
                   {items.map((a) => {
                     const active = a.id === accountId;
