@@ -115,9 +115,11 @@ type MicrosoftDrive struct {
 	DriveType string `json:"driveType"` // "personal" | "business" | "documentLibrary"
 }
 
-// fetchMicrosoftDefaultDrive picks the drive rclone should mount. Personal
-// accounts return one drive; business accounts may have several — prefer the
-// first business drive, else the first entry (rclone's own heuristic).
+// fetchMicrosoftDefaultDrive picks the drive rclone should mount. The
+// connect token is the USER's own, so prefer the personal OneDrive; business
+// drives of tenants the user is a guest in are not accessible to a consumer
+// token (Graph answers "ObjectHandle is Invalid" for the root). Personal →
+// business → first entry.
 func fetchMicrosoftDefaultDrive(ctx context.Context, accessToken string) (*MicrosoftDrive, error) {
 	body, err := fetchMicrosoftGraph(ctx, MicrosoftGraphDrivesURL, accessToken)
 	if err != nil {
@@ -132,9 +134,11 @@ func fetchMicrosoftDefaultDrive(ctx context.Context, accessToken string) (*Micro
 	if len(list.Value) == 0 {
 		return nil, errors.New("graph drives: account has no drives")
 	}
-	for i := range list.Value {
-		if list.Value[i].DriveType == "business" {
-			return &list.Value[i], nil
+	for _, want := range []string{"personal", "business"} {
+		for i := range list.Value {
+			if list.Value[i].DriveType == want {
+				return &list.Value[i], nil
+			}
 		}
 	}
 	return &list.Value[0], nil
