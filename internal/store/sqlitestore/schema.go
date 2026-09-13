@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 82
+const SchemaVersion = 83
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1547,7 +1547,26 @@ CREATE UNIQUE INDEX IF NOT EXISTS cloud_accounts_uq
 	ON cloud_accounts (tenant_id, user_id, provider, email);
 CREATE INDEX IF NOT EXISTS idx_cloud_accounts_lookup
 	ON cloud_accounts (tenant_id, user_id, provider);`,
-	}
+	// Version 82 → 83: cloud account sharing + per-scope bindings (PG 000120).
+	82: `ALTER TABLE cloud_accounts ADD COLUMN shared INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS cloud_account_bindings (
+	id          TEXT NOT NULL PRIMARY KEY,
+	tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+	scope_type  TEXT NOT NULL CHECK (scope_type IN ('tenant', 'user', 'group')),
+	scope_key   TEXT NOT NULL DEFAULT '',
+	provider    TEXT NOT NULL,
+	account_id  TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+	created_by  TEXT NOT NULL DEFAULT '',
+	created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	CHECK ((scope_type = 'tenant' AND scope_key = '') OR (scope_type <> 'tenant' AND scope_key <> ''))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS cloud_account_bindings_uq
+	ON cloud_account_bindings (tenant_id, scope_type, scope_key, provider);
+CREATE INDEX IF NOT EXISTS cloud_account_bindings_lookup
+	ON cloud_account_bindings (tenant_id, scope_type);`,
+}
+
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.
 // Mirrors PG migrations 000070 (pricing catalog + overrides), 000071 (usage cap
 // tables), 000072 (agent budget source), and 000104 (warn_at_percent).
