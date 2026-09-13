@@ -56,6 +56,10 @@ func (f *fakeAccountStore) GetByEmail(ctx context.Context, p, e string) (*store.
 	return nil, store.ErrCloudAccountNotFound
 }
 func (f *fakeAccountStore) List(ctx context.Context) ([]store.CloudAccount, error) { return nil, nil }
+func (f *fakeAccountStore) ListTenant(ctx context.Context) ([]store.CloudAccount, error) {
+	return f.ListShared(ctx)
+}
+
 func (f *fakeAccountStore) ListShared(ctx context.Context) ([]store.CloudAccount, error) {
 	return nil, nil
 }

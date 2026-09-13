@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { Download, FileText, FileCode, Music, Film, File } from "lucide-react";
 import { MarkdownRenderer } from "@/components/shared/markdown-renderer";
-import { formatSize, toDownloadUrl } from "@/lib/file-helpers";
+import { toDownloadUrl } from "@/lib/file-helpers";
+import { formatFileSize } from "@/lib/format";
 import { useMediaUrl } from "@/hooks/use-media-url";
 import { useChatImageGallery } from "./chat-image-gallery-context";
 import {
@@ -130,7 +131,7 @@ export function MediaGallery({ items }: MediaGalleryProps) {
                   <div className="flex min-w-0 flex-col text-xs text-white drop-shadow-sm">
                     {item.fileName && <span className="truncate">{item.fileName}</span>}
                     {item.size != null && item.size > 0 && (
-                      <span className="text-white/70">{formatSize(item.size)}</span>
+                      <span className="text-white/70">{formatFileSize(item.size)}</span>
                     )}
                   </div>
                   <a
@@ -169,7 +170,7 @@ export function MediaGallery({ items }: MediaGalleryProps) {
                 {fileIcon(item.kind)}
                 <span className="max-w-[200px] truncate">{item.fileName ?? "file"}</span>
                 {item.size != null && item.size > 0 && (
-                  <span className="text-xs text-muted-foreground">{formatSize(item.size)}</span>
+                  <span className="text-xs text-muted-foreground">{formatFileSize(item.size)}</span>
                 )}
               </button>
               <a

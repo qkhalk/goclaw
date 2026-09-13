@@ -148,11 +148,8 @@ export function stripFrontmatter(content: string): string {
   return content.slice(end + 3).replace(/^\n+/, "");
 }
 
-export function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+// Note: byte formatting lives in lib/format.ts (formatFileSize) — the former
+// duplicate formatSize was consolidated onto it.
 
 /** Convert a local file path to a /v1/files/ URL for serving.
  *  Extracts basename so the backend fallback search can find generated files.

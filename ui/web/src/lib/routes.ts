@@ -23,6 +23,8 @@ export const ROUTES = {
   CHANNELS: "/channels",
   CHANNEL_DETAIL: "/channels/:id",
   CLOUD: "/cloud",
+  CLOUD_PROVIDER: "/cloud/:provider",
+  CLOUD_ACCOUNT: "/cloud/:provider/:accountId",
   CONTACTS: "/contacts",
   APPROVALS: "/approvals",
   NODES: "/nodes",

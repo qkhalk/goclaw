@@ -133,4 +133,12 @@ type Stores struct {
 	// Phase 1; PG 000118). Token columns encrypted at rest; queries scoped by
 	// ctx tenant+user.
 	CloudAccounts CloudAccountStore
+
+	// CloudSyncPairs persists tenant-level one-way folder sync configuration
+	// (Cloud plan Phase 6; PG 000122) run by the cloud SyncService worker.
+	CloudSyncPairs CloudSyncPairStore
+
+	// CloudStarred persists per-user bookmarks of remote files/folders
+	// (Cloud plan Phase 7; PG 000123). Queries scoped by ctx tenant+user.
+	CloudStarred CloudStarredStore
 }

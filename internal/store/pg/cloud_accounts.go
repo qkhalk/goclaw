@@ -242,6 +242,29 @@ func (s *PGCloudAccountStore) ListShared(ctx context.Context) ([]store.CloudAcco
 	return out, rows.Err()
 }
 
+// ListTenant returns EVERY account of the ctx tenant (any owner). Worker scope
+// only — the sync service resolves sync-pair endpoints without a user context.
+func (s *PGCloudAccountStore) ListTenant(ctx context.Context) ([]store.CloudAccount, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+cloudAccountColumns+`
+		FROM cloud_accounts WHERE tenant_id=$1
+		ORDER BY created_at DESC`,
+		store.TenantIDFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []store.CloudAccount
+	for rows.Next() {
+		acct, scanErr := s.scan(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, *acct)
+	}
+	return out, rows.Err()
+}
+
 // SetShared toggles the tenant-wide shared flag on one account (owner-scoped).
 func (s *PGCloudAccountStore) SetShared(ctx context.Context, id string, shared bool) error {
 	res, err := s.db.ExecContext(ctx,
@@ -273,7 +296,7 @@ func (s *PGCloudAccountStore) ListBindings(ctx context.Context) ([]store.CloudBi
 	for rows.Next() {
 		var b store.CloudBinding
 		if err := rows.Scan(&b.ID, &b.TenantID, &b.ScopeType, &b.ScopeKey, &b.Provider,
-			&b.AccountID, &b.CreatedBy, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			&b.AccountID, &b.CreatedBy, &b.Enabled, &b.Priority, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, b)
@@ -292,13 +315,15 @@ func (s *PGCloudAccountStore) UpsertBinding(ctx context.Context, b *store.CloudB
 	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO cloud_account_bindings
-		  (id, tenant_id, scope_type, scope_key, provider, account_id, created_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		  (id, tenant_id, scope_type, scope_key, provider, account_id, created_by, enabled, priority)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		ON CONFLICT (tenant_id, scope_type, scope_key, provider) DO UPDATE SET
 		  account_id = EXCLUDED.account_id,
 		  created_by = EXCLUDED.created_by,
+		  enabled    = EXCLUDED.enabled,
+		  priority   = EXCLUDED.priority,
 		  updated_at = NOW()`,
-		b.ID, tenantID, b.ScopeType, b.ScopeKey, b.Provider, b.AccountID, b.CreatedBy)
+		b.ID, tenantID, b.ScopeType, b.ScopeKey, b.Provider, b.AccountID, b.CreatedBy, b.Enabled, b.Priority)
 	return err
 }
 
@@ -317,4 +342,5 @@ func (s *PGCloudAccountStore) DeleteBinding(ctx context.Context, id string) erro
 }
 
 const cloudBindingColumns = `id, tenant_id, scope_type, scope_key, provider,
-	account_id, COALESCE(created_by,''), created_at, updated_at`
+	account_id, COALESCE(created_by,''), COALESCE(enabled,true), COALESCE(priority,100),
+	created_at, updated_at`

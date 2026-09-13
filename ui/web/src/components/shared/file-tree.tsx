@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { Folder, FolderOpen, ChevronRight, Loader2, Trash2 } from "lucide-react";
-import { formatSize, type TreeNode } from "@/lib/file-helpers";
+import { type TreeNode } from "@/lib/file-helpers";
+import { formatFileSize } from "@/lib/format";
 import { useTreeDnd } from "@/hooks/use-tree-dnd";
 import { DragPreview } from "@/components/shared/drag-preview";
 import { FileIcon } from "./file-tree-file-icon";
@@ -65,7 +66,7 @@ export function TreeItem({
 
   const sizeLabel = showSize && (node.isDir ? 0 : node.size) > 0 && (
     <span className="ml-auto shrink-0 text-2xs text-muted-foreground tabular-nums">
-      {formatSize(node.size)}
+      {formatFileSize(node.size)}
     </span>
   );
 

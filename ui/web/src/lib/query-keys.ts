@@ -1,4 +1,19 @@
 export const queryKeys = {
+  cloud: {
+    all: ["cloud"] as const,
+    status: ["cloud", "status"] as const,
+    accounts: ["cloud", "accounts"] as const,
+    about: (accountId: string) => ["cloud", "about", accountId] as const,
+    files: (accountId: string, path: string) => ["cloud", "files", accountId, path] as const,
+    /** Prefix key matching every path of one account (bulk invalidation). */
+    allFiles: (accountId: string) => ["cloud", "files", accountId] as const,
+    mail: (accountId: string) => ["cloud", "mail", accountId] as const,
+    bindings: ["cloud", "bindings"] as const,
+    settings: (provider: string) => ["cloud", "settings", provider] as const,
+    syncPairs: ["cloud", "sync-pairs"] as const,
+    transferJob: (jobId: string) => ["cloud", "transfer-job", jobId] as const,
+    starred: ["cloud", "starred"] as const,
+  },
   apiKeys: {
     all: ["apiKeys"] as const,
   },

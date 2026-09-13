@@ -8,6 +8,9 @@
     "another": "连接其他账户"
   },
   "disconnect": "断开连接",
+  "readonly_badge": "只读",
+  "regrant": "重新授权",
+  "regrant_hint": "该账户使用只读权限连接。请重新授权，让智能体可以上传、重命名、移动和删除文件。",
   "status": {
     "active": "正常",
     "expired": "已过期",
@@ -43,12 +46,12 @@
     "title_google": "Google 尚未配置",
     "title_onedrive": "OneDrive 尚未配置",
     "body": "GoClaw 使用您自己的 OAuth 客户端（自带客户端）。一次性配置：",
-    "google_step1": "在 Google Cloud 控制台创建 OAuth 客户端（类型为 Web application）。",
+    "google_step1": "在 Google Cloud 控制台创建 OAuth 客户端（类型为 Web application），并添加 Drive 权限范围 https://www.googleapis.com/auth/drive（完全访问权限——上传/重命名/删除所必需）。",
     "google_step2": "将应用发布到生产环境（无需验证），以免刷新令牌 7 天后过期。",
     "google_step3": "在下方输入 Client ID 和 Client Secret 并保存——凭据加密存储，此表单不会再次出现。",
     "google_step4": "在 Google Cloud 控制台注册这个精确的重定向 URI：",
     "google_client_id": "Google OAuth Client ID",
-    "onedrive_step1": "在 Azure 门户注册新应用（Microsoft Entra ID > 应用注册）。支持的账户类型：任何组织目录中的账户和个人 Microsoft 账户。",
+    "onedrive_step1": "在 Azure 门户注册新应用（Microsoft Entra ID > 应用注册）。支持的账户类型：任何组织目录中的账户和个人 Microsoft 账户。添加 Files.ReadWrite.All API 权限（工作/学校租户可能需要管理员同意）。",
     "onedrive_step2": "在身份验证中添加 Web 平台并注册下方的重定向 URI。",
     "onedrive_step3": "创建客户端密码（证书和密码）并复制其值。",
     "onedrive_step4": "在 Azure 应用中注册这个精确的重定向 URI：",
@@ -60,7 +63,7 @@
     "cancel": "取消",
     "update": "更新凭据",
     "advanced": "使用您自己的 OAuth 客户端（高级）",
-    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。Gmail 工具需要您自己的 OAuth 客户端（见下方高级选项）。"
+    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。"
   },
   "disconnect_confirm": {
     "title": "断开账户？",
@@ -78,7 +81,18 @@
     "completing": "正在完成…"
   },
   "share": {
-    "toggle": "组织内共享"
+    "toggle": "组织内共享",
+    "menu_item": "复制链接",
+    "title": "分享链接",
+    "copied": "链接已复制",
+    "creating": "正在创建链接…",
+    "public_warning": "任何拥有此链接的人都可以查看该文件，直到提供商撤销。"
+  },
+  "settings": {
+    "title": "云盘设置",
+    "description": "管理提供商、自有 OAuth 客户端和范围规则。",
+    "provider": "提供商",
+    "scope_rules": "范围规则"
   },
   "scope": {
     "title": "使用范围",
@@ -93,10 +107,19 @@
     "key_placeholder_group": "群聊 id（如 -100123…）",
     "key_placeholder_user": "用户 id（如 123456…）",
     "key_hint_group": "从智能体参与过的群组中选择，或粘贴其聊天 id。",
-    "key_hint_user": "从最近会话中选择用户 id，或直接粘贴。"
+    "key_hint_user": "从最近会话中选择用户 id，或直接粘贴。",
+    "enabled": "启用",
+    "disabled": "停用",
+    "priority": "优先级",
+    "col_type": "类型",
+    "col_target": "目标",
+    "col_account": "账户",
+    "col_actions": "操作",
+    "scope_type": "范围类型",
+    "rule_added": "规则已添加",
+    "table_empty": "暂无规则"
   },
   "detail": {
-    "files_btn": "浏览文件",
     "mail_btn": "邮箱",
     "quota_unavailable": "该账户无法查看配额",
     "loading_quota": "正在加载配额…",
@@ -115,5 +138,163 @@
     "no_mail": "收件箱为空",
     "no_subject": "（无主题）",
     "mail_readonly_note": "仅预览 — 让智能体帮您搜索、阅读或清理邮件。"
+  },
+  "drive": {
+    "my_drives": "我的云盘",
+    "providers": "提供商",
+    "accounts": "账户",
+    "shared_tag": "共享",
+    "storage": "存储空间",
+    "storage_unavailable": "无法获取存储信息",
+    "mail": "邮箱",
+    "search_placeholder": "在此文件夹中搜索",
+    "sort_label": "排序",
+    "sort": {
+      "name": "名称",
+      "size": "大小",
+      "modified": "修改时间",
+      "asc": "升序",
+      "desc": "降序"
+    },
+    "view": {
+      "grid": "网格视图",
+      "list": "列表视图"
+    },
+    "not_found": "账户不存在或已无法访问",
+    "back_home": "返回云盘页",
+    "toggle_accounts": "展开/收起账户"
+  },
+  "files": {
+    "upload": "上传",
+    "drop_overlay": "拖放文件到此处上传",
+    "new_folder": "新建文件夹",
+    "create": "创建",
+    "folder_name_placeholder": "文件夹名称",
+    "rename": "重命名",
+    "open": "打开",
+    "download": "下载",
+    "move": "移动",
+    "copy": "复制",
+    "delete": "删除",
+    "delete_confirm_title": "永久删除？",
+    "delete_confirm_description": "{{count}} 个项目将被永久删除。待删除的文件夹必须为空。此操作无法撤销。",
+    "move_title": "移动到…",
+    "copy_title": "复制到…",
+    "pick_here": "使用此文件夹",
+    "selected_count": "已选择 {{count}} 项",
+    "bulk_clear": "取消全选",
+    "readonly_banner": "只读账户 — 请重新授权以上传、重命名、移动或删除文件。",
+    "write_disabled_hint": "该账户为只读 — 请使用“重新授权”恢复写入权限。",
+    "op_failed": "操作失败",
+    "scope_required": "该账户缺少写入权限 — 请重新授权后重试。",
+    "done": "完成",
+    "uploading": "上传中",
+    "upload_done": "完成",
+    "upload_failed": "失败",
+    "cancel_upload": "取消",
+    "uploads_title": "上传",
+    "clear_finished": "清除",
+    "menu": "操作"
+  },
+  "transfer": {
+    "menu_item": "传输到其他账户",
+    "title": "传输到其他账户",
+    "target_account": "目标账户",
+    "target_folder": "目标文件夹",
+    "choose_folder": "选择…",
+    "use_folder": "使用此文件夹",
+    "mode": {
+      "label": "模式",
+      "copy": "复制",
+      "move": "移动"
+    },
+    "move_folder_hint": "即使选择“移动”，文件夹也始终为复制——源文件夹不会被删除。",
+    "start": "传输",
+    "running": "传输中…",
+    "hide": "隐藏",
+    "done": "传输完成",
+    "some_failed": "{{count}} 个项目传输失败",
+    "background_running": "大文件夹将在后台继续传输。",
+    "status": {
+      "running": "进行中",
+      "done": "完成",
+      "background": "后台",
+      "error": "失败"
+    }
+  },
+  "sync": {
+    "section_title": "数据同步",
+    "section_description": "将一个账户的文件夹单向镜像到另一个账户。仅复制新增内容，从不在目标端删除。",
+    "add_pair": "添加同步对",
+    "source": "源",
+    "target": "目标",
+    "choose_source_folder": "文件夹…",
+    "choose_target_folder": "文件夹…",
+    "schedule": {
+      "label": "计划",
+      "manual": "仅手动",
+      "hourly": "每小时",
+      "daily": "每天",
+      "custom_minutes": "自定义…",
+      "every_n_minutes": "每 {{count}} 分钟"
+    },
+    "interval_minutes": "分钟",
+    "last_run": "上次运行",
+    "enabled": "启用",
+    "status": {
+      "ok": "正常",
+      "error": "错误",
+      "running": "运行中",
+      "never": "从未"
+    },
+    "run_now": "立即运行",
+    "run_queued": "已加入同步队列——请稍后查看状态",
+    "created": "同步对已创建",
+    "delete_confirm_title": "删除同步对？",
+    "delete_confirm": "已复制的文件保留在目标端，计划将停止。",
+    "same_pair_error": "源和目标必须不同（账户 + 文件夹）。",
+    "empty": "尚未配置同步对。",
+    "account_missing": "（账户不可用）"
+  },
+  "starred": {
+    "title": "已加星标",
+    "add": "加星标",
+    "remove": "移除星标",
+    "empty": "还没有加星标的文件或文件夹。",
+    "name": "名称",
+    "location": "位置",
+    "starred_at": "加星时间",
+    "account_gone": "此账户已无法访问"
+  },
+  "recent": {
+    "title": "最近",
+    "empty": "此设备上还没有打开过任何内容。",
+    "description": "仅存储在此设备上——从不上传到服务器。",
+    "clear": "全部清除",
+    "clear_confirm_title": "清除最近列表？",
+    "clear_confirm": "此设备上的列表将被清空。",
+    "opened_at": "打开时间"
+  },
+  "preview": {
+    "cannot_preview": "无法预览此文件类型。",
+    "too_large": "文件超过 {{cap}}——请下载后查看。",
+    "loading": "正在加载预览…",
+    "error": "预览失败。",
+    "download": "下载",
+    "download_started": "已开始下载",
+    "prev": "上一个",
+    "next": "下一个"
+  },
+  "shortcuts": {
+    "title": "键盘快捷键",
+    "description": "在输入框中输入时快捷键不生效。",
+    "next": "下一项",
+    "prev": "上一项",
+    "open": "打开",
+    "up": "上一级文件夹",
+    "delete": "删除所选",
+    "select_all": "全选",
+    "search": "聚焦搜索",
+    "help": "快捷键帮助"
   }
 }
