@@ -355,6 +355,16 @@ func (m *Manager) HandleCallback(ctx context.Context, code, state string) (*stor
 	if err := m.store.Upsert(sctx, acct); err != nil {
 		return nil, fmt.Errorf("cloud: persist account: %w", err)
 	}
+	// Re-grant invalidation: ensureRemote returns early when the remote
+	// already exists, so after a re-grant the rclone remote would keep
+	// operating on the OLD token and its OLD pinned access_scopes — still
+	// "valid", but e.g. read-only after a write-scope upgrade (operations/
+	// mkdir failed accessDenied until the remote was removed by hand).
+	// Drop it so the next storage operation re-bootstraps from the fresh DB
+	// token + new scopes. Best effort, same as the disconnect path.
+	if m.storage != nil {
+		m.storage.RemoveRemote(ctx, acct.ID)
+	}
 	return acct, nil
 }
 
