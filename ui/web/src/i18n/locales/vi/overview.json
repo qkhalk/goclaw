@@ -41,9 +41,8 @@
   "recentRequests": {
     "columns": {
       "model": "Mô hình",
-      "in": "Vào",
-      "out": "Ra",
-      "when": "Lúc"
+      "when": "Lúc",
+      "inOut": "Vào / Ra"
     },
     "noRequests": "Chưa có yêu cầu nào",
     "title": "Yêu cầu gần đây",

@@ -67,9 +67,8 @@
     "noRequests": "No recent requests",
     "columns": {
       "model": "Model",
-      "in": "In",
-      "out": "Out",
-      "when": "When"
+      "when": "When",
+      "inOut": "In / Out"
     }
   },
   "quotaUsage": {

@@ -175,5 +175,12 @@
     "fullAccess": "Toàn quyền",
     "writeApproval": "Phê duyệt khi ghi",
     "alwaysAsk": "Luôn hỏi"
+  },
+  "askOptions": {
+    "answered": "Đã trả lời",
+    "readOnly": "Chế độ chỉ đọc — mở mục Trò chuyện để trả lời",
+    "other": "Khác…",
+    "otherPlaceholder": "Nhập câu trả lời của bạn…",
+    "send": "Gửi câu trả lời"
   }
 }

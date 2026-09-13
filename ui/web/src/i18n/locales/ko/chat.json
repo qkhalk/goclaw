@@ -124,5 +124,12 @@
     "fullAccess": "전체 액세스",
     "writeApproval": "쓰기 승인",
     "alwaysAsk": "항상 묻기"
+  },
+  "askOptions": {
+    "answered": "답변됨",
+    "readOnly": "읽기 전용 — 채팅에서 답변하세요",
+    "other": "기타…",
+    "otherPlaceholder": "직접 답변 입력…",
+    "send": "답변 보내기"
   }
 }

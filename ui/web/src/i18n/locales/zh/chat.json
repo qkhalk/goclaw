@@ -175,5 +175,12 @@
     "fullAccess": "完全访问",
     "writeApproval": "写入审批",
     "alwaysAsk": "始终询问"
+  },
+  "askOptions": {
+    "answered": "已回答",
+    "readOnly": "只读视图 — 打开聊天以回答",
+    "other": "其他…",
+    "otherPlaceholder": "输入你自己的回答…",
+    "send": "发送回答"
   }
 }
