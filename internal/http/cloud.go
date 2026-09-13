@@ -27,15 +27,23 @@ import (
 type CloudHandler struct {
 	manager      *cloudmgr.Manager
 	accounts     store.CloudAccountStore
-	enabled      bool   // edition gate AND config kill-switch (cloud.enabled); credentials are dynamic
-	redirectBase string // cloud.redirect_base_url (empty = derive from request)
+	bindings     store.CloudBindingStore // optional (same DB handle as accounts)
+	tenants      store.TenantStore       // for requireTenantAdmin on shared/bindings writes
+	enabled      bool                    // edition gate AND config kill-switch (cloud.enabled); credentials are dynamic
+	redirectBase string                  // cloud.redirect_base_url (empty = derive from request)
 }
 
 // NewCloudHandler creates a CloudHandler.
-func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore, enabled bool, redirectBase string) *CloudHandler {
+func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore, tenants store.TenantStore, enabled bool, redirectBase string) *CloudHandler {
+	var bindings store.CloudBindingStore
+	if bs, ok := any(accounts).(store.CloudBindingStore); ok {
+		bindings = bs
+	}
 	return &CloudHandler{
 		manager:      manager,
 		accounts:     accounts,
+		bindings:     bindings,
+		tenants:      tenants,
 		enabled:      enabled,
 		redirectBase: redirectBase,
 	}
@@ -51,6 +59,10 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /v1/cloud/settings", requireAuth(permissions.RoleAdmin, h.handlePutSettings))
 	mux.HandleFunc("GET /v1/cloud/accounts", requireAuth("", h.handleList))
 	mux.HandleFunc("DELETE /v1/cloud/accounts/{id}", requireAuth("", h.handleDelete))
+	mux.HandleFunc("PUT /v1/cloud/accounts/{id}/shared", requireAuth("", h.handleSetShared))
+	mux.HandleFunc("GET /v1/cloud/bindings", requireAuth("", h.handleListBindings))
+	mux.HandleFunc("PUT /v1/cloud/bindings", requireAuth("", h.handleUpsertBinding))
+	mux.HandleFunc("DELETE /v1/cloud/bindings/{id}", requireAuth("", h.handleDeleteBinding))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/start", requireAuth("", h.handleStart))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/complete", requireAuth("", h.handleComplete))
 	mux.HandleFunc("GET /v1/cloud/oauth/callback", h.handleCallback)
@@ -229,6 +241,170 @@ func (h *CloudHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// --- PUT /v1/cloud/accounts/{id}/shared ---
+
+type cloudSharedInput struct {
+	Shared *bool `json:"shared"`
+}
+
+// handleSetShared toggles the tenant-wide shared flag on an account.
+// Tenant-admin gated: sharing exposes the account to every agent in the
+// tenant, so a regular member cannot opt their own account in (an admin
+// consents on their behalf).
+func (h *CloudHandler) handleSetShared(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !h.tenantAdmin(w, r) {
+		return
+	}
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid account id"})
+		return
+	}
+	var in cloudSharedInput
+	locale := store.LocaleFromContext(r.Context())
+	if !bindJSON(w, r, locale, &in) || in.Shared == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "shared (bool) is required"})
+		return
+	}
+	if err := h.accounts.SetShared(r.Context(), id, *in.Shared); err != nil {
+		if errors.Is(err, store.ErrCloudAccountNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found"})
+			return
+		}
+		slog.Error("cloud: set shared failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update account"})
+		return
+	}
+	slog.Info("cloud: account shared flag updated", "account_id", id, "shared", *in.Shared)
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// --- /v1/cloud/bindings ---
+
+func validBindingScope(scopeType, scopeKey string) bool {
+	switch scopeType {
+	case store.CloudBindingScopeTenant:
+		return scopeKey == ""
+	case store.CloudBindingScopeUser, store.CloudBindingScopeGroup:
+		return scopeKey != ""
+	default:
+		return false
+	}
+}
+
+// handleListBindings returns the tenant's provider-account bindings. Members
+// see the list read-only (needed for the UI picker); writes are admin-gated.
+func (h *CloudHandler) handleListBindings(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !requireTenantAdmin(w, r, h.tenants) {
+		return
+	}
+	if h.bindings == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bindings store unavailable"})
+		return
+	}
+	bindings, err := h.bindings.ListBindings(r.Context())
+	if err != nil {
+		slog.Error("cloud: list bindings failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list bindings"})
+		return
+	}
+	if bindings == nil {
+		bindings = []store.CloudBinding{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"bindings": bindings})
+}
+
+type cloudBindingInput struct {
+	ScopeType string `json:"scope_type"`
+	ScopeKey  string `json:"scope_key"`
+	Provider  string `json:"provider"`
+	AccountID string `json:"account_id"`
+}
+
+// handleUpsertBinding assigns a provider account to a scope (tenant default,
+// one user, or one group chat). Tenant-admin gated.
+func (h *CloudHandler) handleUpsertBinding(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !requireTenantAdmin(w, r, h.tenants) {
+		return
+	}
+	if h.bindings == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bindings store unavailable"})
+		return
+	}
+	var in cloudBindingInput
+	locale := store.LocaleFromContext(r.Context())
+	if !bindJSON(w, r, locale, &in) {
+		return
+	}
+	in.ScopeType = strings.TrimSpace(in.ScopeType)
+	in.ScopeKey = strings.TrimSpace(in.ScopeKey)
+	in.Provider = strings.TrimSpace(in.Provider)
+	in.AccountID = strings.TrimSpace(in.AccountID)
+	if !validBindingScope(in.ScopeType, in.ScopeKey) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid scope_type/scope_key"})
+		return
+	}
+	if !cloudmgr.IsSupportedProvider(in.Provider) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
+		return
+	}
+	if _, err := uuid.Parse(in.AccountID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid account_id"})
+		return
+	}
+	// The bound account must be visible to the tenant (own or shared).
+	acct, err := h.manager.AccountByID(r.Context(), in.AccountID)
+	if err != nil || acct.Provider != in.Provider {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found for this provider"})
+		return
+	}
+	b := &store.CloudBinding{
+		ScopeType: in.ScopeType,
+		ScopeKey:  in.ScopeKey,
+		Provider:  in.Provider,
+		AccountID: in.AccountID,
+		CreatedBy: store.UserIDFromContext(r.Context()),
+	}
+	if err := h.bindings.UpsertBinding(r.Context(), b); err != nil {
+		slog.Error("cloud: upsert binding failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save binding"})
+		return
+	}
+	slog.Info("cloud: binding saved", "scope_type", b.ScopeType, "scope_key", b.ScopeKey, "provider", b.Provider, "account_id", b.AccountID)
+	writeJSON(w, http.StatusOK, map[string]any{"binding": b})
+}
+
+// handleDeleteBinding removes one binding (tenant-admin gated).
+func (h *CloudHandler) handleDeleteBinding(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !requireTenantAdmin(w, r, h.tenants) {
+		return
+	}
+	if h.bindings == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bindings store unavailable"})
+		return
+	}
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid binding id"})
+		return
+	}
+	if err := h.bindings.DeleteBinding(r.Context(), id); err != nil {
+		if errors.Is(err, store.ErrCloudAccountNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "binding not found"})
+			return
+		}
+		slog.Error("cloud: delete binding failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete binding"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// tenantAdmin is the cloud-surface alias of requireTenantAdmin.
+func (h *CloudHandler) tenantAdmin(w http.ResponseWriter, r *http.Request) bool {
+	return requireTenantAdmin(w, r, h.tenants)
 }
 
 // --- POST /v1/cloud/oauth/{provider}/start ---

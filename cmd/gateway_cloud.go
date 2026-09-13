@@ -35,6 +35,9 @@ func newCloudManager(cfg *config.Config, stores *store.Stores) *cloud.Manager {
 	if stores.ConfigSecrets != nil {
 		manager.SetSecretsStore(stores.ConfigSecrets)
 	}
+	if bs, ok := any(stores.CloudAccounts).(store.CloudBindingStore); ok {
+		manager.SetBindingStore(bs)
+	}
 	return manager
 }
 
@@ -53,7 +56,7 @@ func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores)
 	manager := newCloudManager(cfg, stores)
 	enabled := manager != nil
 	server.SetCloudHandler(httpapi.NewCloudHandler(
-		manager, stores.CloudAccounts, enabled, cfg.Cloud.RedirectBaseURL))
+		manager, stores.CloudAccounts, stores.Tenants, enabled, cfg.Cloud.RedirectBaseURL))
 }
 
 // wireCloudTools registers the cloud agent tools (cloud_accounts, mail_*,
