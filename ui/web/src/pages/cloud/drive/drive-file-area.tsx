@@ -15,11 +15,17 @@ import { toast } from "@/stores/use-toast-store";
 import {
   useCloudAccounts,
   useCloudFileOps,
+  useCloudStarred,
   type CloudAccount,
   type CloudFileEntry,
   type CloudProvider,
 } from "../hooks/use-cloud";
 import { DriveShell } from "./drive-shell";
+import { PreviewSheet, type PreviewFile } from "./preview-sheet";
+import { ShareLinkDialog } from "./share-link-dialog";
+import { ShortcutsDialog } from "./shortcuts-dialog";
+import { useDriveShortcuts } from "./use-drive-shortcuts";
+import { pushRecent } from "@/lib/cloud-recent";
 import { DriveTopBar } from "./drive-topbar";
 import { DriveGrid } from "./drive-grid";
 import { DriveTable } from "./drive-table";
@@ -31,7 +37,7 @@ import { useSelection } from "./use-selection";
 import { useCloudUploads } from "./use-cloud-uploads";
 import { UploadPanel } from "./upload-panel";
 import { opErrorToast } from "./op-error";
-import { childPath, type SortSpec, type ViewMode } from "./paths";
+import { childPath, parentPath, type SortSpec, type ViewMode } from "./paths";
 
 /** File area of the Drive shell for one account: browsing + the full set of
  * file operations (upload w/ progress, mkdir, rename, move, copy, permanent
@@ -73,6 +79,7 @@ export function DriveFileArea({
   const ops = useCloudFileOps(account.id);
   const { accounts, startConnect, completeConnect } = useCloudAccounts();
   const uploads = useCloudUploads(account.id);
+  const starred = useCloudStarred();
 
   // Write access mirrors the backend guard: write OAuth scopes + owner/admin.
   const canWrite =
@@ -120,6 +127,9 @@ export function DriveFileArea({
   const [transferSources, setTransferSources] = useState<CloudFileEntry[] | null>(null);
   const [deleteTargets, setDeleteTargets] = useState<CloudFileEntry[] | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [shareTarget, setShareTarget] = useState<CloudFileEntry | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ---- re-grant flow (embedded client paste-back) -----------------------------
@@ -131,16 +141,45 @@ export function DriveFileArea({
 
   // ---- handlers ----------------------------------------------------------------
 
+  /** Record one entry in the device-local recent list (no backend). */
+  function recordRecent(entry: CloudFileEntry, entryPath: string) {
+    pushRecent(userId, {
+      accountId: account.id,
+      provider: account.provider,
+      email: account.email,
+      path: entryPath,
+      name: entry.name,
+      isDir: entry.is_dir,
+    });
+  }
+
+  const previewFiles: PreviewFile[] = entries
+    .filter((e) => !e.is_dir)
+    .map((e) => ({ entry: e, path: childPath(path, e.name) }));
+
+  function openPreview(entry: CloudFileEntry) {
+    const idx = previewFiles.findIndex((f) => f.entry.name === entry.name);
+    if (idx < 0) return;
+    const entryPath = childPath(path, entry.name);
+    recordRecent(entry, entryPath);
+    setPreviewIndex(idx);
+  }
+
   function handleActivate(entry: CloudFileEntry, index: number, e: React.MouseEvent) {
     if (e.shiftKey) {
       selection.handleClick(entry.name, index, true, visibleNames);
       return;
     }
     if (entry.is_dir) {
-      onNavigatePath(childPath(path, entry.name));
+      const next = childPath(path, entry.name);
+      recordRecent(entry, next);
+      onNavigatePath(next);
       return;
     }
-    selection.handleClick(entry.name, index, false, visibleNames);
+    // Drive-style: a plain click on a file previews it (multi-select stays on
+    // the checkboxes / shift-click).
+    selection.setCursor(index);
+    openPreview(entry);
   }
 
   async function handleRename(entry: CloudFileEntry, newName: string) {
@@ -156,6 +195,7 @@ export function DriveFileArea({
   }
 
   async function downloadBlob(entry: CloudFileEntry) {
+    recordRecent(entry, childPath(path, entry.name));
     try {
       const blob = await ops.download(childPath(path, entry.name));
       const url = URL.createObjectURL(blob);
@@ -208,6 +248,42 @@ export function DriveFileArea({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [visibleNames, selection]);
+
+  // ---- keyboard shortcuts (window-level, input-guarded) ---------------------
+  const entriesAt = (i: number) => entries[i];
+
+  useDriveShortcuts(
+    {
+      onCursorMove: (delta) => selection.moveCursor(delta, entries.length),
+      onOpen: () => {
+        const entry = entriesAt(selection.cursor);
+        if (!entry) return;
+        if (entry.is_dir) {
+          const next = childPath(path, entry.name);
+          recordRecent(entry, next);
+          onNavigatePath(next);
+        } else {
+          openPreview(entry);
+        }
+      },
+      onUp: () => onNavigatePath(parentPath(path)),
+      onDelete: () => {
+        const targets =
+          selectedEntries.length > 0
+            ? selectedEntries
+            : [entriesAt(selection.cursor)].filter(
+                (e): e is CloudFileEntry => !!e && canWrite,
+              );
+        if (targets.length > 0) setDeleteTargets(targets);
+      },
+      onSelectAll: () => selection.selectAll(visibleNames),
+      onSearch: () =>
+        (document.querySelector("[data-cloud-search]") as HTMLInputElement | null)?.focus(),
+      onHelp: () => setShortcutsOpen((v) => !v),
+      onClear: () => selection.clear(),
+    },
+    true,
+  );
 
   // ---- dnd -----------------------------------------------------------------------
   const sensors = useSensors(
@@ -373,6 +449,8 @@ export function DriveFileArea({
                         canWrite={canWrite}
                         selected={selection.has(e.name)}
                         anySelected={selection.count > 0}
+                        cursor={selection.cursor === index}
+                        starred={starred.isStarred(account.id, childPath(path, e.name))}
                         onActivate={(ev) => handleActivate(e, index, ev)}
                         onToggleSelect={() => selection.handleClick(e.name, index, false, visibleNames)}
                         handlers={{
@@ -386,6 +464,17 @@ export function DriveFileArea({
                             ? () => setMoveCopy({ mode: "copy", sources: [childPath(path, e.name)] })
                             : undefined,
                           onTransfer: canTransfer ? () => setTransferSources([e]) : undefined,
+                          onStar: () =>
+                            starred
+                              .toggle({
+                                account_id: account.id,
+                                path: childPath(path, e.name),
+                                name: e.name,
+                                is_dir: e.is_dir,
+                              })
+                              .catch((err) => opErrorToast(err, t)),
+                          starred: starred.isStarred(account.id, childPath(path, e.name)),
+                          onShare: canWrite ? () => setShareTarget(e) : undefined,
                           onDelete: canWrite ? () => setDeleteTargets([e]) : undefined,
                         }}
                         dndEnabled
@@ -405,6 +494,8 @@ export function DriveFileArea({
                         canWrite={canWrite}
                         selected={selection.has(e.name)}
                         anySelected={selection.count > 0}
+                        cursor={selection.cursor === index}
+                        starred={starred.isStarred(account.id, childPath(path, e.name))}
                         onActivate={(ev) => handleActivate(e, index, ev)}
                         onToggleSelect={() => selection.handleClick(e.name, index, false, visibleNames)}
                         handlers={{
@@ -418,6 +509,17 @@ export function DriveFileArea({
                             ? () => setMoveCopy({ mode: "copy", sources: [childPath(path, e.name)] })
                             : undefined,
                           onTransfer: canTransfer ? () => setTransferSources([e]) : undefined,
+                          onStar: () =>
+                            starred
+                              .toggle({
+                                account_id: account.id,
+                                path: childPath(path, e.name),
+                                name: e.name,
+                                is_dir: e.is_dir,
+                              })
+                              .catch((err) => opErrorToast(err, t)),
+                          starred: starred.isStarred(account.id, childPath(path, e.name)),
+                          onShare: canWrite ? () => setShareTarget(e) : undefined,
                           onDelete: canWrite ? () => setDeleteTargets([e]) : undefined,
                         }}
                         dndEnabled
@@ -518,6 +620,28 @@ export function DriveFileArea({
         loading={deleting}
         onConfirm={() => void handleBulkDelete()}
       />
+
+      {previewIndex !== null && previewFiles.length > 0 && (
+        <PreviewSheet
+          accountId={account.id}
+          files={previewFiles}
+          index={Math.min(previewIndex, previewFiles.length - 1)}
+          onIndexChange={setPreviewIndex}
+          onClose={() => setPreviewIndex(null)}
+        />
+      )}
+
+      {shareTarget && (
+        <ShareLinkDialog
+          open
+          onOpenChange={(open) => !open && setShareTarget(null)}
+          accountId={account.id}
+          path={childPath(path, shareTarget.name)}
+          name={shareTarget.name}
+        />
+      )}
+
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
       {/* Paste-back dialog for the embedded client re-grant flow */}
       <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>

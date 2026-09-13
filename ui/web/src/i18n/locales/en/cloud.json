@@ -81,7 +81,12 @@
     "completing": "Finishing…"
   },
   "share": {
-    "toggle": "Share with organization"
+    "toggle": "Share with organization",
+    "menu_item": "Copy link",
+    "title": "Share link",
+    "copied": "Link copied",
+    "creating": "Creating link…",
+    "public_warning": "Anyone with this link can view the file until the provider revokes it."
   },
   "settings": {
     "title": "Cloud settings",
@@ -247,5 +252,46 @@
     "same_pair_error": "Source and target must differ (account + folder).",
     "empty": "No sync pairs configured yet.",
     "account_missing": "(account unavailable)"
+  },
+  "starred": {
+    "title": "Starred",
+    "add": "Add star",
+    "remove": "Remove star",
+    "empty": "No starred files or folders yet.",
+    "name": "Name",
+    "location": "Location",
+    "starred_at": "Starred",
+    "account_gone": "This account is no longer accessible"
+  },
+  "recent": {
+    "title": "Recent",
+    "empty": "Nothing opened yet on this device.",
+    "description": "Stored on this device only — never sent to the server.",
+    "clear": "Clear all",
+    "clear_confirm_title": "Clear recent list?",
+    "clear_confirm": "The list on this device will be emptied.",
+    "opened_at": "Opened"
+  },
+  "preview": {
+    "cannot_preview": "This file type cannot be previewed.",
+    "too_large": "File is larger than {{cap}} — download it to view.",
+    "loading": "Loading preview…",
+    "error": "Preview failed.",
+    "download": "Download",
+    "download_started": "Download started",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "description": "Shortcuts are ignored while typing in a field.",
+    "next": "Next item",
+    "prev": "Previous item",
+    "open": "Open",
+    "up": "Go up one folder",
+    "delete": "Delete selection",
+    "select_all": "Select all",
+    "search": "Focus search",
+    "help": "Shortcut help"
   }
 }

@@ -81,7 +81,12 @@
     "completing": "Đang hoàn tất…"
   },
   "share": {
-    "toggle": "Dùng chung tổ chức"
+    "toggle": "Dùng chung tổ chức",
+    "menu_item": "Sao chép liên kết",
+    "title": "Liên kết chia sẻ",
+    "copied": "Đã sao chép liên kết",
+    "creating": "Đang tạo liên kết…",
+    "public_warning": "Ai có liên kết này đều xem được file cho đến khi nhà cung cấp thu hồi."
   },
   "settings": {
     "title": "Cài đặt đám mây",
@@ -247,5 +252,46 @@
     "same_pair_error": "Nguồn và đích phải khác nhau (tài khoản + thư mục).",
     "empty": "Chưa có cặp đồng bộ nào.",
     "account_missing": "(tài khoản không khả dụng)"
+  },
+  "starred": {
+    "title": "Đã gắn dấu sao",
+    "add": "Gắn dấu sao",
+    "remove": "Bỏ dấu sao",
+    "empty": "Chưa có file hoặc thư mục nào được gắn dấu sao.",
+    "name": "Tên",
+    "location": "Vị trí",
+    "starred_at": "Ngày gắn sao",
+    "account_gone": "Tài khoản này không còn truy cập được"
+  },
+  "recent": {
+    "title": "Gần đây",
+    "empty": "Chưa mở gì trên thiết bị này.",
+    "description": "Chỉ lưu trên thiết bị này — không gửi lên máy chủ.",
+    "clear": "Xóa tất cả",
+    "clear_confirm_title": "Xóa danh sách gần đây?",
+    "clear_confirm": "Danh sách trên thiết bị này sẽ bị xóa.",
+    "opened_at": "Đã mở"
+  },
+  "preview": {
+    "cannot_preview": "Không xem trước được loại file này.",
+    "too_large": "File lớn hơn {{cap}} — hãy tải xuống để xem.",
+    "loading": "Đang tải bản xem trước…",
+    "error": "Xem trước thất bại.",
+    "download": "Tải xuống",
+    "download_started": "Đã bắt đầu tải xuống",
+    "prev": "Trước",
+    "next": "Sau"
+  },
+  "shortcuts": {
+    "title": "Phím tắt",
+    "description": "Phím tắt bị bỏ qua khi đang gõ trong ô nhập liệu.",
+    "next": "Mục kế tiếp",
+    "prev": "Mục trước",
+    "open": "Mở",
+    "up": "Lên thư mục cha",
+    "delete": "Xóa mục đang chọn",
+    "select_all": "Chọn tất cả",
+    "search": "Tới ô tìm kiếm",
+    "help": "Trợ giúp phím tắt"
   }
 }

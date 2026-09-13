@@ -78,6 +78,9 @@ func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores,
 	if syncSvc != nil && stores.CloudSyncPairs != nil {
 		handler.SetSync(stores.CloudSyncPairs, syncSvc)
 	}
+	if stores.CloudStarred != nil {
+		handler.SetStarred(stores.CloudStarred)
+	}
 	server.SetCloudHandler(handler)
 }
 

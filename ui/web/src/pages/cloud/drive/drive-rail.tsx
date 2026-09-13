@@ -1,15 +1,15 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Building2, Cloud, HardDrive, Inbox, Loader2 } from "lucide-react";
+import { Building2, Clock, Cloud, HardDrive, Inbox, Loader2, Star } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
-import { useCloudAccounts, type CloudProvider } from "../hooks/use-cloud";
+import { useCloudAccounts, useCloudStarred, type CloudProvider } from "../hooks/use-cloud";
 import { accountCanMail, MailboxPreview } from "./mailbox-preview";
 
 /** Connectable providers (backend mirror: cloud.SupportedProviders). */
@@ -37,8 +37,17 @@ export function DriveRail({
 }) {
   const { t } = useTranslation("cloud");
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { accounts } = useCloudAccounts();
+  const starred = useCloudStarred();
   const [mailAccountId, setMailAccountId] = useState<string | null>(null);
+  const activeView = params.get("view") ?? "";
+
+  /** Starred / recent pseudo-views live on /cloud itself (?view=…). */
+  function openView(view: "starred" | "recent") {
+    onNavigate?.();
+    navigate(`${ROUTES.CLOUD}?view=${view}`);
+  }
 
   const grouped = useMemo(() => {
     return CLOUD_PROVIDERS.map((p) => ({
@@ -54,6 +63,22 @@ export function DriveRail({
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-3">
+      <nav className="flex flex-col gap-1">
+        <RailLink
+          icon={Star}
+          label={t("starred.title")}
+          active={activeView === "starred"}
+          badge={starred.items.length > 0 ? starred.items.length : undefined}
+          onClick={() => openView("starred")}
+        />
+        <RailLink
+          icon={Clock}
+          label={t("recent.title")}
+          active={activeView === "recent"}
+          onClick={() => openView("recent")}
+        />
+      </nav>
+
       <nav className="flex flex-col gap-4">
         {grouped.map(({ provider, items }) => (
           <div key={provider.id}>
@@ -122,6 +147,40 @@ export function DriveRail({
       </Dialog>
 
     </div>
+  );
+}
+
+/** One rail link (starred / recent pseudo-views). */
+function RailLink({
+  icon: Icon,
+  label,
+  active,
+  badge,
+  onClick,
+}: {
+  icon: typeof Star;
+  label: string;
+  active: boolean;
+  badge?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
+        active && "bg-muted font-medium",
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {badge !== undefined && (
+        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+          {badge}
+        </span>
+      )}
+    </button>
   );
 }
 

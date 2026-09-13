@@ -94,6 +94,7 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 		RoutingRules:           NewPGRoutingRulesStore(db),
 		CloudAccounts:          NewPGCloudAccountStore(db, cfg.EncryptionKey),
 		CloudSyncPairs:         NewPGCloudSyncPairStore(db),
+		CloudStarred:           NewPGCloudStarredStore(db),
 	}
 	// Wire permStore into WorkstationStore so Create seeds allowlist atomically (H5 fix).
 	// Must happen after both stores are constructed.

@@ -1,4 +1,4 @@
-import { Download, FolderOpen, Copy, ArrowRight, ArrowRightLeft, Pencil, Trash2, type LucideIcon } from "lucide-react";
+import { Download, FolderOpen, Copy, ArrowRight, ArrowRightLeft, Link, Pencil, Star, Trash2, type LucideIcon } from "lucide-react";
 import type { CloudFileEntry } from "../hooks/use-cloud";
 
 /** One action in the item ⋮ menu / right-click context menu. Both menus render
@@ -19,6 +19,12 @@ export interface ItemActionHandlers {
   onCopy?: () => void;
   onTransfer?: () => void;
   onDelete?: () => void;
+  /** Star/unstar (always available — user-level metadata). */
+  onStar?: () => void;
+  /** True when the entry is currently starred (labels the toggle). */
+  starred?: boolean;
+  /** Copy a public share link (write-guarded — owner/admin only). */
+  onShare?: () => void;
 }
 
 /** Build the shared action list for one entry. Write actions are omitted when
@@ -36,6 +42,14 @@ export function buildItemActions(
   if (!entry.is_dir && handlers.onDownload) {
     actions.push({ key: "download", label: t("files.download"), icon: Download, onSelect: handlers.onDownload });
   }
+  if (handlers.onStar) {
+    actions.push({
+      key: "star",
+      label: handlers.starred ? t("starred.remove") : t("starred.add"),
+      icon: Star,
+      onSelect: handlers.onStar,
+    });
+  }
   if (canWrite) {
     if (handlers.onRename) {
       actions.push({ key: "rename", label: t("files.rename"), icon: Pencil, onSelect: handlers.onRename });
@@ -48,6 +62,9 @@ export function buildItemActions(
     }
     if (handlers.onTransfer) {
       actions.push({ key: "transfer", label: t("transfer.menu_item"), icon: ArrowRightLeft, onSelect: handlers.onTransfer });
+    }
+    if (handlers.onShare) {
+      actions.push({ key: "share", label: t("share.menu_item"), icon: Link, onSelect: handlers.onShare });
     }
     if (handlers.onDelete) {
       actions.push({

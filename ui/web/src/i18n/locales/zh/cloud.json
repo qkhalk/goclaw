@@ -81,7 +81,12 @@
     "completing": "正在完成…"
   },
   "share": {
-    "toggle": "组织内共享"
+    "toggle": "组织内共享",
+    "menu_item": "复制链接",
+    "title": "分享链接",
+    "copied": "链接已复制",
+    "creating": "正在创建链接…",
+    "public_warning": "任何拥有此链接的人都可以查看该文件，直到提供商撤销。"
   },
   "settings": {
     "title": "云盘设置",
@@ -247,5 +252,46 @@
     "same_pair_error": "源和目标必须不同（账户 + 文件夹）。",
     "empty": "尚未配置同步对。",
     "account_missing": "（账户不可用）"
+  },
+  "starred": {
+    "title": "已加星标",
+    "add": "加星标",
+    "remove": "移除星标",
+    "empty": "还没有加星标的文件或文件夹。",
+    "name": "名称",
+    "location": "位置",
+    "starred_at": "加星时间",
+    "account_gone": "此账户已无法访问"
+  },
+  "recent": {
+    "title": "最近",
+    "empty": "此设备上还没有打开过任何内容。",
+    "description": "仅存储在此设备上——从不上传到服务器。",
+    "clear": "全部清除",
+    "clear_confirm_title": "清除最近列表？",
+    "clear_confirm": "此设备上的列表将被清空。",
+    "opened_at": "打开时间"
+  },
+  "preview": {
+    "cannot_preview": "无法预览此文件类型。",
+    "too_large": "文件超过 {{cap}}——请下载后查看。",
+    "loading": "正在加载预览…",
+    "error": "预览失败。",
+    "download": "下载",
+    "download_started": "已开始下载",
+    "prev": "上一个",
+    "next": "下一个"
+  },
+  "shortcuts": {
+    "title": "键盘快捷键",
+    "description": "在输入框中输入时快捷键不生效。",
+    "next": "下一项",
+    "prev": "上一项",
+    "open": "打开",
+    "up": "上一级文件夹",
+    "delete": "删除所选",
+    "select_all": "全选",
+    "search": "聚焦搜索",
+    "help": "快捷键帮助"
   }
 }
