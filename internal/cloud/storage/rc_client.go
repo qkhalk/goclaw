@@ -73,9 +73,11 @@ func (c *RCClient) CoreVersion(ctx context.Context) (map[string]any, error) {
 
 // ConfigListRemotes returns configured remote names.
 func (c *RCClient) ConfigListRemotes(ctx context.Context) ([]string, error) {
-	var out []string
+	var out struct {
+		Remotes []string `json:"remotes"`
+	}
 	err := c.do(ctx, "config/listremotes", nil, &out)
-	return out, err
+	return out.Remotes, err
 }
 
 // ConfigCreate upserts a remote (rc config/create with update=true creates or
