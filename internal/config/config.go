@@ -67,6 +67,7 @@ type Config struct {
 	Packages  PackagesConfig  `json:"packages"` // runtime package mgmt (GitHub updater)
 	Messages  SystemMsgConfig `json:"system_messages,omitempty"`
 	Cloud     CloudConfig     `json:"cloud,omitempty"` // per-user OAuth cloud accounts (Google first)
+	Video     VideoConfig     `json:"video,omitempty"` // video render pipeline (worker sidecar)
 	mu        sync.RWMutex
 }
 
@@ -1029,6 +1030,7 @@ func (c *Config) ReplaceFrom(src *Config) {
 	c.Reliability = src.Reliability
 	c.Bindings = src.Bindings
 	c.Messages = src.Messages.Clone()
+	c.Video = src.Video
 }
 
 // Clone returns a deep copy of the config while holding the read lock.
