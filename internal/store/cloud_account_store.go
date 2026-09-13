@@ -96,6 +96,10 @@ type CloudAccountStore interface {
 	// ListShared returns the tenant-wide shared accounts (any owner), newest
 	// first. Tenant-scoped only — no user filter.
 	ListShared(ctx context.Context) ([]CloudAccount, error)
+	// ListTenant returns EVERY account of the ctx tenant (any owner). Worker
+	// scope only: the sync service resolves sync-pair endpoints without a user
+	// context — never expose this to per-user HTTP handlers.
+	ListTenant(ctx context.Context) ([]CloudAccount, error)
 	// SetShared toggles the tenant-wide shared flag on one account (scoped to
 	// the ctx tenant+user — the owner or an admin acting in scope).
 	SetShared(ctx context.Context, id string, shared bool) error

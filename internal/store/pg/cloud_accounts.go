@@ -242,6 +242,29 @@ func (s *PGCloudAccountStore) ListShared(ctx context.Context) ([]store.CloudAcco
 	return out, rows.Err()
 }
 
+// ListTenant returns EVERY account of the ctx tenant (any owner). Worker scope
+// only — the sync service resolves sync-pair endpoints without a user context.
+func (s *PGCloudAccountStore) ListTenant(ctx context.Context) ([]store.CloudAccount, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+cloudAccountColumns+`
+		FROM cloud_accounts WHERE tenant_id=$1
+		ORDER BY created_at DESC`,
+		store.TenantIDFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []store.CloudAccount
+	for rows.Next() {
+		acct, scanErr := s.scan(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, *acct)
+	}
+	return out, rows.Err()
+}
+
 // SetShared toggles the tenant-wide shared flag on one account (owner-scoped).
 func (s *PGCloudAccountStore) SetShared(ctx context.Context, id string, shared bool) error {
 	res, err := s.db.ExecContext(ctx,

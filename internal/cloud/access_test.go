@@ -35,6 +35,10 @@ func (f *fakeMultiAccountStore) List(ctx context.Context) ([]store.CloudAccount,
 	return f.own, nil
 }
 
+func (f *fakeMultiAccountStore) ListTenant(ctx context.Context) ([]store.CloudAccount, error) {
+	return f.ListShared(ctx)
+}
+
 func (f *fakeMultiAccountStore) ListShared(ctx context.Context) ([]store.CloudAccount, error) {
 	return f.shared, nil
 }

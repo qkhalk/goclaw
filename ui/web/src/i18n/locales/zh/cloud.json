@@ -187,5 +187,65 @@
     "uploads_title": "上传",
     "clear_finished": "清除",
     "menu": "操作"
+  },
+  "transfer": {
+    "menu_item": "传输到其他账户",
+    "title": "传输到其他账户",
+    "target_account": "目标账户",
+    "target_folder": "目标文件夹",
+    "choose_folder": "选择…",
+    "use_folder": "使用此文件夹",
+    "mode": {
+      "label": "模式",
+      "copy": "复制",
+      "move": "移动"
+    },
+    "move_folder_hint": "即使选择“移动”，文件夹也始终为复制——源文件夹不会被删除。",
+    "start": "传输",
+    "running": "传输中…",
+    "hide": "隐藏",
+    "done": "传输完成",
+    "some_failed": "{{count}} 个项目传输失败",
+    "background_running": "大文件夹将在后台继续传输。",
+    "status": {
+      "running": "进行中",
+      "done": "完成",
+      "background": "后台",
+      "error": "失败"
+    }
+  },
+  "sync": {
+    "section_title": "数据同步",
+    "section_description": "将一个账户的文件夹单向镜像到另一个账户。仅复制新增内容，从不在目标端删除。",
+    "add_pair": "添加同步对",
+    "source": "源",
+    "target": "目标",
+    "choose_source_folder": "文件夹…",
+    "choose_target_folder": "文件夹…",
+    "schedule": {
+      "label": "计划",
+      "manual": "仅手动",
+      "hourly": "每小时",
+      "daily": "每天",
+      "custom_minutes": "自定义…",
+      "every_n_minutes": "每 {{count}} 分钟"
+    },
+    "interval_minutes": "分钟",
+    "last_run": "上次运行",
+    "enabled": "启用",
+    "status": {
+      "ok": "正常",
+      "error": "错误",
+      "running": "运行中",
+      "never": "从未"
+    },
+    "run_now": "立即运行",
+    "run_queued": "已加入同步队列——请稍后查看状态",
+    "created": "同步对已创建",
+    "delete_confirm_title": "删除同步对？",
+    "delete_confirm": "已复制的文件保留在目标端，计划将停止。",
+    "same_pair_error": "源和目标必须不同（账户 + 文件夹）。",
+    "empty": "尚未配置同步对。",
+    "account_missing": "（账户不可用）"
   }
 }

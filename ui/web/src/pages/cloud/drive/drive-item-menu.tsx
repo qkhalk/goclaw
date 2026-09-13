@@ -1,4 +1,4 @@
-import { Download, FolderOpen, Copy, ArrowRight, Pencil, Trash2, type LucideIcon } from "lucide-react";
+import { Download, FolderOpen, Copy, ArrowRight, ArrowRightLeft, Pencil, Trash2, type LucideIcon } from "lucide-react";
 import type { CloudFileEntry } from "../hooks/use-cloud";
 
 /** One action in the item ⋮ menu / right-click context menu. Both menus render
@@ -17,6 +17,7 @@ export interface ItemActionHandlers {
   onRename?: () => void;
   onMove?: () => void;
   onCopy?: () => void;
+  onTransfer?: () => void;
   onDelete?: () => void;
 }
 
@@ -44,6 +45,9 @@ export function buildItemActions(
     }
     if (handlers.onCopy) {
       actions.push({ key: "copy", label: t("files.copy"), icon: Copy, onSelect: handlers.onCopy });
+    }
+    if (handlers.onTransfer) {
+      actions.push({ key: "transfer", label: t("transfer.menu_item"), icon: ArrowRightLeft, onSelect: handlers.onTransfer });
     }
     if (handlers.onDelete) {
       actions.push({

@@ -71,6 +71,18 @@ func (m *mockCloudAccountStore) ListShared(ctx context.Context) ([]store.CloudAc
 	return out, nil
 }
 
+// ListTenant returns every account of the ctx tenant (any owner).
+func (m *mockCloudAccountStore) ListTenant(ctx context.Context) ([]store.CloudAccount, error) {
+	tid := store.TenantIDFromContext(ctx)
+	var out []store.CloudAccount
+	for _, a := range m.accounts {
+		if a.TenantID == tid.String() {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
 func (m *mockCloudAccountStore) SetShared(context.Context, string, bool) error { return nil }
 func (m *mockCloudAccountStore) UpdateTokens(context.Context, string, store.CloudAccountUpdate) error {
 	return nil

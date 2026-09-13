@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 84
+const SchemaVersion = 85
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1576,6 +1576,30 @@ CREATE INDEX IF NOT EXISTS cloud_account_bindings_lookup
 ALTER TABLE cloud_account_bindings ADD COLUMN priority INTEGER NOT NULL DEFAULT 100;
 CREATE INDEX IF NOT EXISTS cloud_account_bindings_resolve
 	ON cloud_account_bindings (tenant_id, enabled, priority);`,
+
+	// Version 84 → 85: cloud sync pairs (PG 000122) — one-way additive mirror
+	// folder sync between two connected accounts, executed by the SyncService
+	// worker in internal/cloud. interval_minutes = 0 means manual-only.
+	// Key is the SOURCE version: applied when upgrading from 84 to reach
+	// SchemaVersion 85.
+	84: `CREATE TABLE IF NOT EXISTS cloud_sync_pairs (
+	id                 TEXT NOT NULL PRIMARY KEY,
+	tenant_id          TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+	source_account_id  TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+	source_path        TEXT NOT NULL DEFAULT '/',
+	target_account_id  TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+	target_path        TEXT NOT NULL DEFAULT '/',
+	interval_minutes   INTEGER NOT NULL DEFAULT 0,
+	enabled            INTEGER NOT NULL DEFAULT 1,
+	last_run_at        TEXT,
+	last_status        TEXT,
+	last_error         TEXT,
+	created_by         TEXT NOT NULL DEFAULT '',
+	created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_pairs_tenant
+	ON cloud_sync_pairs (tenant_id);`,
 }
 
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.

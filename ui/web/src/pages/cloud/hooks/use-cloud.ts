@@ -42,6 +42,39 @@ export interface CloudBinding {
 
 export type CloudProvider = "google" | "onedrive";
 
+/** One tenant-level one-way folder sync pair (source → target, additive
+ * mirror — files deleted at the source are never deleted at the target). */
+export interface CloudSyncPair {
+  id: string;
+  tenant_id: string;
+  source_account_id: string;
+  source_path: string;
+  target_account_id: string;
+  target_path: string;
+  /** 0 = manual ("run now") only. */
+  interval_minutes: number;
+  enabled: boolean;
+  last_run_at?: string;
+  /** ok | error | running (absent = never ran). */
+  last_status?: "ok" | "error" | "running";
+  last_error?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One starred file/folder of the caller (user-level metadata). */
+export interface CloudStarred {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  account_id: string;
+  path: string;
+  name: string;
+  is_dir: boolean;
+  starred_at: string;
+}
+
 /** One remote entry (GET /v1/cloud/accounts/{id}/files). */
 export interface CloudFileEntry {
   name: string;
@@ -190,6 +223,154 @@ export function useCloudBindings(enabled: boolean) {
   );
 
   return { bindings: query.data ?? [], loading: query.isLoading, upsertBinding, deleteBinding };
+}
+
+/** Sync-pair CRUD + manual run for the settings sheet. Tenant-admin only
+ * (every endpoint answers 403 for members). */
+export function useCloudSyncPairs(enabled: boolean) {
+  const http = useHttp();
+  const queryClient = useQueryClient();
+  const invalidate = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: queryKeys.cloud.syncPairs }),
+    [queryClient],
+  );
+
+  const query = useQuery({
+    queryKey: queryKeys.cloud.syncPairs,
+    enabled,
+    queryFn: async () =>
+      (await http.get<{ pairs: CloudSyncPair[] }>("/v1/cloud/sync-pairs")).pairs,
+  });
+
+  const createPair = useCallback(
+    async (input: {
+      source_account_id: string;
+      source_path: string;
+      target_account_id: string;
+      target_path: string;
+      interval_minutes?: number;
+      enabled?: boolean;
+    }) => {
+      await http.post("/v1/cloud/sync-pairs", input);
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  const updatePair = useCallback(
+    async (id: string, input: Partial<Omit<CloudSyncPair, "id" | "tenant_id" | "created_at" | "updated_at">>) => {
+      await http.put(`/v1/cloud/sync-pairs/${id}`, input);
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  const deletePair = useCallback(
+    async (id: string) => {
+      await http.delete(`/v1/cloud/sync-pairs/${id}`);
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  const runPair = useCallback(async (id: string) => {
+    await http.post(`/v1/cloud/sync-pairs/${id}/run`);
+  }, [http]);
+
+  return { pairs: query.data ?? [], loading: query.isLoading, createPair, updatePair, deletePair, runPair };
+}
+
+/** Cross-account transfer (POST /v1/cloud/transfer). Returns the async job id
+ * for folders ({job_id}) or 0-ish for synchronous file transfers. */
+export function useCloudTransfer() {
+  const http = useHttp();
+  return useCallback(
+    async (input: {
+      source_account_id: string;
+      source_path: string;
+      target_account_id: string;
+      target_path: string;
+      mode?: "copy" | "move";
+    }) => http.post<{ ok?: boolean; job_id?: string }>("/v1/cloud/transfer", input),
+    [http],
+  );
+}
+
+/** Poll one async transfer job (GET /v1/cloud/transfers/{jobId}) until it
+ * finishes. Polling stops on error or completion. */
+export function useCloudTransferJob(jobId: string | null) {
+  const http = useHttp();
+  return useQuery({
+    queryKey: queryKeys.cloud.transferJob(jobId ?? ""),
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      const job = query.state.data as CloudTransferJob | undefined;
+      return job && !job.finished ? 3000 : false;
+    },
+    queryFn: () => http.get<CloudTransferJob>(`/v1/cloud/transfers/${jobId}`),
+  });
+}
+
+/** Shape of GET /v1/cloud/transfers/{jobId}. */
+export interface CloudTransferJob {
+  job_id: string;
+  finished: boolean;
+  success: boolean;
+  error?: string;
+}
+
+/** Starred items of the caller (user-level, provider-agnostic metadata). */
+export function useCloudStarred() {
+  const http = useHttp();
+  const queryClient = useQueryClient();
+  const invalidate = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: queryKeys.cloud.starred }),
+    [queryClient],
+  );
+
+  const query = useQuery({
+    queryKey: queryKeys.cloud.starred,
+    queryFn: async () => (await http.get<{ items: CloudStarred[] }>("/v1/cloud/starred")).items,
+  });
+
+  const add = useCallback(
+    async (input: { account_id: string; path: string; name: string; is_dir: boolean }) => {
+      await http.put("/v1/cloud/starred", input);
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  const remove = useCallback(
+    async (id: string) => {
+      await http.delete(`/v1/cloud/starred/${id}`);
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  /** Toggle by account+path: removes when already starred, adds otherwise. */
+  const toggle = useCallback(
+    async (input: { account_id: string; path: string; name: string; is_dir: boolean }) => {
+      const items = queryClient.getQueryData<CloudStarred[]>(queryKeys.cloud.starred) ?? [];
+      const existing = items.find((s) => s.account_id === input.account_id && s.path === input.path);
+      if (existing) {
+        await remove(existing.id);
+        return false;
+      }
+      await add(input);
+      return true;
+    },
+    [queryClient, remove, add],
+  );
+
+  const isStarred = useCallback(
+    (accountId: string, path: string) =>
+      (query.data ?? []).some((s) => s.account_id === accountId && s.path === path),
+    [query.data],
+  );
+
+  return { items: query.data ?? [], loading: query.isLoading, add, remove, toggle, isStarred };
 }
 
 /** File-operation mutations for one account, consuming the Phase 4 backend:

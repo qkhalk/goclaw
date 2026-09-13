@@ -41,24 +41,29 @@ func newCloudManager(cfg *config.Config, stores *store.Stores) *cloud.Manager {
 	return manager
 }
 
-// newCloudStack builds the shared cloud Manager + rclone StorageService used
-// by BOTH the HTTP handler (account detail views) and the agent tools, so
-// there is exactly one rcd supervisor per gateway. Either may be nil when the
-// edition/kill-switch disables the surface.
-func newCloudStack(cfg *config.Config, stores *store.Stores, dataDir string) (*cloud.Manager, *cloud.StorageService, *cloud.MailService) {
+// newCloudStack builds the shared cloud Manager + rclone StorageService +
+// sync-pairs worker used by BOTH the HTTP handler (account detail views) and
+// the agent tools, so there is exactly one rcd supervisor per gateway.
+// Any return value may be nil when the edition/kill-switch disables the
+// surface (the worker additionally needs its pair + account + tenant stores).
+func newCloudStack(cfg *config.Config, stores *store.Stores, dataDir string) (*cloud.Manager, *cloud.StorageService, *cloud.MailService, *cloud.SyncService) {
 	manager := newCloudManager(cfg, stores)
 	if manager == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	storageSvc := cloud.NewStorageService(manager, dataDir+"/cloud")
 	manager.SetStorageService(storageSvc)
-	return manager, storageSvc, cloud.NewMailService(manager, cfg.Cloud.MailRate())
+	var syncSvc *cloud.SyncService
+	if stores != nil && stores.CloudSyncPairs != nil && stores.Tenants != nil {
+		syncSvc = cloud.NewSyncService(stores.CloudSyncPairs, stores.CloudAccounts, stores.Tenants, storageSvc)
+	}
+	return manager, storageSvc, cloud.NewMailService(manager, cfg.Cloud.MailRate()), syncSvc
 }
 
 // wireCloud attaches the Cloud handler to the gateway. Wiring is
 // unconditional in Standard editions so /v1/cloud/status can answer
 // "disabled" (with reasons) instead of 404; the handler gates per request.
-func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores, manager *cloud.Manager, mailSvc *cloud.MailService) {
+func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores, manager *cloud.Manager, mailSvc *cloud.MailService, syncSvc *cloud.SyncService) {
 	if !edition.Current().CloudAccountsEnabled {
 		slog.Debug("cloud: disabled by edition, handler not wired")
 		return
@@ -68,8 +73,12 @@ func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores,
 		return
 	}
 	enabled := manager != nil
-	server.SetCloudHandler(httpapi.NewCloudHandler(
-		manager, stores.CloudAccounts, stores.Tenants, mailSvc, enabled, cfg.Cloud.RedirectBaseURL, int64(cfg.Cloud.FetchCapMB())))
+	handler := httpapi.NewCloudHandler(
+		manager, stores.CloudAccounts, stores.Tenants, mailSvc, enabled, cfg.Cloud.RedirectBaseURL, int64(cfg.Cloud.FetchCapMB()))
+	if syncSvc != nil && stores.CloudSyncPairs != nil {
+		handler.SetSync(stores.CloudSyncPairs, syncSvc)
+	}
+	server.SetCloudHandler(handler)
 }
 
 // wireCloudTools registers the cloud agent tools (cloud_accounts, mail_*,
