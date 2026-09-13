@@ -13,6 +13,14 @@ import { RAIL_COLLAPSED_STORAGE_KEY } from "./paths";
 import { useCloudAccounts, useCloudStarred, type CloudAccount, type CloudProvider } from "../hooks/use-cloud";
 import { accountCanMail, MailboxPreview } from "./mailbox-preview";
 
+/** Shared nav-row styling for every clickable rail row (provider rows, account
+ * rows, quick views) — mirrors the global sidebar nav-item (rounded-md, text-sm,
+ * 44px touch target). Sizing/indent classes are added per call site
+ * (flex-1/px-2 for provider rows, w-full + pl-8 indent for nested account
+ * rows) so every row's highlight spans the FULL inner rail width. */
+const RAIL_ROW =
+  "flex min-h-11 min-w-0 items-center gap-2 rounded-md py-1.5 text-left text-sm transition-colors hover:bg-muted/60";
+
 /** Connectable providers (backend mirror: cloud.SupportedProviders). */
 export const CLOUD_PROVIDERS: { id: CloudProvider; name: string; icon: typeof Cloud }[] = [
   { id: "google", name: "Google Drive", icon: Cloud },
@@ -128,10 +136,7 @@ export function DriveRail({
                 <button
                   type="button"
                   onClick={() => openProvider(p.id)}
-                  className={cn(
-                    "flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
-                    providerActive && "bg-muted font-medium",
-                  )}
+                  className={cn(RAIL_ROW, "flex-1 px-2", providerActive && "bg-muted font-medium")}
                 >
                   <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">{p.name}</span>
@@ -154,7 +159,7 @@ export function DriveRail({
                 )}
               </div>
               {items.length > 0 && !isCollapsed && (
-                <ul className="flex w-full flex-col gap-0.5 pl-6">
+                <ul className="flex w-full flex-col gap-0.5">
                   {items.map((a) => {
                     const active = a.id === accountId;
                     return (
@@ -162,10 +167,7 @@ export function DriveRail({
                         <button
                           type="button"
                           onClick={() => openAccount(a.provider, a.id)}
-                          className={cn(
-                            "flex min-h-11 min-w-0 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
-                            active && "bg-muted font-medium",
-                          )}
+                          className={cn(RAIL_ROW, "w-full pl-8 pr-2", active && "bg-muted font-medium")}
                           title={a.shared ? `${t("drive.shared_tag")} · ${a.email}` : a.email}
                         >
                           {a.shared ? (
@@ -238,10 +240,7 @@ function RailLink({
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
-        active && "bg-muted font-medium",
-      )}
+      className={cn(RAIL_ROW, "w-full px-2", active && "bg-muted font-medium")}
     >
       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
