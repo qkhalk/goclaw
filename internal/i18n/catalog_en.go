@@ -449,5 +449,13 @@ func init() {
 		"telegram.status.thinkmode": "⚙️ Think: %s · Mode: %s",
 		"telegram.status.queue": " · 🪢 Queue: %s %d/%d active, %d pending",
 		"telegram.status.fullhint": "/status full — show everything",
-})
+
+		// Video render pipeline
+		MsgVideoJobCreated:   "video render job %s created",
+		MsgVideoJobFailed:    "video render job %s failed: %s",
+		MsgVideoJobCancelled: "video render job %s cancelled",
+		MsgVideoJobDone:      "video render job %s completed",
+		MsgVideoDisabled:     "video rendering is not enabled on this gateway",
+		MsgVideoWorkerUnavail: "video worker is not reachable",
+	})
 }

@@ -210,6 +210,8 @@ func (c *Config) applyEnvOverrides() {
 	// Cloud accounts (Google/Microsoft OAuth client secrets — never in config.json).
 	envStr("GOCLAW_CLOUD_GOOGLE_CLIENT_SECRET", &c.Cloud.Google.ClientSecret)
 	envStr("GOCLAW_CLOUD_MICROSOFT_CLIENT_SECRET", &c.Cloud.Microsoft.ClientSecret)
+	// Video render pipeline worker secret (never in config.json).
+	envStr("GOCLAW_VIDEO_WORKER_TOKEN", &c.Video.WorkerToken)
 	// Additional model providers (OpenClaw-parity set).
 	envStr("GOCLAW_MOONSHOT_API_KEY", &c.Providers.Moonshot.APIKey)
 	envStr("GOCLAW_TOGETHER_API_KEY", &c.Providers.Together.APIKey)

@@ -473,4 +473,12 @@ const (
 	MsgTGStatusThinkMode     = "telegram.status.thinkmode"      // "⚙️ Think: %s · Mode: %s"
 	MsgTGStatusQueue         = "telegram.status.queue"          // " · 🪢 Queue: %s %d/%d active, %d pending"
 	MsgTGStatusFullHint      = "telegram.status.fullhint"       // "/status full — show everything"
+
+	// --- Video render pipeline ---
+	MsgVideoJobCreated   = "video.job_created"   // "video render job %s created"
+	MsgVideoJobFailed    = "video.job_failed"    // "video render job %s failed: %s"
+	MsgVideoJobCancelled = "video.job_cancelled" // "video render job %s cancelled"
+	MsgVideoJobDone      = "video.job_done"      // "video render job %s completed"
+	MsgVideoDisabled     = "video.disabled"      // "video rendering is not enabled on this gateway"
+	MsgVideoWorkerUnavail = "video.worker_unavailable" // "video worker is not reachable"
 )
