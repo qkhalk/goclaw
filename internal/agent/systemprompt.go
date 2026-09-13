@@ -212,7 +212,7 @@ var coreToolSummaries = map[string]string{
 	"tts":                    "Convert text to speech audio",
 	"edit":                   "Edit a file by replacing exact text matches",
 	"message":                "Send a PROACTIVE message to another channel/chat — do NOT use this to reply to the user, just respond directly",
-	"ask_options":            "Ask the user a clarifying question with tappable options (Telegram) — use when 2-4 interpretations exist; end your turn after calling it",
+	"ask_options":            "Ask the user a clarifying question with tappable options (Telegram / web chat) — use when 2-4 interpretations exist; end your turn after calling it",
 	"sessions_list":          "List sessions for this agent",
 	"session_status":         "Show session status (model, tokens, compaction count)",
 	"sessions_history":       "Fetch message history for a session",

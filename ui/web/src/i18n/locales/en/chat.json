@@ -175,5 +175,12 @@
     "fullAccess": "Full access",
     "writeApproval": "Write approval",
     "alwaysAsk": "Always ask"
+  },
+  "askOptions": {
+    "answered": "Answered",
+    "readOnly": "Read-only view — open the chat to answer",
+    "other": "Other…",
+    "otherPlaceholder": "Type your own answer…",
+    "send": "Send answer"
   }
 }
