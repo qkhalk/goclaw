@@ -41,9 +41,8 @@
   "recentRequests": {
     "columns": {
       "model": "模型",
-      "in": "输入",
-      "out": "输出",
-      "when": "时间"
+      "when": "时间",
+      "inOut": "输入 / 输出"
     },
     "noRequests": "暂无最近请求",
     "title": "最近请求",
