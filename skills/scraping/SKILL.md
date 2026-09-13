@@ -38,12 +38,33 @@ right to scrape.
 ```bash
 python3 -c "import scrapling" 2>/dev/null || pip3 install 'scrapling[fetchers]'
 python3 -c "import markdownify" 2>/dev/null || pip3 install markdownify   # needed for --markdown
-scrapling install --force 2>/dev/null || scrapling install   # one-time: downloads browsers for browser/stealth modes
 ```
 
-Static mode works without browsers; browser/stealth modes require `scrapling install`.
-Prefer static mode — it is lightweight (no browser) and its TLS impersonation
-passes most basic bot checks.
+Static mode needs NO browsers — it is the default, lightweight, and its TLS
+impersonation passes most basic bot checks. Browser and stealth modes need
+large browser downloads (~500 MB Chromium, ~250 MB Camoufox) which are
+**installed only after explicit user approval** — see the install gate below.
+Never download browsers proactively or on first failure.
+
+## Browser install gate (ask the user first — mandatory)
+
+Browsers are big and hosts are often disk-constrained, so they are not
+installed by default. When static mode cannot get the content:
+
+1. **Identify what is missing:**
+   - Page is JS-rendered (HTML loads but data missing) → needs **Chromium**
+     (browser mode).
+   - Authorized target behind an anti-bot challenge → needs **Camoufox**
+     (stealth mode).
+2. **STOP and ask the user with `ask_options` before any download.** State
+   what will be installed and the disk cost, e.g. "Trang này cần chạy
+   JavaScript mới lấy được dữ liệu. Cài Chromium (~500MB) để cào tiếp không?"
+   with options: install Chromium / install Camoufox / skip and report.
+3. **Only after explicit approval**, run exactly what was approved:
+   - Chromium only: `python3 -m playwright install chromium`
+   - Camoufox only: `python3 -m camoufox fetch`
+4. Mention the new install in your final report so the user knows the disk
+   cost. If the user declines, finish with static-only results and say so.
 
 ## Rules of engagement (before any fetch)
 
@@ -65,8 +86,8 @@ passes most basic bot checks.
 | Mode | Command | Use when |
 |------|---------|----------|
 | `static` (default) | Fetcher.get | Server-rendered HTML, APIs returning HTML, fast + light |
-| `browser` | DynamicFetcher | JS-rendered content, infinite scroll pages, SPAs |
-| `stealth` | StealthyFetcher | Anti-bot interstitials (Cloudflare Turnstile) on targets you may access |
+| `browser` | DynamicFetcher | JS-rendered content, SPAs — Chromium required (install gate) |
+| `stealth` | StealthyFetcher | Anti-bot challenges on authorized targets — Camoufox required (install gate) |
 
 Rule: always try `static` first; escalate only when content is missing or blocked.
 
@@ -177,8 +198,8 @@ RAG corpora) live in `scrapling.spiders` — use them only when pagination via
 |---------|-----|
 | `scrapling is not installed` | `pip3 install 'scrapling[fetchers]'` |
 | Browser launch error (browser/stealth modes) | `scrapling install`, retry once |
-| Empty items but page loads | Content is JS-rendered → `--mode browser`; or selector wrong → inspect HTML saved via `scrapling extract get <url> page.html` |
+| Empty items but page loads | Content is JS-rendered → follow the Browser install gate (ask user) then `--mode browser`; or selector wrong → inspect HTML saved via `scrapling extract get <url> page.html` |
 | `markdown() failed: requires markdownify` | `pip3 install markdownify` |
-| 403/429 or challenge page | Stop per Rules of engagement unless the requester owns the target → `--mode stealth --solve-cloudflare` (stealth needs `scrapling install`) |
+| 403/429 or challenge page | Stop per Rules of engagement unless the requester owns the target → Browser install gate for Camoufox, then `--mode stealth --solve-cloudflare` |
 | Fields all null | Field selectors must end in `::text` / `::attr(name)`; verify selector against saved HTML |
 | Missing later pages | `--next` selector wrong (check it matches the actual link element), or `--max-pages` too low |
