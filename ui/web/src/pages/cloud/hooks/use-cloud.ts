@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
+import { parentPath } from "../drive/paths";
 
 /** One connected cloud account (tokens never returned by the API). */
 export interface CloudAccount {
@@ -375,8 +376,9 @@ export function useCloudStarred() {
 
 /** File-operation mutations for one account, consuming the Phase 4 backend:
  * mkdir / move(rename) / copy / delete / upload (multipart with progress) /
- * download. All mutations invalidate the account's file listing + quota
- * (uploads and deletes change both). */
+ * download. Mutations invalidate the account's file listing + quota (uploads
+ * and deletes change both); mkdir is targeted — only the parent folder's
+ * listing, refetched in the background without blocking the caller. */
 export function useCloudFileOps(accountId: string) {
   const http = useHttp();
   const queryClient = useQueryClient();
@@ -388,9 +390,15 @@ export function useCloudFileOps(accountId: string) {
   const mkdir = useCallback(
     async (path: string) => {
       await http.post(`/v1/cloud/accounts/${accountId}/folders`, { path });
-      await invalidate();
+      // Mkdir only adds one entry to the PARENT listing: invalidate just that
+      // key and let react-query refetch it in the background (no await, no
+      // quota refetch, no purge of every cached folder of the account) — this
+      // keeps "New folder" as fast as the POST round trip.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.cloud.files(accountId, parentPath(path)),
+      });
     },
-    [http, accountId, invalidate],
+    [http, accountId, queryClient],
   );
 
   /** Rename or move within the account (PATCH — same endpoint). */
