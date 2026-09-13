@@ -141,6 +141,7 @@
   },
   "drive": {
     "my_drives": "Ổ của tôi",
+    "providers": "Nhà cung cấp",
     "accounts": "Tài khoản",
     "shared_tag": "Dùng chung",
     "storage": "Bộ nhớ",

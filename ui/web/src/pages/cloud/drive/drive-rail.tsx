@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Building2, Clock, Cloud, HardDrive, Inbox, Loader2, Star } from "lucide-react";
@@ -9,7 +9,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
-import { useCloudAccounts, useCloudStarred, type CloudProvider } from "../hooks/use-cloud";
+import { useCloudAccounts, useCloudStarred, type CloudAccount, type CloudProvider } from "../hooks/use-cloud";
 import { accountCanMail, MailboxPreview } from "./mailbox-preview";
 
 /** Connectable providers (backend mirror: cloud.SupportedProviders). */
@@ -25,9 +25,10 @@ interface CloudAbout {
   free: number;
 }
 
-/** Drive-style left rail: accounts grouped per provider, quota card of the
- * open account, mailbox preview. Rendered in a desktop aside and in a mobile
- * Sheet (DriveShell). */
+/** Drive-style left rail: quick views, providers section (each provider a nav
+ * item with its accounts nested below), quota card of the open account,
+ * mailbox preview. Rendered in a desktop aside and in a mobile Sheet
+ * (DriveShell). */
 export function DriveRail({
   accountId,
   onNavigate,
@@ -38,6 +39,7 @@ export function DriveRail({
   const { t } = useTranslation("cloud");
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const { provider: routeProvider } = useParams();
   const { accounts } = useCloudAccounts();
   const starred = useCloudStarred();
   const [mailAccountId, setMailAccountId] = useState<string | null>(null);
@@ -49,11 +51,19 @@ export function DriveRail({
     navigate(`${ROUTES.CLOUD}?view=${view}`);
   }
 
-  const grouped = useMemo(() => {
-    return CLOUD_PROVIDERS.map((p) => ({
-      provider: p,
-      items: accounts.filter((a) => a.provider === p.id),
-    })).filter((g) => g.items.length > 0);
+  function openProvider(id: string) {
+    onNavigate?.();
+    navigate(ROUTES.CLOUD_PROVIDER.replace(":provider", id));
+  }
+
+  const byProvider = useMemo(() => {
+    const map = new Map<CloudProvider, CloudAccount[]>();
+    for (const p of CLOUD_PROVIDERS) map.set(p.id, []);
+    for (const a of accounts) {
+      const list = map.get(a.provider as CloudProvider);
+      if (list) list.push(a);
+    }
+    return map;
   }, [accounts]);
 
   function openAccount(provider: string, id: string) {
@@ -79,60 +89,81 @@ export function DriveRail({
         />
       </nav>
 
-      <nav className="flex flex-col gap-4">
-        {grouped.map(({ provider, items }) => (
-          <div key={provider.id}>
-            <p className="mb-1 flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
-              <provider.icon className="h-3.5 w-3.5 shrink-0" />
-              {provider.name}
-            </p>
-            <ul className="flex flex-col gap-0.5">
-              {items.map((a) => {
-                const active = a.id === accountId;
-                return (
-                  <li key={a.id}>
-                    <button
-                      type="button"
-                      onClick={() => openAccount(a.provider, a.id)}
-                      className={cn(
-                        "flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
-                        active && "bg-muted font-medium",
-                      )}
-                      title={a.shared ? t("drive.shared_tag") : undefined}
-                    >
-                      {a.shared ? (
-                        <Building2 className="h-4 w-4 shrink-0 text-amber-500" aria-label={t("drive.shared_tag")} />
-                      ) : (
-                        <provider.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className="min-w-0 flex-1 truncate">{a.email}</span>
-                      {accountCanMail(a) && (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          aria-label={t("drive.mail")}
-                          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMailAccountId(a.id);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.stopPropagation();
-                              setMailAccountId(a.id);
-                            }
-                          }}
+      <nav className="flex flex-col gap-1">
+        <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+          {t("drive.providers")}
+        </p>
+        {CLOUD_PROVIDERS.map((p) => {
+          const items = byProvider.get(p.id) ?? [];
+          const providerActive = routeProvider === p.id;
+          return (
+            <div key={p.id}>
+              <button
+                type="button"
+                onClick={() => openProvider(p.id)}
+                className={cn(
+                  "flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
+                  providerActive && "bg-muted font-medium",
+                )}
+              >
+                <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                {items.length > 0 && (
+                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+                    {items.length}
+                  </span>
+                )}
+              </button>
+              {items.length > 0 && (
+                <ul className="flex flex-col gap-0.5 pl-6">
+                  {items.map((a) => {
+                    const active = a.id === accountId;
+                    return (
+                      <li key={a.id}>
+                        <button
+                          type="button"
+                          onClick={() => openAccount(a.provider, a.id)}
+                          className={cn(
+                            "flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
+                            active && "bg-muted font-medium",
+                          )}
+                          title={a.shared ? t("drive.shared_tag") : undefined}
                         >
-                          <Inbox className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+                          {a.shared ? (
+                            <Building2 className="h-4 w-4 shrink-0 text-amber-500" aria-label={t("drive.shared_tag")} />
+                          ) : (
+                            <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <span className="min-w-0 flex-1 truncate">{a.email}</span>
+                          {accountCanMail(a) && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              aria-label={t("drive.mail")}
+                              className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMailAccountId(a.id);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.stopPropagation();
+                                  setMailAccountId(a.id);
+                                }
+                              }}
+                            >
+                              <Inbox className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {accountId && <RailQuotaCard accountId={accountId} />}

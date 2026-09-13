@@ -141,6 +141,7 @@
   },
   "drive": {
     "my_drives": "我的云盘",
+    "providers": "提供商",
     "accounts": "账户",
     "shared_tag": "共享",
     "storage": "存储空间",

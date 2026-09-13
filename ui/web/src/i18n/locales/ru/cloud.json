@@ -141,6 +141,7 @@
   },
   "drive": {
     "my_drives": "Мои диски",
+    "providers": "Провайдеры",
     "accounts": "Аккаунты",
     "shared_tag": "Общий",
     "storage": "Хранилище",

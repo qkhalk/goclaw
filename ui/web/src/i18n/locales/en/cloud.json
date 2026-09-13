@@ -141,6 +141,7 @@
   },
   "drive": {
     "my_drives": "My drives",
+    "providers": "Providers",
     "accounts": "Accounts",
     "shared_tag": "Shared",
     "storage": "Storage",
