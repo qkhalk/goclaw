@@ -108,7 +108,7 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 
 		// messaging
 		{Name: "message", DisplayName: "Message", Description: "Send a proactive message to a user on a connected channel (Telegram, Discord, etc.)", Category: "messaging", Enabled: true},
-		{Name: "ask_options", DisplayName: "Ask Options", Description: "Ask the user a clarifying question with tappable option buttons (Telegram)", Category: "messaging", Enabled: true},
+		{Name: "ask_options", DisplayName: "Ask Options", Description: "Ask the user a clarifying question with tappable option buttons (Telegram, web chat)", Category: "messaging", Enabled: true},
 		{Name: "send_file", DisplayName: "Send File", Description: "Send an existing workspace file as an attachment in the current chat (does not create or modify the file)", Category: "messaging", Enabled: true},
 		{Name: "create_forum_topic", DisplayName: "Create Telegram Forum Topic", Description: "Create a Telegram forum topic and return its message_thread_id for routing", Category: "messaging", Enabled: true},
 		{Name: "list_group_members", DisplayName: "List Group Members", Description: "List the members of the current group chat", Category: "messaging", Enabled: true},

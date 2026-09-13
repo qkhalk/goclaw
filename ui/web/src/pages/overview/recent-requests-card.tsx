@@ -25,15 +25,15 @@ interface RecentLLMRequest {
 
 const REFRESH_INTERVAL = 30_000;
 
-/** 9router-style recent requests: one row per LLM API call with the model,
- * colored in/out token counts and a relative timestamp. */
+/** 9router-style recent requests: one row per LLM API call — Model |
+ * In/Out (colored) | When. */
 export function RecentRequestsCard() {
   const { t } = useTranslation("overview");
   const http = useHttp();
   const { data, isLoading } = useQuery({
     queryKey: ["usage", "recent-requests"],
     refetchInterval: REFRESH_INTERVAL,
-    queryFn: () => http.get<{ requests: RecentLLMRequest[] }>("/v1/usage/recent-requests", { limit: "10" }),
+    queryFn: () => http.get<{ requests: RecentLLMRequest[] }>("/v1/usage/recent-requests", { limit: "8" }),
   });
   const requests = data?.requests ?? [];
 
@@ -53,7 +53,7 @@ export function RecentRequestsCard() {
       <CardContent>
         {isLoading ? (
           <div className="space-y-2.5">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-6 w-full" />
             ))}
           </div>
@@ -66,9 +66,8 @@ export function RecentRequestsCard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">{t("recentRequests.columns.model")}</th>
-                  <th className="pb-2 px-4 font-medium text-right">{t("recentRequests.columns.in")}</th>
-                  <th className="pb-2 px-4 font-medium text-right">{t("recentRequests.columns.out")}</th>
+                  <th className="pb-2 font-medium">{t("recentRequests.columns.model")}</th>
+                  <th className="pb-2 px-4 font-medium text-right">{t("recentRequests.columns.inOut")}</th>
                   <th className="pb-2 pl-4 font-medium text-right">{t("recentRequests.columns.when")}</th>
                 </tr>
               </thead>
@@ -84,7 +83,9 @@ export function RecentRequestsCard() {
                           />
                         )}
                         <div className="min-w-0">
-                          <p className="truncate font-mono text-xs font-medium">{r.model || "--"}</p>
+                          <p className="truncate font-mono text-xs font-medium" title={r.model}>
+                            {r.model || "--"}
+                          </p>
                           {(r.cost_usd ?? 0) > 0 && (
                             <p className="text-[11px] leading-tight text-muted-foreground">
                               ${r.cost_usd!.toFixed(4)}
@@ -93,19 +94,21 @@ export function RecentRequestsCard() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums whitespace-nowrap">
+                    <td
+                      className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums"
+                      title={`${r.input_tokens.toLocaleString()} in / ${r.output_tokens.toLocaleString()} out`}
+                    >
                       <span className="inline-flex items-center gap-1 text-rose-500 dark:text-rose-400">
                         <ArrowUp className="h-3 w-3" />
                         {formatTokens(r.input_tokens)}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums whitespace-nowrap">
+                      <span className="mx-1.5 text-muted-foreground/60">/</span>
                       <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                         <ArrowDown className="h-3 w-3" />
                         {formatTokens(r.output_tokens)}
                       </span>
                     </td>
-                    <td className="py-2.5 pl-4 text-right text-muted-foreground whitespace-nowrap">
+                    <td className="whitespace-nowrap py-2.5 pl-4 text-right text-muted-foreground">
                       {formatRelativeTime(r.start_time)}
                     </td>
                   </tr>

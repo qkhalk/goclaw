@@ -114,6 +114,10 @@ const (
 	ChannelSystem    = "system"
 	ChannelDashboard = "dashboard"
 	ChannelTeammate  = "teammate"
+	// ChannelWeb is the dashboard web-chat run channel (chat.send over the
+	// gateway WS); the web UI renders ask_options questions from the
+	// tool.result event's arguments.
+	ChannelWeb = "ws"
 )
 
 // MediaPathLoader resolves a media ID to a local file path.
