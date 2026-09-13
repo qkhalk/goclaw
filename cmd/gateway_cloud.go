@@ -41,10 +41,24 @@ func newCloudManager(cfg *config.Config, stores *store.Stores) *cloud.Manager {
 	return manager
 }
 
+// newCloudStack builds the shared cloud Manager + rclone StorageService used
+// by BOTH the HTTP handler (account detail views) and the agent tools, so
+// there is exactly one rcd supervisor per gateway. Either may be nil when the
+// edition/kill-switch disables the surface.
+func newCloudStack(cfg *config.Config, stores *store.Stores, dataDir string) (*cloud.Manager, *cloud.StorageService, *cloud.MailService) {
+	manager := newCloudManager(cfg, stores)
+	if manager == nil {
+		return nil, nil, nil
+	}
+	storageSvc := cloud.NewStorageService(manager, dataDir+"/cloud")
+	manager.SetStorageService(storageSvc)
+	return manager, storageSvc, cloud.NewMailService(manager, cfg.Cloud.MailRate())
+}
+
 // wireCloud attaches the Cloud handler to the gateway. Wiring is
 // unconditional in Standard editions so /v1/cloud/status can answer
 // "disabled" (with reasons) instead of 404; the handler gates per request.
-func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores) {
+func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores, manager *cloud.Manager, mailSvc *cloud.MailService) {
 	if !edition.Current().CloudAccountsEnabled {
 		slog.Debug("cloud: disabled by edition, handler not wired")
 		return
@@ -53,20 +67,18 @@ func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores)
 		slog.Warn("cloud: account store unavailable, handler not wired")
 		return
 	}
-	manager := newCloudManager(cfg, stores)
 	enabled := manager != nil
 	server.SetCloudHandler(httpapi.NewCloudHandler(
-		manager, stores.CloudAccounts, stores.Tenants, enabled, cfg.Cloud.RedirectBaseURL))
+		manager, stores.CloudAccounts, stores.Tenants, mailSvc, enabled, cfg.Cloud.RedirectBaseURL))
 }
 
 // wireCloudTools registers the cloud agent tools (cloud_accounts, mail_*,
-// cloud_*) when the edition allows. Credentials and connected accounts are
-// resolved at call time, so tools work immediately after the admin saves the
-// OAuth client from the web-UI setup form — no restart. Returns a cleanup
-// func that stops the rclone supervisor (safe to defer).
-func wireCloudTools(cfg *config.Config, stores *store.Stores, toolsReg *tools.Registry, workspace, dataDir string) func() {
-	manager := newCloudManager(cfg, stores)
-	if manager == nil {
+// cloud_*) on the shared manager/stack. Credentials and connected accounts
+// are resolved at call time, so tools work immediately after the admin saves
+// the OAuth client from the web-UI setup form — no restart. Returns a
+// cleanup func that stops the rclone supervisor (safe to defer).
+func wireCloudTools(manager *cloud.Manager, storageSvc *cloud.StorageService, cfg *config.Config, toolsReg *tools.Registry, workspace string) func() {
+	if manager == nil || storageSvc == nil {
 		return func() {}
 	}
 
@@ -74,11 +86,6 @@ func wireCloudTools(cfg *config.Config, stores *store.Stores, toolsReg *tools.Re
 	for _, tool := range tools.NewCloudMailTools(mailSvc, cfg.Cloud.MailReadCap()).Tools() {
 		toolsReg.Register(tool)
 	}
-
-	// Storage tools (rclone-backed): registered alongside mail so the tool set
-	// is coherent; they degrade with a clear error when rclone is missing.
-	storageSvc := cloud.NewStorageService(manager, dataDir+"/cloud")
-	manager.SetStorageService(storageSvc)
 	for _, tool := range tools.NewCloudStorageTools(storageSvc, workspace, int64(cfg.Cloud.FetchCapMB())).Tools() {
 		toolsReg.Register(tool)
 	}

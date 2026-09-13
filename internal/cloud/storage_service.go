@@ -178,15 +178,42 @@ func (s *StorageService) Stat(ctx context.Context, account, path string) (*stora
 
 // About returns quota info for the account's Drive.
 func (s *StorageService) About(ctx context.Context, account string) (*storage.AboutInfo, error) {
-	fs, err := s.FS(ctx, account)
+	acct, err := s.resolveAccount(ctx, account)
 	if err != nil {
 		return nil, err
 	}
+	return s.aboutFor(ctx, acct)
+}
+
+func (s *StorageService) aboutFor(ctx context.Context, acct *store.CloudAccount) (*storage.AboutInfo, error) {
 	rc, err := s.supervisor.RC(ctx)
 	if err != nil {
 		return nil, err
 	}
+	fs, err := s.ensureRemote(ctx, acct)
+	if err != nil {
+		return nil, err
+	}
 	return rc.OperationsAbout(ctx, fs)
+}
+
+// AboutAccount returns quota info for a specific connected account (no
+// re-resolution — the caller already proved accessibility).
+func (s *StorageService) AboutAccount(ctx context.Context, acct *store.CloudAccount) (*storage.AboutInfo, error) {
+	return s.aboutFor(ctx, acct)
+}
+
+// ListAccount lists one account's remote path (caller proved accessibility).
+func (s *StorageService) ListAccount(ctx context.Context, acct *store.CloudAccount, path string, max int) ([]storage.ListEntry, error) {
+	rc, err := s.supervisor.RC(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fs, err := s.ensureRemote(ctx, acct)
+	if err != nil {
+		return nil, err
+	}
+	return rc.OperationsList(ctx, fs, path, max)
 }
 
 // Fetch copies a remote file into the workspace (workspace/cloud/<name>),

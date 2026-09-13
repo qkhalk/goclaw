@@ -5,11 +5,13 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 
 	cloudmgr "github.com/nextlevelbuilder/goclaw/internal/cloud"
+	"github.com/nextlevelbuilder/goclaw/internal/cloud/mail"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -29,12 +31,13 @@ type CloudHandler struct {
 	accounts     store.CloudAccountStore
 	bindings     store.CloudBindingStore // optional (same DB handle as accounts)
 	tenants      store.TenantStore       // for requireTenantAdmin on shared/bindings writes
+	mail         *cloudmgr.MailService   // optional; backs the per-account mailbox view
 	enabled      bool                    // edition gate AND config kill-switch (cloud.enabled); credentials are dynamic
 	redirectBase string                  // cloud.redirect_base_url (empty = derive from request)
 }
 
 // NewCloudHandler creates a CloudHandler.
-func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore, tenants store.TenantStore, enabled bool, redirectBase string) *CloudHandler {
+func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore, tenants store.TenantStore, mail *cloudmgr.MailService, enabled bool, redirectBase string) *CloudHandler {
 	var bindings store.CloudBindingStore
 	if bs, ok := any(accounts).(store.CloudBindingStore); ok {
 		bindings = bs
@@ -44,6 +47,7 @@ func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore
 		accounts:     accounts,
 		bindings:     bindings,
 		tenants:      tenants,
+		mail:         mail,
 		enabled:      enabled,
 		redirectBase: redirectBase,
 	}
@@ -60,6 +64,9 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/cloud/accounts", requireAuth("", h.handleList))
 	mux.HandleFunc("DELETE /v1/cloud/accounts/{id}", requireAuth("", h.handleDelete))
 	mux.HandleFunc("PUT /v1/cloud/accounts/{id}/shared", requireAuth("", h.handleSetShared))
+	mux.HandleFunc("GET /v1/cloud/accounts/{id}/about", requireAuth("", h.handleAccountAbout))
+	mux.HandleFunc("GET /v1/cloud/accounts/{id}/files", requireAuth("", h.handleAccountFiles))
+	mux.HandleFunc("GET /v1/cloud/accounts/{id}/mail", requireAuth("", h.handleAccountMail))
 	mux.HandleFunc("GET /v1/cloud/bindings", requireAuth("", h.handleListBindings))
 	mux.HandleFunc("PUT /v1/cloud/bindings", requireAuth("", h.handleUpsertBinding))
 	mux.HandleFunc("DELETE /v1/cloud/bindings/{id}", requireAuth("", h.handleDeleteBinding))
@@ -400,6 +407,139 @@ func (h *CloudHandler) handleDeleteBinding(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// --- GET /v1/cloud/accounts/{id}/about | /files | /mail (account detail) ---
+
+// accessibleAccount resolves the account for the detail views, verifying the
+// caller may see it (own or tenant-shared).
+func (h *CloudHandler) accessibleAccount(w http.ResponseWriter, r *http.Request) *store.CloudAccount {
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid account id"})
+		return nil
+	}
+	acct, err := h.manager.AccountByID(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found"})
+		return nil
+	}
+	return acct
+}
+
+// handleAccountAbout returns the rclone quota (total/used/free bytes) for a
+// storage-capable account.
+func (h *CloudHandler) handleAccountAbout(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	storage := h.manager.StorageService()
+	if storage == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "storage layer unavailable"})
+		return
+	}
+	acct := h.accessibleAccount(w, r)
+	if acct == nil {
+		return
+	}
+	about, err := storage.AboutAccount(r.Context(), acct)
+	if err != nil {
+		h.storageError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"total": about.Total, "used": about.Used, "free": about.Free,
+	})
+}
+
+// handleAccountFiles lists one remote path of the account (read-only browse).
+func (h *CloudHandler) handleAccountFiles(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	storage := h.manager.StorageService()
+	if storage == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "storage layer unavailable"})
+		return
+	}
+	acct := h.accessibleAccount(w, r)
+	if acct == nil {
+		return
+	}
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		path = "/"
+	}
+	limit := 200
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 1000 {
+			limit = n
+		}
+	}
+	entries, err := storage.ListAccount(r.Context(), acct, path, limit)
+	if err != nil {
+		h.storageError(w, err)
+		return
+	}
+	type fileEntry struct {
+		Name    string `json:"name"`
+		IsDir   bool   `json:"is_dir"`
+		Size    int64  `json:"size"`
+		ModTime string `json:"mod_time"`
+	}
+	out := make([]fileEntry, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, fileEntry{Name: e.Name, IsDir: e.IsDir, Size: e.Size, ModTime: e.ModTime})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"path": path, "entries": out})
+}
+
+// handleAccountMail returns the recent inbox for a Gmail-capable account —
+// the web "hộp thư" preview (read-only; full reads stay with the agent).
+func (h *CloudHandler) handleAccountMail(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	if h.mail == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "mail layer unavailable"})
+		return
+	}
+	acct := h.accessibleAccount(w, r)
+	if acct == nil {
+		return
+	}
+	client, err := h.mail.MailClient(r.Context(), acct.ID)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this account has no mailbox (Gmail tools need a BYO OAuth client)"})
+		return
+	}
+	email, _ := client.GetProfile(r.Context())
+	max := 10
+	if v := r.URL.Query().Get("max"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 50 {
+			max = n
+		}
+	}
+	messages, _, err := client.Search(r.Context(), "in:inbox", max, "")
+	if err != nil {
+		slog.Warn("cloud: mailbox preview failed", "account", acct.ID, "error", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to read mailbox"})
+		return
+	}
+	if messages == nil {
+		messages = []mail.MessageSummary{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"email": email, "messages": messages})
+}
+
+// storageError maps rclone-layer failures to status codes.
+func (h *CloudHandler) storageError(w http.ResponseWriter, err error) {
+	if errors.Is(err, cloudmgr.ErrRCloneMissing) {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+		return
+	}
+	slog.Warn("cloud: storage detail failed", "error", err)
+	writeJSON(w, http.StatusBadGateway, map[string]string{"error": "storage backend error — is this account a storage provider?"})
 }
 
 // tenantAdmin is the cloud-surface alias of requireTenantAdmin.
