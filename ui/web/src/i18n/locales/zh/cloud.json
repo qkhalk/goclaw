@@ -76,5 +76,23 @@
     "placeholder": "粘贴地址栏中的 URL（以 http://127.0.0.1:53682/… 开头）",
     "complete": "完成",
     "completing": "正在完成…"
+  },
+  "share": {
+    "toggle": "组织内共享"
+  },
+  "scope": {
+    "title": "使用范围",
+    "description": "选择智能体在此使用的账户：显式指定优先，其次群组，再按用户，然后是组织默认，最后是个人账户。",
+    "tenant_default": "组织默认",
+    "none": "无",
+    "group": "群组",
+    "user": "用户",
+    "pick_account": "选择账户",
+    "add": "添加",
+    "missing_fields": "请先填写范围键并选择账户",
+    "key_placeholder_group": "群聊 id（如 -100123…）",
+    "key_placeholder_user": "用户 id（如 123456…）",
+    "key_hint_group": "从智能体参与过的群组中选择，或粘贴其聊天 id。",
+    "key_hint_user": "从最近会话中选择用户 id，或直接粘贴。"
   }
 }

@@ -76,5 +76,23 @@
     "placeholder": "주소 표시줄 URL 붙여넣기 (http://127.0.0.1:53682/… 로 시작)",
     "complete": "완료",
     "completing": "완료 중…"
+  },
+  "share": {
+    "toggle": "조직 전체 공유"
+  },
+  "scope": {
+    "title": "사용 범위",
+    "description": "에이전트가 사용할 계정을 선택하세요: 명시적 요청이 우선하고, 다음은 그룹, 사용자, 조직 기본, 마지막으로 개인 계정입니다.",
+    "tenant_default": "조직 기본값",
+    "none": "없음",
+    "group": "그룹",
+    "user": "사용자",
+    "pick_account": "계정 선택",
+    "add": "추가",
+    "missing_fields": "범위 키와 계정을 먼저 선택하세요",
+    "key_placeholder_group": "그룹 채팅 id (예: -100123…)",
+    "key_placeholder_user": "사용자 id (예: 123456…)",
+    "key_hint_group": "에이전트가 대화한 그룹을 선택하거나 채팅 id를 붙여넣으세요.",
+    "key_hint_user": "최근 대화에서 사용자 id를 선택하거나 붙여넣으세요."
   }
 }

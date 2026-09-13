@@ -24,6 +24,23 @@ Bảo mật:
   khi bạn đồng ý rõ ràng với sender đó.
 - State OAuth ký HMAC + hết hạn 10 phút (chống CSRF).
 
+## Chia sẻ & gán tài khoản theo phạm vi (doanh nghiệp)
+
+Mỗi tài khoản mặc định là **riêng tư** (chỉ chủ sở hữu dùng được — agent Telegram
+của người khác không nhìn thấy). Để agent dùng tài khoản công ty:
+
+1. **Dùng chung tổ chức** — admin bật công tắc trên thẻ tài khoản: mọi agent
+   trong tenant đều truy cập được (token vẫn nằm với chủ tài khoản).
+2. **Phạm vi sử dụng** (admin) — gán tài khoản cho từng phạm vi:
+   - **Mặc định tổ chức**: mọi agent dùng khi không có gán riêng.
+   - **Nhóm**: gán theo chat id nhóm (vd `-100123…`) — nhóm kế toán dùng drive
+     kế toán, nhóm thiết kế dùng drive riêng.
+   - **Người dùng**: gán theo user id — DM của từng người.
+
+Agent chọn tài khoản theo thứ tự: yêu cầu chỉ định rõ (email) → nhóm → người
+dùng → mặc định tổ chức → tài khoản cá nhân. Mục tiêu dư thừa: tài khoản bị
+thu hồi sẽ tự nhảy xuống phạm vi thấp hơn thay vì chặn cả phòng.
+
 ## Zero-config: bấm Connect là chạy (mặc định)
 
 Từ v4.0.6, GoClaw nhúng sẵn **OAuth client dùng chung của rclone** (cùng cơ

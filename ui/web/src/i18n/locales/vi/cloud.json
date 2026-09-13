@@ -76,5 +76,23 @@
     "placeholder": "Dán URL từ thanh địa chỉ (bắt đầu bằng http://127.0.0.1:53682/…)",
     "complete": "Hoàn tất",
     "completing": "Đang hoàn tất…"
+  },
+  "share": {
+    "toggle": "Dùng chung tổ chức"
+  },
+  "scope": {
+    "title": "Phạm vi sử dụng",
+    "description": "Chọn tài khoản agent dùng tại đây: yêu cầu chỉ định rõ thắng, rồi nhóm, rồi người dùng, rồi mặc định tổ chức, cuối cùng là tài khoản cá nhân.",
+    "tenant_default": "Mặc định tổ chức",
+    "none": "Không",
+    "group": "Nhóm",
+    "user": "Người dùng",
+    "pick_account": "Chọn tài khoản",
+    "add": "Thêm",
+    "missing_fields": "Hãy nhập key phạm vi và chọn tài khoản",
+    "key_placeholder_group": "Chat id của nhóm (vd -100123…)",
+    "key_placeholder_user": "User id (vd 123456…)",
+    "key_hint_group": "Chọn nhóm agent đã trò chuyện, hoặc dán chat id.",
+    "key_hint_user": "Chọn user id từ các hội thoại gần đây, hoặc dán vào."
   }
 }
