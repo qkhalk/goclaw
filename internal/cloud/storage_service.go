@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/cloud/storage"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -103,11 +104,15 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 	// auto-refreshes (this also proves the grant works for this account's
 	// pinned OAuth client). Falls back to the stored token if refresh fails.
 	accessToken, refreshToken := acct.AccessToken, acct.RefreshToken
+	expiry := time.Now().Add(time.Hour).UTC()
 	if ts, terr := s.manager.TokenSource(ctx, acct.ID); terr == nil {
 		if tok, terr := ts.Token(); terr == nil && tok.AccessToken != "" {
 			accessToken = tok.AccessToken
 			if tok.RefreshToken != "" {
 				refreshToken = tok.RefreshToken
+			}
+			if !tok.Expiry.IsZero() {
+				expiry = tok.Expiry
 			}
 		}
 	} else {
@@ -117,7 +122,9 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"token_type":    "Bearer",
-		"expiry":        "0001-01-01T00:00:00Z", // force refresh via refresh_token
+		// A real expiry makes rclone refresh proactively — with the pinned
+		// scopes below — instead of discovering expiry via a Graph 401.
+		"expiry": expiry.Format(time.RFC3339),
 	}
 	tokenJSON, _ := json.Marshal(token)
 	params := map[string]any{"token": string(tokenJSON)}
@@ -144,8 +151,10 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 		}
 		// MSA refresh MUST repeat the original grant scopes, otherwise
 		// Microsoft returns a compact (non-JWT) token Graph rejects with
-		// IDX14100. Mirror exactly what the connect flow requested.
-		params["scope"] = strings.Join(MicrosoftScopes, " ")
+		// IDX14100. The onedrive backend reads the `access_scopes` option
+		// (comma-separated) — plain `scope` is silently ignored, which made
+		// rclone refresh with ITS defaults and poison the persisted config.
+		params["access_scopes"] = strings.Join(MicrosoftScopes, ",")
 	}
 	// Refresh tokens are bound to the issuing OAuth client: pin the client the
 	// account consented to, or rclone refreshes with ITS own defaults and
@@ -162,6 +171,52 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 	return remote, nil
 }
 
+// authPoisoned reports whether an rc error means rclone's persisted token is
+// unusable (e.g. a compact MSA token from a wrong-scope refresh): the remote
+// must be rebuilt from a live DB token before the operation can succeed.
+func authPoisoned(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "InvalidAuthentication") ||
+		strings.Contains(msg, "JWT is not well formed")
+}
+
+// rebuildRemote drops the account's remote so ensureRemote re-bootstraps it
+// from a fresh TokenSource token — the DB row is the token source of truth.
+func (s *StorageService) rebuildRemote(ctx context.Context, acct *store.CloudAccount) {
+	rc, err := s.supervisor.RC(ctx)
+	if err != nil {
+		return
+	}
+	if derr := rc.ConfigDelete(ctx, storage.RemoteName(acct.ID)); derr != nil {
+		slog.Warn("cloud storage: rebuild: delete remote failed", "error", derr)
+	}
+	if _, berr := s.ensureRemote(ctx, acct); berr != nil {
+		slog.Warn("cloud storage: rebuild: re-bootstrap failed", "account", acct.ID, "error", berr)
+	}
+}
+
+// runWithRemote resolves nothing: it ensures acct's remote, runs op, and on a
+// poisoned-token error rebuilds the remote from the DB and retries once.
+func (s *StorageService) runWithRemote(ctx context.Context, acct *store.CloudAccount, op func(fs string) error) error {
+	fs, err := s.ensureRemote(ctx, acct)
+	if err != nil {
+		return err
+	}
+	if err = op(fs); err != nil && authPoisoned(err) {
+		slog.Warn("cloud storage: rclone token poisoned — rebuilding remote", "account", acct.ID)
+		s.rebuildRemote(ctx, acct)
+		fs, err = s.ensureRemote(ctx, acct)
+		if err != nil {
+			return err
+		}
+		err = op(fs)
+	}
+	return err
+}
+
 // FS returns the rclone filesystem spec ("goclaw-xxxx:") for the account.
 func (s *StorageService) FS(ctx context.Context, account string) (string, error) {
 	acct, err := s.resolveAccount(ctx, account)
@@ -173,28 +228,32 @@ func (s *StorageService) FS(ctx context.Context, account string) (string, error)
 
 // List lists remote path entries (non-recursive).
 func (s *StorageService) List(ctx context.Context, account, path string, max int) ([]storage.ListEntry, error) {
-	fs, err := s.FS(ctx, account)
+	acct, err := s.resolveAccount(ctx, account)
 	if err != nil {
 		return nil, err
 	}
-	rc, err := s.supervisor.RC(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return rc.OperationsList(ctx, fs, path, max)
+	return s.ListAccount(ctx, acct, path, max)
 }
 
 // Stat stats one remote path.
 func (s *StorageService) Stat(ctx context.Context, account, path string) (*storage.StatInfo, error) {
-	fs, err := s.FS(ctx, account)
+	acct, err := s.resolveAccount(ctx, account)
 	if err != nil {
 		return nil, err
 	}
-	rc, err := s.supervisor.RC(ctx)
-	if err != nil {
-		return nil, err
+	rc, rerr := s.supervisor.RC(ctx)
+	if rerr != nil {
+		return nil, rerr
 	}
-	return rc.OperationsStat(ctx, fs, path)
+	var info *storage.StatInfo
+	err = s.runWithRemote(ctx, acct, func(fs string) error {
+		got, opErr := rc.OperationsStat(ctx, fs, path)
+		if opErr == nil {
+			info = got
+		}
+		return opErr
+	})
+	return info, err
 }
 
 // About returns quota info for the account's Drive.
@@ -211,11 +270,15 @@ func (s *StorageService) aboutFor(ctx context.Context, acct *store.CloudAccount)
 	if err != nil {
 		return nil, err
 	}
-	fs, err := s.ensureRemote(ctx, acct)
-	if err != nil {
-		return nil, err
-	}
-	return rc.OperationsAbout(ctx, fs)
+	var info *storage.AboutInfo
+	err = s.runWithRemote(ctx, acct, func(fs string) error {
+		got, opErr := rc.OperationsAbout(ctx, fs)
+		if opErr == nil {
+			info = got
+		}
+		return opErr
+	})
+	return info, err
 }
 
 // AboutAccount returns quota info for a specific connected account (no
@@ -230,25 +293,41 @@ func (s *StorageService) ListAccount(ctx context.Context, acct *store.CloudAccou
 	if err != nil {
 		return nil, err
 	}
-	fs, err := s.ensureRemote(ctx, acct)
-	if err != nil {
-		return nil, err
-	}
-	return rc.OperationsList(ctx, fs, path, max)
+	var out []storage.ListEntry
+	err = s.runWithRemote(ctx, acct, func(fs string) error {
+		entries, opErr := rc.OperationsList(ctx, fs, path, max)
+		if opErr == nil {
+			out = entries
+		}
+		return opErr
+	})
+	return out, err
 }
 
 // Fetch copies a remote file into the workspace (workspace/cloud/<name>),
 // returning the workspace-relative logical path. sizeCapMB bounds the copy
 // by stat first — larger files are rejected before transfer.
 func (s *StorageService) Fetch(ctx context.Context, account, remotePath, workspaceDir string, sizeCapMB int64) (string, error) {
-	fs, err := s.FS(ctx, account)
+	acct, err := s.resolveAccount(ctx, account)
 	if err != nil {
 		return "", err
 	}
-	rc, err := s.supervisor.RC(ctx)
-	if err != nil {
-		return "", err
+	rc, rerr := s.supervisor.RC(ctx)
+	if rerr != nil {
+		return "", rerr
 	}
+	var out string
+	err = s.runWithRemote(ctx, acct, func(fs string) error {
+		p, opErr := s.fetchVia(ctx, rc, fs, remotePath, workspaceDir, sizeCapMB)
+		if opErr == nil {
+			out = p
+		}
+		return opErr
+	})
+	return out, err
+}
+
+func (s *StorageService) fetchVia(ctx context.Context, rc *storage.RCClient, fs, remotePath, workspaceDir string, sizeCapMB int64) (string, error) {
 	info, err := rc.OperationsStat(ctx, fs, remotePath)
 	if err != nil {
 		return "", err
