@@ -373,7 +373,7 @@ func (h *CloudHandler) handleUpsertBinding(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	slog.Info("cloud: binding saved", "scope_type", b.ScopeType, "scope_key", b.ScopeKey, "provider", b.Provider, "account_id", b.AccountID)
-	writeJSON(w, http.StatusOK, map[string]any{"binding": b})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // handleDeleteBinding removes one binding (tenant-admin gated).
