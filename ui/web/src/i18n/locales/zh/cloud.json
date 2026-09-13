@@ -115,7 +115,6 @@
     "table_empty": "暂无规则"
   },
   "detail": {
-    "files_btn": "浏览文件",
     "mail_btn": "邮箱",
     "quota_unavailable": "该账户无法查看配额",
     "loading_quota": "正在加载配额…",
@@ -134,5 +133,28 @@
     "no_mail": "收件箱为空",
     "no_subject": "（无主题）",
     "mail_readonly_note": "仅预览 — 让智能体帮您搜索、阅读或清理邮件。"
+  },
+  "drive": {
+    "my_drives": "我的云盘",
+    "accounts": "账户",
+    "shared_tag": "共享",
+    "storage": "存储空间",
+    "storage_unavailable": "无法获取存储信息",
+    "mail": "邮箱",
+    "search_placeholder": "在此文件夹中搜索",
+    "sort_label": "排序",
+    "sort": {
+      "name": "名称",
+      "size": "大小",
+      "modified": "修改时间",
+      "asc": "升序",
+      "desc": "降序"
+    },
+    "view": {
+      "grid": "网格视图",
+      "list": "列表视图"
+    },
+    "not_found": "账户不存在或已无法访问",
+    "back_home": "返回云盘页"
   }
 }

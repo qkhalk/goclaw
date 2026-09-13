@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useHttp } from "@/hooks/use-ws";
+import { queryKeys } from "@/lib/query-keys";
 
 /** One connected cloud account (tokens never returned by the API). */
 export interface CloudAccount {
@@ -41,6 +42,14 @@ export interface CloudBinding {
 
 export type CloudProvider = "google" | "onedrive";
 
+/** One remote entry (GET /v1/cloud/accounts/{id}/files). */
+export interface CloudFileEntry {
+  name: string;
+  is_dir: boolean;
+  size: number;
+  mod_time: string;
+}
+
 export interface CloudStatus {
   enabled: boolean;
   edition: string;
@@ -58,7 +67,7 @@ export interface CloudStartResponse {
 export function useCloudStatus() {
   const http = useHttp();
   return useQuery({
-    queryKey: ["cloud", "status"],
+    queryKey: queryKeys.cloud.status,
     staleTime: 30_000,
     queryFn: () => http.get<CloudStatus>("/v1/cloud/status"),
   });
@@ -75,7 +84,7 @@ export function useCloudSettings(provider: CloudProvider, enabled: boolean) {
   const http = useHttp();
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: ["cloud", "settings", provider],
+    queryKey: queryKeys.cloud.settings(provider),
     enabled,
     queryFn: () => http.get<CloudSettings>(`/v1/cloud/settings?provider=${provider}`),
   });
@@ -83,7 +92,7 @@ export function useCloudSettings(provider: CloudProvider, enabled: boolean) {
   const saveSettings = useCallback(
     async (client_id: string, client_secret: string) => {
       await http.put(`/v1/cloud/settings?provider=${provider}`, { client_id, client_secret });
-      await queryClient.invalidateQueries({ queryKey: ["cloud"] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.cloud.all });
     },
     [http, provider, queryClient],
   );
@@ -95,12 +104,12 @@ export function useCloudAccounts() {
   const http = useHttp();
   const queryClient = useQueryClient();
   const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: ["cloud"] }),
+    () => queryClient.invalidateQueries({ queryKey: queryKeys.cloud.all }),
     [queryClient],
   );
 
   const query = useQuery({
-    queryKey: ["cloud", "accounts"],
+    queryKey: queryKeys.cloud.accounts,
     queryFn: async () =>
       (await http.get<{ accounts: CloudAccount[] }>("/v1/cloud/accounts")).accounts,
   });
@@ -151,7 +160,7 @@ export function useCloudBindings(enabled: boolean) {
   );
 
   const query = useQuery({
-    queryKey: ["cloud", "bindings"],
+    queryKey: queryKeys.cloud.bindings,
     enabled,
     queryFn: async () =>
       (await http.get<{ bindings: CloudBinding[] }>("/v1/cloud/bindings")).bindings,

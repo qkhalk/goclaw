@@ -115,7 +115,6 @@
     "table_empty": "Chưa có quy tắc nào"
   },
   "detail": {
-    "files_btn": "Duyệt tệp",
     "mail_btn": "Hộp thư",
     "quota_unavailable": "Không xem được dung lượng của tài khoản này",
     "loading_quota": "Đang tải dung lượng…",
@@ -134,5 +133,28 @@
     "no_mail": "Hộp thư trống",
     "no_subject": "(không có tiêu đề)",
     "mail_readonly_note": "Chỉ xem trước — hãy bảo agent tìm kiếm, đọc hoặc dọn hộp thư giúp bạn."
+  },
+  "drive": {
+    "my_drives": "Ổ của tôi",
+    "accounts": "Tài khoản",
+    "shared_tag": "Dùng chung",
+    "storage": "Bộ nhớ",
+    "storage_unavailable": "Không xem được thông tin bộ nhớ",
+    "mail": "Hộp thư",
+    "search_placeholder": "Tìm trong thư mục này",
+    "sort_label": "Sắp xếp",
+    "sort": {
+      "name": "Tên",
+      "size": "Dung lượng",
+      "modified": "Ngày sửa",
+      "asc": "Tăng dần",
+      "desc": "Giảm dần"
+    },
+    "view": {
+      "grid": "Dạng lưới",
+      "list": "Dạng danh sách"
+    },
+    "not_found": "Không tìm thấy tài khoản hoặc tài khoản không còn truy cập được",
+    "back_home": "Về trang Clouds"
   }
 }
