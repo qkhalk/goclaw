@@ -8,6 +8,9 @@
     "another": "连接其他账户"
   },
   "disconnect": "断开连接",
+  "readonly_badge": "只读",
+  "regrant": "重新授权",
+  "regrant_hint": "该账户使用只读权限连接。请重新授权，让智能体可以上传、重命名、移动和删除文件。",
   "status": {
     "active": "正常",
     "expired": "已过期",
@@ -43,12 +46,12 @@
     "title_google": "Google 尚未配置",
     "title_onedrive": "OneDrive 尚未配置",
     "body": "GoClaw 使用您自己的 OAuth 客户端（自带客户端）。一次性配置：",
-    "google_step1": "在 Google Cloud 控制台创建 OAuth 客户端（类型为 Web application）。",
+    "google_step1": "在 Google Cloud 控制台创建 OAuth 客户端（类型为 Web application），并添加 Drive 权限范围 https://www.googleapis.com/auth/drive（完全访问权限——上传/重命名/删除所必需）。",
     "google_step2": "将应用发布到生产环境（无需验证），以免刷新令牌 7 天后过期。",
     "google_step3": "在下方输入 Client ID 和 Client Secret 并保存——凭据加密存储，此表单不会再次出现。",
     "google_step4": "在 Google Cloud 控制台注册这个精确的重定向 URI：",
     "google_client_id": "Google OAuth Client ID",
-    "onedrive_step1": "在 Azure 门户注册新应用（Microsoft Entra ID > 应用注册）。支持的账户类型：任何组织目录中的账户和个人 Microsoft 账户。",
+    "onedrive_step1": "在 Azure 门户注册新应用（Microsoft Entra ID > 应用注册）。支持的账户类型：任何组织目录中的账户和个人 Microsoft 账户。添加 Files.ReadWrite.All API 权限（工作/学校租户可能需要管理员同意）。",
     "onedrive_step2": "在身份验证中添加 Web 平台并注册下方的重定向 URI。",
     "onedrive_step3": "创建客户端密码（证书和密码）并复制其值。",
     "onedrive_step4": "在 Azure 应用中注册这个精确的重定向 URI：",
@@ -60,7 +63,7 @@
     "cancel": "取消",
     "update": "更新凭据",
     "advanced": "使用您自己的 OAuth 客户端（高级）",
-    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。Gmail 工具需要您自己的 OAuth 客户端（见下方高级选项）。"
+    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见下方高级选项）。"
   },
   "disconnect_confirm": {
     "title": "断开账户？",

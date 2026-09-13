@@ -8,6 +8,9 @@
     "another": "Connect another account"
   },
   "disconnect": "Disconnect",
+  "readonly_badge": "Read-only",
+  "regrant": "Re-grant access",
+  "regrant_hint": "This account was connected with read-only scopes. Re-grant access so the agent can upload, rename, move and delete files.",
   "status": {
     "active": "Active",
     "expired": "Expired",
@@ -43,12 +46,12 @@
     "title_google": "Google is not configured yet",
     "title_onedrive": "OneDrive is not configured yet",
     "body": "GoClaw uses your own OAuth client (bring your own client). One-time setup:",
-    "google_step1": "Create an OAuth client (type \"Web application\") in the Google Cloud console.",
+    "google_step1": "Create an OAuth client (type \"Web application\") in the Google Cloud console and add the Drive scope https://www.googleapis.com/auth/drive (full access — required for upload/rename/delete).",
     "google_step2": "Publish the app to production (unverified is fine) so refresh tokens do not expire after 7 days.",
     "google_step3": "Enter the Client ID and Client Secret below and press Save — the credentials are stored encrypted and this form will not appear again.",
     "google_step4": "Register this exact redirect URI in the Google Cloud console:",
     "google_client_id": "Google OAuth Client ID",
-    "onedrive_step1": "In the Azure portal, register a new app (Microsoft Entra ID > App registrations). Supported account types: accounts in any organizational directory and personal Microsoft accounts.",
+    "onedrive_step1": "In the Azure portal, register a new app (Microsoft Entra ID > App registrations). Supported account types: accounts in any organizational directory and personal Microsoft accounts. Add the Files.ReadWrite.All API permission (work/school tenants may need admin consent).",
     "onedrive_step2": "Under Authentication, add the Web platform and register the redirect URI below.",
     "onedrive_step3": "Create a client secret (Certificates & secrets) and copy its Value.",
     "onedrive_step4": "Register this exact redirect URI in the Azure app:",
@@ -60,7 +63,7 @@
     "cancel": "Cancel",
     "update": "Update credentials",
     "advanced": "Use your own OAuth client (advanced)",
-    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. Gmail tools require your own OAuth client (advanced below)."
+    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (advanced below)."
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",
