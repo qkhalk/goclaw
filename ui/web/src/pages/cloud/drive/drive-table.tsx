@@ -1,18 +1,14 @@
 import { useTranslation } from "react-i18next";
-import { DriveTableRow } from "./drive-item";
 import type { CloudFileEntry } from "../hooks/use-cloud";
 
 /** List view of the current folder. Table wrapped in overflow-x-auto with
  * min-w-[600px] per the mobile table rules (AGENTS.md). */
 export function DriveTable({
   entries,
-  onOpenFolder,
   renderRow,
 }: {
   entries: CloudFileEntry[];
-  onOpenFolder?: (entry: CloudFileEntry) => void;
-  /** P5: override the row renderer (selection + menu + dnd). */
-  renderRow?: (entry: CloudFileEntry) => React.ReactNode;
+  renderRow: (entry: CloudFileEntry, index: number) => React.ReactNode;
 }) {
   const { t } = useTranslation("cloud");
 
@@ -28,17 +24,7 @@ export function DriveTable({
           </tr>
         </thead>
         <tbody>
-          {entries.map((e) =>
-            renderRow ? (
-              renderRow(e)
-            ) : (
-              <DriveTableRow
-                key={e.name}
-                entry={e}
-                onOpen={e.is_dir ? () => onOpenFolder?.(e) : undefined}
-              />
-            ),
-          )}
+          {entries.map((e, i) => renderRow(e, i))}
         </tbody>
       </table>
     </div>

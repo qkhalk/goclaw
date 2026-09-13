@@ -24,7 +24,6 @@ import { DriveFileArea } from "./drive/drive-file-area";
 import {
   SORT_STORAGE_KEY,
   VIEW_MODE_STORAGE_KEY,
-  childPath,
   normalizePath,
   type SortSpec,
   type ViewMode,
@@ -150,10 +149,6 @@ export function CloudPage() {
     setParams({ path: next });
   }
 
-  function openFolder(name: string) {
-    navigatePath(childPath(path, name));
-  }
-
   async function handleConnect(p: CloudProvider) {
     setConnecting(true);
     setPasteError("");
@@ -222,27 +217,67 @@ export function CloudPage() {
     </Button>
   );
 
-  const showPastePanel =
-    pasteProvider !== null && (view === "home" || pasteProvider === activeProvider);
-
-  return (
-    <DriveShell
-      accountId={view === "account" ? accountId : undefined}
-      railTitle={t("drive.my_drives")}
-      header={
-        <DriveTopBar
-          path={view === "account" ? path : undefined}
-          onNavigatePath={view === "account" ? navigatePath : undefined}
-          rootLabel={t("detail.root")}
-          title={view === "home" ? t("title") : providerMeta?.name}
-          subtitle={view === "home" ? t("description") : undefined}
-          showTools={view === "account"}
+  // Account view: the Drive file area owns its own shell (rail + topbar +
+  // dnd/upload tree). Invalid accounts get an empty state, not a crash.
+  if (view === "account" && accountId) {
+    if (loading) {
+      return (
+        <div className="p-6">
+          <TableSkeleton rows={4} />
+        </div>
+      );
+    }
+    if (!account || account.provider !== activeProvider) {
+      return (
+        <div className="p-6">
+          <EmptyState
+            icon={PackageOpen}
+            title={t("drive.not_found")}
+            action={
+              <Button variant="outline" size="sm" onClick={() => navigate(ROUTES.CLOUD)}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                {t("drive.back_home")}
+              </Button>
+            }
+          />
+        </div>
+      );
+    }
+    return (
+      <>
+        <DriveFileArea
+          account={account}
+          path={path}
+          onNavigatePath={navigatePath}
           search={search}
           onSearchChange={setSearch}
           sort={sort}
           onSortChange={setSort}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          onRefresh={refreshCurrent}
+          right={gear}
+        />
+        <SettingsSheet
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          provider={settingsProvider}
+          onProviderChange={setSettingsProvider}
+        />
+      </>
+    );
+  }
+
+  const showPastePanel =
+    pasteProvider !== null && (view === "home" || pasteProvider === activeProvider);
+
+  return (
+    <DriveShell
+      railTitle={t("drive.my_drives")}
+      header={
+        <DriveTopBar
+          title={view === "home" ? t("title") : providerMeta?.name}
+          subtitle={view === "home" ? t("description") : undefined}
           onRefresh={refreshCurrent}
           right={gear}
         />
@@ -470,39 +505,6 @@ export function CloudPage() {
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {view === "account" && accountId && (
-        <div className="mx-auto w-full max-w-6xl">
-          {loading ? (
-            <div className="p-4">
-              <TableSkeleton rows={4} />
-            </div>
-          ) : !account || account.provider !== activeProvider ? (
-            <div className="p-6">
-              <EmptyState
-                icon={PackageOpen}
-                title={t("drive.not_found")}
-                action={
-                  <Button variant="outline" size="sm" onClick={() => navigate(ROUTES.CLOUD)}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    {t("drive.back_home")}
-                  </Button>
-                }
-              />
-            </div>
-          ) : (
-            <DriveFileArea
-              accountId={accountId}
-              provider={account.provider}
-              path={path}
-              onOpenFolder={(entry) => openFolder(entry.name)}
-              search={search}
-              sort={sort}
-              viewMode={viewMode}
-            />
-          )}
         </div>
       )}
 

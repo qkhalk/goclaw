@@ -191,3 +191,80 @@ export function useCloudBindings(enabled: boolean) {
 
   return { bindings: query.data ?? [], loading: query.isLoading, upsertBinding, deleteBinding };
 }
+
+/** File-operation mutations for one account, consuming the Phase 4 backend:
+ * mkdir / move(rename) / copy / delete / upload (multipart with progress) /
+ * download. All mutations invalidate the account's file listing + quota
+ * (uploads and deletes change both). */
+export function useCloudFileOps(accountId: string) {
+  const http = useHttp();
+  const queryClient = useQueryClient();
+  const invalidate = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.cloud.allFiles(accountId) });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.cloud.about(accountId) });
+  }, [queryClient, accountId]);
+
+  const mkdir = useCallback(
+    async (path: string) => {
+      await http.post(`/v1/cloud/accounts/${accountId}/folders`, { path });
+      await invalidate();
+    },
+    [http, accountId, invalidate],
+  );
+
+  /** Rename or move within the account (PATCH — same endpoint). */
+  const move = useCallback(
+    async (from: string, to: string) => {
+      await http.patch(`/v1/cloud/accounts/${accountId}/files`, { from, to });
+      await invalidate();
+    },
+    [http, accountId, invalidate],
+  );
+
+  const copy = useCallback(
+    async (from: string, to: string) => {
+      await http.post(`/v1/cloud/accounts/${accountId}/files/copy`, { from, to });
+      await invalidate();
+    },
+    [http, accountId, invalidate],
+  );
+
+  /** PERMANENT delete (no trash on the provider side). */
+  const remove = useCallback(
+    async (path: string, isDir: boolean) => {
+      await http.delete(
+        `/v1/cloud/accounts/${accountId}/files?path=${encodeURIComponent(path)}&isDir=${isDir}`,
+      );
+      await invalidate();
+    },
+    [http, accountId, invalidate],
+  );
+
+  /** Upload one file into folder `dir` with real progress (XHR). */
+  const upload = useCallback(
+    (file: File, dir: string, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("path", dir);
+      return http
+        .uploadWithProgress<{ path: string; filename: string; size: number }>(
+          `/v1/cloud/accounts/${accountId}/files`,
+          fd,
+          opts,
+        )
+        .then(async (res) => {
+          await invalidate();
+          return res;
+        });
+    },
+    [http, accountId, invalidate],
+  );
+
+  /** Download one file as a Blob (auth headers required — no direct href). */
+  const download = useCallback(
+    (path: string) => http.fetchBlob(`/v1/cloud/accounts/${accountId}/files/download`, { path }),
+    [http, accountId],
+  );
+
+  return { mkdir, move, copy, remove, upload, download, invalidate };
+}
