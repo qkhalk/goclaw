@@ -17,14 +17,32 @@ import { opErrorToast } from "./op-error";
 
 /** Previewable kinds, decided by EXTENSION (the list endpoint returns no MIME
  * type; extension mapping keeps the backend untouched). */
-type PreviewKind = "image" | "text" | "pdf" | "unsupported";
+type PreviewKind = "image" | "text" | "pdf" | "video" | "audio" | "unsupported";
 
 const IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"]);
 const TEXT_EXT = new Set(["txt", "md", "markdown", "json", "csv", "log", "xml", "yml", "yaml", "ini", "conf", "ts", "tsx", "js", "jsx", "py", "go", "css", "html", "sql", "sh"]);
 const PDF_EXT = new Set(["pdf"]);
+const VIDEO_EXT = new Set(["mp4", "webm", "mov", "m4v"]);
+const AUDIO_EXT = new Set(["mp3", "m4a", "wav"]);
 
 const IMAGE_CAP = 25 << 20; // 25 MB — never auto-load anything bigger
 const TEXT_CAP = 1 << 20; // 1 MB — text renders as <pre>
+/** Video/audio blob cap — mirrors the download endpoint's server cap
+ * (cloud.fetch_size_cap_mb, default 100 MB, 413 above it). */
+const MEDIA_CAP = 100 << 20;
+
+/** Size cap for a previewable kind (the cap shown in the too-large message). */
+function capFor(kind: PreviewKind): number {
+  switch (kind) {
+    case "text":
+      return TEXT_CAP;
+    case "video":
+    case "audio":
+      return MEDIA_CAP;
+    default:
+      return IMAGE_CAP;
+  }
+}
 
 function extOf(name: string): string {
   const i = name.lastIndexOf(".");
@@ -36,6 +54,8 @@ export function previewKind(entry: CloudFileEntry): PreviewKind {
   if (IMAGE_EXT.has(ext)) return "image";
   if (TEXT_EXT.has(ext)) return "text";
   if (PDF_EXT.has(ext)) return "pdf";
+  if (VIDEO_EXT.has(ext)) return "video";
+  if (AUDIO_EXT.has(ext)) return "audio";
   return "unsupported";
 }
 
@@ -46,10 +66,11 @@ export interface PreviewFile {
   path: string;
 }
 
-/** Right-side preview Sheet for one file (images / text / pdf via the download
- * endpoint + object URLs, revoked on every switch/close). Prev/next walks the
- * current folder's files; oversized and unsupported files fall back to a
- * download button. */
+/** Right-side preview Sheet for one file (images / text / pdf / video / audio
+ * via the download endpoint + object URLs, revoked on every switch/close).
+ * Video/audio stream through an authed blob fetch (a plain <video src> could
+ * not send the Bearer header). Prev/next walks the current folder's files;
+ * oversized and unsupported files fall back to a download button. */
 export function PreviewSheet({
   accountId,
   files,
@@ -75,7 +96,7 @@ export function PreviewSheet({
 
   const name = file?.entry.name ?? "";
   const kind = file ? previewKind(file.entry) : "unsupported";
-  const tooLarge = !!file && file.entry.size > (kind === "text" ? TEXT_CAP : IMAGE_CAP);
+  const tooLarge = !!file && file.entry.size > capFor(kind);
   const blocked = kind === "unsupported" || tooLarge;
 
   // Load the preview body whenever the file changes; revoke the object URL on
@@ -150,7 +171,9 @@ export function PreviewSheet({
               <TriangleAlert className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 {tooLarge
-                  ? t("preview.too_large", { cap: kind === "text" ? "1 MB" : "25 MB" })
+                  ? t("preview.too_large", {
+                      cap: kind === "text" ? "1 MB" : kind === "image" ? "25 MB" : "100 MB",
+                    })
                   : failed
                     ? t("preview.error")
                     : t("preview.cannot_preview")}
@@ -170,6 +193,17 @@ export function PreviewSheet({
             </pre>
           ) : kind === "image" && url ? (
             <img src={url} alt={file.entry.name} className="mx-auto max-h-full max-w-full rounded-md object-contain" />
+          ) : kind === "video" && url ? (
+            <video
+              src={url}
+              controls
+              preload="metadata"
+              className="mx-auto max-h-full max-w-full rounded-md bg-black object-contain"
+            />
+          ) : kind === "audio" && url ? (
+            <div className="flex flex-1 items-center justify-center">
+              <audio src={url} controls preload="metadata" className="w-full max-w-xs" />
+            </div>
           ) : kind === "pdf" && url ? (
             <iframe src={url} title={file.entry.name} className="h-full min-h-[60vh] w-full rounded-md border" />
           ) : (
