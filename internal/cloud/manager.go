@@ -463,6 +463,10 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// StorageService returns the attached rclone-backed storage service (nil
+// when the storage layer is not wired).
+func (m *Manager) StorageService() *StorageService { return m.storage }
+
 // SetStorageService attaches the rclone-backed storage service (optional).
 func (m *Manager) SetStorageService(s *StorageService) { m.storage = s }
 
