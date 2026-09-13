@@ -69,7 +69,9 @@ func TestMailArchiveBatchCap(t *testing.T) {
 
 func TestCloudAccountsToolShape(t *testing.T) {
 	provider := &fakeMailProvider{accounts: []store.CloudAccount{
-		{Email: "a@gmail.com", Provider: "google", Status: "active"},
+		// mail capability now requires the Gmail OAuth scope (AccountHasGmailScope)
+		{Email: "a@gmail.com", Provider: "google", Status: "active",
+			Scopes: `["https://www.googleapis.com/auth/gmail.modify"]`},
 	}}
 	toolset := NewCloudMailTools(provider, 1024)
 
