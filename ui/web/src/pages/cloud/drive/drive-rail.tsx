@@ -123,8 +123,8 @@ export function DriveRail({
           const providerActive = routeProvider === p.id;
           const isCollapsed = collapsed.includes(p.id);
           return (
-            <div key={p.id}>
-              <div className="flex items-center gap-0.5">
+            <div key={p.id} className="w-full">
+              <div className="flex w-full items-center gap-0.5">
                 <button
                   type="button"
                   onClick={() => openProvider(p.id)}
@@ -154,19 +154,19 @@ export function DriveRail({
                 )}
               </div>
               {items.length > 0 && !isCollapsed && (
-                <ul className="flex flex-col gap-0.5 pl-6">
+                <ul className="flex w-full flex-col gap-0.5 pl-6">
                   {items.map((a) => {
                     const active = a.id === accountId;
                     return (
-                      <li key={a.id}>
+                      <li key={a.id} className="w-full">
                         <button
                           type="button"
                           onClick={() => openAccount(a.provider, a.id)}
                           className={cn(
-                            "flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
+                            "flex min-h-11 min-w-0 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
                             active && "bg-muted font-medium",
                           )}
-                          title={a.shared ? t("drive.shared_tag") : undefined}
+                          title={a.shared ? `${t("drive.shared_tag")} · ${a.email}` : a.email}
                         >
                           {a.shared ? (
                             <Building2 className="h-4 w-4 shrink-0 text-amber-500" aria-label={t("drive.shared_tag")} />
