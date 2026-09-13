@@ -80,19 +80,17 @@ func (c *RCClient) ConfigListRemotes(ctx context.Context) ([]string, error) {
 	return out.Remotes, err
 }
 
-// ConfigCreate upserts a remote (rc config/create with update=true creates or
-// updates the named remote). parameters carries provider credentials, e.g.
-// {type: drive, token: <json>, client_id, client_secret, scope}.
+// ConfigCreate creates a remote (rc config/create). parameters carries the
+// backend options — they must be NESTED under the "parameters" key per the
+// rc API, not sent flat: {"name", "type", "parameters": {token, client_id,
+// ...}, "opt": {...}}.
 func (c *RCClient) ConfigCreate(ctx context.Context, name, remoteType string, parameters map[string]any) error {
-	params := map[string]any{
-		"name":   name,
-		"type":   remoteType,
-		"opt":    map[string]any{"obscure": true, "no_obscure": false},
-	}
-	for k, v := range parameters {
-		params[k] = v
-	}
-	return c.do(ctx, "config/create", params, nil)
+	return c.do(ctx, "config/create", map[string]any{
+		"name":       name,
+		"type":       remoteType,
+		"parameters": parameters,
+		"opt":        map[string]any{"obscure": true, "no_obscure": false},
+	}, nil)
 }
 
 // ConfigDelete removes a remote.
