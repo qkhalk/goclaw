@@ -14,17 +14,19 @@ import (
 func TestBundledSkills_NoRegression(t *testing.T) {
 	bundled := "../../skills"
 	manifestDeps := map[string][]string{
-		"security-audit": {"system:nmap", "system:nikto", "pip:sqlmap", "system:testssl.sh", "system:curl"},
-		"loadtest":       {"system:wrk", "system:hey", "system:curl"},
-		"netstress":      {"system:iperf3", "system:hping3", "system:curl"},
-		"ssl-audit":      {"system:testssl.sh", "system:openssl"},
-		"recon":          {"system:nmap", "system:curl"},
-		"fuzz":           {"system:ffuf", "system:curl"},
-		"dns-audit":      {"system:dig", "system:curl"},
-		"scraping":       {"pip:scrapling[fetchers]", "pip:markdownify"},
-		"ocr":            {"system:tesseract", "pip:pytesseract", "pip:Pillow"},
-		"data-analysis":  {"pip:pandas", "pip:matplotlib", "pip:openpyxl"},
-		"monitor":        {"pip:feedparser"},
+		"security-audit":   {"system:nmap", "system:nikto", "pip:sqlmap", "system:testssl.sh", "system:curl"},
+		"loadtest":         {"system:wrk", "system:hey", "system:curl"},
+		"netstress":        {"system:iperf3", "system:hping3", "system:curl"},
+		"ssl-audit":        {"system:testssl.sh", "system:openssl"},
+		"recon":            {"system:nmap", "system:curl"},
+		"fuzz":             {"system:ffuf", "system:curl"},
+		"dns-audit":        {"system:dig", "system:curl"},
+		"scraping":         {"pip:scrapling[fetchers]", "pip:markdownify"},
+		"ocr":              {"system:tesseract", "pip:pytesseract", "pip:Pillow"},
+		"data-analysis":    {"pip:pandas", "pip:matplotlib", "pip:openpyxl"},
+		"monitor":          {"pip:feedparser"},
+		"media-processing": {"system:ffmpeg", "system:convert"},
+		"databases":        {"system:psql"},
 	}
 	entries, err := os.ReadDir(bundled)
 	if err != nil {
