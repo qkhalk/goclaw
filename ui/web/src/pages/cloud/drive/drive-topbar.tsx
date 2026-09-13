@@ -4,10 +4,10 @@ import {
   ArrowUp,
   LayoutGrid,
   List,
-  RefreshCw,
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -77,15 +77,10 @@ export function DriveTopBar({
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {right}
           {onRefresh && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t("refresh")}
-              title={t("refresh")}
-              onClick={onRefresh}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            <RefreshButton
+              onRefresh={onRefresh}
+              label={t("refresh")}
+            />
           )}
         </div>
       </div>
