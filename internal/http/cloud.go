@@ -2,11 +2,16 @@ package http
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -26,6 +31,10 @@ import (
 //	DELETE /v1/cloud/accounts/{id}          — disconnect (owner-scoped)
 //	POST   /v1/cloud/oauth/{provider}/start — returns {auth_url, redirect_uri}
 //	GET    /v1/cloud/oauth/callback         — provider redirect (unauthenticated; signed state)
+//
+// Plus the file-operation surface (Phase 4) under /v1/cloud/accounts/{id}/files
+// and the cross-account transfer endpoints (see RegisterRoutes) — writes are
+// gated on owner-or-tenant-admin AND the account's write OAuth scopes.
 type CloudHandler struct {
 	manager      *cloudmgr.Manager
 	accounts     store.CloudAccountStore
@@ -34,13 +43,17 @@ type CloudHandler struct {
 	mail         *cloudmgr.MailService   // optional; backs the per-account mailbox view
 	enabled      bool                    // edition gate AND config kill-switch (cloud.enabled); credentials are dynamic
 	redirectBase string                  // cloud.redirect_base_url (empty = derive from request)
+	fetchCapMB   int64                   // cloud.fetch_size_cap_mb — upload/download size cap
 }
 
 // NewCloudHandler creates a CloudHandler.
-func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore, tenants store.TenantStore, mail *cloudmgr.MailService, enabled bool, redirectBase string) *CloudHandler {
+func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore, tenants store.TenantStore, mail *cloudmgr.MailService, enabled bool, redirectBase string, fetchCapMB int64) *CloudHandler {
 	var bindings store.CloudBindingStore
 	if bs, ok := any(accounts).(store.CloudBindingStore); ok {
 		bindings = bs
+	}
+	if fetchCapMB <= 0 {
+		fetchCapMB = 100
 	}
 	return &CloudHandler{
 		manager:      manager,
@@ -50,6 +63,7 @@ func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore
 		mail:         mail,
 		enabled:      enabled,
 		redirectBase: redirectBase,
+		fetchCapMB:   fetchCapMB,
 	}
 }
 
@@ -73,6 +87,20 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/start", requireAuth("", h.handleStart))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/complete", requireAuth("", h.handleComplete))
 	mux.HandleFunc("GET /v1/cloud/oauth/callback", h.handleCallback)
+
+	// File operations (Phase 4). All writes: owner-or-tenant-admin + the
+	// account's write OAuth scopes (403 code=cloud_write_scope_required);
+	// download is read-only (any caller who can see the account).
+	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files", requireAuth("", h.handleAccountUpload))
+	mux.HandleFunc("POST /v1/cloud/accounts/{id}/folders", requireAuth("", h.handleAccountMkdir))
+	mux.HandleFunc("PATCH /v1/cloud/accounts/{id}/files", requireAuth("", h.handleAccountMove))
+	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files/copy", requireAuth("", h.handleAccountCopy))
+	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files/copyurl", requireAuth("", h.handleAccountCopyURL))
+	mux.HandleFunc("DELETE /v1/cloud/accounts/{id}/files", requireAuth("", h.handleAccountDelete))
+	mux.HandleFunc("GET /v1/cloud/accounts/{id}/files/download", requireAuth("", h.handleAccountDownload))
+	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files/publiclink", requireAuth("", h.handleAccountPublicLink))
+	mux.HandleFunc("POST /v1/cloud/transfer", requireAuth("", h.handleTransfer))
+	mux.HandleFunc("GET /v1/cloud/transfers/{id}", requireAuth("", h.handleTransferStatus))
 }
 
 // --- GET /v1/cloud/status ---
@@ -445,7 +473,12 @@ func (h *CloudHandler) handleDeleteBinding(w http.ResponseWriter, r *http.Reques
 // accessibleAccount resolves the account for the detail views, verifying the
 // caller may see it (own or tenant-shared).
 func (h *CloudHandler) accessibleAccount(w http.ResponseWriter, r *http.Request) *store.CloudAccount {
-	id := r.PathValue("id")
+	return h.accountByID(w, r, r.PathValue("id"))
+}
+
+// accountByID resolves one accessible account (own or tenant-shared) by ID,
+// writing the 400/404 response and returning nil when unresolvable.
+func (h *CloudHandler) accountByID(w http.ResponseWriter, r *http.Request, id string) *store.CloudAccount {
 	if _, err := uuid.Parse(id); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid account id"})
 		return nil
@@ -561,6 +594,465 @@ func (h *CloudHandler) handleAccountMail(w http.ResponseWriter, r *http.Request)
 		messages = []mail.MessageSummary{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"email": email, "messages": messages})
+}
+
+// --- Cloud file operations (Phase 4) ---
+
+// requireAccountWrite allows only the account owner or a tenant admin to
+// mutate an account's files: members with access to a shared account are
+// read-only. Writes the 403 response when denied.
+func (h *CloudHandler) requireAccountWrite(w http.ResponseWriter, r *http.Request, acct *store.CloudAccount) bool {
+	if userID := store.UserIDFromContext(r.Context()); userID != "" && acct.UserID == userID {
+		return true
+	}
+	return h.tenantAdmin(w, r)
+}
+
+// requireWriteScope rejects accounts whose stored OAuth grant lacks the
+// provider's write scope. The machine-readable code lets the UI offer the
+// re-grant flow instead of a dead end.
+func (h *CloudHandler) requireWriteScope(w http.ResponseWriter, acct *store.CloudAccount) bool {
+	if cloudmgr.AccountCanWrite(acct) {
+		return true
+	}
+	writeJSON(w, http.StatusForbidden, map[string]string{
+		"error": cloudmgr.ErrCloudWriteScopeRequired.Error(),
+		"code":  "cloud_write_scope_required",
+	})
+	return false
+}
+
+// storageLayer resolves the shared rclone storage service (503 when nil).
+// The caller must already have passed h.available().
+func (h *CloudHandler) storageLayer(w http.ResponseWriter) *cloudmgr.StorageService {
+	st := h.manager.StorageService()
+	if st == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "storage layer unavailable"})
+		return nil
+	}
+	return st
+}
+
+// writeAccess bundles the write-endpoint preflight, in order: surface
+// enabled → account accessible → owner-or-admin → write OAuth scopes →
+// storage layer up. It writes the error response itself and returns nils
+// when any check fails.
+func (h *CloudHandler) writeAccess(w http.ResponseWriter, r *http.Request) (*cloudmgr.StorageService, *store.CloudAccount) {
+	if !h.available(w, r) {
+		return nil, nil
+	}
+	acct := h.accessibleAccount(w, r)
+	if acct == nil {
+		return nil, nil
+	}
+	if !h.requireAccountWrite(w, r, acct) || !h.requireWriteScope(w, acct) {
+		return nil, nil
+	}
+	st := h.storageLayer(w)
+	if st == nil {
+		return nil, nil
+	}
+	return st, acct
+}
+
+// rejectBadPath writes the 400 for a path that failed validation, with the
+// same security.* log the local-storage surface emits on traversal attempts.
+func rejectBadPath(w http.ResponseWriter, kind, raw string) {
+	slog.Warn("security.cloud_path_traversal", "kind", kind, "path", raw)
+	writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+}
+
+type cloudFolderPath struct {
+	Path string `json:"path"`
+}
+
+// handleAccountMkdir creates a folder in the account's remote.
+func (h *CloudHandler) handleAccountMkdir(w http.ResponseWriter, r *http.Request) {
+	st, acct := h.writeAccess(w, r)
+	if st == nil {
+		return
+	}
+	var in cloudFolderPath
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	dir, err := cloudmgr.CleanRemotePath(in.Path)
+	if err != nil {
+		rejectBadPath(w, "mkdir", in.Path)
+		return
+	}
+	if err := st.MkdirAccount(r.Context(), acct, dir); err != nil {
+		h.storageError(w, err)
+		return
+	}
+	slog.Info("cloud: folder created", "account", acct.ID, "path", dir)
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+type cloudFilePaths struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// handleAccountMove renames/moves one file within the account's remote
+// (PATCH — the resource is the same file under a new name/location).
+func (h *CloudHandler) handleAccountMove(w http.ResponseWriter, r *http.Request) {
+	st, acct := h.writeAccess(w, r)
+	if st == nil {
+		return
+	}
+	var in cloudFilePaths
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	from, err := cloudmgr.CleanRemotePath(in.From)
+	if err != nil {
+		rejectBadPath(w, "move.from", in.From)
+		return
+	}
+	to, err := cloudmgr.CleanRemotePath(in.To)
+	if err != nil {
+		rejectBadPath(w, "move.to", in.To)
+		return
+	}
+	if err := st.MoveAccount(r.Context(), acct, from, to); err != nil {
+		h.storageError(w, err)
+		return
+	}
+	slog.Info("cloud: file moved", "account", acct.ID, "from", from, "to", to)
+	writeJSON(w, http.StatusOK, map[string]string{"from": from, "to": to})
+}
+
+// handleAccountCopy copies one file to another path within the account.
+func (h *CloudHandler) handleAccountCopy(w http.ResponseWriter, r *http.Request) {
+	st, acct := h.writeAccess(w, r)
+	if st == nil {
+		return
+	}
+	var in cloudFilePaths
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	from, err := cloudmgr.CleanRemotePath(in.From)
+	if err != nil {
+		rejectBadPath(w, "copy.from", in.From)
+		return
+	}
+	to, err := cloudmgr.CleanRemotePath(in.To)
+	if err != nil {
+		rejectBadPath(w, "copy.to", in.To)
+		return
+	}
+	if err := st.CopyAccount(r.Context(), acct, from, to); err != nil {
+		h.storageError(w, err)
+		return
+	}
+	slog.Info("cloud: file copied", "account", acct.ID, "from", from, "to", to)
+	writeJSON(w, http.StatusOK, map[string]string{"from": from, "to": to})
+}
+
+type cloudCopyURL struct {
+	URL  string `json:"url"`
+	Path string `json:"path"` // full destination file path incl. name
+}
+
+// handleAccountCopyURL uploads-by-URL: rclone fetches the URL server side
+// into the account. Only absolute http(s) URLs — no file:// or other schemes.
+func (h *CloudHandler) handleAccountCopyURL(w http.ResponseWriter, r *http.Request) {
+	st, acct := h.writeAccess(w, r)
+	if st == nil {
+		return
+	}
+	var in cloudCopyURL
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	in.URL = strings.TrimSpace(in.URL)
+	u, perr := url.Parse(in.URL)
+	if perr != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "url must be an absolute http(s) URL"})
+		return
+	}
+	path, err := cloudmgr.CleanRemotePath(in.Path)
+	if err != nil {
+		rejectBadPath(w, "copyurl", in.Path)
+		return
+	}
+	if err := st.CopyURLAccount(r.Context(), acct, in.URL, path); err != nil {
+		h.storageError(w, err)
+		return
+	}
+	slog.Info("cloud: url copied into remote", "account", acct.ID, "path", path)
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleAccountDelete removes one file (isDir=false) or one EMPTY directory
+// (isDir=true). Deletion is PERMANENT on Drive — no trash via rc; the UI
+// must confirm. Query: ?path=&isDir=.
+func (h *CloudHandler) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
+	st, acct := h.writeAccess(w, r)
+	if st == nil {
+		return
+	}
+	raw := r.URL.Query().Get("path")
+	path, err := cloudmgr.CleanRemotePath(raw)
+	if err != nil {
+		rejectBadPath(w, "delete", raw)
+		return
+	}
+	isDir := r.URL.Query().Get("isDir") == "true"
+	if err := st.DeleteAccount(r.Context(), acct, path, isDir); err != nil {
+		h.storageError(w, err)
+		return
+	}
+	slog.Info("cloud: path deleted", "account", acct.ID, "path", path, "is_dir", isDir)
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// sanitizeRemoteName reduces a multipart filename to a bare, safe remote file
+// name: no separators, no dot segments.
+func sanitizeRemoteName(name string) string {
+	name = strings.TrimSpace(strings.ReplaceAll(name, "\\", "/"))
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	switch name {
+	case "", ".", "..":
+		return ""
+	}
+	return name
+}
+
+// handleAccountUpload receives one multipart file (fields: `file`, `path` =
+// destination folder, default root) into the account's remote. Transport is
+// temp file + operations/copyfile — works with every rclone version (the rc
+// upload endpoints are multipart and binary-gated). The size cap mirrors the
+// download path (cloud.fetch_size_cap_mb); the temp file is removed on every
+// path, success or failure.
+func (h *CloudHandler) handleAccountUpload(w http.ResponseWriter, r *http.Request) {
+	st, acct := h.writeAccess(w, r)
+	if st == nil {
+		return
+	}
+	capBytes := h.fetchCapMB << 20
+	r.Body = http.MaxBytesReader(w, r.Body, capBytes)
+	// maxMemory stays small (32 MB) — file parts beyond it spool to Go's own
+	// temp files; the total body size is enforced by MaxBytesReader above.
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{
+				"error": fmt.Sprintf("upload exceeds the %d MB size cap", h.fetchCapMB),
+			})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "malformed multipart body"})
+		return
+	}
+	dir, err := cloudmgr.CleanRemoteDir(r.FormValue("path"))
+	if err != nil {
+		rejectBadPath(w, "upload", r.FormValue("path"))
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing file field"})
+		return
+	}
+	defer file.Close()
+	name := sanitizeRemoteName(header.Filename)
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid filename"})
+		return
+	}
+	tmp, err := os.CreateTemp("", "goclaw-cloud-upload-")
+	if err != nil {
+		slog.Error("cloud: upload temp file failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to stage upload"})
+		return
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	written, err := io.Copy(tmp, file)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		slog.Error("cloud: upload staging failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to stage upload"})
+		return
+	}
+	remotePath := cloudmgr.RemoteJoin(dir, name)
+	if err := st.UploadAccount(r.Context(), acct, filepath.Dir(tmpPath), filepath.Base(tmpPath), remotePath); err != nil {
+		h.storageError(w, err)
+		return
+	}
+	slog.Info("cloud: file uploaded", "account", acct.ID, "path", remotePath, "size", written)
+	writeJSON(w, http.StatusOK, map[string]any{"path": remotePath, "filename": name, "size": written})
+}
+
+// handleAccountDownload streams one remote file to the browser. Read-only —
+// any caller who can see the account; no write guard. Over-cap requests get
+// a clear 413 before any transfer starts.
+func (h *CloudHandler) handleAccountDownload(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	acct := h.accessibleAccount(w, r)
+	if acct == nil {
+		return
+	}
+	st := h.storageLayer(w)
+	if st == nil {
+		return
+	}
+	raw := r.URL.Query().Get("path")
+	path, err := cloudmgr.CleanRemotePath(raw)
+	if err != nil {
+		rejectBadPath(w, "download", raw)
+		return
+	}
+	df, err := st.DownloadAccount(r.Context(), acct, path, h.fetchCapMB)
+	if err != nil {
+		if errors.Is(err, cloudmgr.ErrFileTooLarge) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": err.Error()})
+			return
+		}
+		h.storageError(w, err)
+		return
+	}
+	// The temp copy lives exactly as long as this request.
+	defer os.RemoveAll(df.Dir)
+	f, err := os.Open(filepath.Join(df.Dir, df.Name))
+	if err != nil {
+		h.storageError(w, err)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", df.Name))
+	if df.Stat != nil && df.Stat.MimeType != "" {
+		w.Header().Set("Content-Type", df.Stat.MimeType)
+	}
+	http.ServeContent(w, r, df.Name, time.Time{}, f)
+}
+
+// handleAccountPublicLink creates/retrieves a public share link. Guarded like
+// a write: the link is public and does not expire on its own.
+func (h *CloudHandler) handleAccountPublicLink(w http.ResponseWriter, r *http.Request) {
+	st, acct := h.writeAccess(w, r)
+	if st == nil {
+		return
+	}
+	var in cloudFolderPath
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	path, err := cloudmgr.CleanRemotePath(in.Path)
+	if err != nil {
+		rejectBadPath(w, "publiclink", in.Path)
+		return
+	}
+	link, err := st.PublicLinkAccount(r.Context(), acct, path)
+	if err != nil {
+		h.storageError(w, err)
+		return
+	}
+	slog.Info("cloud: public link created", "account", acct.ID, "path", path)
+	writeJSON(w, http.StatusOK, map[string]string{"url": link.URL})
+}
+
+type cloudTransferInput struct {
+	SourceAccountID string `json:"source_account_id"`
+	SourcePath      string `json:"source_path"`
+	TargetAccountID string `json:"target_account_id"`
+	TargetPath      string `json:"target_path"`
+	Mode            string `json:"mode"` // "copy" (default) | "move"
+}
+
+// handleTransfer copies/moves between two accessible accounts. The source
+// needs read access only; the target requires the write guard + write scopes.
+// Files transfer synchronously ({ok:true}); folders queue an async rclone job
+// (202 {job_id}) polled at GET /v1/cloud/transfers/{job_id}.
+func (h *CloudHandler) handleTransfer(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	var in cloudTransferInput
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	src := h.accountByID(w, r, strings.TrimSpace(in.SourceAccountID))
+	if src == nil {
+		return
+	}
+	dst := h.accountByID(w, r, strings.TrimSpace(in.TargetAccountID))
+	if dst == nil {
+		return
+	}
+	if !h.requireAccountWrite(w, r, dst) || !h.requireWriteScope(w, dst) {
+		return
+	}
+	st := h.storageLayer(w)
+	if st == nil {
+		return
+	}
+	srcPath, err := cloudmgr.CleanRemotePath(in.SourcePath)
+	if err != nil {
+		rejectBadPath(w, "transfer.source", in.SourcePath)
+		return
+	}
+	dstPath, err := cloudmgr.CleanRemotePath(in.TargetPath)
+	if err != nil {
+		rejectBadPath(w, "transfer.target", in.TargetPath)
+		return
+	}
+	if in.Mode != "" && in.Mode != "copy" && in.Mode != "move" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "mode must be \"copy\" or \"move\""})
+		return
+	}
+	jobID, err := st.TransferAccount(r.Context(), src, dst, srcPath, dstPath, in.Mode)
+	if err != nil {
+		h.storageError(w, err)
+		return
+	}
+	if jobID == 0 {
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+	slog.Info("cloud: transfer queued", "source", src.ID, "target", dst.ID, "job_id", jobID)
+	writeJSON(w, http.StatusAccepted, map[string]string{"job_id": strconv.FormatInt(jobID, 10)})
+}
+
+// handleTransferStatus polls one async transfer job. Ownership (same tenant +
+// same user) is enforced inside the registry — cross-tenant polling 404s.
+func (h *CloudHandler) handleTransferStatus(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	st := h.storageLayer(w)
+	if st == nil {
+		return
+	}
+	jobID, perr := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if perr != nil || jobID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid job id"})
+		return
+	}
+	job, err := st.TransferStatus(r.Context(), jobID)
+	if err != nil {
+		if errors.Is(err, cloudmgr.ErrTransferNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		h.storageError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"job_id":   strconv.FormatInt(jobID, 10),
+		"finished": job.Finished,
+		"success":  job.Success,
+		"error":    job.Error,
+	})
 }
 
 // storageError maps rclone-layer failures to status codes.

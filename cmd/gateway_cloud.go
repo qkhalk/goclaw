@@ -69,7 +69,7 @@ func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores,
 	}
 	enabled := manager != nil
 	server.SetCloudHandler(httpapi.NewCloudHandler(
-		manager, stores.CloudAccounts, stores.Tenants, mailSvc, enabled, cfg.Cloud.RedirectBaseURL))
+		manager, stores.CloudAccounts, stores.Tenants, mailSvc, enabled, cfg.Cloud.RedirectBaseURL, int64(cfg.Cloud.FetchCapMB())))
 }
 
 // wireCloudTools registers the cloud agent tools (cloud_accounts, mail_*,
