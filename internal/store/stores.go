@@ -141,4 +141,8 @@ type Stores struct {
 	// CloudStarred persists per-user bookmarks of remote files/folders
 	// (Cloud plan Phase 7; PG 000123). Queries scoped by ctx tenant+user.
 	CloudStarred CloudStarredStore
+
+	// VideoJobs persists storyboard-to-MP4 render requests (Video pipeline
+	// Phase 1; PG 000125). Queries scoped by ctx tenant.
+	VideoJobs VideoRenderJobStore
 }

@@ -3136,3 +3136,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_cloud_starred_path
     ON cloud_starred (tenant_id, user_id, account_id, path);
 CREATE INDEX IF NOT EXISTS idx_cloud_starred_user
     ON cloud_starred (tenant_id, user_id, starred_at DESC);
+
+-- Video render jobs: storyboard-to-MP4 render requests, processed by the
+-- videoworker sidecar. Tenant-scoped.
+CREATE TABLE IF NOT EXISTS video_render_jobs (
+    id                TEXT NOT NULL PRIMARY KEY,
+    tenant_id         TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id           TEXT NOT NULL DEFAULT '',
+    agent_id          TEXT NOT NULL DEFAULT '',
+    session_key       TEXT NOT NULL DEFAULT '',
+    status            TEXT NOT NULL DEFAULT 'queued',
+    engine            TEXT NOT NULL DEFAULT 'ffmpeg',
+    storyboard_json   TEXT NOT NULL,
+    output_path       TEXT NOT NULL DEFAULT '',
+    output_size_bytes INTEGER NOT NULL DEFAULT 0,
+    error             TEXT NOT NULL DEFAULT '',
+    created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    started_at        TEXT,
+    finished_at       TEXT,
+    expires_at        TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_jobs_tenant_created
+    ON video_render_jobs (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_video_jobs_status
+    ON video_render_jobs (status);
+CREATE INDEX IF NOT EXISTS idx_video_jobs_expires
+    ON video_render_jobs (expires_at);
