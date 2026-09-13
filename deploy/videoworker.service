@@ -1,0 +1,46 @@
+[Unit]
+Description=GoClaw Video Worker (ffmpeg renderer)
+Documentation=https://github.com/nextlevelbuilder/goclaw
+After=network.target
+
+[Service]
+Type=simple
+User=goclaw
+Group=goclaw
+WorkingDirectory=/var/lib/goclaw
+
+ExecStart=/usr/local/bin/videoworker \
+    --addr 127.0.0.1:18791 \
+    --token ${GOCLAW_VIDEO_TOKEN} \
+    --work-dir /var/lib/goclaw/video-tmp \
+    --output-dir /var/www/goclaw/videos \
+    --ffmpeg-path /usr/bin/ffmpeg \
+    --font-file /usr/share/fonts/truetype/noto/NotoSans-Regular.ttf \
+    --max-scene-sec 30 \
+    --max-queue 5 \
+    --narr-voice vi-VN-HoaiMyNeural \
+    --ttl-minutes 120
+
+# Security hardening
+MemoryMax=600M
+MemoryHigh=500M
+CPUQuota=100%
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/goclaw/video-tmp /var/www/goclaw/videos
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=goclaw-videoworker
+
+[Install]
+WantedBy=multi-user.target

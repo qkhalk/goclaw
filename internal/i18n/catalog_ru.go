@@ -431,5 +431,13 @@ func init() {
 		"telegram.status.thinkmode": "⚙️ Think: %s · Режим: %s",
 		"telegram.status.queue": " · 🪢 Очередь: %s %d/%d активных, %d в ожидании",
 		"telegram.status.fullhint": "/status full — показать всё",
-})
+
+		// Video render pipeline
+		MsgVideoJobCreated:   "задача рендера видео %s создана",
+		MsgVideoJobFailed:    "задача рендера видео %s завершилась ошибкой: %s",
+		MsgVideoJobCancelled: "задача рендера видео %s отменена",
+		MsgVideoJobDone:      "задача рендера видео %s завершена",
+		MsgVideoDisabled:     "рендер видео не включён на этом шлюзе",
+		MsgVideoWorkerUnavail: "видео-воркер недоступен",
+	})
 }

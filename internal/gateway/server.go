@@ -763,6 +763,10 @@ func (s *Server) SetCopilotOAuthHandler(h *httpapi.CopilotOAuthHandler) {
 // (edition-gated; no-op paths when the Cloud surface is off).
 func (s *Server) SetCloudHandler(h *httpapi.CloudHandler) { s.handlers = append(s.handlers, h) }
 
+// SetVideoHandler registers the video render pipeline HTTP handler
+// (config-gated; returns 403 when disabled).
+func (s *Server) SetVideoHandler(h *httpapi.VideoHandler) { s.handlers = append(s.handlers, h) }
+
 // SetAPIKeysHandler sets the API key management handler.
 func (s *Server) SetAPIKeysHandler(h *httpapi.APIKeysHandler) {
 	s.handlers = append(s.handlers, h)

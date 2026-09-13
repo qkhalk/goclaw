@@ -675,6 +675,10 @@ func runGateway() {
 	// answers "disabled" instead of 404 on installs without cloud config.
 	wireCloud(server, cfg, pgStores, cloudMgr, cloudMail, cloudSync)
 
+	// Video render pipeline: worker sidecar client + dispatcher + render_video tool.
+	videoStack := newVideoStack(cfg, pgStores, workspace, msgBus)
+	defer wireVideo(videoStack, server, toolsReg)()
+
 	// contextFileInterceptor is created inside wireExtras.
 	// Declared here so it can be passed to registerAllMethods → AgentsMethods
 	// for immediate cache invalidation on agents.files.set.
