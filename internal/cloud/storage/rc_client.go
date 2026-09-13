@@ -40,7 +40,7 @@ func (c *RCClient) do(ctx context.Context, path string, params map[string]any, o
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(buf))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/"+path, bytes.NewReader(buf))
 	if err != nil {
 		return err
 	}
