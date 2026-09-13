@@ -145,6 +145,10 @@ const (
 	EventMultiAgentVerdict           = "multiagent.verdict"
 	EventMultiAgentNegotiationState  = "multiagent.negotiation_state"
 	EventMultiAgentFormationSelected = "multiagent.formation_selected"
+
+	// Video render pipeline events (Phase 3).
+	// Payload: {jobId, status, progress, outputPath?, error?}.
+	EventVideoJobUpdated = "video.job.updated"
 )
 
 // Agent event subtypes (in payload.type)
