@@ -248,7 +248,9 @@ func (s *StorageService) Fetch(ctx context.Context, account, remotePath, workspa
 	if err := ensureDir(dstDir); err != nil {
 		return "", err
 	}
-	if err := rc.OperationsCopyFile(ctx, fs, remotePath, dstDir, name); err != nil {
+	srcFs := fs + ":"
+	srcRemote := strings.Trim(remotePath, "/")
+	if err := rc.OperationsCopyFile(ctx, srcFs, srcRemote, dstDir, name); err != nil {
 		return "", fmt.Errorf("cloud_fetch: copy: %w", err)
 	}
 	return filepath.Join("cloud", name), nil

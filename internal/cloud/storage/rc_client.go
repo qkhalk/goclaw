@@ -106,6 +106,16 @@ type ListEntry struct {
 	ModTime string `json:"ModTime"`
 }
 
+// remoteSpec joins a remote name and path into the fs spec rclone expects:
+// "<remote>:" for the root (an empty/"/" remote) or "<remote>:<path>".
+func remoteSpec(fs, remote string) string {
+	remote = strings.Trim(remote, "/")
+	if remote == "" {
+		return fs + ":"
+	}
+	return fs + ":" + remote
+}
+
 // OperationsList lists a remote path (non-recursive by default).
 func (c *RCClient) OperationsList(ctx context.Context, fs, remote string, maxEntries int) ([]ListEntry, error) {
 	if maxEntries <= 0 || maxEntries > 1000 {
@@ -115,8 +125,8 @@ func (c *RCClient) OperationsList(ctx context.Context, fs, remote string, maxEnt
 		List []ListEntry `json:"list"`
 	}
 	err := c.do(ctx, "operations/list", map[string]any{
-		"fs":     fs,
-		"remote": remote,
+		"fs":     remoteSpec(fs, remote),
+		"remote": "",
 		"opt":    map[string]any{"recurse": false, "maxDepth": 1, "limit": maxEntries},
 	}, &out)
 	return out.List, err
@@ -136,7 +146,7 @@ func (c *RCClient) OperationsStat(ctx context.Context, fs, remote string) (*Stat
 	var out struct {
 		Item *StatInfo `json:"item"`
 	}
-	if err := c.do(ctx, "operations/stat", map[string]any{"fs": fs, "remote": remote}, &out); err != nil {
+	if err := c.do(ctx, "operations/stat", map[string]any{"fs": remoteSpec(fs, remote), "remote": ""}, &out); err != nil {
 		return nil, err
 	}
 	if out.Item == nil {
@@ -155,7 +165,7 @@ type AboutInfo struct {
 // OperationsAbout returns storage quota for a remote.
 func (c *RCClient) OperationsAbout(ctx context.Context, fs string) (*AboutInfo, error) {
 	var out AboutInfo
-	if err := c.do(ctx, "operations/about", map[string]any{"fs": fs}, &out); err != nil {
+	if err := c.do(ctx, "operations/about", map[string]any{"fs": remoteSpec(fs, "")}, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
