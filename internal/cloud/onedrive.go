@@ -28,14 +28,15 @@ const (
 	MicrosoftGraphDefaultDriveURL = "https://graph.microsoft.com/v1.0/me/drive"
 )
 
-// MicrosoftScopes is the v1 scope set. Order is stable: tests assert it to
-// catch accidental scope creep (security-relevant). Files.Read.All covers
-// the rclone onedrive backend's browse/read; there is no write scope —
-// cloud_fetch copies out only.
+// MicrosoftScopes is the scope set. Order is stable: tests assert it to
+// catch accidental scope creep (security-relevant). Files.ReadWrite.All
+// covers the rclone onedrive backend's browse/read AND write (upload/
+// rename/move/delete); accounts connected with the legacy Files.Read.All
+// keep read-only access until their owner re-grants (see scopes.go).
 var MicrosoftScopes = []string{
 	"offline_access",
 	"User.Read",
-	"Files.Read.All",
+	"Files.ReadWrite.All",
 }
 
 // MicrosoftUserInfo is the subset of the Graph /me response we persist.

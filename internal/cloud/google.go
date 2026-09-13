@@ -11,19 +11,21 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Google provider constants. Scopes are deliberately minimal for v1:
-// gmail.readonly (search/read), gmail.labels + gmail.modify (archive/trash/
-// label ops), drive.readonly (storage browse/read). The full-access
-// https://mail.google.com/ scope is intentionally NOT requested — v1 has no
-// permanent-delete path, and narrower scopes mean a smaller blast radius.
+// Google provider constants. Mail scopes stay minimal: gmail.readonly
+// (search/read), gmail.labels + gmail.modify (archive/trash/label ops). The
+// full-access https://mail.google.com/ scope is intentionally NOT requested —
+// there is no permanent-delete path, and narrower scopes mean a smaller blast
+// radius. Drive uses the full scope (drive) so file operations can write
+// (upload/rename/move/delete); accounts connected before the write upgrade
+// keep read-only access until their owner re-grants (see scopes.go).
 const (
-	GoogleProvider   = "google"
-	GoogleAuthURL    = "https://accounts.google.com/o/oauth2/v2/auth"
-	GoogleTokenURL   = "https://oauth2.googleapis.com/token"
+	GoogleProvider    = "google"
+	GoogleAuthURL     = "https://accounts.google.com/o/oauth2/v2/auth"
+	GoogleTokenURL    = "https://oauth2.googleapis.com/token"
 	GoogleUserinfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
 )
 
-// GoogleScopes is the v1 scope set. Order is stable: unit tests assert it to
+// GoogleScopes is the scope set. Order is stable: unit tests assert it to
 // catch accidental scope creep (security-relevant).
 var GoogleScopes = []string{
 	"openid",
@@ -32,7 +34,7 @@ var GoogleScopes = []string{
 	"https://www.googleapis.com/auth/gmail.readonly",
 	"https://www.googleapis.com/auth/gmail.labels",
 	"https://www.googleapis.com/auth/gmail.modify",
-	"https://www.googleapis.com/auth/drive.readonly",
+	"https://www.googleapis.com/auth/drive",
 }
 
 // GoogleUserInfo is the subset of the OIDC userinfo response we persist.

@@ -35,12 +35,13 @@ const (
 // EmbeddedGoogleScopes is the zero-config scope set. Deliberately narrower
 // than the BYO set: NO Gmail scopes — rclone's verified Google client covers
 // the Drive scopes, and mail tools therefore require a BYO account (see
-// MailService.resolveAccount).
+// MailService.resolveAccount). Drive is the full scope (matches rclone's own
+// default) so embedded accounts can write, not just read.
 var EmbeddedGoogleScopes = []string{
 	"openid",
 	"https://www.googleapis.com/auth/userinfo.email",
 	"https://www.googleapis.com/auth/userinfo.profile",
-	"https://www.googleapis.com/auth/drive.readonly",
+	"https://www.googleapis.com/auth/drive",
 }
 
 // providerCredentials is the resolved OAuth client for one provider plus a

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Download } from "lucide-react";
-import { formatSize, sizeBadgeVariant, type TreeNode } from "@/lib/file-helpers";
+import { sizeBadgeVariant, type TreeNode } from "@/lib/file-helpers";
+import { formatFileSize } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileTreePanel } from "@/components/shared/file-tree";
@@ -29,7 +30,7 @@ function FileActions({
   return (
     <div className="flex items-center gap-1.5 shrink-0 ml-auto">
       <Badge variant={sizeBadgeVariant(size)} className="text-2xs px-1.5 py-0">
-        {formatSize(size)}
+        {formatFileSize(size)}
       </Badge>
       {onDownload && (
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onDownload} title={t("download")}>

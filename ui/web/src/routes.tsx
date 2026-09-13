@@ -198,6 +198,8 @@ export function AppRoutes() {
           <Route path={ROUTES.CHANNELS} element={<RequireAdmin><ChannelsPage key="list" /></RequireAdmin>} />
           <Route path={ROUTES.CHANNEL_DETAIL} element={<RequireAdmin><ChannelsPage key="detail" /></RequireAdmin>} />
           <Route path={ROUTES.CLOUD} element={<CloudPage />} />
+          <Route path={ROUTES.CLOUD_PROVIDER} element={<CloudPage />} />
+          <Route path={ROUTES.CLOUD_ACCOUNT} element={<CloudPage />} />
           <Route path={ROUTES.WEBHOOKS} element={<RequireAdmin><WebhooksPage /></RequireAdmin>} />
           <Route path={ROUTES.NODES} element={<RequireAdmin><NodesPage /></RequireAdmin>} />
           <Route path={ROUTES.WORKSTATIONS} element={<RequireAdmin><WorkstationsPage /></RequireAdmin>} />

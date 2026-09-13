@@ -50,7 +50,9 @@ const (
 // CloudBinding pins a cloud account to a usage scope: which account the
 // agent should reach for in a DM (user), a group chat (group), or
 // tenant-wide (tenant default). One binding per (tenant, scope, key,
-// provider).
+// provider). Enabled=false keeps the rule configured but excluded from
+// resolution; Priority breaks ties between rules of the same tier (lower
+// wins, default 100).
 type CloudBinding struct {
 	ID        string    `json:"id"`
 	TenantID  string    `json:"tenant_id"`
@@ -59,6 +61,8 @@ type CloudBinding struct {
 	Provider  string    `json:"provider"`   // "google" | "onedrive"
 	AccountID string    `json:"account_id"`
 	CreatedBy string    `json:"created_by"`
+	Enabled   bool      `json:"enabled"`
+	Priority  int       `json:"priority"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -92,6 +96,10 @@ type CloudAccountStore interface {
 	// ListShared returns the tenant-wide shared accounts (any owner), newest
 	// first. Tenant-scoped only — no user filter.
 	ListShared(ctx context.Context) ([]CloudAccount, error)
+	// ListTenant returns EVERY account of the ctx tenant (any owner). Worker
+	// scope only: the sync service resolves sync-pair endpoints without a user
+	// context — never expose this to per-user HTTP handlers.
+	ListTenant(ctx context.Context) ([]CloudAccount, error)
 	// SetShared toggles the tenant-wide shared flag on one account (scoped to
 	// the ctx tenant+user — the owner or an admin acting in scope).
 	SetShared(ctx context.Context, id string, shared bool) error

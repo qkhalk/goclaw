@@ -10,7 +10,7 @@ import { ChatThread } from "./chat-thread";
 import { AskOptionsProvider, askAnswerText, type AskOptionsContextValue } from "@/components/chat/ask-options-context";
 import { ChatInput, type AttachedFile, type ComposerOverrides } from "@/components/chat/chat-input";
 import { ChatTopBar } from "@/components/chat/chat-top-bar";
-import { DropZone } from "@/components/chat/drop-zone";
+import { DropZone } from "@/components/shared/drop-zone";
 import { TeamTasksPill } from "@/components/chat/team-tasks-pill";
 import { useChatSessions } from "./hooks/use-chat-sessions";
 import { useChatMessages } from "./hooks/use-chat-messages";
@@ -273,7 +273,7 @@ export function ChatPage() {
           </div>
         )}
 
-        <DropZone onDrop={handleDropFiles}>
+        <DropZone onDrop={handleDropFiles} title={t("dropzone.title")}>
           <AskOptionsProvider value={askOptionsValue}>
             <ChatThread
               messages={messages}

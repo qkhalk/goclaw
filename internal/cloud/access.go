@@ -48,9 +48,11 @@ func (m *Manager) accessibleAccounts(ctx context.Context) ([]store.CloudAccount,
 //  4. tenant default binding;
 //  5. own accounts, preferring active (legacy behavior).
 //
-// usable is the capability predicate (provider + scopes + status) and
-// providers is the preference order for binding lookup. Revoked binding
-// targets fall through to the next scope.
+// Disabled bindings are ignored; among multiple rules of the same tier the
+// lowest priority wins (ties → oldest first). usable is the capability
+// predicate (provider + scopes + status) and providers is the preference
+// order for binding lookup. Revoked binding targets fall through to the next
+// scope.
 func (m *Manager) ResolveAccount(ctx context.Context, name string, providers []string, usable func(*store.CloudAccount) bool) (*store.CloudAccount, error) {
 	accounts, err := m.accessibleAccounts(ctx)
 	if err != nil {
@@ -84,29 +86,42 @@ func (m *Manager) ResolveAccount(ctx context.Context, name string, providers []s
 		return nil, ErrNoAccounts
 	}
 
-	// 2-4. Bindings: group → user → tenant default.
-	if m.bindings != nil {
-		bindings, berr := m.bindings.ListBindings(ctx)
-		if berr != nil {
-			slog.Warn("cloud: list bindings failed", "error", berr)
-		} else {
-			scopes := make([][2]string, 0, 3)
-			if cs, ok := store.ChannelContextScopeFromContext(ctx); ok && cs.ScopeType == store.ChannelScopeTypeGroup && cs.ScopeKey != "" {
-				scopes = append(scopes, [2]string{store.CloudBindingScopeGroup, cs.ScopeKey})
-			}
-			if uid := store.UserIDFromContext(ctx); uid != "" {
-				scopes = append(scopes, [2]string{store.CloudBindingScopeUser, uid})
-			}
-			scopes = append(scopes, [2]string{store.CloudBindingScopeTenant, ""})
+		// 2-4. Bindings: group → user → tenant default. Disabled rules are
+		// skipped entirely; within one tier+provider the lowest priority
+		// number wins (ties → oldest rule first). Under the unique
+		// constraint there is one rule per (tier, key, provider) today, so
+		// this preserves legacy behavior for pre-priority data.
+		if m.bindings != nil {
+			bindings, berr := m.bindings.ListBindings(ctx)
+			if berr != nil {
+				slog.Warn("cloud: list bindings failed", "error", berr)
+			} else {
+				scopes := make([][2]string, 0, 3)
+				if cs, ok := store.ChannelContextScopeFromContext(ctx); ok && cs.ScopeType == store.ChannelScopeTypeGroup && cs.ScopeKey != "" {
+					scopes = append(scopes, [2]string{store.CloudBindingScopeGroup, cs.ScopeKey})
+				}
+				if uid := store.UserIDFromContext(ctx); uid != "" {
+					scopes = append(scopes, [2]string{store.CloudBindingScopeUser, uid})
+				}
+				scopes = append(scopes, [2]string{store.CloudBindingScopeTenant, ""})
 
-			for _, sc := range scopes {
-				for _, provider := range providers {
-					for i := range bindings {
-						b := &bindings[i]
-						if b.ScopeType != sc[0] || b.ScopeKey != sc[1] || b.Provider != provider {
+				for _, sc := range scopes {
+					for _, provider := range providers {
+						var best *store.CloudBinding
+						for i := range bindings {
+							b := &bindings[i]
+							if !b.Enabled || b.ScopeType != sc[0] || b.ScopeKey != sc[1] || b.Provider != provider {
+								continue
+							}
+							if best == nil || b.Priority < best.Priority ||
+								(b.Priority == best.Priority && b.CreatedAt.Before(best.CreatedAt)) {
+								best = b
+							}
+						}
+						if best == nil {
 							continue
 						}
-						acct := byID[b.AccountID]
+						acct := byID[best.AccountID]
 						if acct == nil || !usable(acct) {
 							if acct != nil && acct.Status == "revoked" {
 								revokedEmail = acct.Email
@@ -118,7 +133,6 @@ func (m *Manager) ResolveAccount(ctx context.Context, name string, providers []s
 				}
 			}
 		}
-	}
 
 	// 5. Legacy fallback: own accounts, prefer active.
 	for i := range accounts {

@@ -1,37 +1,44 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Cloud,
+  Building2,
   ClipboardPaste,
-  Copy,
-  HardDrive,
+  KeyRound,
   PackageOpen,
-  Pencil,
   Plus,
-  RefreshCw,
+  Settings,
   Unplug,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { ScopeBindingsPanel } from "./scope-bindings-panel";
-import { AccountDetail, type DetailTab } from "./account-detail";
-import { PageHeader } from "@/components/shared/page-header";
+import { SettingsModal } from "./settings-modal";
+import { CLOUD_PROVIDERS } from "./drive/drive-rail";
+import { StarredView } from "./drive/starred-view";
+import { RecentView } from "./drive/recent-view";
+import { DriveShell } from "./drive/drive-shell";
+import { DriveTopBar } from "./drive/drive-topbar";
+import { DriveFileArea } from "./drive/drive-file-area";
+import {
+  SORT_STORAGE_KEY,
+  VIEW_MODE_STORAGE_KEY,
+  normalizePath,
+  type SortSpec,
+  type ViewMode,
+} from "./drive/paths";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { queryKeys } from "@/lib/query-keys";
+import { ROUTES } from "@/lib/routes";
 import { useAuthStore } from "@/stores/use-auth-store";
-import { useClipboard } from "@/hooks/use-clipboard";
 import {
   useCloudAccounts,
-  useCloudSettings,
   useCloudStatus,
   type CloudAccount,
   type CloudProvider,
@@ -68,157 +75,94 @@ function statusBadge(status: CloudAccount["status"], label: string) {
   }
 }
 
-/** Connectable providers (backend mirror: cloud.SupportedProviders) plus the
- * rclone-style coming-soon entries. */
-const LIVE_PROVIDERS: { id: CloudProvider; name: string; icon: typeof Cloud }[] = [
-  { id: "google", name: "Google Drive", icon: Cloud },
-  { id: "onedrive", name: "Microsoft OneDrive", icon: HardDrive },
-];
 const COMING_SOON_PROVIDERS = ["Dropbox", "Amazon S3 / compatible"];
 
-/** Per-provider admin setup card: one-time OAuth client registration with a
- * step-by-step guide. Hidden for good after a successful save; a discreet
- * pencil re-opens it for rotation. */
-function ProviderClientSetup({ provider }: { provider: CloudProvider }) {
-  const { t } = useTranslation("cloud");
-  const role = useAuthStore((s) => s.role);
-  const isAdmin = role === "admin" || role === "owner";
-  const { settings, saveSettings } = useCloudSettings(provider, isAdmin);
-  const [clientID, setClientID] = useState("");
-  const [secret, setSecret] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [editing, setEditing] = useState(false);
-  const { copied, copy } = useClipboard();
-
-  if (!isAdmin) return null;
-
-  const redirectUri = settings?.redirect_uri ?? "";
-
-  if (settings?.secret_set && !editing) {
-    return (
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={() => { setClientID(settings.client_id); setEditing(true); }}>
-          <Pencil className="mr-2 h-3.5 w-3.5" />
-          {t("setup.update")}
-        </Button>
-      </div>
-    );
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setError("");
-    try {
-      await saveSettings(clientID.trim(), secret.trim());
-      setEditing(false);
-      setSecret("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const configuredOnce = settings?.secret_set ?? false;
-  const stepKey = (n: number) => t(`setup.${provider}_step${n}`);
-
-  return (
-    <div className="rounded-lg border p-4 text-sm">
-      <p className="font-medium">{t(provider === "google" ? "setup.title_google" : "setup.title_onedrive")}</p>
-      <p className="mt-1 text-muted-foreground">{t("setup.body")}</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
-        <li>{stepKey(1)}</li>
-        <li>{stepKey(2)}</li>
-        <li>{stepKey(3)}</li>
-        <li>
-          {stepKey(4)}{" "}
-          <span className="inline-flex items-center gap-1">
-            <code className="rounded bg-muted px-1 py-0.5 text-xs break-all">{redirectUri}</code>
-            {redirectUri && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-1"
-                onClick={() => void copy(redirectUri)}
-              >
-                {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-              </Button>
-            )}
-          </span>
-        </li>
-      </ol>
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Input
-          value={clientID || settings?.client_id || ""}
-          onChange={(e) => setClientID(e.target.value)}
-          placeholder={t(`setup.${provider}_client_id`)}
-          className="text-base md:text-sm"
-          autoComplete="off"
-        />
-        <Input
-          type="password"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-          placeholder={configuredOnce ? t("setup.client_secret_keep") : t("setup.client_secret")}
-          className="text-base md:text-sm"
-          autoComplete="new-password"
-        />
-      </div>
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-      <div className="mt-3 flex items-center justify-end gap-2">
-        {configuredOnce && (
-          <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
-            {t("setup.cancel")}
-          </Button>
-        )}
-        <Button size="sm" onClick={handleSave} disabled={saving || !(clientID.trim() || configuredOnce)} className="min-h-11 sm:min-h-9">
-          {saving ? t("setup.saving") : t("setup.save")}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
+/** Clouds page — Drive-style shell. Navigation state lives in the URL:
+ * /cloud (home) → /cloud/:provider → /cloud/:provider/:accountId?path=…
+ * (URL params as source of truth; no duplicate useState for route params). */
 export function CloudPage() {
+  const { provider, accountId } = useParams();
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { t } = useTranslation("cloud");
   const result = useCloudResult();
   const role = useAuthStore((s) => s.role);
+  const userId = useAuthStore((s) => s.userId);
   const isAdmin = role === "admin" || role === "owner";
 
   const { data: cloudStatus } = useCloudStatus();
   const { accounts, loading, refresh, disconnect, startConnect, completeConnect, setShared } = useCloudAccounts();
-  const [selectedProvider, setSelectedProvider] = useState<CloudProvider | null>(null);
+
+  // URL-derived view state (never duplicated into useState).
+  const activeProvider: CloudProvider | null =
+    provider === "google" || provider === "onedrive" ? provider : null;
+  const path = normalizePath(params.get("path"));
+  const view: "home" | "provider" | "account" = accountId ? "account" : provider ? "provider" : "home";
+  /** Cross-account pseudo-views on /cloud itself (?view=starred|recent). */
+  const activeView = view === "home" ? (params.get("view") ?? "") : "";
+
+  // Ephemeral UI state (intentionally not in the URL).
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortSpec>(() => {
+    try {
+      const raw = localStorage.getItem(SORT_STORAGE_KEY);
+      if (raw) return JSON.parse(raw) as SortSpec;
+    } catch {
+      /* ignore */
+    }
+    return { key: "name", dir: "asc" };
+  });
+  const [viewMode, setViewMode] = useState<ViewMode>(() =>
+    localStorage.getItem(VIEW_MODE_STORAGE_KEY) === "list" ? "list" : "grid",
+  );
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
+  useEffect(() => {
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
+  }, [sort]);
+
+  // Connect flow (home + provider views) — same embedded/paste-back flow.
   const [connecting, setConnecting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CloudAccount | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [detailTab, setDetailTab] = useState<{ id: string; tab: DetailTab }>({ id: "", tab: null });
   const [pasteProvider, setPasteProvider] = useState<CloudProvider | null>(null);
   const [pasteURL, setPasteURL] = useState("");
   const [completing, setCompleting] = useState(false);
   const [pasteError, setPasteError] = useState("");
-  const [showByoSetup, setShowByoSetup] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsProvider, setSettingsProvider] = useState<CloudProvider>("google");
+
+  const account = accountId ? accounts.find((a) => a.id === accountId) : undefined;
+  const providerMeta = activeProvider ? CLOUD_PROVIDERS.find((p) => p.id === activeProvider) : null;
 
   const googleConfigured = cloudStatus?.providers?.google?.configured ?? false;
   const onedriveConfigured = cloudStatus?.providers?.onedrive?.configured ?? false;
   const isConfigured = (p: CloudProvider) => (p === "google" ? googleConfigured : onedriveConfigured);
-  const providersReady = LIVE_PROVIDERS.filter((p) => isConfigured(p.id)).length;
+  const providersReady = CLOUD_PROVIDERS.filter((p) => isConfigured(p.id)).length;
   const activeAccounts = accounts.filter((a) => a.status === "active").length;
 
-  const providerAccounts = selectedProvider
-    ? accounts.filter((a) => a.provider === selectedProvider)
-    : [];
+  function openSettings() {
+    // Default the modal's provider to whatever view the user is on.
+    if (activeProvider) setSettingsProvider(activeProvider);
+    setSettingsOpen(true);
+  }
 
-  async function handleConnect(provider: CloudProvider) {
+  function navigatePath(next: string) {
+    setParams({ path: next });
+  }
+
+  async function handleConnect(p: CloudProvider) {
     setConnecting(true);
     setPasteError("");
     try {
-      const res = await startConnect(provider);
+      const res = await startConnect(p);
       if (res.mode === "paste") {
         // Embedded shared client: the consent redirects to a loopback URL
         // nothing is listening on — keep the page alive in this tab and ask
         // the user to paste the address-bar URL back (rclone-style).
-        setPasteProvider(provider);
+        setPasteProvider(p);
         setPasteURL("");
         window.open(res.auth_url, "_blank", "noopener,noreferrer");
       } else {
@@ -246,16 +190,6 @@ export function CloudPage() {
     }
   }
 
-  const accountCanMail = (a: CloudAccount) => {
-    if (a.provider !== "google") return false;
-    try {
-      const scopes: string[] = JSON.parse(a.scopes || "[]");
-      return scopes.some((sc) => sc.includes("/auth/gmail"));
-    } catch {
-      return false;
-    }
-  };
-
   async function handleDisconnect() {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -267,84 +201,224 @@ export function CloudPage() {
     }
   }
 
-  return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
-      <PageHeader
-        title={t("title")}
-        description={t("description")}
-        actions={
-          <Button variant="outline" size="sm" onClick={() => refresh()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {t("refresh")}
-          </Button>
-        }
-      />
+  function refreshCurrent() {
+    if (view === "account" && accountId) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cloud.allFiles(accountId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cloud.about(accountId) });
+      return;
+    }
+    refresh();
+  }
 
-      {(result.connected || result.error) && (
-        <div
-          className={
-            result.connected
-              ? "rounded-lg border border-green-500/40 bg-green-500/10 p-3 text-sm"
-              : "rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm"
-          }
+  // Invalid provider in the URL → back to the clouds home (no crash).
+  if (provider && !activeProvider) {
+    return <Navigate to={ROUTES.CLOUD} replace />;
+  }
+
+  const gear = (
+    <Button variant="ghost" size="icon" onClick={openSettings} aria-label={t("settings.title")} title={t("settings.title")}>
+      <Settings className="h-4 w-4" />
+    </Button>
+  );
+
+  const headerRight =
+    view === "home" && activeView ? (
+      <>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("provider.back")}
+          title={t("provider.back")}
+          onClick={() => setParams({})}
         >
-          {result.connected
-            ? t("result.connected", { email: result.connected })
-            : t("result.error", { code: result.error })}
-        </div>
-      )}
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        {gear}
+      </>
+    ) : (
+      gear
+    );
 
-      {/* Dashboard tổng: aggregate across all providers */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">{t("dashboard.accounts")}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{accounts.length}</p>
+  const homeTitle =
+    activeView === "starred" ? t("starred.title") : activeView === "recent" ? t("recent.title") : t("title");
+
+  // Account view: the Drive file area owns its own shell (rail + topbar +
+  // dnd/upload tree). Invalid accounts get an empty state, not a crash.
+  if (view === "account" && accountId) {
+    if (loading) {
+      return (
+        <div className="p-6">
+          <TableSkeleton rows={4} />
         </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">{t("dashboard.active")}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{activeAccounts}</p>
+      );
+    }
+    if (!account || account.provider !== activeProvider) {
+      return (
+        <div className="p-6">
+          <EmptyState
+            icon={PackageOpen}
+            title={t("drive.not_found")}
+            action={
+              <Button variant="outline" size="sm" onClick={() => navigate(ROUTES.CLOUD)}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                {t("drive.back_home")}
+              </Button>
+            }
+          />
         </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">{t("dashboard.providers_ready")}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">
-            {providersReady} / {LIVE_PROVIDERS.length}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {LIVE_PROVIDERS.map((p) => (
-              <Badge
-                key={p.id}
-                variant="outline"
-                className={
-                  isConfigured(p.id)
-                    ? "border-green-500/40 text-green-600"
-                    : "text-muted-foreground"
-                }
-              >
-                {p.name}
-              </Badge>
-            ))}
+      );
+    }
+    return (
+      <>
+        <DriveFileArea
+          account={account}
+          path={path}
+          onNavigatePath={navigatePath}
+          search={search}
+          onSearchChange={setSearch}
+          sort={sort}
+          onSortChange={setSort}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          onRefresh={refreshCurrent}
+          right={gear}
+        />
+        <SettingsModal
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          provider={settingsProvider}
+          onProviderChange={setSettingsProvider}
+        />
+      </>
+    );
+  }
+
+  const showPastePanel =
+    pasteProvider !== null && (view === "home" || pasteProvider === activeProvider);
+
+  return (
+    <DriveShell
+      railTitle={t("drive.my_drives")}
+      header={
+        <DriveTopBar
+          title={view === "home" ? homeTitle : providerMeta?.name}
+          subtitle={view === "home" && !activeView ? t("description") : undefined}
+          onRefresh={refreshCurrent}
+          right={headerRight}
+        />
+      }
+    >
+      {view === "home" && activeView === "starred" && <StarredView />}
+
+      {view === "home" && activeView === "recent" && <RecentView />}
+
+      {view === "home" && !activeView && (
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
+          {(result.connected || result.error) && (
+            <div
+              className={
+                result.connected
+                  ? "rounded-lg border border-green-500/40 bg-green-500/10 p-3 text-sm"
+                  : "rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm"
+              }
+            >
+              {result.connected
+                ? t("result.connected", { email: result.connected })
+                : t("result.error", { code: result.error })}
+            </div>
+          )}
+
+          {/* Dashboard tổng: aggregate across all providers */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border p-4">
+              <p className="text-sm text-muted-foreground">{t("dashboard.accounts")}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{accounts.length}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-sm text-muted-foreground">{t("dashboard.active")}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{activeAccounts}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-sm text-muted-foreground">{t("dashboard.providers_ready")}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">
+                {providersReady} / {CLOUD_PROVIDERS.length}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {CLOUD_PROVIDERS.map((p) => (
+                  <Badge
+                    key={p.id}
+                    variant="outline"
+                    className={
+                      isConfigured(p.id)
+                        ? "border-green-500/40 text-green-600"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {p.name}
+                  </Badge>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {loading && !cloudStatus ? (
-        <TableSkeleton rows={2} />
-      ) : !selectedProvider ? (
-        <>
-          {/* Provider picker: choose the storage provider first */}
+          {showPastePanel && (
+            <PasteBackPanel
+              pasteURL={pasteURL}
+              setPasteURL={setPasteURL}
+              completing={completing}
+              pasteError={pasteError}
+              onComplete={handleComplete}
+            />
+          )}
+
+          {/* My drives: every connected account as a clickable drive card */}
+          <div>
+            <p className="text-sm font-medium">{t("drive.my_drives")}</p>
+            {loading ? (
+              <div className="mt-3">
+                <TableSkeleton rows={2} />
+              </div>
+            ) : accounts.length === 0 ? (
+              <div className="mt-3">
+                <EmptyState
+                  icon={PackageOpen}
+                  title={t("empty.title")}
+                  description={t("empty.description")}
+                />
+              </div>
+            ) : (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {accounts.map((a) => (
+                  <AccountCard
+                    key={a.id}
+                    account={a}
+                    isAdmin={isAdmin}
+                    userId={userId}
+                    connecting={connecting}
+                    onOpen={() => navigate(`/cloud/${a.provider}/${a.id}`)}
+                    onRegrant={() => handleConnect(a.provider as CloudProvider)}
+                    onSharedChange={(v) => void setShared(a.id, v)}
+                    onDisconnect={() => setDeleteTarget(a)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Provider picker */}
           <div>
             <p className="text-sm font-medium">{t("picker.title")}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t("picker.description")}</p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {LIVE_PROVIDERS.map((p) => {
+            {CLOUD_PROVIDERS.map((p) => {
               const configured = isConfigured(p.id);
               const count = accounts.filter((a) => a.provider === p.id).length;
               return (
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setSelectedProvider(p.id)}
+                  onClick={() => navigate(`/cloud/${p.id}`)}
                   className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-colors hover:bg-muted/40"
                 >
                   <div className="flex w-full items-start justify-between gap-2">
@@ -385,141 +459,90 @@ export function CloudPage() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">{t("picker.more_via_rclone")}</p>
-        </>
-      ) : (
-        <>
-          {/* Per-provider view: setup guide first, then connect + accounts */}
+        </div>
+      )}
+
+      {view === "provider" && activeProvider && (
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
           <div>
-            <Button variant="ghost" size="sm" className="-ml-2" onClick={() => setSelectedProvider(null)}>
+            <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate(ROUTES.CLOUD)}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               {t("provider.back")}
             </Button>
           </div>
 
-          {/* Paste-back panel for the embedded shared client flow */}
-          {pasteProvider === selectedProvider && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm space-y-3">
-              <p className="font-medium">{t("paste.title")}</p>
-              <p className="text-muted-foreground">{t("paste.description")}</p>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  value={pasteURL}
-                  onChange={(e) => setPasteURL(e.target.value)}
-                  placeholder={t("paste.placeholder")}
-                  className="text-base md:text-sm flex-1"
-                  autoComplete="off"
-                />
-                <Button size="sm" onClick={handleComplete} disabled={completing || !pasteURL.trim()} className="min-h-11 sm:min-h-9 shrink-0">
-                  <ClipboardPaste className="mr-2 h-4 w-4" />
-                  {completing ? t("paste.completing") : t("paste.complete")}
-                </Button>
-              </div>
-              {pasteError && <p className="text-xs text-destructive">{pasteError}</p>}
-            </div>
+          {showPastePanel && (
+            <PasteBackPanel
+              pasteURL={pasteURL}
+              setPasteURL={setPasteURL}
+              completing={completing}
+              pasteError={pasteError}
+              onComplete={handleComplete}
+            />
           )}
 
-          {/* Per-scope account bindings (admin): tenant default / group / user */}
-          {isAdmin && <ScopeBindingsPanel provider={selectedProvider} />}
-
-          {(
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">{t("provider.accounts_title")}</p>
-                <Button
-                  size="sm"
-                  onClick={() => handleConnect(selectedProvider)}
-                  disabled={connecting}
-                  className="min-h-11 sm:min-h-9"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t(`connect.${selectedProvider}`)}
-                </Button>
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">{t("provider.accounts_title")}</p>
+              <Button
+                size="sm"
+                onClick={() => handleConnect(activeProvider)}
+                disabled={connecting}
+                className="min-h-11 sm:min-h-9"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {t(`connect.${activeProvider}`)}
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{t("setup.embedded_note")}</p>
+            {loading ? (
+              <div className="mt-3">
+                <TableSkeleton rows={2} />
               </div>
-              <p className="-mt-3 text-xs text-muted-foreground">{t("setup.embedded_note")}</p>
-              {providerAccounts.length === 0 ? (
+            ) : providerAccounts(accounts, activeProvider).length === 0 ? (
+              <div className="mt-3">
                 <EmptyState
                   icon={PackageOpen}
                   title={t("empty.title")}
                   description={t("empty.description")}
                 />
-              ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {providerAccounts.map((account) => (
-                    <div key={account.id} className="flex flex-col gap-3 rounded-lg border p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{account.email}</p>
-                          <p className="truncate text-sm text-muted-foreground">
-                            {account.display_name || account.provider}
-                          </p>
-                        </div>
-                        {statusBadge(account.status, t(`status.${account.status}`))}
-                      </div>
-                      {account.status_message && (
-                        <p className="text-xs text-muted-foreground">{account.status_message}</p>
-                      )}
-                      <AccountDetail
-                        accountId={account.id}
-                        provider={account.provider}
-                        canMail={accountCanMail(account)}
-                        tab={detailTab.id === account.id ? detailTab.tab : null}
-                        onTabChange={(tb) => setDetailTab({ id: account.id, tab: tb })}
-                      />
-                      {isAdmin && (
-                        <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                          <span>{t("share.toggle")}</span>
-                          <Switch
-                            checked={account.shared}
-                            onCheckedChange={(v) => void setShared(account.id, v)}
-                          />
-                        </label>
-                      )}
-                      <div className="mt-auto flex items-center justify-between gap-2">
-                        <span className="text-xs text-muted-foreground">{account.provider}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="min-h-11 text-destructive hover:text-destructive"
-                          onClick={() => setDeleteTarget(account)}
-                        >
-                          <Unplug className="mr-2 h-4 w-4" />
-                          {t("disconnect")}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    className="min-h-11 border-dashed"
-                    onClick={() => handleConnect(selectedProvider)}
-                    disabled={connecting}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    {t("connect.another")}
-                  </Button>
-                </div>
-              )}
-
-              {/* Advanced: BYO OAuth client (branding / quota / Gmail) */}
-              <div className="rounded-lg border">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium"
-                  onClick={() => setShowByoSetup((v) => !v)}
-                >
-                  {showByoSetup ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  {t("setup.advanced")}
-                </button>
-                {showByoSetup && (
-                  <div className="border-t p-4">
-                    <ProviderClientSetup provider={selectedProvider} />
-                  </div>
-                )}
               </div>
-            </>
-          )}
-        </>
+            ) : (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {providerAccounts(accounts, activeProvider).map((a) => (
+                  <AccountCard
+                    key={a.id}
+                    account={a}
+                    isAdmin={isAdmin}
+                    userId={userId}
+                    connecting={connecting}
+                    onOpen={() => navigate(`/cloud/${a.provider}/${a.id}`)}
+                    onRegrant={() => handleConnect(a.provider as CloudProvider)}
+                    onSharedChange={(v) => void setShared(a.id, v)}
+                    onDisconnect={() => setDeleteTarget(a)}
+                  />
+                ))}
+                <Button
+                  variant="outline"
+                  className="min-h-11 border-dashed"
+                  onClick={() => handleConnect(activeProvider)}
+                  disabled={connecting}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("connect.another")}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
+
+      <SettingsModal
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        provider={settingsProvider}
+        onProviderChange={setSettingsProvider}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}
@@ -530,6 +553,152 @@ export function CloudPage() {
         loading={deleteLoading}
         onConfirm={handleDisconnect}
       />
+    </DriveShell>
+  );
+}
+
+function providerAccounts(accounts: CloudAccount[], provider: CloudProvider): CloudAccount[] {
+  return accounts.filter((a) => a.provider === provider);
+}
+
+/** Paste-back panel for the embedded shared client flow. */
+function PasteBackPanel({
+  pasteURL,
+  setPasteURL,
+  completing,
+  pasteError,
+  onComplete,
+}: {
+  pasteURL: string;
+  setPasteURL: (v: string) => void;
+  completing: boolean;
+  pasteError: string;
+  onComplete: () => void;
+}) {
+  const { t } = useTranslation("cloud");
+  return (
+    <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+      <p className="font-medium">{t("paste.title")}</p>
+      <p className="text-muted-foreground">{t("paste.description")}</p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          value={pasteURL}
+          onChange={(e) => setPasteURL(e.target.value)}
+          placeholder={t("paste.placeholder")}
+          className="flex-1 text-base md:text-sm"
+          autoComplete="off"
+        />
+        <Button
+          size="sm"
+          onClick={onComplete}
+          disabled={completing || !pasteURL.trim()}
+          className="min-h-11 shrink-0 sm:min-h-9"
+        >
+          <ClipboardPaste className="mr-2 h-4 w-4" />
+          {completing ? t("paste.completing") : t("paste.complete")}
+        </Button>
+      </div>
+      {pasteError && <p className="text-xs text-destructive">{pasteError}</p>}
+    </div>
+  );
+}
+
+/** Clickable drive card for one account (home + provider views). */
+function AccountCard({
+  account,
+  isAdmin,
+  userId,
+  connecting,
+  onOpen,
+  onRegrant,
+  onSharedChange,
+  onDisconnect,
+}: {
+  account: CloudAccount;
+  isAdmin: boolean;
+  userId: string;
+  connecting: boolean;
+  onOpen: () => void;
+  onRegrant: () => void;
+  onSharedChange: (v: boolean) => void;
+  onDisconnect: () => void;
+}) {
+  const { t } = useTranslation("cloud");
+  const canRegrant = !account.shared || account.user_id === userId;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+      }}
+      className="flex cursor-pointer flex-col gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/40"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate font-medium">{account.email}</p>
+          <p className="truncate text-sm text-muted-foreground">
+            {account.display_name || account.provider}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {statusBadge(account.status, t(`status.${account.status}`))}
+          {account.shared && (
+            <Badge variant="outline" className="text-muted-foreground">
+              <Building2 className="mr-1 h-3 w-3" />
+              {t("drive.shared_tag")}
+            </Badge>
+          )}
+          {account.can_write === false && <Badge variant="warning">{t("readonly_badge")}</Badge>}
+        </div>
+      </div>
+      {account.status_message && (
+        <p className="text-xs text-muted-foreground">{account.status_message}</p>
+      )}
+      {account.can_write === false && canRegrant && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+          <p>{t("regrant_hint")}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 min-h-11 sm:min-h-9"
+            disabled={connecting}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRegrant();
+            }}
+          >
+            <KeyRound className="mr-2 h-4 w-4" />
+            {t("regrant")}
+          </Button>
+        </div>
+      )}
+      {isAdmin && (
+        <label
+          className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span>{t("share.toggle")}</span>
+          <Switch checked={account.shared} onCheckedChange={onSharedChange} />
+        </label>
+      )}
+      <div className="mt-auto flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{account.provider}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="min-h-11 text-destructive hover:text-destructive"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDisconnect();
+          }}
+        >
+          <Unplug className="mr-2 h-4 w-4" />
+          {t("disconnect")}
+        </Button>
+      </div>
     </div>
   );
 }

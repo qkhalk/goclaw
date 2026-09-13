@@ -8,6 +8,9 @@
     "another": "Kết nối tài khoản khác"
   },
   "disconnect": "Ngắt kết nối",
+  "readonly_badge": "Chỉ đọc",
+  "regrant": "Cấp quyền lại",
+  "regrant_hint": "Tài khoản này được kết nối với quyền chỉ đọc. Hãy cấp quyền lại để agent có thể tải lên, đổi tên, di chuyển và xóa tệp.",
   "status": {
     "active": "Hoạt động",
     "expired": "Hết hạn",
@@ -43,12 +46,12 @@
     "title_google": "Google chưa được cấu hình",
     "title_onedrive": "OneDrive chưa được cấu hình",
     "body": "GoClaw dùng OAuth client của riêng bạn (bring your own client). Thiết lập một lần:",
-    "google_step1": "Tạo OAuth client (loại \"Web application\") trong Google Cloud console.",
+    "google_step1": "Tạo OAuth client (loại \"Web application\") trong Google Cloud console và thêm phạm vi Drive https://www.googleapis.com/auth/drive (quyền đầy đủ — cần để tải lên/đổi tên/xóa tệp).",
     "google_step2": "Đưa app lên production (không cần xác minh) để refresh token không hết hạn sau 7 ngày.",
     "google_step3": "Nhập Client ID và Client Secret bên dưới rồi nhấn Lưu — thông tin được mã hóa và form này sẽ không hiện lại.",
     "google_step4": "Đăng ký chính xác redirect URI này trong Google Cloud console:",
     "google_client_id": "Google OAuth Client ID",
-    "onedrive_step1": "Trong Azure portal, đăng ký app mới (Microsoft Entra ID > App registrations). Loại tài khoản được hỗ trợ: mọi thư mục tổ chức và tài khoản Microsoft cá nhân.",
+    "onedrive_step1": "Trong Azure portal, đăng ký app mới (Microsoft Entra ID > App registrations). Loại tài khoản được hỗ trợ: mọi thư mục tổ chức và tài khoản Microsoft cá nhân. Thêm quyền API Files.ReadWrite.All (tài khoản công việc/trường học có thể cần quản trị viên duyệt).",
     "onedrive_step2": "Ở mục Authentication, thêm nền tảng Web và đăng ký redirect URI bên dưới.",
     "onedrive_step3": "Tạo client secret (Certificates & secrets) và sao chép Value.",
     "onedrive_step4": "Đăng ký chính xác redirect URI này trong Azure app:",
@@ -60,7 +63,7 @@
     "cancel": "Hủy",
     "update": "Cập nhật thông tin",
     "advanced": "Dùng OAuth client riêng (nâng cao)",
-    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Công cụ Gmail cần OAuth client riêng của bạn (mục nâng cao bên dưới)."
+    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Client dùng chung nay cấp quyền Drive đầy đủ. Công cụ Gmail vẫn cần OAuth client riêng của bạn (xem Cài đặt đám mây)."
   },
   "disconnect_confirm": {
     "title": "Ngắt kết nối tài khoản?",
@@ -78,7 +81,18 @@
     "completing": "Đang hoàn tất…"
   },
   "share": {
-    "toggle": "Dùng chung tổ chức"
+    "toggle": "Dùng chung tổ chức",
+    "menu_item": "Sao chép liên kết",
+    "title": "Liên kết chia sẻ",
+    "copied": "Đã sao chép liên kết",
+    "creating": "Đang tạo liên kết…",
+    "public_warning": "Ai có liên kết này đều xem được file cho đến khi nhà cung cấp thu hồi."
+  },
+  "settings": {
+    "title": "Cài đặt đám mây",
+    "description": "Quản lý nhà cung cấp, OAuth client riêng và quy tắc phạm vi.",
+    "provider": "Nhà cung cấp",
+    "scope_rules": "Quy tắc phạm vi"
   },
   "scope": {
     "title": "Phạm vi sử dụng",
@@ -93,10 +107,19 @@
     "key_placeholder_group": "Chat id của nhóm (vd -100123…)",
     "key_placeholder_user": "User id (vd 123456…)",
     "key_hint_group": "Chọn nhóm agent đã trò chuyện, hoặc dán chat id.",
-    "key_hint_user": "Chọn user id từ các hội thoại gần đây, hoặc dán vào."
+    "key_hint_user": "Chọn user id từ các hội thoại gần đây, hoặc dán vào.",
+    "enabled": "Bật",
+    "disabled": "Tắt",
+    "priority": "Ưu tiên",
+    "col_type": "Loại",
+    "col_target": "Đối tượng",
+    "col_account": "Tài khoản",
+    "col_actions": "Thao tác",
+    "scope_type": "Loại phạm vi",
+    "rule_added": "Đã thêm quy tắc",
+    "table_empty": "Chưa có quy tắc nào"
   },
   "detail": {
-    "files_btn": "Duyệt tệp",
     "mail_btn": "Hộp thư",
     "quota_unavailable": "Không xem được dung lượng của tài khoản này",
     "loading_quota": "Đang tải dung lượng…",
@@ -115,5 +138,163 @@
     "no_mail": "Hộp thư trống",
     "no_subject": "(không có tiêu đề)",
     "mail_readonly_note": "Chỉ xem trước — hãy bảo agent tìm kiếm, đọc hoặc dọn hộp thư giúp bạn."
+  },
+  "drive": {
+    "my_drives": "Ổ của tôi",
+    "providers": "Nhà cung cấp",
+    "accounts": "Tài khoản",
+    "shared_tag": "Dùng chung",
+    "storage": "Bộ nhớ",
+    "storage_unavailable": "Không xem được thông tin bộ nhớ",
+    "mail": "Hộp thư",
+    "search_placeholder": "Tìm trong thư mục này",
+    "sort_label": "Sắp xếp",
+    "sort": {
+      "name": "Tên",
+      "size": "Dung lượng",
+      "modified": "Ngày sửa",
+      "asc": "Tăng dần",
+      "desc": "Giảm dần"
+    },
+    "view": {
+      "grid": "Dạng lưới",
+      "list": "Dạng danh sách"
+    },
+    "not_found": "Không tìm thấy tài khoản hoặc tài khoản không còn truy cập được",
+    "back_home": "Về trang Clouds",
+    "toggle_accounts": "Ẩn/hiện tài khoản"
+  },
+  "files": {
+    "upload": "Tải lên",
+    "drop_overlay": "Thả tệp vào đây để tải lên",
+    "new_folder": "Thư mục mới",
+    "create": "Tạo",
+    "folder_name_placeholder": "Tên thư mục",
+    "rename": "Đổi tên",
+    "open": "Mở",
+    "download": "Tải xuống",
+    "move": "Di chuyển",
+    "copy": "Sao chép",
+    "delete": "Xóa",
+    "delete_confirm_title": "Xóa vĩnh viễn?",
+    "delete_confirm_description": "{{count}} mục sẽ bị xóa vĩnh viễn. Thư mục muốn xóa phải trống. Không thể hoàn tác.",
+    "move_title": "Di chuyển tới…",
+    "copy_title": "Sao chép tới…",
+    "pick_here": "Dùng thư mục này",
+    "selected_count": "Đã chọn {{count}} mục",
+    "bulk_clear": "Bỏ chọn tất cả",
+    "readonly_banner": "Tài khoản chỉ đọc — cấp quyền lại để tải lên, đổi tên, di chuyển hoặc xóa tệp.",
+    "write_disabled_hint": "Tài khoản này chỉ đọc — dùng “Cấp quyền lại” để khôi phục quyền ghi.",
+    "op_failed": "Thao tác thất bại",
+    "scope_required": "Tài khoản chưa có quyền ghi — hãy cấp quyền lại rồi thử lại.",
+    "done": "Hoàn tất",
+    "uploading": "Đang tải lên",
+    "upload_done": "Xong",
+    "upload_failed": "Lỗi",
+    "cancel_upload": "Hủy",
+    "uploads_title": "Tải lên",
+    "clear_finished": "Dọn dẹp",
+    "menu": "Thao tác"
+  },
+  "transfer": {
+    "menu_item": "Chuyển tới tài khoản khác",
+    "title": "Chuyển tới tài khoản khác",
+    "target_account": "Tài khoản đích",
+    "target_folder": "Thư mục đích",
+    "choose_folder": "Chọn…",
+    "use_folder": "Dùng thư mục này",
+    "mode": {
+      "label": "Chế độ",
+      "copy": "Sao chép",
+      "move": "Chuyển đi"
+    },
+    "move_folder_hint": "Thư mục luôn được sao chép kể cả khi chọn \"Chuyển đi\" — thư mục nguồn không bao giờ bị xóa.",
+    "start": "Chuyển",
+    "running": "Đang chuyển…",
+    "hide": "Ẩn",
+    "done": "Chuyển hoàn tất",
+    "some_failed": "{{count}} mục chuyển thất bại",
+    "background_running": "Thư mục lớn vẫn tiếp tục chạy nền.",
+    "status": {
+      "running": "Đang chạy",
+      "done": "Xong",
+      "background": "Nền",
+      "error": "Lỗi"
+    }
+  },
+  "sync": {
+    "section_title": "Đồng bộ dữ liệu",
+    "section_description": "Bản sao một chiều từ thư mục của tài khoản này sang tài khoản khác. Chỉ sao chép thêm — không bao giờ xóa ở đích.",
+    "add_pair": "Thêm cặp đồng bộ",
+    "source": "Nguồn",
+    "target": "Đích",
+    "choose_source_folder": "Thư mục…",
+    "choose_target_folder": "Thư mục…",
+    "schedule": {
+      "label": "Lịch",
+      "manual": "Chỉ thủ công",
+      "hourly": "Mỗi giờ",
+      "daily": "Mỗi ngày",
+      "custom_minutes": "Tùy chọn…",
+      "every_n_minutes": "Mỗi {{count}} phút"
+    },
+    "interval_minutes": "phút",
+    "last_run": "Lần chạy cuối",
+    "enabled": "Bật",
+    "status": {
+      "ok": "Thành công",
+      "error": "Lỗi",
+      "running": "Đang chạy",
+      "never": "Chưa chạy"
+    },
+    "run_now": "Chạy ngay",
+    "run_queued": "Đã xếp hàng đồng bộ — xem trạng thái sau ít phút",
+    "created": "Đã tạo cặp đồng bộ",
+    "delete_confirm_title": "Xóa cặp đồng bộ?",
+    "delete_confirm": "File đã sao chép vẫn ở đích. Lịch sẽ dừng.",
+    "same_pair_error": "Nguồn và đích phải khác nhau (tài khoản + thư mục).",
+    "empty": "Chưa có cặp đồng bộ nào.",
+    "account_missing": "(tài khoản không khả dụng)"
+  },
+  "starred": {
+    "title": "Đã gắn dấu sao",
+    "add": "Gắn dấu sao",
+    "remove": "Bỏ dấu sao",
+    "empty": "Chưa có file hoặc thư mục nào được gắn dấu sao.",
+    "name": "Tên",
+    "location": "Vị trí",
+    "starred_at": "Ngày gắn sao",
+    "account_gone": "Tài khoản này không còn truy cập được"
+  },
+  "recent": {
+    "title": "Gần đây",
+    "empty": "Chưa mở gì trên thiết bị này.",
+    "description": "Chỉ lưu trên thiết bị này — không gửi lên máy chủ.",
+    "clear": "Xóa tất cả",
+    "clear_confirm_title": "Xóa danh sách gần đây?",
+    "clear_confirm": "Danh sách trên thiết bị này sẽ bị xóa.",
+    "opened_at": "Đã mở"
+  },
+  "preview": {
+    "cannot_preview": "Không xem trước được loại file này.",
+    "too_large": "File lớn hơn {{cap}} — hãy tải xuống để xem.",
+    "loading": "Đang tải bản xem trước…",
+    "error": "Xem trước thất bại.",
+    "download": "Tải xuống",
+    "download_started": "Đã bắt đầu tải xuống",
+    "prev": "Trước",
+    "next": "Sau"
+  },
+  "shortcuts": {
+    "title": "Phím tắt",
+    "description": "Phím tắt bị bỏ qua khi đang gõ trong ô nhập liệu.",
+    "next": "Mục kế tiếp",
+    "prev": "Mục trước",
+    "open": "Mở",
+    "up": "Lên thư mục cha",
+    "delete": "Xóa mục đang chọn",
+    "select_all": "Chọn tất cả",
+    "search": "Tới ô tìm kiếm",
+    "help": "Trợ giúp phím tắt"
   }
 }

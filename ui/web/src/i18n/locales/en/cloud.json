@@ -8,6 +8,9 @@
     "another": "Connect another account"
   },
   "disconnect": "Disconnect",
+  "readonly_badge": "Read-only",
+  "regrant": "Re-grant access",
+  "regrant_hint": "This account was connected with read-only scopes. Re-grant access so the agent can upload, rename, move and delete files.",
   "status": {
     "active": "Active",
     "expired": "Expired",
@@ -43,12 +46,12 @@
     "title_google": "Google is not configured yet",
     "title_onedrive": "OneDrive is not configured yet",
     "body": "GoClaw uses your own OAuth client (bring your own client). One-time setup:",
-    "google_step1": "Create an OAuth client (type \"Web application\") in the Google Cloud console.",
+    "google_step1": "Create an OAuth client (type \"Web application\") in the Google Cloud console and add the Drive scope https://www.googleapis.com/auth/drive (full access — required for upload/rename/delete).",
     "google_step2": "Publish the app to production (unverified is fine) so refresh tokens do not expire after 7 days.",
     "google_step3": "Enter the Client ID and Client Secret below and press Save — the credentials are stored encrypted and this form will not appear again.",
     "google_step4": "Register this exact redirect URI in the Google Cloud console:",
     "google_client_id": "Google OAuth Client ID",
-    "onedrive_step1": "In the Azure portal, register a new app (Microsoft Entra ID > App registrations). Supported account types: accounts in any organizational directory and personal Microsoft accounts.",
+    "onedrive_step1": "In the Azure portal, register a new app (Microsoft Entra ID > App registrations). Supported account types: accounts in any organizational directory and personal Microsoft accounts. Add the Files.ReadWrite.All API permission (work/school tenants may need admin consent).",
     "onedrive_step2": "Under Authentication, add the Web platform and register the redirect URI below.",
     "onedrive_step3": "Create a client secret (Certificates & secrets) and copy its Value.",
     "onedrive_step4": "Register this exact redirect URI in the Azure app:",
@@ -60,7 +63,7 @@
     "cancel": "Cancel",
     "update": "Update credentials",
     "advanced": "Use your own OAuth client (advanced)",
-    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. Gmail tools require your own OAuth client (advanced below)."
+    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (see Cloud settings)."
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",
@@ -78,7 +81,18 @@
     "completing": "Finishing…"
   },
   "share": {
-    "toggle": "Share with organization"
+    "toggle": "Share with organization",
+    "menu_item": "Copy link",
+    "title": "Share link",
+    "copied": "Link copied",
+    "creating": "Creating link…",
+    "public_warning": "Anyone with this link can view the file until the provider revokes it."
+  },
+  "settings": {
+    "title": "Cloud settings",
+    "description": "Manage providers, your own OAuth client and scope rules.",
+    "provider": "Provider",
+    "scope_rules": "Scope rules"
   },
   "scope": {
     "title": "Usage scopes",
@@ -93,10 +107,19 @@
     "key_placeholder_group": "Group chat id (e.g. -100123…)",
     "key_placeholder_user": "User id (e.g. 123456…)",
     "key_hint_group": "Pick a group the agent has talked in, or paste its chat id.",
-    "key_hint_user": "Pick a user id from recent conversations, or paste one."
+    "key_hint_user": "Pick a user id from recent conversations, or paste one.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "priority": "Priority",
+    "col_type": "Type",
+    "col_target": "Target",
+    "col_account": "Account",
+    "col_actions": "Actions",
+    "scope_type": "Scope type",
+    "rule_added": "Rule added",
+    "table_empty": "No rules yet"
   },
   "detail": {
-    "files_btn": "Browse files",
     "mail_btn": "Mailbox",
     "quota_unavailable": "Quota unavailable for this account",
     "loading_quota": "Loading quota…",
@@ -115,5 +138,163 @@
     "no_mail": "Inbox is empty",
     "no_subject": "(no subject)",
     "mail_readonly_note": "Preview only — ask the agent to search, read or clean up mail."
+  },
+  "drive": {
+    "my_drives": "My drives",
+    "providers": "Providers",
+    "accounts": "Accounts",
+    "shared_tag": "Shared",
+    "storage": "Storage",
+    "storage_unavailable": "Storage info unavailable",
+    "mail": "Mailbox",
+    "search_placeholder": "Search in this folder",
+    "sort_label": "Sort",
+    "sort": {
+      "name": "Name",
+      "size": "Size",
+      "modified": "Modified",
+      "asc": "Ascending",
+      "desc": "Descending"
+    },
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    },
+    "not_found": "Account not found or no longer accessible",
+    "back_home": "Back to Clouds",
+    "toggle_accounts": "Toggle accounts"
+  },
+  "files": {
+    "upload": "Upload",
+    "drop_overlay": "Drop files here to upload",
+    "new_folder": "New folder",
+    "create": "Create",
+    "folder_name_placeholder": "Folder name",
+    "rename": "Rename",
+    "open": "Open",
+    "download": "Download",
+    "move": "Move",
+    "copy": "Copy",
+    "delete": "Delete",
+    "delete_confirm_title": "Delete permanently?",
+    "delete_confirm_description": "{{count}} item(s) will be permanently deleted. Folders must be empty to be deleted. This cannot be undone.",
+    "move_title": "Move to…",
+    "copy_title": "Copy to…",
+    "pick_here": "Use this folder",
+    "selected_count": "{{count}} selected",
+    "bulk_clear": "Clear selection",
+    "readonly_banner": "Read-only account — re-grant access to upload, rename, move or delete files.",
+    "write_disabled_hint": "This account is read-only — use “Re-grant access” to restore write permission.",
+    "op_failed": "Operation failed",
+    "scope_required": "This account is missing write access — re-grant access and try again.",
+    "done": "Done",
+    "uploading": "Uploading",
+    "upload_done": "Done",
+    "upload_failed": "Failed",
+    "cancel_upload": "Cancel",
+    "uploads_title": "Uploads",
+    "clear_finished": "Clear",
+    "menu": "Actions"
+  },
+  "transfer": {
+    "menu_item": "Transfer to another account",
+    "title": "Transfer to another account",
+    "target_account": "Target account",
+    "target_folder": "Target folder",
+    "choose_folder": "Choose…",
+    "use_folder": "Use this folder",
+    "mode": {
+      "label": "Mode",
+      "copy": "Copy",
+      "move": "Move"
+    },
+    "move_folder_hint": "Folders are always copied, even in Move mode — the source folder is never deleted.",
+    "start": "Transfer",
+    "running": "Transferring…",
+    "hide": "Hide",
+    "done": "Transfer complete",
+    "some_failed": "{{count}} item(s) failed to transfer",
+    "background_running": "Large folders keep transferring in the background.",
+    "status": {
+      "running": "Running",
+      "done": "Done",
+      "background": "Background",
+      "error": "Failed"
+    }
+  },
+  "sync": {
+    "section_title": "Data sync",
+    "section_description": "One-way mirror of a folder from one account into another. Files are only copied — nothing is ever deleted at the target.",
+    "add_pair": "Add sync pair",
+    "source": "Source",
+    "target": "Target",
+    "choose_source_folder": "Folder…",
+    "choose_target_folder": "Folder…",
+    "schedule": {
+      "label": "Schedule",
+      "manual": "Manual only",
+      "hourly": "Every hour",
+      "daily": "Every day",
+      "custom_minutes": "Custom…",
+      "every_n_minutes": "Every {{count}} min"
+    },
+    "interval_minutes": "minutes",
+    "last_run": "Last run",
+    "enabled": "Enabled",
+    "status": {
+      "ok": "OK",
+      "error": "Error",
+      "running": "Running",
+      "never": "Never"
+    },
+    "run_now": "Run now",
+    "run_queued": "Sync queued — check the status in a moment",
+    "created": "Sync pair created",
+    "delete_confirm_title": "Delete sync pair?",
+    "delete_confirm": "Files already copied stay at the target. The schedule stops.",
+    "same_pair_error": "Source and target must differ (account + folder).",
+    "empty": "No sync pairs configured yet.",
+    "account_missing": "(account unavailable)"
+  },
+  "starred": {
+    "title": "Starred",
+    "add": "Add star",
+    "remove": "Remove star",
+    "empty": "No starred files or folders yet.",
+    "name": "Name",
+    "location": "Location",
+    "starred_at": "Starred",
+    "account_gone": "This account is no longer accessible"
+  },
+  "recent": {
+    "title": "Recent",
+    "empty": "Nothing opened yet on this device.",
+    "description": "Stored on this device only — never sent to the server.",
+    "clear": "Clear all",
+    "clear_confirm_title": "Clear recent list?",
+    "clear_confirm": "The list on this device will be emptied.",
+    "opened_at": "Opened"
+  },
+  "preview": {
+    "cannot_preview": "This file type cannot be previewed.",
+    "too_large": "File is larger than {{cap}} — download it to view.",
+    "loading": "Loading preview…",
+    "error": "Preview failed.",
+    "download": "Download",
+    "download_started": "Download started",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "description": "Shortcuts are ignored while typing in a field.",
+    "next": "Next item",
+    "prev": "Previous item",
+    "open": "Open",
+    "up": "Go up one folder",
+    "delete": "Delete selection",
+    "select_all": "Select all",
+    "search": "Focus search",
+    "help": "Shortcut help"
   }
 }
