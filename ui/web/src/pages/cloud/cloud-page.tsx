@@ -19,6 +19,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { ScopeBindingsPanel } from "./scope-bindings-panel";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
@@ -180,9 +182,11 @@ function ProviderClientSetup({ provider }: { provider: CloudProvider }) {
 export function CloudPage() {
   const { t } = useTranslation("cloud");
   const result = useCloudResult();
+  const role = useAuthStore((s) => s.role);
+  const isAdmin = role === "admin" || role === "owner";
 
   const { data: cloudStatus } = useCloudStatus();
-  const { accounts, loading, refresh, disconnect, startConnect, completeConnect } = useCloudAccounts();
+  const { accounts, loading, refresh, disconnect, startConnect, completeConnect, setShared } = useCloudAccounts();
   const [selectedProvider, setSelectedProvider] = useState<CloudProvider | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CloudAccount | null>(null);
@@ -402,6 +406,9 @@ export function CloudPage() {
             </div>
           )}
 
+          {/* Per-scope account bindings (admin): tenant default / group / user */}
+          {isAdmin && <ScopeBindingsPanel provider={selectedProvider} />}
+
           {(
             <>
               <div className="flex items-center justify-between gap-2">
@@ -438,6 +445,15 @@ export function CloudPage() {
                       </div>
                       {account.status_message && (
                         <p className="text-xs text-muted-foreground">{account.status_message}</p>
+                      )}
+                      {isAdmin && (
+                        <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <span>{t("share.toggle")}</span>
+                          <Switch
+                            checked={account.shared}
+                            onCheckedChange={(v) => void setShared(account.id, v)}
+                          />
+                        </label>
                       )}
                       <div className="mt-auto flex items-center justify-between gap-2">
                         <span className="text-xs text-muted-foreground">{account.provider}</span>

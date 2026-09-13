@@ -12,7 +12,21 @@ export interface CloudAccount {
   token_expires_at?: string;
   status: "active" | "expired" | "revoked" | "error";
   status_message: string;
+  /** Tenant-wide shared (enterprise "company drive") — admin-set. */
+  shared: boolean;
   created_at: string;
+}
+
+export type CloudBindingScopeType = "tenant" | "user" | "group";
+
+/** One per-scope account assignment (tenant default / user / group). */
+export interface CloudBinding {
+  id: string;
+  scope_type: CloudBindingScopeType;
+  scope_key: string;
+  provider: string;
+  account_id: string;
+  created_by: string;
 }
 
 export type CloudProvider = "google" | "onedrive";
@@ -106,5 +120,48 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
-  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect };
+  /** Toggle the tenant-wide shared flag (admin). */
+  const setShared = useCallback(
+    async (id: string, shared: boolean) => {
+      await http.put(`/v1/cloud/accounts/${id}/shared`, { shared });
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, setShared };
+}
+
+export function useCloudBindings(enabled: boolean) {
+  const http = useHttp();
+  const queryClient = useQueryClient();
+  const invalidate = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["cloud", "bindings"] }),
+    [queryClient],
+  );
+
+  const query = useQuery({
+    queryKey: ["cloud", "bindings"],
+    enabled,
+    queryFn: async () =>
+      (await http.get<{ bindings: CloudBinding[] }>("/v1/cloud/bindings")).bindings,
+  });
+
+  const upsertBinding = useCallback(
+    async (input: { scope_type: CloudBindingScopeType; scope_key: string; provider: string; account_id: string }) => {
+      await http.put("/v1/cloud/bindings", input);
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  const deleteBinding = useCallback(
+    async (id: string) => {
+      await http.delete(`/v1/cloud/bindings/${id}`);
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  return { bindings: query.data ?? [], loading: query.isLoading, upsertBinding, deleteBinding };
 }

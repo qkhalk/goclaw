@@ -76,5 +76,23 @@
     "placeholder": "Paste the address-bar URL (starts with http://127.0.0.1:53682/…)",
     "complete": "Finish",
     "completing": "Finishing…"
+  },
+  "share": {
+    "toggle": "Share with organization"
+  },
+  "scope": {
+    "title": "Usage scopes",
+    "description": "Pick which account the agent uses here: explicit request wins, then group, then user, then the organization default, then personal accounts.",
+    "tenant_default": "Organization default",
+    "none": "None",
+    "group": "Group",
+    "user": "User",
+    "pick_account": "Pick account",
+    "add": "Add",
+    "missing_fields": "Pick a scope key and an account first",
+    "key_placeholder_group": "Group chat id (e.g. -100123…)",
+    "key_placeholder_user": "User id (e.g. 123456…)",
+    "key_hint_group": "Pick a group the agent has talked in, or paste its chat id.",
+    "key_hint_user": "Pick a user id from recent conversations, or paste one."
   }
 }
