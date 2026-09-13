@@ -161,7 +161,8 @@
       "list": "列表视图"
     },
     "not_found": "账户不存在或已无法访问",
-    "back_home": "返回云盘页"
+    "back_home": "返回云盘页",
+    "toggle_accounts": "展开/收起账户"
   },
   "files": {
     "upload": "上传",

@@ -161,7 +161,8 @@
       "list": "List view"
     },
     "not_found": "Account not found or no longer accessible",
-    "back_home": "Back to Clouds"
+    "back_home": "Back to Clouds",
+    "toggle_accounts": "Toggle accounts"
   },
   "files": {
     "upload": "Upload",
