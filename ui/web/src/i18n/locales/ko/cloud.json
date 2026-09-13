@@ -141,6 +141,7 @@
   },
   "drive": {
     "my_drives": "내 드라이브",
+    "providers": "공급자",
     "accounts": "계정",
     "shared_tag": "공유됨",
     "storage": "저장공간",
