@@ -100,6 +100,7 @@ export function DriveTopBar({
               placeholder={t("drive.search_placeholder")}
               className="pl-8 text-base md:text-sm"
               autoComplete="off"
+              data-cloud-search
             />
           </div>
 

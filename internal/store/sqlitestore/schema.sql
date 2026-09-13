@@ -3115,3 +3115,24 @@ CREATE TABLE IF NOT EXISTS cloud_sync_pairs (
 );
 CREATE INDEX IF NOT EXISTS idx_cloud_sync_pairs_tenant
     ON cloud_sync_pairs (tenant_id);
+
+-- Cloud starred items: per-user bookmarks of remote files/folders (Drive-style
+-- "starred"). Providers do not expose star metadata through the rclone rc API,
+-- so GoClaw stores it locally. User-level (not admin) — every caller manages
+-- their own stars within the tenant. Removing the underlying account cascades.
+CREATE TABLE IF NOT EXISTS cloud_starred (
+    id         TEXT NOT NULL PRIMARY KEY,
+    tenant_id  TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id    TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+    path       TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    is_dir     INTEGER NOT NULL DEFAULT 0,
+    starred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- One star per (tenant, user, account, path) — re-starring is a no-op.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cloud_starred_path
+    ON cloud_starred (tenant_id, user_id, account_id, path);
+CREATE INDEX IF NOT EXISTS idx_cloud_starred_user
+    ON cloud_starred (tenant_id, user_id, starred_at DESC);

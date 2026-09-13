@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { SettingsSheet } from "./settings-sheet";
 import { CLOUD_PROVIDERS } from "./drive/drive-rail";
+import { StarredView } from "./drive/starred-view";
+import { RecentView } from "./drive/recent-view";
 import { DriveShell } from "./drive/drive-shell";
 import { DriveTopBar } from "./drive/drive-topbar";
 import { DriveFileArea } from "./drive/drive-file-area";
@@ -97,6 +99,8 @@ export function CloudPage() {
     provider === "google" || provider === "onedrive" ? provider : null;
   const path = normalizePath(params.get("path"));
   const view: "home" | "provider" | "account" = accountId ? "account" : provider ? "provider" : "home";
+  /** Cross-account pseudo-views on /cloud itself (?view=starred|recent). */
+  const activeView = view === "home" ? (params.get("view") ?? "") : "";
 
   // Ephemeral UI state (intentionally not in the URL).
   const [search, setSearch] = useState("");
@@ -217,6 +221,27 @@ export function CloudPage() {
     </Button>
   );
 
+  const headerRight =
+    view === "home" && activeView ? (
+      <>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("provider.back")}
+          title={t("provider.back")}
+          onClick={() => setParams({})}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        {gear}
+      </>
+    ) : (
+      gear
+    );
+
+  const homeTitle =
+    activeView === "starred" ? t("starred.title") : activeView === "recent" ? t("recent.title") : t("title");
+
   // Account view: the Drive file area owns its own shell (rail + topbar +
   // dnd/upload tree). Invalid accounts get an empty state, not a crash.
   if (view === "account" && accountId) {
@@ -276,14 +301,18 @@ export function CloudPage() {
       railTitle={t("drive.my_drives")}
       header={
         <DriveTopBar
-          title={view === "home" ? t("title") : providerMeta?.name}
-          subtitle={view === "home" ? t("description") : undefined}
+          title={view === "home" ? homeTitle : providerMeta?.name}
+          subtitle={view === "home" && !activeView ? t("description") : undefined}
           onRefresh={refreshCurrent}
-          right={gear}
+          right={headerRight}
         />
       }
     >
-      {view === "home" && (
+      {view === "home" && activeView === "starred" && <StarredView />}
+
+      {view === "home" && activeView === "recent" && <RecentView />}
+
+      {view === "home" && !activeView && (
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
           {(result.connected || result.error) && (
             <div

@@ -39,9 +39,10 @@ import (
 type CloudHandler struct {
 	manager      *cloudmgr.Manager
 	accounts     store.CloudAccountStore
-	bindings     store.CloudBindingStore // optional (same DB handle as accounts)
+	bindings     store.CloudBindingStore  // optional (same DB handle as accounts)
 	syncPairs    store.CloudSyncPairStore // optional (same DB handle as accounts)
 	sync         *cloudmgr.SyncService    // optional; backs POST .../sync-pairs/{id}/run
+	starred      store.CloudStarredStore  // optional (same DB handle as accounts)
 	tenants      store.TenantStore        // for requireTenantAdmin on shared/bindings writes
 	mail         *cloudmgr.MailService    // optional; backs the per-account mailbox view
 	enabled      bool                     // edition gate AND config kill-switch (cloud.enabled); credentials are dynamic
@@ -76,6 +77,12 @@ func NewCloudHandler(manager *cloudmgr.Manager, accounts store.CloudAccountStore
 func (h *CloudHandler) SetSync(pairs store.CloudSyncPairStore, sync *cloudmgr.SyncService) {
 	h.syncPairs = pairs
 	h.sync = sync
+}
+
+// SetStarred wires the per-user starred surface (same DB handle as the
+// account store). Optional — without it the starred endpoints answer 503.
+func (h *CloudHandler) SetStarred(s store.CloudStarredStore) {
+	h.starred = s
 }
 
 // RegisterRoutes registers all cloud routes on the given mux.
@@ -120,6 +127,12 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /v1/cloud/sync-pairs/{id}", requireAuth("", h.handleUpdateSyncPair))
 	mux.HandleFunc("DELETE /v1/cloud/sync-pairs/{id}", requireAuth("", h.handleDeleteSyncPair))
 	mux.HandleFunc("POST /v1/cloud/sync-pairs/{id}/run", requireAuth("", h.handleRunSyncPair))
+
+	// Starred items (Phase 7): user-level metadata — no admin gate; the store
+	// scopes every row by the ctx tenant+user.
+	mux.HandleFunc("GET /v1/cloud/starred", requireAuth("", h.handleListStarred))
+	mux.HandleFunc("PUT /v1/cloud/starred", requireAuth("", h.handleAddStarred))
+	mux.HandleFunc("DELETE /v1/cloud/starred/{id}", requireAuth("", h.handleRemoveStarred))
 }
 
 // --- GET /v1/cloud/status ---
@@ -1323,6 +1336,130 @@ func (h *CloudHandler) handleRunSyncPair(w http.ResponseWriter, r *http.Request)
 	}
 	slog.Info("cloud: sync pair queued for manual run", "pair_id", id)
 	writeJSON(w, http.StatusAccepted, map[string]bool{"ok": true})
+}
+
+// --- Starred items (Phase 7) ---
+
+// starredStore resolves the starred store or writes the 503.
+func (h *CloudHandler) starredStore(w http.ResponseWriter) store.CloudStarredStore {
+	if h.starred == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "starred store unavailable"})
+		return nil
+	}
+	return h.starred
+}
+
+// handleListStarred returns the caller's starred items (newest first).
+func (h *CloudHandler) handleListStarred(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	st := h.starredStore(w)
+	if st == nil {
+		return
+	}
+	items, err := st.List(r.Context())
+	if err != nil {
+		slog.Error("cloud: list starred failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list starred items"})
+		return
+	}
+	if items == nil {
+		items = []store.CloudStarred{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+type cloudStarredInput struct {
+	AccountID string `json:"account_id"`
+	Path      string `json:"path"`
+	Name      string `json:"name"`
+	IsDir     bool   `json:"is_dir"`
+}
+
+// handleAddStarred stars one remote path of an accessible account. Idempotent:
+// re-starring a starred path is a no-op.
+func (h *CloudHandler) handleAddStarred(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	st := h.starredStore(w)
+	if st == nil {
+		return
+	}
+	var in cloudStarredInput
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	path, err := cloudmgr.CleanRemotePath(in.Path)
+	if err != nil {
+		rejectBadPath(w, "starred", in.Path)
+		return
+	}
+	// The account must be visible to the caller (own or tenant-shared) so
+	// stars cannot probe arbitrary account ids.
+	acct := h.accountByID(w, r, strings.TrimSpace(in.AccountID))
+	if acct == nil {
+		return
+	}
+	name := sanitizeRemoteName(in.Name)
+	if name == "" {
+		name = pathDisplayName(path)
+	}
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid name"})
+		return
+	}
+	row := &store.CloudStarred{
+		AccountID: acct.ID,
+		Path:      "/" + path,
+		Name:      name,
+		IsDir:     in.IsDir,
+	}
+	if err := st.Add(r.Context(), row); err != nil {
+		slog.Error("cloud: add starred failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to star item"})
+		return
+	}
+	writeJSON(w, http.StatusOK, row)
+}
+
+// handleRemoveStarred unstares one row of the caller (404 when missing).
+func (h *CloudHandler) handleRemoveStarred(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	st := h.starredStore(w)
+	if st == nil {
+		return
+	}
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid starred id"})
+		return
+	}
+	if err := st.Remove(r.Context(), id); err != nil {
+		if errors.Is(err, store.ErrCloudStarredNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "starred item not found"})
+			return
+		}
+		slog.Error("cloud: remove starred failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to unstar item"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// pathDisplayName returns the last (decoded) segment of a cleaned path.
+func pathDisplayName(path string) string {
+	path = strings.Trim(path, "/")
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		path = path[i+1:]
+	}
+	if unescaped, err := url.PathUnescape(path); err == nil {
+		return unescaped
+	}
+	return path
 }
 
 // storageError maps rclone-layer failures to status codes.

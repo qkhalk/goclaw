@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { EllipsisVertical, Folder } from "lucide-react";
+import { EllipsisVertical, Folder, Star } from "lucide-react";
 import { FileIcon } from "@/components/shared/file-tree-file-icon";
 import { InlineEditText } from "@/components/ui/inline-edit-text";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,6 +37,11 @@ function EntryIcon({ entry }: { entry: CloudFileEntry }) {
       <FileIcon name={entry.name} />
     </span>
   );
+}
+
+/** Filled star badge shown on starred items (grid + table share it). */
+function StarBadge() {
+  return <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="starred" />;
 }
 
 /** Shared dnd behaviour for one item: draggable always (when enabled),
@@ -186,6 +191,10 @@ export interface DriveItemProps {
   canWrite: boolean;
   selected: boolean;
   anySelected: boolean;
+  /** Keyboard cursor highlight (drive shortcuts). */
+  cursor?: boolean;
+  /** Starred badge (user-level metadata). */
+  starred?: boolean;
   /** Item click (shift/selection semantics handled by the area). */
   onActivate: (e: React.MouseEvent) => void;
   onToggleSelect: () => void;
@@ -220,7 +229,7 @@ function useItemController({
 
 /** Full-featured grid card. */
 export function DriveGridItem(props: DriveItemProps) {
-  const { entry, selected, anySelected, onActivate, onToggleSelect, handlers } = props;
+  const { entry, selected, cursor, starred, anySelected, onActivate, onToggleSelect, handlers } = props;
   const { t, renaming, setRenaming, dnd, items } = useItemController(props);
 
   return (
@@ -238,6 +247,7 @@ export function DriveGridItem(props: DriveItemProps) {
           className={cn(
             "group relative flex min-h-[52px] cursor-pointer items-center gap-2 rounded-lg border p-2 transition-colors hover:bg-muted/40",
             selected && "border-primary/60 bg-primary/5",
+            cursor && !selected && "border-primary/40 ring-1 ring-primary/30",
             dnd.isDragging && "opacity-40",
             dnd.isOver && "ring-2 ring-primary/60",
           )}
@@ -251,6 +261,7 @@ export function DriveGridItem(props: DriveItemProps) {
             stopRenaming={() => setRenaming(false)}
             className="block truncate text-sm font-medium"
           />
+          {starred && <StarBadge />}
           <span className="shrink-0 text-xs text-muted-foreground">
             {entry.is_dir ? formatRelativeTime(entry.mod_time) : formatFileSize(entry.size)}
           </span>
@@ -266,7 +277,7 @@ export function DriveGridItem(props: DriveItemProps) {
 
 /** Full-featured table row. */
 export function DriveTableRow(props: DriveItemProps) {
-  const { entry, selected, anySelected, onActivate, onToggleSelect, handlers } = props;
+  const { entry, selected, cursor, starred, anySelected, onActivate, onToggleSelect, handlers } = props;
   const { t, renaming, setRenaming, dnd, items } = useItemController(props);
 
   return (
@@ -279,6 +290,7 @@ export function DriveTableRow(props: DriveItemProps) {
           className={cn(
             "group cursor-pointer border-b last:border-0 hover:bg-muted/40",
             selected && "bg-primary/5",
+            cursor && !selected && "bg-muted/60",
             dnd.isDragging && "opacity-40",
             dnd.isOver && "bg-primary/10",
           )}
@@ -294,6 +306,7 @@ export function DriveTableRow(props: DriveItemProps) {
                 stopRenaming={() => setRenaming(false)}
                 className="block max-w-[320px] truncate text-sm"
               />
+              {starred && <StarBadge />}
             </div>
           </td>
           <td className="px-2 text-right text-xs tabular-nums text-muted-foreground">

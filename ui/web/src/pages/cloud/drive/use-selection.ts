@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * index; selection resets whenever `resetKey` (the current path) changes. */
 export function useSelection(resetKey: string) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [cursor, setCursorState] = useState<number>(-1);
   const anchorRef = useRef<number | null>(null);
 
   // Selection is per-folder: clear it when the folder changes.
   useEffect(() => {
     setSelected(new Set());
+    setCursorState(-1);
     anchorRef.current = null;
   }, [resetKey]);
 
@@ -43,13 +45,27 @@ export function useSelection(resetKey: string) {
 
   const clear = useCallback(() => {
     setSelected(new Set());
+    setCursorState(-1);
     anchorRef.current = null;
+  }, []);
+
+  /** Keyboard cursor: move by ±delta, clamped to the visible list. */
+  const moveCursor = useCallback((delta: number, visibleCount: number) => {
+    setCursorState((prev) => {
+      const next = prev + delta;
+      if (visibleCount <= 0) return -1;
+      if (prev < 0) return delta < 0 ? visibleCount - 1 : 0;
+      return Math.max(0, Math.min(visibleCount - 1, next));
+    });
   }, []);
 
   return {
     selected,
     count: selected.size,
     has: (name: string) => selected.has(name),
+    cursor,
+    setCursor: setCursorState,
+    moveCursor,
     handleClick,
     selectAll,
     clear,
