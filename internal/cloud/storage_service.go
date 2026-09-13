@@ -154,7 +154,11 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 		// IDX14100. The onedrive backend reads the `access_scopes` option
 		// (comma-separated) — plain `scope` is silently ignored, which made
 		// rclone refresh with ITS defaults and poison the persisted config.
-		params["access_scopes"] = strings.Join(MicrosoftScopes, ",")
+		// Pin the account's STORED grant (not the current constants): after a
+		// re-grant with wider scopes the stored grant is authoritative, and a
+		// pre-write-upgrade grant keeps repeating its original read-only
+		// scopes until the owner re-grants.
+		params["access_scopes"] = strings.Join(accountMicrosoftScopes(acct), ",")
 	}
 	// Refresh tokens are bound to the issuing OAuth client: pin the client the
 	// account consented to, or rclone refreshes with ITS own defaults and

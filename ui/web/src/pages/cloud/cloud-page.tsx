@@ -10,6 +10,7 @@ import {
   ClipboardPaste,
   Copy,
   HardDrive,
+  KeyRound,
   PackageOpen,
   Pencil,
   Plus,
@@ -184,6 +185,7 @@ export function CloudPage() {
   const { t } = useTranslation("cloud");
   const result = useCloudResult();
   const role = useAuthStore((s) => s.role);
+  const userId = useAuthStore((s) => s.userId);
   const isAdmin = role === "admin" || role === "owner";
 
   const { data: cloudStatus } = useCloudStatus();
@@ -453,10 +455,30 @@ export function CloudPage() {
                             {account.display_name || account.provider}
                           </p>
                         </div>
-                        {statusBadge(account.status, t(`status.${account.status}`))}
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          {statusBadge(account.status, t(`status.${account.status}`))}
+                          {account.can_write === false && (
+                            <Badge variant="warning">{t("readonly_badge")}</Badge>
+                          )}
+                        </div>
                       </div>
                       {account.status_message && (
                         <p className="text-xs text-muted-foreground">{account.status_message}</p>
+                      )}
+                      {account.can_write === false && (!account.shared || account.user_id === userId) && (
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+                          <p>{t("regrant_hint")}</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 min-h-11 sm:min-h-9"
+                            disabled={connecting}
+                            onClick={() => handleConnect(account.provider as CloudProvider)}
+                          >
+                            <KeyRound className="mr-2 h-4 w-4" />
+                            {t("regrant")}
+                          </Button>
+                        </div>
                       )}
                       <AccountDetail
                         accountId={account.id}

@@ -14,6 +14,10 @@ export interface CloudAccount {
   status_message: string;
   /** Tenant-wide shared (enterprise "company drive") — admin-set. */
   shared: boolean;
+  /** True when the stored OAuth grant includes the provider's write scope.
+   * False for accounts connected before the write upgrade — read-only until
+   * the owner re-grants. */
+  can_write?: boolean;
   created_at: string;
 }
 

@@ -211,6 +211,15 @@ func (h *CloudHandler) redirectURI(r *http.Request) string {
 
 // --- GET /v1/cloud/accounts ---
 
+// cloudAccountView is one account in the list response: the store row plus
+// the derived can_write flag (true when the stored OAuth grant includes the
+// provider's write scope — false for accounts connected before the write
+// upgrade, which stay read-only until re-granted).
+type cloudAccountView struct {
+	store.CloudAccount
+	CanWrite bool `json:"can_write"`
+}
+
 func (h *CloudHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	if !h.available(w, r) {
 		return
@@ -221,10 +230,14 @@ func (h *CloudHandler) handleList(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list accounts"})
 		return
 	}
-	if accounts == nil {
-		accounts = []store.CloudAccount{}
+	out := make([]cloudAccountView, 0, len(accounts))
+	for i := range accounts {
+		out = append(out, cloudAccountView{
+			CloudAccount: accounts[i],
+			CanWrite:     cloudmgr.AccountCanWrite(&accounts[i]),
+		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"accounts": accounts})
+	writeJSON(w, http.StatusOK, map[string]any{"accounts": out})
 }
 
 // --- DELETE /v1/cloud/accounts/{id} ---
