@@ -12,6 +12,8 @@ export interface CloudAccount {
   token_expires_at?: string;
   status: "active" | "expired" | "revoked" | "error";
   status_message: string;
+  /** Owner user id — only the owner can re-grant a shared account. */
+  user_id: string;
   /** Tenant-wide shared (enterprise "company drive") — admin-set. */
   shared: boolean;
   /** True when the stored OAuth grant includes the provider's write scope.
@@ -23,7 +25,9 @@ export interface CloudAccount {
 
 export type CloudBindingScopeType = "tenant" | "user" | "group";
 
-/** One per-scope account assignment (tenant default / user / group). */
+/** One per-scope account assignment (tenant default / user / group).
+ * enabled=false keeps the rule configured but excluded from resolution;
+ * priority breaks ties within a scope tier (lower wins, default 100). */
 export interface CloudBinding {
   id: string;
   scope_type: CloudBindingScopeType;
@@ -31,6 +35,8 @@ export interface CloudBinding {
   provider: string;
   account_id: string;
   created_by: string;
+  enabled: boolean;
+  priority: number;
 }
 
 export type CloudProvider = "google" | "onedrive";
@@ -152,7 +158,14 @@ export function useCloudBindings(enabled: boolean) {
   });
 
   const upsertBinding = useCallback(
-    async (input: { scope_type: CloudBindingScopeType; scope_key: string; provider: string; account_id: string }) => {
+    async (input: {
+      scope_type: CloudBindingScopeType;
+      scope_key: string;
+      provider: string;
+      account_id: string;
+      enabled?: boolean;
+      priority?: number;
+    }) => {
       await http.put("/v1/cloud/bindings", input);
       await invalidate();
     },

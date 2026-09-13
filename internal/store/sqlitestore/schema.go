@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 83
+const SchemaVersion = 84
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1565,6 +1565,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS cloud_account_bindings_uq
 	ON cloud_account_bindings (tenant_id, scope_type, scope_key, provider);
 CREATE INDEX IF NOT EXISTS cloud_account_bindings_lookup
 	ON cloud_account_bindings (tenant_id, scope_type);`,
+
+	// Version 83 → 84: cloud binding rules gain enabled + priority (PG 000121).
+	// enabled keeps a rule configured without it affecting account resolution;
+	// priority breaks ties between rules of the same scope tier (lower wins).
+	// Legacy rows upgrade to enabled with the default priority so behavior is
+	// unchanged. Key is the SOURCE version: applied when upgrading from 83 to
+	// reach SchemaVersion 84.
+	83: `ALTER TABLE cloud_account_bindings ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE cloud_account_bindings ADD COLUMN priority INTEGER NOT NULL DEFAULT 100;
+CREATE INDEX IF NOT EXISTS cloud_account_bindings_resolve
+	ON cloud_account_bindings (tenant_id, enabled, priority);`,
 }
 
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.

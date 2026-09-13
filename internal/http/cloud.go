@@ -341,6 +341,10 @@ type cloudBindingInput struct {
 	ScopeKey  string `json:"scope_key"`
 	Provider  string `json:"provider"`
 	AccountID string `json:"account_id"`
+	// Optional rule controls: enabled defaults to true, priority to 100
+	// (valid range 0–1000, lower wins on ties within a scope tier).
+	Enabled  *bool `json:"enabled,omitempty"`
+	Priority *int  `json:"priority,omitempty"`
 }
 
 // handleUpsertBinding assigns a provider account to a scope (tenant default,
@@ -380,19 +384,33 @@ func (h *CloudHandler) handleUpsertBinding(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found for this provider"})
 		return
 	}
+	enabled := true
+	if in.Enabled != nil {
+		enabled = *in.Enabled
+	}
+	priority := 100
+	if in.Priority != nil {
+		if *in.Priority < 0 || *in.Priority > 1000 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "priority must be between 0 and 1000"})
+			return
+		}
+		priority = *in.Priority
+	}
 	b := &store.CloudBinding{
 		ScopeType: in.ScopeType,
 		ScopeKey:  in.ScopeKey,
 		Provider:  in.Provider,
 		AccountID: in.AccountID,
 		CreatedBy: store.UserIDFromContext(r.Context()),
+		Enabled:   enabled,
+		Priority:  priority,
 	}
 	if err := h.bindings.UpsertBinding(r.Context(), b); err != nil {
 		slog.Error("cloud: upsert binding failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save binding"})
 		return
 	}
-	slog.Info("cloud: binding saved", "scope_type", b.ScopeType, "scope_key", b.ScopeKey, "provider", b.Provider, "account_id", b.AccountID)
+	slog.Info("cloud: binding saved", "scope_type", b.ScopeType, "scope_key", b.ScopeKey, "provider", b.Provider, "account_id", b.AccountID, "enabled", b.Enabled, "priority", b.Priority)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

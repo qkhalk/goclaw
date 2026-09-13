@@ -63,7 +63,7 @@
     "cancel": "取消",
     "update": "更新凭据",
     "advanced": "使用您自己的 OAuth 客户端（高级）",
-    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见下方高级选项）。"
+    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。"
   },
   "disconnect_confirm": {
     "title": "断开账户？",
@@ -83,6 +83,12 @@
   "share": {
     "toggle": "组织内共享"
   },
+  "settings": {
+    "title": "云盘设置",
+    "description": "管理提供商、自有 OAuth 客户端和范围规则。",
+    "provider": "提供商",
+    "scope_rules": "范围规则"
+  },
   "scope": {
     "title": "使用范围",
     "description": "选择智能体在此使用的账户：显式指定优先，其次群组，再按用户，然后是组织默认，最后是个人账户。",
@@ -96,7 +102,17 @@
     "key_placeholder_group": "群聊 id（如 -100123…）",
     "key_placeholder_user": "用户 id（如 123456…）",
     "key_hint_group": "从智能体参与过的群组中选择，或粘贴其聊天 id。",
-    "key_hint_user": "从最近会话中选择用户 id，或直接粘贴。"
+    "key_hint_user": "从最近会话中选择用户 id，或直接粘贴。",
+    "enabled": "启用",
+    "disabled": "停用",
+    "priority": "优先级",
+    "col_type": "类型",
+    "col_target": "目标",
+    "col_account": "账户",
+    "col_actions": "操作",
+    "scope_type": "范围类型",
+    "rule_added": "规则已添加",
+    "table_empty": "暂无规则"
   },
   "detail": {
     "files_btn": "浏览文件",

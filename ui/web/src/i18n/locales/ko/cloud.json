@@ -63,7 +63,7 @@
     "cancel": "취소",
     "update": "자격 증명 업데이트",
     "advanced": "자체 OAuth 클라이언트 사용 (고급)",
-    "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. 공유 클라이언트는 이제 전체 Drive 권한을 부여합니다. Gmail 도구에는 여전히 자체 OAuth 클라이언트가 필요합니다(아래 고급 옵션)."
+    "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. 공유 클라이언트는 이제 전체 Drive 권한을 부여합니다. Gmail 도구에는 여전히 자체 OAuth 클라이언트가 필요합니다(클라우드 설정 참조)."
   },
   "disconnect_confirm": {
     "title": "계정 연결을 해제하시겠습니까?",
@@ -83,6 +83,12 @@
   "share": {
     "toggle": "조직 전체 공유"
   },
+  "settings": {
+    "title": "클라우드 설정",
+    "description": "공급자, 자체 OAuth 클라이언트 및 범위 규칙을 관리합니다.",
+    "provider": "공급자",
+    "scope_rules": "범위 규칙"
+  },
   "scope": {
     "title": "사용 범위",
     "description": "에이전트가 사용할 계정을 선택하세요: 명시적 요청이 우선하고, 다음은 그룹, 사용자, 조직 기본, 마지막으로 개인 계정입니다.",
@@ -96,7 +102,17 @@
     "key_placeholder_group": "그룹 채팅 id (예: -100123…)",
     "key_placeholder_user": "사용자 id (예: 123456…)",
     "key_hint_group": "에이전트가 대화한 그룹을 선택하거나 채팅 id를 붙여넣으세요.",
-    "key_hint_user": "최근 대화에서 사용자 id를 선택하거나 붙여넣으세요."
+    "key_hint_user": "최근 대화에서 사용자 id를 선택하거나 붙여넣으세요.",
+    "enabled": "활성",
+    "disabled": "비활성",
+    "priority": "우선순위",
+    "col_type": "유형",
+    "col_target": "대상",
+    "col_account": "계정",
+    "col_actions": "작업",
+    "scope_type": "범위 유형",
+    "rule_added": "규칙이 추가되었습니다",
+    "table_empty": "규칙이 없습니다"
   },
   "detail": {
     "files_btn": "파일 탐색",
