@@ -30,10 +30,23 @@ import { buildItemActions, type ItemAction, type ItemActionHandlers } from "./dr
  * Drag + drop refs sit on the same element so both card <div> and row <tr>
  * stay valid HTML. */
 
-function EntryIcon({ entry }: { entry: CloudFileEntry }) {
-  if (entry.is_dir) return <Folder className="h-5 w-5 shrink-0 fill-sky-100 text-sky-500 dark:fill-sky-950" />;
+function EntryIcon({ entry, large }: { entry: CloudFileEntry; large?: boolean }) {
+  if (entry.is_dir)
+    return (
+      <Folder
+        className={cn(
+          "shrink-0 fill-sky-100 text-sky-500 dark:fill-sky-950",
+          large ? "h-12 w-12" : "h-5 w-5",
+        )}
+      />
+    );
   return (
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center [&>svg]:h-4 [&>svg]:w-4">
+    <span
+      className={cn(
+        "flex shrink-0 items-center justify-center",
+        large ? "h-12 w-12 [&>svg]:h-10 [&>svg]:w-10" : "h-5 w-5 [&>svg]:h-4 [&>svg]:w-4",
+      )}
+    >
       <FileIcon name={entry.name} />
     </span>
   );
@@ -128,15 +141,21 @@ function SelectCheckbox({
   selected,
   anySelected,
   onToggle,
+  className,
 }: {
   entry: CloudFileEntry;
   selected: boolean;
   anySelected: boolean;
   onToggle: () => void;
+  className?: string;
 }) {
   return (
     <span
-      className={cn("shrink-0", anySelected ? "opacity-100" : "opacity-0 group-hover:opacity-100")}
+      className={cn(
+        "shrink-0",
+        anySelected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        className,
+      )}
       onClick={(e) => e.stopPropagation()}
     >
       <Checkbox
@@ -227,7 +246,11 @@ function useItemController({
   return { t, renaming, setRenaming, dnd, items };
 }
 
-/** Full-featured grid card. */
+/** Full-featured grid card (Google-Drive-like): icon/thumbnail area on top,
+ * name below on up to 2 lines (line-clamp, full name via title), size under
+ * the name. The selection checkbox overlays the thumbnail corner (revealed on
+ * hover/selection) and the ⋮ menu sits beside the name — neither covers the
+ * name text. Fixed icon area + min name height keep card heights consistent. */
 export function DriveGridItem(props: DriveItemProps) {
   const { entry, selected, cursor, starred, anySelected, onActivate, onToggleSelect, handlers } = props;
   const { t, renaming, setRenaming, dnd, items } = useItemController(props);
@@ -245,27 +268,41 @@ export function DriveGridItem(props: DriveItemProps) {
             if (e.key === "Enter" || e.key === " ") onActivate(e as unknown as React.MouseEvent);
           }}
           className={cn(
-            "group relative flex min-h-[52px] cursor-pointer items-center gap-2 rounded-lg border p-2 transition-colors hover:bg-muted/40",
+            "group relative flex h-full cursor-pointer flex-col rounded-lg border p-3 transition-colors hover:bg-muted/40",
             selected && "border-primary/60 bg-primary/5",
             cursor && !selected && "border-primary/40 ring-1 ring-primary/30",
             dnd.isDragging && "opacity-40",
             dnd.isOver && "ring-2 ring-primary/60",
           )}
         >
-          <SelectCheckbox entry={entry} selected={selected} anySelected={anySelected} onToggle={onToggleSelect} />
-          <EntryIcon entry={entry} />
-          <RenameText
+          <SelectCheckbox
             entry={entry}
-            renaming={renaming}
-            onRename={handlers.onRename ?? (async () => {})}
-            stopRenaming={() => setRenaming(false)}
-            className="block truncate text-sm font-medium"
+            selected={selected}
+            anySelected={anySelected}
+            onToggle={onToggleSelect}
+            className="absolute left-2 top-2 z-10"
           />
-          {starred && <StarBadge />}
-          <span className="shrink-0 text-xs text-muted-foreground">
+          {starred && (
+            <span className="absolute right-2 top-2 z-10">
+              <StarBadge />
+            </span>
+          )}
+          <div className="flex h-24 items-center justify-center" aria-hidden>
+            <EntryIcon entry={entry} large />
+          </div>
+          <div className="mt-2 flex items-start gap-1">
+            <RenameText
+              entry={entry}
+              renaming={renaming}
+              onRename={handlers.onRename ?? (async () => {})}
+              stopRenaming={() => setRenaming(false)}
+              className="line-clamp-2 min-h-[2.5rem] text-sm font-medium leading-5"
+            />
+            <ActionMenuTrigger items={items} label={t("files.menu")} />
+          </div>
+          <span className="mt-0.5 shrink-0 text-xs text-muted-foreground">
             {entry.is_dir ? formatRelativeTime(entry.mod_time) : formatFileSize(entry.size)}
           </span>
-          <ActionMenuTrigger items={items} label={t("files.menu")} />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent onClick={(e) => e.stopPropagation()}>
