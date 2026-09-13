@@ -30,3 +30,22 @@ func TestRCClientURLJoin(t *testing.T) {
 		t.Fatalf("CoreVersion: %v", err)
 	}
 }
+
+// TestRCClientConfigListRemotes guards the response shape: rclone wraps the
+// names in {"remotes": [...]} — a bare []string decode fails on every call.
+func TestRCClientConfigListRemotes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"remotes":["goclaw-abc:","goclaw-def:"]}`))
+	}))
+	defer srv.Close()
+
+	rc := NewRCClient(srv.URL, "u", "p")
+	remotes, err := rc.ConfigListRemotes(context.Background())
+	if err != nil {
+		t.Fatalf("ConfigListRemotes: %v", err)
+	}
+	if len(remotes) != 2 || remotes[0] != "goclaw-abc:" {
+		t.Fatalf("remotes = %v, want [goclaw-abc: goclaw-def:]", remotes)
+	}
+}
