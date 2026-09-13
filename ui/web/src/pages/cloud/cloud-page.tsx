@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ScopeBindingsPanel } from "./scope-bindings-panel";
+import { AccountDetail, type DetailTab } from "./account-detail";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
@@ -191,6 +192,7 @@ export function CloudPage() {
   const [connecting, setConnecting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CloudAccount | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState<{ id: string; tab: DetailTab }>({ id: "", tab: null });
   const [pasteProvider, setPasteProvider] = useState<CloudProvider | null>(null);
   const [pasteURL, setPasteURL] = useState("");
   const [completing, setCompleting] = useState(false);
@@ -243,6 +245,16 @@ export function CloudPage() {
       setCompleting(false);
     }
   }
+
+  const accountCanMail = (a: CloudAccount) => {
+    if (a.provider !== "google") return false;
+    try {
+      const scopes: string[] = JSON.parse(a.scopes || "[]");
+      return scopes.some((sc) => sc.includes("/auth/gmail"));
+    } catch {
+      return false;
+    }
+  };
 
   async function handleDisconnect() {
     if (!deleteTarget) return;
@@ -446,6 +458,13 @@ export function CloudPage() {
                       {account.status_message && (
                         <p className="text-xs text-muted-foreground">{account.status_message}</p>
                       )}
+                      <AccountDetail
+                        accountId={account.id}
+                        provider={account.provider}
+                        canMail={accountCanMail(account)}
+                        tab={detailTab.id === account.id ? detailTab.tab : null}
+                        onTabChange={(tb) => setDetailTab({ id: account.id, tab: tb })}
+                      />
                       {isAdmin && (
                         <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                           <span>{t("share.toggle")}</span>

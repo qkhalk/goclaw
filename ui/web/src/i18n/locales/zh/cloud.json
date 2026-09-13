@@ -94,5 +94,26 @@
     "key_placeholder_user": "用户 id（如 123456…）",
     "key_hint_group": "从智能体参与过的群组中选择，或粘贴其聊天 id。",
     "key_hint_user": "从最近会话中选择用户 id，或直接粘贴。"
+  },
+  "detail": {
+    "files_btn": "浏览文件",
+    "mail_btn": "邮箱",
+    "quota_unavailable": "该账户无法查看配额",
+    "loading_quota": "正在加载配额…",
+    "used_of": "已用 {used} / {total}",
+    "root": "根目录",
+    "loading_files": "正在加载文件…",
+    "files_unavailable": "无法列出文件（服务器装了 rclone 吗？）",
+    "no_files": "此文件夹为空",
+    "col_name": "名称",
+    "col_size": "大小",
+    "col_modified": "修改时间",
+    "readonly_note": "通过 rclone 只读浏览（{provider}）。让智能体帮您获取或整理文件。",
+    "mailbox": "邮箱",
+    "loading_mail": "正在加载邮箱…",
+    "mail_unavailable": "无法读取邮箱",
+    "no_mail": "收件箱为空",
+    "no_subject": "（无主题）",
+    "mail_readonly_note": "仅预览 — 让智能体帮您搜索、阅读或清理邮件。"
   }
 }

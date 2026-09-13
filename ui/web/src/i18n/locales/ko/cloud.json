@@ -94,5 +94,26 @@
     "key_placeholder_user": "사용자 id (예: 123456…)",
     "key_hint_group": "에이전트가 대화한 그룹을 선택하거나 채팅 id를 붙여넣으세요.",
     "key_hint_user": "최근 대화에서 사용자 id를 선택하거나 붙여넣으세요."
+  },
+  "detail": {
+    "files_btn": "파일 탐색",
+    "mail_btn": "메일함",
+    "quota_unavailable": "이 계정의 용량을 볼 수 없습니다",
+    "loading_quota": "용량 불러오는 중…",
+    "used_of": "{total} 중 {used} 사용",
+    "root": "루트",
+    "loading_files": "파일 불러오는 중…",
+    "files_unavailable": "파일을 나열할 수 없습니다 (서버에 rclone이 설치되어 있나요?)",
+    "no_files": "이 폴더는 비어 있습니다",
+    "col_name": "이름",
+    "col_size": "크기",
+    "col_modified": "수정",
+    "readonly_note": "rclone을 통한 읽기 전용 보기({provider}). 에이전트에게 파일 가져오기나 정리를 요청하세요.",
+    "mailbox": "메일함",
+    "loading_mail": "메일함 불러오는 중…",
+    "mail_unavailable": "메일함을 읽을 수 없습니다",
+    "no_mail": "수신함이 비어 있습니다",
+    "no_subject": "(제목 없음)",
+    "mail_readonly_note": "미리보기 전용 — 에이전트에게 메일 검색, 읽기, 정리를 요청하세요."
   }
 }
