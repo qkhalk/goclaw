@@ -76,13 +76,21 @@ func (s *PGCloudSyncPairStore) Create(ctx context.Context, p *store.CloudSyncPai
 	if p.TargetPath == "" {
 		p.TargetPath = "/"
 	}
+	// created_by is optional (worker/internal callers have no user in ctx).
+	// Bind NULL, never "": an empty string passed for a uuid-typed column
+	// fails with `invalid input syntax for type uuid: ""` — and even as TEXT,
+	// NULL (not '') is the "no creator" value. Scan COALESCEs back to "".
+	var createdBy any // nil → SQL NULL
+	if p.CreatedBy != "" {
+		createdBy = p.CreatedBy
+	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO cloud_sync_pairs
 		  (id, tenant_id, source_account_id, source_path, target_account_id,
 		   target_path, interval_minutes, enabled, created_by)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
 		p.ID, tenantID, p.SourceAccountID, p.SourcePath, p.TargetAccountID,
-		p.TargetPath, p.IntervalMinutes, p.Enabled, p.CreatedBy)
+		p.TargetPath, p.IntervalMinutes, p.Enabled, createdBy)
 	return err
 }
 
