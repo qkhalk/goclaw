@@ -95,6 +95,76 @@ export class HttpClient {
     return this.readJson<T>(res);
   }
 
+  /** Multipart upload with real progress events (fetch cannot report upload
+   * progress). XHR-based; abortable via signal. Error parsing matches
+   * upload(). Used for cloud drive uploads where the UI shows per-file
+   * progress bars. */
+  uploadWithProgress<T>(
+    path: string,
+    formData: FormData,
+    opts?: {
+      onProgress?: (loaded: number, total: number) => void;
+      signal?: AbortSignal;
+    },
+  ): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", this.buildUrl(path));
+
+      // No Content-Type here: the browser sets it with the multipart boundary.
+      for (const [k, v] of Object.entries(this.authHeaders())) {
+        xhr.setRequestHeader(k, v);
+      }
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) opts?.onProgress?.(e.loaded, e.total);
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const text = xhr.responseText;
+          if (!text.trim().length) {
+            resolve(undefined as T);
+            return;
+          }
+          try {
+            resolve(JSON.parse(text) as T);
+          } catch {
+            reject(new ApiError("HTTP_ERROR", "Invalid JSON response"));
+          }
+          return;
+        }
+        let err;
+        try {
+          err = JSON.parse(xhr.responseText);
+        } catch {
+          err = { error: xhr.statusText };
+        }
+        const nested = typeof err.error === "object" && err.error !== null ? err.error : null;
+        const code = nested?.code ?? err.code ?? "HTTP_ERROR";
+        const message =
+          nested?.message ??
+          (typeof err.error === "string" ? err.error : null) ??
+          err.message ??
+          xhr.statusText;
+        reject(new ApiError(code, message, nested ?? err));
+      };
+      xhr.onerror = () => reject(new ApiError("NETWORK_ERROR", "Cannot connect to server. Check if the gateway is running."));
+      xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
+
+      // Wire the abort signal to the XHR.
+      const signal = opts?.signal;
+      if (signal) {
+        if (signal.aborted) {
+          xhr.abort();
+        } else {
+          signal.addEventListener("abort", () => xhr.abort(), { once: true });
+        }
+      }
+
+      xhr.send(formData);
+    });
+  }
+
   private buildUrl(path: string, params?: Record<string, string>): string {
     const url = new URL(path, this.baseUrl || window.location.origin);
     if (params) {
