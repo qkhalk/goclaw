@@ -45,7 +45,7 @@ func (t *AskOptionsTool) SetMessageBus(b *bus.MessageBus) { t.msgBus = b }
 func (t *AskOptionsTool) Name() string { return "ask_options" }
 
 func (t *AskOptionsTool) Description() string {
-	return "Ask the user a clarifying question with tappable option buttons (Telegram only). " +
+	return "Ask the user a clarifying question with tappable option buttons (Telegram and web chat). " +
 		"Use when the request is ambiguous and 2-4 distinct interpretations exist, or when a key " +
 		"decision (scope, target, approach) must be confirmed before proceeding. " +
 		"The question is sent to the chat with one button per option plus an Other button for free-text. " +
@@ -108,37 +108,43 @@ func (t *AskOptionsTool) Execute(ctx context.Context, args map[string]any) *Resu
 	channel := ToolChannelFromCtx(ctx)
 	chatID := ToolChatIDFromCtx(ctx)
 	if channel == "" || chatID == "" || channel == ChannelTeammate || channel == ChannelSystem || channel == ChannelDashboard {
-		return ErrorResult("ask_options is only available in an active user chat (Telegram); no channel/chat in this context")
-	}
-	if channel != "telegram" {
-		return ErrorResult(fmt.Sprintf("ask_options is not supported on channel %q yet (Telegram only)", channel))
-	}
-	if t.msgBus == nil {
-		return ErrorResult("ask_options: message bus unavailable")
+		return ErrorResult("ask_options is only available in an active user chat; no channel/chat in this context")
 	}
 
-	// Prefer the composite local key (e.g. "-100123:topic:42"): the Telegram
-	// channel's Send path parses thread routing + the placeholder key from it.
-	// With the bare chat ID the question would land in the General topic.
-	target := ToolLocalKeyFromCtx(ctx)
-	metadata := map[string]string{MetaAskOptions: string(mustJSON(options))}
-	if target != "" {
-		metadata[MetaOutboundLocalKey] = target
-		if idx := strings.Index(target, ":topic:"); idx > 0 {
-			metadata[MetaMessageThreadID] = target[idx+len(":topic:"):]
-		} else if idx := strings.Index(target, ":thread:"); idx > 0 {
-			metadata[MetaMessageThreadID] = target[idx+len(":thread:"):]
+	switch channel {
+	case "telegram":
+		if t.msgBus == nil {
+			return ErrorResult("ask_options: message bus unavailable")
 		}
-	} else {
-		target = chatID
+		// Prefer the composite local key (e.g. "-100123:topic:42"): the Telegram
+		// channel's Send path parses thread routing + the placeholder key from it.
+		// With the bare chat ID the question would land in the General topic.
+		target := ToolLocalKeyFromCtx(ctx)
+		metadata := map[string]string{MetaAskOptions: string(mustJSON(options))}
+		if target != "" {
+			metadata[MetaOutboundLocalKey] = target
+			if idx := strings.Index(target, ":topic:"); idx > 0 {
+				metadata[MetaMessageThreadID] = target[idx+len(":topic:"):]
+			} else if idx := strings.Index(target, ":thread:"); idx > 0 {
+				metadata[MetaMessageThreadID] = target[idx+len(":thread:"):]
+			}
+		} else {
+			target = chatID
+		}
+		t.msgBus.PublishOutbound(bus.OutboundMessage{
+			Channel:  channel,
+			ChatID:   target,
+			Content:  "❓ " + question,
+			Metadata: metadata,
+		})
+	case ChannelWeb:
+		// The web chat renders the interactive question card from this tool
+		// call's arguments (already carried by the tool.result event) and
+		// injects the picked option back as the next user message — no
+		// outbound publish needed here.
+	default:
+		return ErrorResult(fmt.Sprintf("ask_options is not supported on channel %q (telegram and web chat only)", channel))
 	}
-
-	t.msgBus.PublishOutbound(bus.OutboundMessage{
-		Channel:  channel,
-		ChatID:   target,
-		Content:  "❓ " + question,
-		Metadata: metadata,
-	})
 	return NewResult("Question sent to the user with option buttons. End your turn now and wait for their reply — " +
 		"their answer (button press or typed reply) will arrive as the next user message in this session.")
 }

@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Wrench, AlertTriangle, ChevronRight, Zap } from "lucide-react";
 import type { ToolStreamEntry } from "@/types/chat";
+import { AskOptionsCard, parseAskOptionsArgs } from "./ask-options-card";
 
 const isSkillTool = (name: string) => name === "use_skill";
+const isAskOptionsTool = (name: string) => name === "ask_options";
 
 /** Build a short summary string from tool arguments for inline display. */
 function buildToolSummary(entry: ToolStreamEntry): string | null {
@@ -22,10 +24,17 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ entry, compact }: ToolCallCardProps) {
   const { t } = useTranslation("common");
+  const [expanded, setExpanded] = useState(false);
+  // ask_options renders as an interactive question card (options from the
+  // tool arguments) instead of the generic collapsed call card. Kept after
+  // the hooks above so the card can switch rendering modes safely.
+  const askArgs = isAskOptionsTool(entry.name) ? parseAskOptionsArgs(entry.arguments) : null;
+  if (askArgs) {
+    return <AskOptionsCard question={askArgs.question} options={askArgs.options} />;
+  }
   const hasDetails = entry.arguments || entry.result || !!entry.output;
   const hasError = entry.phase === "error" && !!entry.errorContent;
   const canExpand = hasDetails || hasError;
-  const [expanded, setExpanded] = useState(false);
   const summary = buildToolSummary(entry);
   const skill = isSkillTool(entry.name);
   const displayName = skill ? `skill: ${(entry.arguments?.name as string) || "unknown"}` : entry.name;

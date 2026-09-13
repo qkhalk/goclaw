@@ -45,14 +45,44 @@ func TestAskOptionsTool_RejectsInternalContext(t *testing.T) {
 	}
 }
 
-func TestAskOptionsTool_RejectsNonTelegramChannel(t *testing.T) {
+func TestAskOptionsTool_RejectsUnsupportedChannel(t *testing.T) {
 	tool := NewAskOptionsTool()
 	tool.SetMessageBus(bus.New())
 
 	ctx := WithToolChannel(WithToolChatID(context.Background(), "42"), "zalo")
 	res := tool.Execute(ctx, map[string]any{"question": "Q?", "options": []any{"a"}})
-	if !res.IsError || !strings.Contains(res.ForLLM, "Telegram only") {
-		t.Errorf("result = %+v, want non-telegram rejection", res)
+	if !res.IsError || !strings.Contains(res.ForLLM, "not supported on channel") {
+		t.Errorf("result = %+v, want unsupported-channel rejection", res)
+	}
+}
+
+// TestAskOptionsTool_WebChannelSucceedsWithoutPublish proves the web-chat path
+// succeeds without publishing outbound: the dashboard renders the question
+// card from the tool.result event's arguments instead.
+func TestAskOptionsTool_WebChannelSucceedsWithoutPublish(t *testing.T) {
+	mb := bus.New()
+	tool := NewAskOptionsTool()
+	tool.SetMessageBus(mb)
+
+	ctx := WithToolChannel(WithToolChatID(context.Background(), "user-1"), ChannelWeb)
+	res := tool.Execute(ctx, map[string]any{"question": "Which DB?", "options": []any{"Postgres", "MySQL"}})
+	if res.IsError {
+		t.Fatalf("unexpected error: %s", res.ForLLM)
+	}
+	if !strings.Contains(res.ForLLM, "End your turn") {
+		t.Errorf("result = %q, want end-turn instruction", res.ForLLM)
+	}
+
+	outCh := make(chan bus.OutboundMessage, 1)
+	go func() {
+		if msg, ok := mb.SubscribeOutbound(context.Background()); ok {
+			outCh <- msg
+		}
+	}()
+	select {
+	case msg := <-outCh:
+		t.Fatalf("web channel must not publish outbound, got %+v", msg)
+	case <-time.After(200 * time.Millisecond):
 	}
 }
 

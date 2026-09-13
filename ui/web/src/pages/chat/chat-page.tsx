@@ -7,6 +7,7 @@ import { useIsMobile } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { ChatSidebar } from "./chat-sidebar";
 import { ChatThread } from "./chat-thread";
+import { AskOptionsProvider, askAnswerText, type AskOptionsContextValue } from "@/components/chat/ask-options-context";
 import { ChatInput, type AttachedFile, type ComposerOverrides } from "@/components/chat/chat-input";
 import { ChatTopBar } from "@/components/chat/chat-top-bar";
 import { DropZone } from "@/components/chat/drop-zone";
@@ -151,6 +152,22 @@ export function ChatPage() {
     abort(sessionKey);
   }, [abort, sessionKey]);
 
+  // ask_options question cards: send the picked/typed option as the next user
+  // message (same inject format as the Telegram channel) and detect answered
+  // questions from history so cards stay resolved across reloads.
+  const askOptionsValue = useMemo<AskOptionsContextValue | null>(() => {
+    if (!isOwn) return null;
+    return {
+      answer: (question, answer) => handleSend(askAnswerText(question, answer)),
+      isAnswered: (question) => {
+        const prefix = `[Answering your question] ${question.trim()} →`;
+        return messages.some(
+          (m) => m.role === "user" && typeof m.content === "string" && m.content.startsWith(prefix),
+        );
+      },
+    };
+  }, [isOwn, handleSend, messages]);
+
   const isMobile = useIsMobile();
   useVirtualKeyboard();
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
@@ -257,18 +274,20 @@ export function ChatPage() {
         )}
 
         <DropZone onDrop={handleDropFiles}>
-          <ChatThread
-            messages={messages}
-            streamText={streamText}
-            thinkingText={thinkingText}
-            toolStream={toolStream}
-            blockReplies={blockReplies}
-            activity={activity}
-            isRunning={isRunning}
-            isBusy={isBusy}
-            loading={messagesLoading}
-            scrollTrigger={scrollTrigger}
-          />
+          <AskOptionsProvider value={askOptionsValue}>
+            <ChatThread
+              messages={messages}
+              streamText={streamText}
+              thinkingText={thinkingText}
+              toolStream={toolStream}
+              blockReplies={blockReplies}
+              activity={activity}
+              isRunning={isRunning}
+              isBusy={isBusy}
+              loading={messagesLoading}
+              scrollTrigger={scrollTrigger}
+            />
+          </AskOptionsProvider>
 
           {!isOwn ? (
             <div className="mx-3 mb-3 flex items-center gap-2 rounded-xl border bg-muted/50 px-4 py-3 text-sm text-muted-foreground shadow-sm">
