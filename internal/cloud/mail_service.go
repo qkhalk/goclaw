@@ -56,37 +56,15 @@ func (s *MailService) MailClient(ctx context.Context, account string) (*mail.Cli
 	return mail.NewClient(ts), nil
 }
 
-// resolveAccount picks by email when given, else the first ACTIVE account
-// (a revoked newest account must not shadow other working ones).
+// resolveAccount picks by email/ID when given, else per-scope bindings
+// (group → user → tenant default) and finally the caller's own accounts.
+// Mail is a Google (Gmail) capability: shared OneDrive accounts never match,
+// and zero-config embedded-client accounts (Drive-only scopes) are skipped —
+// Gmail requires a BYO OAuth client.
 func (s *MailService) resolveAccount(ctx context.Context, name string) (*store.CloudAccount, error) {
-	accounts, err := s.manager.store.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	revoked := false
-	for i := range accounts {
-		a := &accounts[i]
-		if a.Provider != GoogleProvider {
-			continue // mail is a Google (Gmail) capability
-		}
-		if !accountHasGmailScope(a) {
-			// Zero-config accounts use the embedded shared client (Drive-only
-			// scopes); Gmail requires a BYO OAuth client.
-			continue
-		}
-		if name != "" && !strings.EqualFold(a.Email, name) {
-			continue
-		}
-		if a.Status == "revoked" {
-			revoked = true
-			continue
-		}
-		return a, nil
-	}
-	if revoked {
-		return nil, errors.New("cloud account is revoked — reconnect on the Clouds page")
-	}
-	return nil, ErrNoAccounts
+	return s.manager.ResolveAccount(ctx, name, []string{GoogleProvider}, func(a *store.CloudAccount) bool {
+		return a.Provider == GoogleProvider && accountHasGmailScope(a)
+	})
 }
 
 // accountHasGmailScope reports whether the account's granted scope set
@@ -99,8 +77,8 @@ func accountHasGmailScope(a *store.CloudAccount) bool {
 	if err := json.Unmarshal([]byte(a.Scopes), &scopes); err != nil {
 		return false
 	}
-	for _, s := range scopes {
-		if strings.Contains(s, "/auth/gmail") {
+	for _, sc := range scopes {
+		if strings.Contains(sc, "/auth/gmail") {
 			return true
 		}
 	}

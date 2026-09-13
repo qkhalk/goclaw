@@ -56,32 +56,13 @@ func (s *StorageService) RemoveRemote(ctx context.Context, accountID string) {
 	}
 }
 
-// resolveAccount mirrors MailService.resolveAccount (prefers active accounts)
-// but only considers storage-capable providers.
+// resolveAccount picks by email/ID when given, else per-scope bindings
+// (group → user → tenant default) and finally the caller's own accounts —
+// including tenant-shared ones (the enterprise "company drive" pattern).
 func (s *StorageService) resolveAccount(ctx context.Context, name string) (*store.CloudAccount, error) {
-	accounts, err := s.manager.store.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	revokedEmail := ""
-	for i := range accounts {
-		a := &accounts[i]
-		if !isStorageProvider(a.Provider) {
-			continue
-		}
-		if name != "" && !strings.EqualFold(a.Email, name) {
-			continue
-		}
-		if a.Status == "revoked" {
-			revokedEmail = a.Email
-			continue
-		}
-		return a, nil
-	}
-	if revokedEmail != "" {
-		return nil, fmt.Errorf("cloud account %s is revoked — reconnect on the Clouds page", revokedEmail)
-	}
-	return nil, ErrNoAccounts
+	return s.manager.ResolveAccount(ctx, name, []string{GoogleProvider, MicrosoftProvider}, func(a *store.CloudAccount) bool {
+		return isStorageProvider(a.Provider)
+	})
 }
 
 // isStorageProvider gates which connected accounts the rclone layer may use.

@@ -21,11 +21,12 @@ import (
 // hands out TokenSources for connected accounts. One instance per gateway;
 // safe for concurrent use.
 type Manager struct {
-	cfg     CloudProviderConfig
-	store   store.CloudAccountStore
-	secrets store.ConfigSecretsStore // optional dynamic provider credentials (saved from the web UI)
-	encKey  string
-	storage *StorageService // optional; deletes rclone remotes on disconnect
+	cfg      CloudProviderConfig
+	store    store.CloudAccountStore
+	bindings store.CloudBindingStore // optional per-scope account bindings
+	secrets  store.ConfigSecretsStore // optional dynamic provider credentials (saved from the web UI)
+	encKey   string
+	storage  *StorageService // optional; deletes rclone remotes on disconnect
 }
 
 // CloudProviderConfig carries the static provider credentials for the
@@ -469,7 +470,7 @@ func (m *Manager) SetStorageService(s *StorageService) { m.storage = s }
 // (scoped by ctx tenant+user). The source auto-refreshes via singleflight so
 // concurrent tool calls share one refresh.
 func (m *Manager) TokenSource(ctx context.Context, accountID string) (oauth2.TokenSource, error) {
-	acct, err := m.store.Get(ctx, accountID)
+	acct, err := m.AccountByID(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
