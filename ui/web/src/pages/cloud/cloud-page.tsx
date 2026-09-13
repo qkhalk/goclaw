@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { SettingsSheet } from "./settings-sheet";
+import { SettingsModal } from "./settings-modal";
 import { CLOUD_PROVIDERS } from "./drive/drive-rail";
 import { StarredView } from "./drive/starred-view";
 import { RecentView } from "./drive/recent-view";
@@ -144,7 +144,7 @@ export function CloudPage() {
   const activeAccounts = accounts.filter((a) => a.status === "active").length;
 
   function openSettings() {
-    // Default the sheet's provider to whatever view the user is on.
+    // Default the modal's provider to whatever view the user is on.
     if (activeProvider) setSettingsProvider(activeProvider);
     setSettingsOpen(true);
   }
@@ -283,7 +283,7 @@ export function CloudPage() {
           onRefresh={refreshCurrent}
           right={gear}
         />
-        <SettingsSheet
+        <SettingsModal
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           provider={settingsProvider}
@@ -537,7 +537,7 @@ export function CloudPage() {
         </div>
       )}
 
-      <SettingsSheet
+      <SettingsModal
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         provider={settingsProvider}
