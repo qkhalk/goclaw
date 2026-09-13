@@ -6,5 +6,4 @@ export {
   langFor,
   buildTree,
   stripFrontmatter,
-  formatSize,
 } from "@/lib/file-helpers";

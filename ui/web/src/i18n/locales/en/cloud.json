@@ -115,7 +115,6 @@
     "table_empty": "No rules yet"
   },
   "detail": {
-    "files_btn": "Browse files",
     "mail_btn": "Mailbox",
     "quota_unavailable": "Quota unavailable for this account",
     "loading_quota": "Loading quota…",
@@ -134,5 +133,28 @@
     "no_mail": "Inbox is empty",
     "no_subject": "(no subject)",
     "mail_readonly_note": "Preview only — ask the agent to search, read or clean up mail."
+  },
+  "drive": {
+    "my_drives": "My drives",
+    "accounts": "Accounts",
+    "shared_tag": "Shared",
+    "storage": "Storage",
+    "storage_unavailable": "Storage info unavailable",
+    "mail": "Mailbox",
+    "search_placeholder": "Search in this folder",
+    "sort_label": "Sort",
+    "sort": {
+      "name": "Name",
+      "size": "Size",
+      "modified": "Modified",
+      "asc": "Ascending",
+      "desc": "Descending"
+    },
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    },
+    "not_found": "Account not found or no longer accessible",
+    "back_home": "Back to Clouds"
   }
 }

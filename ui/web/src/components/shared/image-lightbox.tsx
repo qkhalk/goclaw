@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { X, Download, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatSize, toDownloadUrl } from "@/lib/file-helpers";
+import { toDownloadUrl } from "@/lib/file-helpers";
+import { formatFileSize } from "@/lib/format";
 import { useMediaUrl } from "@/hooks/use-media-url";
 
 export interface LightboxImage {
@@ -128,7 +129,7 @@ export function ImageLightbox(props: ImageLightboxProps) {
           )}
           {current.fileName && <span className="max-w-[300px] truncate">{current.fileName}</span>}
           {current.fileName && current.size != null && current.size > 0 && <span className="text-white/50">·</span>}
-          {current.size != null && current.size > 0 && <span className="text-white/60">{formatSize(current.size)}</span>}
+          {current.size != null && current.size > 0 && <span className="text-white/60">{formatFileSize(current.size)}</span>}
         </div>
       )}
     </div>

@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { buildTree, mergeSubtree, setNodeLoading, formatSize, isTextFile } from "@/lib/file-helpers";
+import { buildTree, mergeSubtree, setNodeLoading, isTextFile } from "@/lib/file-helpers";
+import { formatFileSize } from "@/lib/format";
 import { FileBrowser } from "@/components/shared/file-browser";
 import { useStorage, useStorageSize } from "./hooks/use-storage";
 import { useHttp } from "@/hooks/use-ws";
@@ -175,7 +176,7 @@ export function StoragePage() {
   // Size description with cache tooltip
   const sizeDescription = useMemo(() => {
     if (!baseDir) return t("description");
-    const sizeStr = sizeLoading ? `${formatSize(totalSize)}...` : formatSize(totalSize);
+    const sizeStr = sizeLoading ? `${formatFileSize(totalSize)}...` : formatFileSize(totalSize);
     return t("descriptionWithPath", { path: baseDir, size: sizeStr });
   }, [baseDir, totalSize, sizeLoading, t]);
 

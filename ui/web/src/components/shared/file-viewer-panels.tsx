@@ -11,7 +11,8 @@ import { Check, Copy, Download, FileQuestion, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useClipboard } from "@/hooks/use-clipboard";
-import { formatSize, sizeBadgeVariant } from "@/lib/file-helpers";
+import { sizeBadgeVariant } from "@/lib/file-helpers";
+import { formatFileSize } from "@/lib/format";
 import hljs from "highlight.js/lib/core";
 import typescript from "highlight.js/lib/languages/typescript";
 import javascript from "highlight.js/lib/languages/javascript";
@@ -230,7 +231,7 @@ export function UnsupportedFileViewer({
           <Download className="h-3.5 w-3.5 mr-1.5" />
           {fileName}
           <Badge variant={sizeBadgeVariant(size)} className="text-2xs ml-1.5">
-            {formatSize(size)}
+            {formatFileSize(size)}
           </Badge>
         </Button>
       )}
