@@ -184,6 +184,7 @@
     "selected_count": "已选择 {{count}} 项",
     "bulk_clear": "取消全选",
     "readonly_banner": "只读账户 — 请重新授权以上传、重命名、移动或删除文件。",
+    "write_disabled_hint": "该账户为只读 — 请使用“重新授权”恢复写入权限。",
     "op_failed": "操作失败",
     "scope_required": "该账户缺少写入权限 — 请重新授权后重试。",
     "done": "完成",
