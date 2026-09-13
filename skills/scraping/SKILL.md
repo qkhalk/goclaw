@@ -19,6 +19,7 @@ quality-gates:
   - dataset_generated
 deps:
   - pip:scrapling[fetchers]
+  - pip:markdownify
 ---
 
 # Web Scraping (Scrapling)
@@ -36,10 +37,13 @@ right to scrape.
 
 ```bash
 python3 -c "import scrapling" 2>/dev/null || pip3 install 'scrapling[fetchers]'
+python3 -c "import markdownify" 2>/dev/null || pip3 install markdownify   # needed for --markdown
 scrapling install --force 2>/dev/null || scrapling install   # one-time: downloads browsers for browser/stealth modes
 ```
 
 Static mode works without browsers; browser/stealth modes require `scrapling install`.
+Prefer static mode — it is lightweight (no browser) and its TLS impersonation
+passes most basic bot checks.
 
 ## Rules of engagement (before any fetch)
 
@@ -174,6 +178,7 @@ RAG corpora) live in `scrapling.spiders` — use them only when pagination via
 | `scrapling is not installed` | `pip3 install 'scrapling[fetchers]'` |
 | Browser launch error (browser/stealth modes) | `scrapling install`, retry once |
 | Empty items but page loads | Content is JS-rendered → `--mode browser`; or selector wrong → inspect HTML saved via `scrapling extract get <url> page.html` |
-| 403/429 or challenge page | Stop per Rules of engagement unless the requester owns the target → `--mode stealth --solve-cloudflare` |
+| `markdown() failed: requires markdownify` | `pip3 install markdownify` |
+| 403/429 or challenge page | Stop per Rules of engagement unless the requester owns the target → `--mode stealth --solve-cloudflare` (stealth needs `scrapling install`) |
 | Fields all null | Field selectors must end in `::text` / `::attr(name)`; verify selector against saved HTML |
 | Missing later pages | `--next` selector wrong (check it matches the actual link element), or `--max-pages` too low |
