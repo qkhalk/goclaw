@@ -298,10 +298,12 @@ func (s *SQLiteCloudAccountStore) ListBindings(ctx context.Context) ([]store.Clo
 	for rows.Next() {
 		var b store.CloudBinding
 		var createdStr, updatedStr string
+		var enabledInt int
 		if err := rows.Scan(&b.ID, &b.TenantID, &b.ScopeType, &b.ScopeKey, &b.Provider,
-			&b.AccountID, &b.CreatedBy, &createdStr, &updatedStr); err != nil {
+			&b.AccountID, &b.CreatedBy, &enabledInt, &b.Priority, &createdStr, &updatedStr); err != nil {
 			return nil, err
 		}
+		b.Enabled = enabledInt != 0
 		b.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdStr)
 		b.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updatedStr)
 		out = append(out, b)
@@ -318,15 +320,21 @@ func (s *SQLiteCloudAccountStore) UpsertBinding(ctx context.Context, b *store.Cl
 	if b.ID == "" {
 		b.ID = store.GenNewID().String()
 	}
+	enabledInt := 0
+	if b.Enabled {
+		enabledInt = 1
+	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO cloud_account_bindings
-		  (id, tenant_id, scope_type, scope_key, provider, account_id, created_by)
-		VALUES (?,?,?,?,?,?,?)
+		  (id, tenant_id, scope_type, scope_key, provider, account_id, created_by, enabled, priority)
+		VALUES (?,?,?,?,?,?,?,?,?)
 		ON CONFLICT (tenant_id, scope_type, scope_key, provider) DO UPDATE SET
 		  account_id = excluded.account_id,
 		  created_by = excluded.created_by,
+		  enabled    = excluded.enabled,
+		  priority   = excluded.priority,
 		  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
-		b.ID, tenantID, b.ScopeType, b.ScopeKey, b.Provider, b.AccountID, b.CreatedBy)
+		b.ID, tenantID, b.ScopeType, b.ScopeKey, b.Provider, b.AccountID, b.CreatedBy, enabledInt, b.Priority)
 	return err
 }
 
@@ -345,4 +353,5 @@ func (s *SQLiteCloudAccountStore) DeleteBinding(ctx context.Context, id string) 
 }
 
 const sqliteCloudBindingColumns = `id, tenant_id, scope_type, scope_key, provider,
-	account_id, COALESCE(created_by,''), created_at, updated_at`
+	account_id, COALESCE(created_by,''), COALESCE(enabled,1), COALESCE(priority,100),
+	created_at, updated_at`

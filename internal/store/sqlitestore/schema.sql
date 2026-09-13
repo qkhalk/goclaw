@@ -3077,6 +3077,8 @@ CREATE TABLE IF NOT EXISTS cloud_account_bindings (
     provider    TEXT NOT NULL,
     account_id  TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
     created_by  TEXT NOT NULL DEFAULT '',
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    priority    INTEGER NOT NULL DEFAULT 100,
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     CHECK ((scope_type = 'tenant' AND scope_key = '') OR (scope_type <> 'tenant' AND scope_key <> ''))
@@ -3085,5 +3087,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS cloud_account_bindings_uq
     ON cloud_account_bindings (tenant_id, scope_type, scope_key, provider);
 CREATE INDEX IF NOT EXISTS cloud_account_bindings_lookup
     ON cloud_account_bindings (tenant_id, scope_type);
+CREATE INDEX IF NOT EXISTS cloud_account_bindings_resolve
+    ON cloud_account_bindings (tenant_id, enabled, priority);
 CREATE INDEX IF NOT EXISTS idx_cloud_accounts_lookup
     ON cloud_accounts (tenant_id, user_id, provider);

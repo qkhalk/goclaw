@@ -63,7 +63,7 @@
     "cancel": "Cancel",
     "update": "Update credentials",
     "advanced": "Use your own OAuth client (advanced)",
-    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (advanced below)."
+    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (see Cloud settings)."
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",
@@ -83,6 +83,12 @@
   "share": {
     "toggle": "Share with organization"
   },
+  "settings": {
+    "title": "Cloud settings",
+    "description": "Manage providers, your own OAuth client and scope rules.",
+    "provider": "Provider",
+    "scope_rules": "Scope rules"
+  },
   "scope": {
     "title": "Usage scopes",
     "description": "Pick which account the agent uses here: explicit request wins, then group, then user, then the organization default, then personal accounts.",
@@ -96,7 +102,17 @@
     "key_placeholder_group": "Group chat id (e.g. -100123…)",
     "key_placeholder_user": "User id (e.g. 123456…)",
     "key_hint_group": "Pick a group the agent has talked in, or paste its chat id.",
-    "key_hint_user": "Pick a user id from recent conversations, or paste one."
+    "key_hint_user": "Pick a user id from recent conversations, or paste one.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "priority": "Priority",
+    "col_type": "Type",
+    "col_target": "Target",
+    "col_account": "Account",
+    "col_actions": "Actions",
+    "scope_type": "Scope type",
+    "rule_added": "Rule added",
+    "table_empty": "No rules yet"
   },
   "detail": {
     "files_btn": "Browse files",

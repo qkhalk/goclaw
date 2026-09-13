@@ -63,7 +63,7 @@
     "cancel": "Hủy",
     "update": "Cập nhật thông tin",
     "advanced": "Dùng OAuth client riêng (nâng cao)",
-    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Client dùng chung nay cấp quyền Drive đầy đủ. Công cụ Gmail vẫn cần OAuth client riêng của bạn (mục nâng cao bên dưới)."
+    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Client dùng chung nay cấp quyền Drive đầy đủ. Công cụ Gmail vẫn cần OAuth client riêng của bạn (xem Cài đặt đám mây)."
   },
   "disconnect_confirm": {
     "title": "Ngắt kết nối tài khoản?",
@@ -83,6 +83,12 @@
   "share": {
     "toggle": "Dùng chung tổ chức"
   },
+  "settings": {
+    "title": "Cài đặt đám mây",
+    "description": "Quản lý nhà cung cấp, OAuth client riêng và quy tắc phạm vi.",
+    "provider": "Nhà cung cấp",
+    "scope_rules": "Quy tắc phạm vi"
+  },
   "scope": {
     "title": "Phạm vi sử dụng",
     "description": "Chọn tài khoản agent dùng tại đây: yêu cầu chỉ định rõ thắng, rồi nhóm, rồi người dùng, rồi mặc định tổ chức, cuối cùng là tài khoản cá nhân.",
@@ -96,7 +102,17 @@
     "key_placeholder_group": "Chat id của nhóm (vd -100123…)",
     "key_placeholder_user": "User id (vd 123456…)",
     "key_hint_group": "Chọn nhóm agent đã trò chuyện, hoặc dán chat id.",
-    "key_hint_user": "Chọn user id từ các hội thoại gần đây, hoặc dán vào."
+    "key_hint_user": "Chọn user id từ các hội thoại gần đây, hoặc dán vào.",
+    "enabled": "Bật",
+    "disabled": "Tắt",
+    "priority": "Ưu tiên",
+    "col_type": "Loại",
+    "col_target": "Đối tượng",
+    "col_account": "Tài khoản",
+    "col_actions": "Thao tác",
+    "scope_type": "Loại phạm vi",
+    "rule_added": "Đã thêm quy tắc",
+    "table_empty": "Chưa có quy tắc nào"
   },
   "detail": {
     "files_btn": "Duyệt tệp",
