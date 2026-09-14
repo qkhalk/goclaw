@@ -6,7 +6,6 @@ import { ExternalLink, Globe, RotateCw, X } from "lucide-react";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { BrowserPanelState } from "@/pages/chat/hooks/use-browser-panel";
-import { cn } from "@/lib/utils";
 
 interface BrowserPanelProps {
   open: boolean;
@@ -26,10 +25,7 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onReload }: B
   const displayTitle = state.title || state.finalUrl || t("browserPanel.title");
 
   return (
-    <div className={cn(
-      "flex h-full w-[min(520px,45vw)] shrink-0 flex-col border-l bg-background",
-      "max-sm:fixed max-sm:inset-0 max-sm:z-50 max-sm:w-full max-sm:shadow-xl",
-    )}>
+    <div className="flex h-full min-h-0 flex-col bg-background">
       {/* Header: title + actions */}
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2 safe-top">
         <span className="flex min-w-0 items-center gap-2 text-sm font-medium">

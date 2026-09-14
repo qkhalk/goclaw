@@ -50,10 +50,12 @@ import { getRuntimeBranding } from "@/lib/branding";
 
 interface SidebarProps {
   collapsed: boolean;
+  /** Desktop drag-resizable expanded width (px). Undefined → w-64 default. */
+  width?: number;
   onNavItemClick?: () => void;
 }
 
-export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
+export function Sidebar({ collapsed, width, onNavItemClick }: SidebarProps) {
   const { t } = useTranslation("sidebar");
   const { pendingCount } = usePendingPairingsCount();
   const role = useAuthStore((s) => s.role);
@@ -66,9 +68,13 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-full flex-col overflow-hidden overscroll-none border-r bg-sidebar text-sidebar-foreground transition-all duration-200",
+        "flex h-full flex-col overflow-hidden overscroll-none border-r bg-sidebar text-sidebar-foreground",
+        // Drag-resizable mode updates width on every pointermove — animate
+        // colors only, or the drag feels rubber-banded.
+        width !== undefined ? "transition-colors duration-200" : "transition-all duration-200",
         collapsed ? "w-16" : "w-64",
       )}
+      style={collapsed ? undefined : width !== undefined ? { width } : undefined}
       onClick={(e) => {
         // Close mobile drawer when clicking a nav link
         if (onNavItemClick && (e.target as HTMLElement).closest("a")) {
