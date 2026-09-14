@@ -122,7 +122,13 @@
     },
     "jobs_refresh": "Обновить задачи",
     "audio_section": "Аудио",
-    "narration_placeholder": "Текст закадрового текста сцены для TTS…"
+    "narration_placeholder": "Текст закадрового текста сцены для TTS…",
+    "transition": "Переход (вход)",
+    "transition_none": "Нет",
+    "transition_fade": "Затемнение",
+    "transition_crossfade": "Перекрёстное растворение",
+    "transition_slide_left": "Слайд влево",
+    "transition_slide_up": "Слайд вверх"
   },
   "watermark": {
     "title": "Удаление водяных знаков",

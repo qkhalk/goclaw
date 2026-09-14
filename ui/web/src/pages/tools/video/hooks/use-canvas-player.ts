@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { renderSceneWithTransition, type SceneTransition } from "../components/scene-transition";
 
 // ── Types ──
 
@@ -22,6 +23,7 @@ interface Scene {
   ken_burns?: KenBurns;
   caption?: Caption;
   narration?: string;
+  transition?: SceneTransition;
 }
 interface Storyboard {
   version: number;
@@ -252,6 +254,9 @@ export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
   const lastFrameTimeRef = useRef(0);
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
   const loadingImagesRef = useRef(new Set<string>());
+  // Reusable offscreen buffers for transition compositing.
+  const scratchARef = useRef<HTMLCanvasElement | null>(null);
+  const scratchBRef = useRef<HTMLCanvasElement | null>(null);
 
   // Preload images
   useEffect(() => {
@@ -287,7 +292,19 @@ export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
     const scene = storyboard.scenes[index];
     if (!scene) return;
 
-    renderScene(ctx, canvas, scene, localTime, imageCacheRef.current);
+    if (!scratchARef.current) scratchARef.current = document.createElement("canvas");
+    if (!scratchBRef.current) scratchBRef.current = document.createElement("canvas");
+    renderSceneWithTransition(
+      ctx,
+      canvas,
+      storyboard.scenes,
+      index,
+      localTime,
+      imageCacheRef.current,
+      renderScene,
+      scratchARef.current,
+      scratchBRef.current,
+    );
 
     setState((prev) => ({
       ...prev,

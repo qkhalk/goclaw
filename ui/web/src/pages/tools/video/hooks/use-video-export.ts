@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useHttp } from "@/hooks/use-ws";
 import { submitRenderJob, type VideoRenderJob } from "./use-video";
+import { renderSceneWithTransition, type SceneTransition } from "../components/scene-transition";
 
 // ── Types ──
 
@@ -24,6 +25,7 @@ interface Scene {
   ken_burns?: KenBurns;
   caption?: Caption;
   narration?: string;
+  transition?: SceneTransition;
 }
 export interface Storyboard {
   version: number;
@@ -267,6 +269,29 @@ async function exportWithMediaRecorder(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context unavailable");
 
+  // Reusable offscreen buffers for transition compositing.
+  const scratchA = document.createElement("canvas");
+  scratchA.width = width;
+  scratchA.height = height;
+  const scratchB = document.createElement("canvas");
+  scratchB.width = width;
+  scratchB.height = height;
+
+  const drawFrame = (time: number) => {
+    const { index, localTime } = sceneAtTime(storyboard.scenes, time);
+    renderSceneWithTransition(
+      ctx,
+      canvas,
+      storyboard.scenes,
+      index,
+      localTime,
+      imageCache,
+      renderSceneToCanvas,
+      scratchA,
+      scratchB,
+    );
+  };
+
   // Preload all images (video scenes fall back to the dark placeholder —
   // same as the preview player).
   const imageCache = new Map<string, HTMLImageElement>();
@@ -321,11 +346,7 @@ async function exportWithMediaRecorder(
         resolve();
         return;
       }
-      const { index, localTime } = sceneAtTime(storyboard.scenes, elapsedMs / 1000);
-      const scene = storyboard.scenes[index];
-      if (scene) {
-        renderSceneToCanvas(ctx, canvas, scene, localTime, imageCache);
-      }
+      drawFrame(elapsedMs / 1000);
       if (onProgress) onProgress(Math.min(99, Math.round((elapsedMs / totalMs) * 100)));
       requestAnimationFrame(step);
     };
