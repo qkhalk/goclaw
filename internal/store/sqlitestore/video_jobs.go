@@ -214,6 +214,29 @@ func (s *SQLiteVideoJobStore) ClaimNextQueued(ctx context.Context) (*store.Video
 	return s.Get(ctx, jobID)
 }
 
+func (s *SQLiteVideoJobStore) Delete(ctx context.Context, id string) error {
+	tenantID := tenantIDArg(ctx)
+	var res sql.Result
+	var err error
+	if hasTenant(ctx) {
+		res, err = s.db.ExecContext(ctx,
+			"DELETE FROM video_render_jobs WHERE id=? AND tenant_id=?",
+			id, tenantID)
+	} else {
+		res, err = s.db.ExecContext(ctx,
+			"DELETE FROM video_render_jobs WHERE id=?",
+			id)
+	}
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return store.ErrVideoJobNotFound
+	}
+	return nil
+}
+
 func (s *SQLiteVideoJobStore) DeleteExpired(ctx context.Context, _ time.Time) (int64, error) {
 	tenantID := tenantIDArg(ctx)
 	var res sql.Result

@@ -1,7 +1,7 @@
 {
   "video": {
     "title": "Trình sửa video",
-    "description": "Soạn cảnh trên timeline canvas, xem trước tức thì và xuất video ngay trong trình duyệt — job nặng có thể gửi render server.",
+    "description": "Soạn cảnh trên timeline canvas, xem trước tức thì và xuất video ngay trong trình duyệt, job nặng có thể gửi render server.",
     "composer": "Storyboard",
     "new_job": "Render mới",
     "jobs_title": "Job render",
@@ -75,6 +75,11 @@
     "created": "Đã tạo job render",
     "finished": "Xong lúc",
     "cancel": "Hủy",
+    "delete": "Xóa",
+    "delete_confirm_title": "Xóa job render này?",
+    "delete_confirm_desc": "Job và file MP4 đã render sẽ bị xóa vĩnh viễn. Không thể hoàn tác.",
+    "deleted": "Đã xóa job render",
+    "delete_failed": "Xóa job render thất bại",
     "cancel_confirm_title": "Hủy job render này?",
     "cancel_confirm_desc": "Job sẽ dừng lại và output chưa hoàn thành bị bỏ đi.",
     "download": "Tải MP4",
@@ -128,14 +133,25 @@
     "transition_fade": "Mờ dần từ đen",
     "transition_crossfade": "Chuyển mờ",
     "transition_slide_left": "Trượt sang trái",
-    "transition_slide_up": "Trượt lên"
+    "transition_slide_up": "Trượt lên",
+    "advanced": "Nâng cao: biến đổi & màu",
+    "advanced_hint": "Áp dụng cho xem trước và xuất video trên trình duyệt; render server bỏ qua các giá trị này.",
+    "transform_scale": "Tỉ lệ",
+    "transform_pos_x": "Lệch X (%)",
+    "transform_pos_y": "Lệch Y (%)",
+    "transform_rotate": "Xoay (°)",
+    "transform_opacity": "Độ mờ đục",
+    "filter_brightness": "Độ sáng",
+    "filter_contrast": "Tương phản",
+    "filter_saturate": "Độ bão hòa",
+    "filter_blur": "Làm mờ (px)"
   },
   "watermark": {
     "title": "Xóa watermark",
-    "description": "Xóa watermark khỏi ảnh và video ngắn ngay trên trình duyệt — kể cả watermark Gemini trên ảnh AI. File không bao giờ rời khỏi thiết bị của bạn.",
-    "privacy": "100% cục bộ — không tải gì lên server. Chỉ xử lý watermark hiển thị (không phải dấu vô hình như SynthID).",
+    "description": "Xóa watermark khỏi ảnh và video ngắn ngay trên trình duyệt, kể cả watermark Gemini trên ảnh AI. File không bao giờ rời khỏi thiết bị của bạn.",
+    "privacy": "100% cục bộ, không tải gì lên server. Chỉ xử lý watermark hiển thị (không phải dấu vô hình như SynthID).",
     "drop_title": "Kéo thả ảnh vào đây",
-    "drop_hint": "hoặc bấm để chọn file — PNG/JPEG/WebP, hỗ trợ nhiều file",
+    "drop_hint": "hoặc bấm để chọn file (PNG/JPEG/WebP, hỗ trợ nhiều file)",
     "processing": "Đang xử lý…",
     "processed": "Đã xóa watermark",
     "skipped": "Không phát hiện watermark",
@@ -159,7 +175,7 @@
       "max_duration": "Tối đa 30 giây",
       "max_size": "Tối đa 100MB",
       "processing_frame": "Đang xử lý frame {{current}}/{{total}}",
-      "auto_note": "Watermark Gemini được tự động tẩy từng frame bằng inverse alpha blend (gemini-watermark-remover) — xử lý hoàn toàn trên trình duyệt của bạn."
+      "auto_note": "Watermark Gemini được tự động tẩy từng frame bằng inverse alpha blend (gemini-watermark-remover), xử lý hoàn toàn trên trình duyệt của bạn."
     },
     "comparison": {
       "before": "Trước",

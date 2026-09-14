@@ -1,7 +1,7 @@
 {
   "video": {
     "title": "Video Editor",
-    "description": "Edit scenes on a canvas timeline, preview instantly, and export right in the browser — or send heavy jobs to the server render.",
+    "description": "Edit scenes on a canvas timeline, preview instantly, and export right in the browser, or send heavy jobs to the server render.",
     "composer": "Storyboard",
     "new_job": "New render",
     "jobs_title": "Render jobs",
@@ -75,6 +75,11 @@
     "created": "Render job created",
     "finished": "Finished",
     "cancel": "Cancel",
+    "delete": "Delete",
+    "delete_confirm_title": "Delete this render job?",
+    "delete_confirm_desc": "The job and its rendered MP4 file will be permanently removed. This cannot be undone.",
+    "deleted": "Render job deleted",
+    "delete_failed": "Failed to delete render job",
     "cancel_confirm_title": "Cancel this render?",
     "cancel_confirm_desc": "The job will stop and its partial output discarded.",
     "download": "Download MP4",
@@ -128,14 +133,25 @@
     "transition_fade": "Fade from black",
     "transition_crossfade": "Crossfade",
     "transition_slide_left": "Slide left",
-    "transition_slide_up": "Slide up"
+    "transition_slide_up": "Slide up",
+    "advanced": "Advanced: transform & color",
+    "advanced_hint": "Applied in browser preview and client-side export; the server render ignores these.",
+    "transform_scale": "Scale",
+    "transform_pos_x": "Offset X (%)",
+    "transform_pos_y": "Offset Y (%)",
+    "transform_rotate": "Rotate (°)",
+    "transform_opacity": "Opacity",
+    "filter_brightness": "Brightness",
+    "filter_contrast": "Contrast",
+    "filter_saturate": "Saturation",
+    "filter_blur": "Blur (px)"
   },
   "watermark": {
     "title": "Watermark Remover",
-    "description": "Remove watermarks from images and short videos entirely in your browser — including Gemini watermarks on AI images. Files never leave your device.",
-    "privacy": "100% local — nothing is uploaded. Only the visible watermark is targeted (not invisible marks like SynthID).",
+    "description": "Remove watermarks from images and short videos entirely in your browser, including Gemini watermarks on AI images. Files never leave your device.",
+    "privacy": "100% local, nothing is uploaded. Only the visible watermark is targeted (not invisible marks like SynthID).",
     "drop_title": "Drop images here",
-    "drop_hint": "or click to browse — PNG/JPEG/WebP, batch supported",
+    "drop_hint": "or click to browse (PNG/JPEG/WebP, batch supported)",
     "processing": "Processing…",
     "processed": "Watermark removed",
     "skipped": "No watermark detected",
@@ -159,7 +175,7 @@
       "max_duration": "Max 30 seconds",
       "max_size": "Max 100MB",
       "processing_frame": "Processing frame {{current}}/{{total}}",
-      "auto_note": "Gemini watermark is removed automatically per frame via inverse alpha blending (gemini-watermark-remover) — processing happens entirely in your browser."
+      "auto_note": "The Gemini watermark is removed automatically per frame via inverse alpha blending (gemini-watermark-remover); processing happens entirely in your browser."
     },
     "comparison": {
       "before": "Before",
