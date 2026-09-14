@@ -35,6 +35,16 @@ func NewCloudStorageTools(provider CloudStorageProvider, workspace string, fetch
 	return &CloudStorageTools{provider: provider, workspace: workspace, fetchCapMB: fetchCapMB}
 }
 
+// callerWorkspace resolves the calling session's layered workspace (per
+// agent/channel/user) so fetched files land where the session's file tools
+// can actually reach them; the instance workspace is only the fallback.
+func (t *CloudStorageTools) callerWorkspace(ctx context.Context) string {
+	if ws := ToolWorkspaceFromCtx(ctx); ws != "" {
+		return ws
+	}
+	return t.workspace
+}
+
 // Tools returns the individual tools for registry registration.
 func (t *CloudStorageTools) Tools() []Tool {
 	return []Tool{
@@ -106,7 +116,7 @@ func (t *cloudReadTool) Execute(ctx context.Context, args map[string]any) *Resul
 	}
 	// v1 implements read via fetch into a temp workspace subdir; the copy path
 	// is the only transfer mechanism rclone rc exposes for files.
-	got, err := t.parent.provider.Fetch(ctx, account, path, t.parent.workspace, 1) // 1MB read cap
+	got, err := t.parent.provider.Fetch(ctx, account, path, t.parent.callerWorkspace(ctx), 1) // 1MB read cap
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
@@ -138,7 +148,7 @@ func (t *cloudFetchTool) Execute(ctx context.Context, args map[string]any) *Resu
 	if strings.TrimSpace(path) == "" {
 		return ErrorResult("path is required")
 	}
-	got, err := t.parent.provider.Fetch(ctx, account, path, t.parent.workspace, t.parent.fetchCapMB)
+	got, err := t.parent.provider.Fetch(ctx, account, path, t.parent.callerWorkspace(ctx), t.parent.fetchCapMB)
 	if err != nil {
 		return ErrorResult(err.Error())
 	}
