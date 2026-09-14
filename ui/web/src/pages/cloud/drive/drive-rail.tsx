@@ -115,8 +115,11 @@ export function DriveRail({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3">
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-5">
         <nav className="flex flex-col gap-1">
+          <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+            {t("drive.quick_views")}
+          </p>
           <RailLink
             icon={HardDrive}
             label={t("drive.my_drive")}
@@ -157,7 +160,10 @@ export function DriveRail({
                   <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
                   {items.length > 0 && (
-                    <span className="ml-1 shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+                    <span
+                      className="shrink-0 text-xs tabular-nums text-muted-foreground"
+                      title={t("drive.toggle_accounts")}
+                    >
                       {items.length}
                     </span>
                   )}
@@ -270,7 +276,8 @@ function RailLink({
   );
 }
 
-/** Storage quota card for the currently open account (red >90% / amber >75% / emerald). */
+/** Storage quota card for the currently open account (red >90% / amber >75% /
+ * emerald). Pinned to the rail bottom (mt-auto) — Google-Drive style. */
 function RailQuotaCard({ accountId }: { accountId: string }) {
   const { t } = useTranslation("cloud");
   const http = useHttp();
@@ -286,31 +293,38 @@ function RailQuotaCard({ accountId }: { accountId: string }) {
     return Math.min(100, Math.round((about.data.used / about.data.total) * 100));
   }, [about.data]);
 
+  const barColor =
+    pct !== null && pct > 90 ? "bg-red-500" : pct !== null && pct > 75 ? "bg-amber-500" : "bg-emerald-500";
+  const pctColor =
+    pct !== null && pct > 90 ? "text-red-500" : pct !== null && pct > 75 ? "text-amber-500" : "text-emerald-500";
+
   return (
-    <div className="mt-auto rounded-lg border p-3">
-      <p className="text-xs font-medium text-muted-foreground">{t("drive.storage")}</p>
+    <div className="mt-auto shrink-0 rounded-lg border bg-muted/30 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <HardDrive className="h-3.5 w-3.5" />
+          {t("drive.storage")}
+        </p>
+        {pct !== null && (
+          <span className={cn("text-xs font-semibold tabular-nums", pctColor)}>{pct}%</span>
+        )}
+      </div>
       {about.isError ? (
-        <p className="mt-1 text-xs text-muted-foreground">{t("drive.storage_unavailable")}</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">{t("drive.storage_unavailable")}</p>
       ) : about.data && pct !== null ? (
-        <div className="mt-1.5">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              {t("detail.used_of", {
-                used: formatFileSize(about.data.used),
-                total: formatFileSize(about.data.total),
-              })}
-            </span>
-            <span className="tabular-nums">{pct}%</span>
+        <>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
           </div>
-          <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={`h-full rounded-full transition-all ${pct > 90 ? "bg-red-500" : pct > 75 ? "bg-amber-500" : "bg-emerald-500"}`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {t("detail.used_of", {
+              used: formatFileSize(about.data.used),
+              total: formatFileSize(about.data.total),
+            })}
+          </p>
+        </>
       ) : (
-        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" />
           {t("detail.loading_quota")}
         </div>

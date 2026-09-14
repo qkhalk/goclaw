@@ -16,7 +16,7 @@ export function DropZone({ onDrop, children, title }: DropZoneProps) {
 
   return (
     <div
-      className="relative flex min-h-0 flex-1 flex-col"
+      className="relative flex h-full min-h-0 flex-1 flex-col"
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={(e) => {
         e.preventDefault();

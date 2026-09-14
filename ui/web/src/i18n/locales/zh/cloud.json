@@ -169,7 +169,8 @@
     },
     "not_found": "账户不存在或已无法访问",
     "back_home": "返回云盘页",
-    "toggle_accounts": "展开/收起账户"
+    "toggle_accounts": "展开/收起账户",
+    "quick_views": "快速访问"
   },
   "files": {
     "upload": "上传",

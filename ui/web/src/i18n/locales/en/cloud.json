@@ -169,7 +169,8 @@
     },
     "not_found": "Account not found or no longer accessible",
     "back_home": "Back to Clouds",
-    "toggle_accounts": "Toggle accounts"
+    "toggle_accounts": "Toggle accounts",
+    "quick_views": "Quick views"
   },
   "files": {
     "upload": "Upload",
