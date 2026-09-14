@@ -130,6 +130,8 @@
     "readOnly": "읽기 전용 — 채팅에서 답변하세요",
     "other": "기타…",
     "otherPlaceholder": "직접 답변 입력…",
-    "send": "답변 보내기"
+    "send": "답변 보내기",
+    "confirm": "✔ 확인",
+    "back": "◀ 뒤로"
   }
 }

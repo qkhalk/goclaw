@@ -181,6 +181,8 @@
     "readOnly": "Read-only view — open the chat to answer",
     "other": "Other…",
     "otherPlaceholder": "Type your own answer…",
-    "send": "Send answer"
+    "send": "Send answer",
+    "confirm": "✔ Confirm",
+    "back": "◀ Back"
   }
 }
