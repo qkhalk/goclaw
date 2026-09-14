@@ -1,18 +1,7 @@
 {
-  "title": "Tools",
-  "description": "Handy utilities — heavy processing runs where it fits best.",
-  "hub": {
-    "open": "Open",
-    "client_badge": "Runs in your browser",
-    "server_badge": "Rendered on server",
-    "video_title": "Video Render",
-    "video_desc": "Turn a storyboard of images, clips and colors into an MP4 with captions, Ken Burns motion and background music.",
-    "watermark_title": "Gemini Watermark Remover",
-    "watermark_desc": "Remove the visible Gemini watermark from AI-generated images. 100% client-side — files never leave your browser."
-  },
   "video": {
-    "title": "Video Render",
-    "description": "Compose a storyboard and render it to MP4 via the server-side ffmpeg pipeline.",
+    "title": "Video Editor",
+    "description": "Edit scenes on a canvas timeline, preview instantly, and export right in the browser — or send heavy jobs to the server render.",
     "composer": "Storyboard",
     "new_job": "New render",
     "jobs_title": "Render jobs",
@@ -51,7 +40,14 @@
     "pos_center": "Center",
     "pos_bottom": "Bottom",
     "font_size": "Font size",
-    "canvas": "Canvas",
+    "canvas": {
+      "play": "Play",
+      "pause": "Pause",
+      "start": "Go to start",
+      "prev_frame": "Previous frame",
+      "next_frame": "Next frame",
+      "end": "Go to end"
+    },
     "aspect": "Aspect ratio",
     "width": "Width",
     "height": "Height",
@@ -76,7 +72,7 @@
       "cancelled": "Cancelled"
     },
     "progress": "Progress",
-    "created": "Created",
+    "created": "Render job created",
     "finished": "Finished",
     "cancel": "Cancel",
     "cancel_confirm_title": "Cancel this render?",
@@ -90,15 +86,11 @@
     "worker_note": "Jobs are processed by the video worker; progress updates automatically.",
     "storyboard": "Storyboard",
     "job_n": "Job {{id}}",
-    "scenes_count": "{{n}} scene(s)",
+    "scenes_count": "{{n}} scenes",
     "limit_hint": "Up to 60 scenes, 1–30s each, 10 min total.",
     "tabs": {
       "editor": "Editor",
       "render": "Render"
-    },
-    "canvas": {
-      "play": "Play",
-      "pause": "Pause"
     },
     "timeline": {
       "title": "Timeline",
@@ -117,12 +109,24 @@
       "server_method": "Render on Server",
       "client_ok": "Client OK",
       "server_recommended": "Server Recommended",
-      "render_button": "Start Render"
-    }
+      "render_button": "Start Render",
+      "hardware": "Hardware",
+      "cores": "CPU: {{n}} cores",
+      "ram": "RAM: {{n}} GB",
+      "percent": "{{pct}}% complete",
+      "server_processing": "Processing on server…",
+      "client_hint": "Browser export records the canvas in real time (video only, no background music). Longer videos take longer to export.",
+      "export_complete": "Export complete!",
+      "export_failed": "Export failed: {{error}}",
+      "server_failed": "Server export failed"
+    },
+    "jobs_refresh": "Refresh jobs",
+    "audio_section": "Audio",
+    "narration_placeholder": "Scene narration text for TTS…"
   },
   "watermark": {
-    "title": "Gemini Watermark Remover",
-    "description": "Removes the visible Gemini watermark from AI-generated images using reverse alpha blending. Everything runs in your browser — images are never uploaded.",
+    "title": "Watermark Remover",
+    "description": "Remove watermarks from images and short videos entirely in your browser — including Gemini watermarks on AI images. Files never leave your device.",
     "privacy": "100% local — nothing is uploaded. Only the visible watermark is targeted (not invisible marks like SynthID).",
     "drop_title": "Drop images here",
     "drop_hint": "or click to browse — PNG/JPEG/WebP, batch supported",
@@ -154,6 +158,7 @@
       "before": "Before",
       "after": "After",
       "drag_to_compare": "Drag to compare"
-    }
+    },
+    "drop_title_video": "Drop a video here"
   }
 }

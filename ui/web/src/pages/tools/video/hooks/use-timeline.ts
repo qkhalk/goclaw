@@ -52,25 +52,20 @@ export interface UseTimelineReturn {
 export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
   const [scenes, setScenes] = useState<Scene[]>(() => initialScenes ?? [emptyScene()]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [history, setHistory] = useState<Scene[][]>([initialScenes ?? [emptyScene()]]);
+  const [history, setHistory] = useState<Scene[][]>(() => [initialScenes ?? [emptyScene()]]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  const pushHistory = useCallback(
-    (next: Scene[]) => {
-      setHistory((prev) => {
-        // Trim any future states beyond current index
-        const trimmed = prev.slice(0, historyIndex + 1);
-        const nextHistory = [...trimmed, next];
-        // Cap at MAX_HISTORY
-        if (nextHistory.length > MAX_HISTORY) {
-          nextHistory.shift();
-        }
-        return nextHistory;
-      });
-      setHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
-    },
-    [historyIndex],
-  );
+  /** Record the next state: drop any redo tail, append, cap the stack.
+   * Pure updater — no side effects (React may double-invoke updaters). */
+  const pushHistory = useCallback((next: Scene[]) => {
+    setHistory((prev) => {
+      const trimmed = prev.slice(0, historyIndex + 1);
+      trimmed.push(next);
+      if (trimmed.length > MAX_HISTORY) trimmed.shift();
+      return trimmed;
+    });
+    setHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
+  }, [historyIndex]);
 
   const selectScene = useCallback(
     (index: number) => {
@@ -81,53 +76,46 @@ export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
 
   const addScene = useCallback(
     (patch?: Partial<Scene>) => {
-      setScenes((prev) => {
-        const next = [...prev, { ...emptyScene(), ...patch }];
-        pushHistory(next);
-        setSelectedIndex(next.length - 1);
-        return next;
-      });
+      const next = [...scenes, { ...emptyScene(), ...patch }];
+      setScenes(next);
+      setSelectedIndex(next.length - 1);
+      pushHistory(next);
     },
-    [pushHistory],
+    [scenes, pushHistory],
   );
 
   const removeScene = useCallback(
     (index: number) => {
-      setScenes((prev) => {
-        if (prev.length <= 1) return prev;
-        const next = prev.filter((_, i) => i !== index);
-        pushHistory(next);
-        setSelectedIndex((i) => Math.min(i, next.length - 1));
-        return next;
-      });
+      if (scenes.length <= 1) return;
+      const next = scenes.filter((_, i) => i !== index);
+      setScenes(next);
+      setSelectedIndex((i) => Math.min(i, next.length - 1));
+      pushHistory(next);
     },
-    [pushHistory],
+    [scenes, pushHistory],
   );
 
   const moveScene = useCallback(
     (from: number, to: number) => {
-      setScenes((prev) => {
-        if (to < 0 || to >= prev.length) return prev;
-        const next = [...prev];
-        const [moved] = next.splice(from, 1);
-        next.splice(to, 0, moved!);
-        pushHistory(next);
-        setSelectedIndex(to);
-        return next;
-      });
+      if (to < 0 || to >= scenes.length || from === to) return;
+      const next = [...scenes];
+      const [moved] = next.splice(from, 1);
+      if (!moved) return;
+      next.splice(to, 0, moved);
+      setScenes(next);
+      setSelectedIndex(to);
+      pushHistory(next);
     },
-    [pushHistory],
+    [scenes, pushHistory],
   );
 
   const updateScene = useCallback(
     (index: number, patch: Partial<Scene>) => {
-      setScenes((prev) => {
-        const next = prev.map((s, i) => (i === index ? { ...s, ...patch } : s));
-        pushHistory(next);
-        return next;
-      });
+      const next = scenes.map((s, i) => (i === index ? { ...s, ...patch } : s));
+      setScenes(next);
+      pushHistory(next);
     },
-    [pushHistory],
+    [scenes, pushHistory],
   );
 
   const undo = useCallback(() => {

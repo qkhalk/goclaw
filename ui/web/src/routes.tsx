@@ -63,9 +63,6 @@ const LogsPage = lazyWithRetry(() =>
 const CloudPage = lazyWithRetry(() =>
   import("@/pages/cloud/cloud-page").then((m) => ({ default: m.CloudPage })),
 );
-const ToolsPage = lazyWithRetry(() =>
-  import("@/pages/tools/tools-page").then((m) => ({ default: m.ToolsPage })),
-);
 const VideoToolPage = lazyWithRetry(() =>
   import("@/pages/tools/video/video-tool-page").then((m) => ({ default: m.VideoToolPage })),
 );
@@ -209,7 +206,8 @@ export function AppRoutes() {
           <Route path={ROUTES.CLOUD} element={<CloudPage />} />
           <Route path={ROUTES.CLOUD_PROVIDER} element={<CloudPage />} />
           <Route path={ROUTES.CLOUD_ACCOUNT} element={<CloudPage />} />
-          <Route path={ROUTES.TOOLS} element={<ToolsPage />} />
+          {/* Tools hub retired — both tools have direct sidebar entries. */}
+          <Route path={ROUTES.TOOLS} element={<Navigate to={ROUTES.TOOLS_VIDEO} replace />} />
           <Route path={ROUTES.TOOLS_VIDEO} element={<VideoToolPage />} />
           <Route path={ROUTES.TOOLS_WATERMARK} element={<WatermarkToolPage />} />
           <Route path={ROUTES.WEBHOOKS} element={<RequireAdmin><WebhooksPage /></RequireAdmin>} />

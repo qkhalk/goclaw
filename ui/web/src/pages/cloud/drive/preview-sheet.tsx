@@ -14,6 +14,7 @@ import { formatFileSize } from "@/lib/format";
 import { toast } from "@/stores/use-toast-store";
 import type { CloudFileEntry } from "../hooks/use-cloud";
 import { opErrorToast } from "./op-error";
+import { rawPath } from "./paths";
 
 /** Previewable kinds, decided by EXTENSION (the list endpoint returns no MIME
  * type; extension mapping keeps the backend untouched). */
@@ -110,7 +111,7 @@ export function PreviewSheet({
     (async () => {
       try {
         const blob = await http.fetchBlob(`/v1/cloud/accounts/${accountId}/files/download`, {
-          path: file.path,
+          path: rawPath(file.path),
         });
         if (cancelled) return;
         if (kind === "text") {
@@ -145,7 +146,7 @@ export function PreviewSheet({
     if (!file) return;
     try {
       const blob = await http.fetchBlob(`/v1/cloud/accounts/${accountId}/files/download`, {
-        path: file.path,
+        path: rawPath(file.path),
       });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
