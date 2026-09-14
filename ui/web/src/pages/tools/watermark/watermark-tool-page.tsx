@@ -21,10 +21,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DropZone } from "@/components/shared/drop-zone";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { cn } from "@/lib/utils";
-import {
-  DEFAULT_MASK,
-  type MaskRegion,
-} from "./hooks/use-video-watermark";
 
 // ---------- Types ----------
 
@@ -54,7 +50,6 @@ interface VideoItem {
   status: "pending" | "processing" | "done" | "failed";
   progress: { current: number; total: number } | null;
   error?: string;
-  mask: MaskRegion;
 }
 
 type Item = ImageItem | VideoItem;
@@ -160,66 +155,6 @@ function ComparisonSlider({
   );
 }
 
-// ---------- Mask Overlay (for video) ----------
-
-function MaskOverlay({
-  mask,
-  onChange,
-}: {
-  mask: MaskRegion;
-  onChange: (m: MaskRegion) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <label className="text-xs text-muted-foreground">X:</label>
-      <input
-        type="range"
-        min={0}
-        max={100}
-        value={mask.x}
-        onChange={(e) => onChange({ ...mask, x: +e.target.value })}
-        className="w-20 accent-primary"
-      />
-      <label className="text-xs text-muted-foreground">Y:</label>
-      <input
-        type="range"
-        min={0}
-        max={100}
-        value={mask.y}
-        onChange={(e) => onChange({ ...mask, y: +e.target.value })}
-        className="w-20 accent-primary"
-      />
-      <label className="text-xs text-muted-foreground">W:</label>
-      <input
-        type="range"
-        min={5}
-        max={80}
-        value={mask.width}
-        onChange={(e) => onChange({ ...mask, width: +e.target.value })}
-        className="w-20 accent-primary"
-      />
-      <label className="text-xs text-muted-foreground">H:</label>
-      <input
-        type="range"
-        min={2}
-        max={50}
-        value={mask.height}
-        onChange={(e) => onChange({ ...mask, height: +e.target.value })}
-        className="w-20 accent-primary"
-      />
-      <label className="text-xs text-muted-foreground">Blur:</label>
-      <input
-        type="range"
-        min={2}
-        max={40}
-        value={mask.blurRadius}
-        onChange={(e) => onChange({ ...mask, blurRadius: +e.target.value })}
-        className="w-20 accent-primary"
-      />
-    </div>
-  );
-}
-
 // ---------- Status Chip ----------
 
 function StatusChip({
@@ -267,6 +202,10 @@ export function WatermarkToolPage() {
   const removeFnRef = useRef<
     typeof import("@pilio/gemini-watermark-remover/browser")["removeWatermarkFromImage"] | null
   >(null);
+  type WatermarkEngine = Awaited<
+    ReturnType<typeof import("@pilio/gemini-watermark-remover/browser")["createWatermarkEngine"]>
+  >;
+  const engineRef = useRef<WatermarkEngine | null>(null);
 
   // Lazily load image remover
   const ensureRemoveFn = useCallback(async () => {
@@ -275,6 +214,16 @@ export function WatermarkToolPage() {
       removeFnRef.current = mod.removeWatermarkFromImage;
     }
     return removeFnRef.current;
+  }, []);
+
+  /** Lazily create the shared watermark engine (loads the calibrated Gemini
+   * alpha maps once — GargantuaX/gemini-watermark-remover core). */
+  const ensureEngine = useCallback(async (): Promise<WatermarkEngine> => {
+    if (!engineRef.current) {
+      const mod = await import("@pilio/gemini-watermark-remover/browser");
+      engineRef.current = await mod.createWatermarkEngine();
+    }
+    return engineRef.current;
   }, []);
 
   // ---------- File handling ----------
@@ -312,7 +261,6 @@ export function WatermarkToolPage() {
             outName: null,
             status: "pending" as const,
             progress: null,
-            mask: { ...DEFAULT_MASK },
           })),
         ]);
       }
@@ -385,200 +333,217 @@ export function WatermarkToolPage() {
     const videoItems = items.filter(
       (it): it is VideoItem => it.kind === "video" && it.status === "pending",
     );
-    for (const item of videoItems) {
-      if (cancelRef.current) break;
-      setItems((prev) =>
-        prev.map((it) =>
-          it.id === item.id
-            ? { ...it, status: "processing" as const, progress: null }
-            : it,
-        ),
-      );
-      // We need to synchronously update progress, so we use the hook's process
-      // and poll its progress state via a wrapper
-      try {
-        // The hook manages its own state; we need a different approach for multi-video.
-        // Instead, use a per-item promise approach with the hook for single video,
-        // or inline the processing for batch. We'll use the hook for the first video
-        // and note that batch sequential is handled by the loop.
-        // For simplicity in this implementation, we process one video at a time using
-        // a dedicated processing approach inline.
-        await processSingleVideo(item);
-      } catch (e) {
+    if (videoItems.length > 0) {
+      const engine = await ensureEngine();
+      for (const item of videoItems) {
+        if (cancelRef.current) break;
         setItems((prev) =>
           prev.map((it) =>
-            it.id === item.id && it.kind === "video"
-              ? ({
-                  ...it,
-                  status: "failed" as const,
-                  error: e instanceof Error ? e.message : String(e),
-                } satisfies VideoItem)
+            it.id === item.id
+              ? { ...it, status: "processing" as const, progress: null }
               : it,
           ),
         );
+        try {
+          await processSingleVideo(item, engine);
+        } catch (e) {
+          setItems((prev) =>
+            prev.map((it) =>
+              it.id === item.id && it.kind === "video"
+                ? ({
+                    ...it,
+                    status: "failed" as const,
+                    error: e instanceof Error ? e.message : String(e),
+                  } satisfies VideoItem)
+                : it,
+            ),
+          );
+        }
       }
     }
 
     setRunning(false);
-  }, [items, ensureRemoveFn]);
+  }, [items, ensureRemoveFn, ensureEngine]);
 
   // ---------- Single video processor (inline, for batch support) ----------
 
-  const processSingleVideo = useCallback(async (item: VideoItem) => {
-    const file = item.file;
-    const mask = item.mask;
-
-    const videoUrl = URL.createObjectURL(file);
-    const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
-    video.muted = true;
-    video.preload = "auto";
-    video.src = videoUrl;
-
-    await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error("Failed to load video"));
-      setTimeout(() => reject(new Error("Video load timeout")), 10000);
-    });
-
-    if (video.duration > 30) {
-      URL.revokeObjectURL(videoUrl);
-      throw new Error("Video too long (max 30s)");
+  /** Inverse alpha blend over the watermark rect — the gemini-watermark-remover
+   * core math: the watermark composites as w = a·255 + (1−a)·v with a KNOWN
+   * white logo, so each pixel restores via v = (w − 255·a) / (1 − a). Cheap
+   * enough per video frame (96×96 / 48×48 region). */
+  function unblendWatermarkRegion(
+    ctx: CanvasRenderingContext2D,
+    rect: { x: number; y: number; width: number; height: number },
+    alphaMap: Float32Array,
+  ) {
+    const x = Math.max(0, Math.round(rect.x));
+    const y = Math.max(0, Math.round(rect.y));
+    const w = Math.min(ctx.canvas.width - x, Math.round(rect.width));
+    const h = Math.min(ctx.canvas.height - y, Math.round(rect.height));
+    if (w <= 0 || h <= 0) return;
+    const img = ctx.getImageData(x, y, w, h);
+    const d = img.data;
+    for (let py = 0; py < h; py++) {
+      for (let px = 0; px < w; px++) {
+        const a = alphaMap[py * w + px] ?? 0;
+        if (a <= 0.001 || a >= 0.999) continue;
+        const inv = 1 / (1 - a);
+        const i = (py * w + px) * 4;
+        const r = d[i] ?? 0;
+        const g = d[i + 1] ?? 0;
+        const b = d[i + 2] ?? 0;
+        d[i] = Math.max(0, Math.min(255, (r - 255 * a) * inv));
+        d[i + 1] = Math.max(0, Math.min(255, (g - 255 * a) * inv));
+        d[i + 2] = Math.max(0, Math.min(255, (b - 255 * a) * inv));
+      }
     }
+    ctx.putImageData(img, x, y);
+  }
 
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    const canvas = document.createElement("canvas");
-    canvas.width = vw;
-    canvas.height = vh;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas 2D not supported");
+  const processSingleVideo = useCallback(
+    async (item: VideoItem, engine: WatermarkEngine) => {
+      const file = item.file;
 
-    const fps = 30;
-    const canvasStream = canvas.captureStream(fps);
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
-        ? "video/webm;codecs=vp8"
-        : "video/webm";
+      const videoUrl = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.crossOrigin = "anonymous";
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "auto";
+      video.src = videoUrl;
 
-    const recorder = new MediaRecorder(canvasStream, {
-      mimeType,
-      videoBitsPerSecond: 5_000_000,
-    });
-
-    const chunks: Blob[] = [];
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
-
-    const recorderDone = new Promise<Blob>((resolve, reject) => {
-      recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
-      recorder.onerror = () => reject(new Error("MediaRecorder error"));
-    });
-
-    // Mask pixel coords
-    const mx = Math.round((mask.x / 100) * vw);
-    const my = Math.round((mask.y / 100) * vh);
-    const mw = Math.round((mask.width / 100) * vw);
-    const mh = Math.round((mask.height / 100) * vh);
-    const mx0 = Math.max(0, mx - mw / 2);
-    const my0 = Math.max(0, my - mh / 2);
-    const mx1 = Math.min(vw, mx + mw / 2);
-    const my1 = Math.min(vh, my + mh / 2);
-
-    const totalFrames = Math.ceil(video.duration * fps);
-
-    setItems((prev) =>
-      prev.map((it) =>
-        it.id === item.id
-          ? { ...it, progress: { current: 0, total: totalFrames } }
-          : it,
-      ),
-    );
-
-    video.currentTime = 0;
-    await new Promise<void>((r) => {
-      video.onseeked = () => r();
-    });
-
-    recorder.start();
-
-    const waitForFrame = (): Promise<void> =>
-      new Promise((resolve) => {
-        if (video.readyState >= 2) resolve();
-        else video.oncanplay = () => resolve();
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error("Failed to load video"));
+        setTimeout(() => reject(new Error("Video load timeout")), 10000);
       });
 
-    let frame = 0;
-    while (!cancelRef.current && frame < totalFrames) {
-      await waitForFrame();
-      ctx.drawImage(video, 0, 0, vw, vh);
-
-      if (mx1 > mx0 && my1 > my0) {
-        const maskData = ctx.getImageData(mx0, my0, mx1 - mx0, my1 - my0);
-        const tmpCanvas = document.createElement("canvas");
-        tmpCanvas.width = mx1 - mx0;
-        tmpCanvas.height = my1 - my0;
-        const tmpCtx = tmpCanvas.getContext("2d")!;
-        tmpCtx.putImageData(maskData, 0, 0);
-
-        ctx.save();
-        ctx.filter = `blur(${mask.blurRadius}px)`;
-        ctx.drawImage(tmpCanvas, mx0, my0);
-        ctx.restore();
-
-        ctx.save();
-        ctx.filter = `blur(${Math.max(1, mask.blurRadius / 3)}px)`;
-        ctx.globalAlpha = 0.5;
-        ctx.drawImage(tmpCanvas, mx0, my0);
-        ctx.restore();
-        ctx.globalAlpha = 1;
+      if (video.duration > 30) {
+        URL.revokeObjectURL(videoUrl);
+        throw new Error("Video too long (max 30s)");
       }
 
-      frame++;
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const canvas = document.createElement("canvas");
+      canvas.width = vw;
+      canvas.height = vh;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) throw new Error("Canvas 2D not supported");
+
+      // Gemini watermark position comes from the size catalog (96px logo with
+      // 64px margins on large outputs, 48px/32px on small ones) and the alpha
+      // map is the project's calibrated asset — same data the image pipeline
+      // uses, applied per frame here.
+      const info = engine.getWatermarkInfo(vw, vh);
+      const alphaMap = await engine.getAlphaMap(info.size);
+
+      const fps = 30;
+      const canvasStream = canvas.captureStream(fps);
+      const mimeType = MediaRecorder.isTypeSupported("video/mp4")
+        ? "video/mp4"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+          ? "video/webm;codecs=vp9"
+          : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+            ? "video/webm;codecs=vp8"
+            : "video/webm";
+
+      const recorder = new MediaRecorder(canvasStream, {
+        mimeType,
+        videoBitsPerSecond: 5_000_000,
+      });
+
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      const recorderDone = new Promise<Blob>((resolve, reject) => {
+        recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+        recorder.onerror = () => reject(new Error("MediaRecorder error"));
+      });
+
+      const totalFrames = Math.ceil(video.duration * fps);
+
       setItems((prev) =>
         prev.map((it) =>
           it.id === item.id
-            ? { ...it, progress: { current: frame, total: totalFrames } }
+            ? { ...it, progress: { current: 0, total: totalFrames } }
             : it,
         ),
       );
 
-      const nextTime = frame / fps;
-      if (nextTime < video.duration) {
-        video.currentTime = nextTime;
-        await new Promise<void>((r) => {
-          video.onseeked = () => r();
-        });
+      video.currentTime = 0;
+      await new Promise<void>((r) => {
+        video.onseeked = () => r();
+      });
+
+      // MediaRecorder timestamps frames in wall-clock time, so the video
+      // plays in REAL time while a rAF loop unblends each presented frame —
+      // output duration matches the source.
+      recorder.start(250);
+      const durationMs = video.duration * 1000;
+      const startedAt = performance.now();
+      let lastReport = 0;
+
+      video.play().catch(() => {/* autoplay of a muted element rarely fails */});
+
+      await new Promise<void>((resolve) => {
+        const step = () => {
+          const elapsed = performance.now() - startedAt;
+          if (cancelRef.current || video.ended || elapsed >= durationMs) {
+            resolve();
+            return;
+          }
+          ctx.drawImage(video, 0, 0, vw, vh);
+          unblendWatermarkRegion(ctx, info.position, alphaMap);
+          if (elapsed - lastReport > 200) {
+            lastReport = elapsed;
+            const current = Math.min(totalFrames, Math.round((elapsed / durationMs) * totalFrames));
+            setItems((prev) =>
+              prev.map((it) =>
+                it.id === item.id
+                  ? { ...it, progress: { current, total: totalFrames } }
+                  : it,
+              ),
+            );
+          }
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+
+      video.pause();
+      // Let the encoder flush the last presented frame before closing.
+      await new Promise((r) => setTimeout(r, 150));
+      if (recorder.state !== "inactive") recorder.stop();
+
+      if (cancelRef.current) {
+        URL.revokeObjectURL(videoUrl);
+        return;
       }
-    }
 
-    if (recorder.state !== "inactive") recorder.stop();
+      const resultBlob = await recorderDone;
+      const outUrl = URL.createObjectURL(resultBlob);
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      const ext = resultBlob.type.includes("mp4") ? "mp4" : "webm";
 
-    if (cancelRef.current) {
-      URL.revokeObjectURL(videoUrl);
-      return;
-    }
-
-    const resultBlob = await recorderDone;
-    const outUrl = URL.createObjectURL(resultBlob);
-    const baseName = file.name.replace(/\.[^.]+$/, "");
-
-    setItems((prev) =>
-      prev.map((it) =>
-        it.id === item.id && it.kind === "video"
-          ? ({
-              ...it,
-              status: "done" as const,
-              outUrl,
-              outName: `${baseName}-no-watermark.webm`,
-              progress: { current: totalFrames, total: totalFrames },
-            } satisfies VideoItem)
-          : it,
-      ),
-    );
-  }, []);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === item.id && it.kind === "video"
+            ? ({
+                ...it,
+                status: "done" as const,
+                outUrl,
+                outName: `${baseName}-no-watermark.${ext}`,
+                progress: { current: totalFrames, total: totalFrames },
+              } satisfies VideoItem)
+            : it,
+        ),
+      );
+    },
+    [],
+  );
 
   // ---------- Download ----------
 
@@ -623,12 +588,6 @@ export function WatermarkToolPage() {
       }
       return prev.filter((it) => it.id !== id);
     });
-  }
-
-  function updateMask(id: string, mask: MaskRegion) {
-    setItems((prev) =>
-      prev.map((it) => (it.id === id && it.kind === "video" ? { ...it, mask } : it)),
-    );
   }
 
   // ---------- Derived ----------
@@ -724,7 +683,6 @@ export function WatermarkToolPage() {
             items={filteredItems.filter((it): it is VideoItem => it.kind === "video")}
             running={running}
             onRemove={removeItem}
-            onMaskChange={updateMask}
             t={t}
           />
         </TabsContent>
@@ -867,66 +825,51 @@ function ImageItemGrid({
 
 function VideoItemGrid({
   items,
-  running,
-  onRemove,
-  onMaskChange,
-  t,
-}: {
-  items: VideoItem[];
-  running: boolean;
-  onRemove: (id: string) => void;
-  onMaskChange: (id: string, mask: MaskRegion) => void;
-  t: (key: string, options?: Record<string, unknown>) => string;
-}) {
-  if (items.length === 0) return null;
+          running,
+          onRemove,
+          t,
+        }: {
+          items: VideoItem[];
+          running: boolean;
+          onRemove: (id: string) => void;
+          t: (key: string, options?: Record<string, unknown>) => string;
+        }) {
+          if (items.length === 0) return null;
 
-  return (
-    <ul className="flex flex-col gap-4">
-      {items.map((item) => (
-        <li key={item.id} className="flex flex-col gap-3 rounded-lg border p-4">
-          {/* Header row */}
-          <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 truncate text-sm font-medium" title={item.file.name}>
-              {item.file.name}
-            </p>
-            <StatusChip status={item.status} label={t(`watermark.${item.status}`)} />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("watermark.remove")}
-              disabled={running}
-              onClick={() => onRemove(item.id)}
-            >
-              <XCircle className="h-4 w-4" />
-            </Button>
-          </div>
+          return (
+            <ul className="flex flex-col gap-4">
+              {items.map((item) => (
+                <li key={item.id} className="flex flex-col gap-3 rounded-lg border p-4">
+                  {/* Header row */}
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium" title={item.file.name}>
+                      {item.file.name}
+                    </p>
+                    <StatusChip status={item.status} label={t(`watermark.${item.status}`)} />
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("watermark.remove")}
+                      disabled={running}
+                      onClick={() => onRemove(item.id)}
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
 
-          {/* Video preview with mask overlay */}
-          <div className="relative overflow-hidden rounded-md border">
-            <video
-              src={item.srcUrl}
-              className="w-full"
-              controls
-              preload="metadata"
-              muted
-            />
-            {/* Mask position indicator */}
-            <div
-              className="pointer-events-none absolute border-2 border-dashed border-yellow-400 bg-yellow-400/20"
-              style={{
-                left: `${item.mask.x - item.mask.width / 2}%`,
-                top: `${item.mask.y - item.mask.height / 2}%`,
-                width: `${item.mask.width}%`,
-                height: `${item.mask.height}%`,
-              }}
-            />
-          </div>
+                  {/* Video preview */}
+                  <video
+                    src={item.srcUrl}
+                    className="w-full rounded-md border"
+                    controls
+                    preload="metadata"
+                    muted
+                  />
 
-          {/* Mask controls */}
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-muted-foreground">{t("watermark.video.mask_position")}</p>
-            <MaskOverlay mask={item.mask} onChange={(m) => onMaskChange(item.id, m)} />
-          </div>
+                  {/* Processing note */}
+                  <p className="text-xs text-muted-foreground">
+                    {t("watermark.video.auto_note")}
+                  </p>
 
           {/* Progress */}
           {item.status === "processing" && item.progress && (

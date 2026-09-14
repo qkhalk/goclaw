@@ -152,7 +152,8 @@
       "mask_position": "Drag to position mask",
       "max_duration": "Max 30 seconds",
       "max_size": "Max 100MB",
-      "processing_frame": "Processing frame {{current}}/{{total}}"
+      "processing_frame": "Processing frame {{current}}/{{total}}",
+      "auto_note": "Gemini watermark is removed automatically per frame via inverse alpha blending (gemini-watermark-remover) — processing happens entirely in your browser."
     },
     "comparison": {
       "before": "Before",

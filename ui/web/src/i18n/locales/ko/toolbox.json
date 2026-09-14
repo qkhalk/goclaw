@@ -152,7 +152,8 @@
       "mask_position": "드래그하여 마스크 위치 지정",
       "max_duration": "최대 30초",
       "max_size": "최대 100MB",
-      "processing_frame": "프레임 처리 중 {{current}}/{{total}}"
+      "processing_frame": "프레임 처리 중 {{current}}/{{total}}",
+      "auto_note": "역 알파 블렌딩(gemini-watermark-remover)으로 Gemini 워터마크를 프레임 단위로 자동 제거합니다 — 모든 처리는 브라우저에서 이루어집니다."
     },
     "comparison": {
       "before": "처리 전",

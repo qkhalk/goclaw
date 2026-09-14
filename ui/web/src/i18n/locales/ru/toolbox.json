@@ -152,7 +152,8 @@
       "mask_position": "Перетащите для позиционирования маски",
       "max_duration": "Максимум 30 секунд",
       "max_size": "Максимум 100МБ",
-      "processing_frame": "Обработка кадра {{current}}/{{total}}"
+      "processing_frame": "Обработка кадра {{current}}/{{total}}",
+      "auto_note": "Водяной знак Gemini удаляется автоматически покадрово методом обратного альфа-смешивания (gemini-watermark-remover) — обработка полностью в вашем браузере."
     },
     "comparison": {
       "before": "До",

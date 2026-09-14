@@ -152,7 +152,8 @@
       "mask_position": "Kéo để đặt vị trí mask",
       "max_duration": "Tối đa 30 giây",
       "max_size": "Tối đa 100MB",
-      "processing_frame": "Đang xử lý frame {{current}}/{{total}}"
+      "processing_frame": "Đang xử lý frame {{current}}/{{total}}",
+      "auto_note": "Watermark Gemini được tự động tẩy từng frame bằng inverse alpha blend (gemini-watermark-remover) — xử lý hoàn toàn trên trình duyệt của bạn."
     },
     "comparison": {
       "before": "Trước",
