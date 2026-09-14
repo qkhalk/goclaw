@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cloud, HardDrive, Settings2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -15,11 +16,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { ProviderClientSetup } from "./provider-client-setup";
 import { ScopeBindingsPanel } from "./scope-bindings-panel";
 import { SyncSection } from "./sync-section";
 import { useAuthStore } from "@/stores/use-auth-store";
 import type { CloudProvider } from "./hooks/use-cloud";
+
+const CLOUD_THUMB_SIZE_KEY = "cloud.thumbnail_size";
+const CLOUD_SHOW_HIDDEN_KEY = "cloud.show_hidden";
+
+export type ThumbnailSize = "small" | "medium" | "large";
+
+export function getThumbnailSize(): ThumbnailSize {
+  try {
+    const v = localStorage.getItem(CLOUD_THUMB_SIZE_KEY);
+    if (v === "small" || v === "medium" || v === "large") return v;
+  } catch { /* ignore */ }
+  return "medium";
+}
+
+export function getShowHiddenFiles(): boolean {
+  try {
+    return localStorage.getItem(CLOUD_SHOW_HIDDEN_KEY) === "true";
+  } catch { /* ignore */ }
+  return false;
+}
 
 const PROVIDER_OPTIONS: { id: CloudProvider; label: string; icon: typeof Cloud }[] = [
   { id: "google", label: "Google Drive", icon: Cloud },
@@ -44,6 +67,20 @@ export function SettingsModal({
   const { t } = useTranslation("cloud");
   const role = useAuthStore((s) => s.role);
   const isAdmin = role === "admin" || role === "owner";
+
+  const [thumbSize, setThumbSize] = useState<ThumbnailSize>(getThumbnailSize);
+  const [showHidden, setShowHidden] = useState(getShowHiddenFiles);
+
+  function handleThumbSizeChange(v: string) {
+    const val = v as ThumbnailSize;
+    setThumbSize(val);
+    try { localStorage.setItem(CLOUD_THUMB_SIZE_KEY, val); } catch { /* ignore */ }
+  }
+
+  function handleShowHiddenChange(checked: boolean) {
+    setShowHidden(checked);
+    try { localStorage.setItem(CLOUD_SHOW_HIDDEN_KEY, String(checked)); } catch { /* ignore */ }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,6 +116,33 @@ export function SettingsModal({
           {isAdmin && <ProviderClientSetup provider={provider} />}
           {isAdmin && <ScopeBindingsPanel provider={provider} />}
           {isAdmin && <SyncSection />}
+
+          <div className="flex flex-col gap-3 border-t pt-4">
+            <Label className="text-sm font-medium">{t("settings.preview")}</Label>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs text-muted-foreground">{t("settings.thumbnail_size")}</Label>
+              <RadioGroup
+                value={thumbSize}
+                onValueChange={handleThumbSizeChange}
+                className="flex flex-row gap-4"
+              >
+                {(["small", "medium", "large"] as const).map((size) => (
+                  <span key={size} className="flex items-center gap-1.5">
+                    <RadioGroupItem value={size} id={`thumb-${size}`} />
+                    <Label htmlFor={`thumb-${size}`} className="cursor-pointer text-sm font-normal">
+                      {t(`settings.${size}`)}
+                    </Label>
+                  </span>
+                ))}
+              </RadioGroup>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="show-hidden" className="cursor-pointer text-sm font-normal">
+                {t("settings.show_hidden")}
+              </Label>
+              <Switch id="show-hidden" checked={showHidden} onCheckedChange={handleShowHiddenChange} />
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

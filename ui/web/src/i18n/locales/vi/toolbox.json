@@ -91,7 +91,34 @@
     "storyboard": "Storyboard",
     "job_n": "Job {{id}}",
     "scenes_count": "{{n}} cảnh",
-    "limit_hint": "Tối đa 60 cảnh, mỗi cảnh 1–30 giây, tổng 10 phút."
+    "limit_hint": "Tối đa 60 cảnh, mỗi cảnh 1–30 giây, tổng 10 phút.",
+    "tabs": {
+      "editor": "Biên tập",
+      "render": "Xuất video"
+    },
+    "canvas": {
+      "play": "Phát",
+      "pause": "Tạm dừng"
+    },
+    "timeline": {
+      "title": "Dòng thời gian",
+      "undo": "Hoàn tác",
+      "redo": "Làm lại"
+    },
+    "scene": {
+      "duration": "Thời lượng (s)",
+      "narration": "Lời thoại",
+      "voice": "Giọng nói",
+      "preview_tts": "Nghe thử TTS"
+    },
+    "render_panel": {
+      "title": "Cài đặt xuất",
+      "client_method": "Xuất trên trình duyệt",
+      "server_method": "Xuất trên server",
+      "client_ok": "Trình duyệt OK",
+      "server_recommended": "Khuyến nghị dùng server",
+      "render_button": "Bắt đầu xuất"
+    }
   },
   "watermark": {
     "title": "Xóa watermark Gemini",
@@ -112,6 +139,21 @@
     "empty": "Chưa có ảnh nào",
     "credits": "Thuật toán: gemini-watermark-remover (MIT) bởi GargantuaX, dựa trên phương pháp trộn alpha nghịch của AllenK.",
     "usage_note": "Chỉ dùng với ảnh bạn có quyền chỉnh sửa. Bạn chịu trách nhiệm tuân thủ điều khoản dịch vụ hiện hành.",
-    "confidence": "Độ tin cậy"
+    "confidence": "Độ tin cậy",
+    "tabs": {
+      "images": "Hình ảnh",
+      "videos": "Video"
+    },
+    "video": {
+      "mask_position": "Kéo để đặt vị trí mask",
+      "max_duration": "Tối đa 30 giây",
+      "max_size": "Tối đa 100MB",
+      "processing_frame": "Đang xử lý frame {{current}}/{{total}}"
+    },
+    "comparison": {
+      "before": "Trước",
+      "after": "Sau",
+      "drag_to_compare": "Kéo để so sánh"
+    }
   }
 }

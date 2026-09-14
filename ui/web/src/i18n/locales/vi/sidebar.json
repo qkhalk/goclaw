@@ -49,6 +49,8 @@
     "backupRestore": "Sao lưu & Khôi phục",
     "workstations": "Workstations",
     "cloud": "Clouds",
-    "tools": "Công cụ"
+    "tools": "Công cụ",
+    "videoEditor": "Trình sửa video",
+    "watermarkRemover": "Xoá watermark"
   }
 }

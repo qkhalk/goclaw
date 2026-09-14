@@ -91,7 +91,34 @@
     "storyboard": "Storyboard",
     "job_n": "Job {{id}}",
     "scenes_count": "{{n}} scene(s)",
-    "limit_hint": "Up to 60 scenes, 1–30s each, 10 min total."
+    "limit_hint": "Up to 60 scenes, 1–30s each, 10 min total.",
+    "tabs": {
+      "editor": "Editor",
+      "render": "Render"
+    },
+    "canvas": {
+      "play": "Play",
+      "pause": "Pause"
+    },
+    "timeline": {
+      "title": "Timeline",
+      "undo": "Undo",
+      "redo": "Redo"
+    },
+    "scene": {
+      "duration": "Duration (s)",
+      "narration": "Narration",
+      "voice": "Voice",
+      "preview_tts": "Preview TTS"
+    },
+    "render_panel": {
+      "title": "Render Settings",
+      "client_method": "Render on Client",
+      "server_method": "Render on Server",
+      "client_ok": "Client OK",
+      "server_recommended": "Server Recommended",
+      "render_button": "Start Render"
+    }
   },
   "watermark": {
     "title": "Gemini Watermark Remover",
@@ -112,6 +139,21 @@
     "empty": "No images yet",
     "credits": "Algorithm: gemini-watermark-remover (MIT) by GargantuaX, based on AllenK's reverse alpha blending method.",
     "usage_note": "Use only on images you have the rights to modify. You are responsible for complying with applicable terms of service.",
-    "confidence": "Confidence"
+    "confidence": "Confidence",
+    "tabs": {
+      "images": "Images",
+      "videos": "Videos"
+    },
+    "video": {
+      "mask_position": "Drag to position mask",
+      "max_duration": "Max 30 seconds",
+      "max_size": "Max 100MB",
+      "processing_frame": "Processing frame {{current}}/{{total}}"
+    },
+    "comparison": {
+      "before": "Before",
+      "after": "After",
+      "drag_to_compare": "Drag to compare"
+    }
   }
 }

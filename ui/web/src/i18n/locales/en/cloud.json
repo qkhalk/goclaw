@@ -92,7 +92,13 @@
     "title": "Cloud settings",
     "description": "Manage providers, your own OAuth client and scope rules.",
     "provider": "Provider",
-    "scope_rules": "Scope rules"
+    "scope_rules": "Scope rules",
+    "preview": "Preview settings",
+    "thumbnail_size": "Thumbnail size",
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large",
+    "show_hidden": "Show hidden files"
   },
   "scope": {
     "title": "Usage scopes",
@@ -141,6 +147,7 @@
   },
   "drive": {
     "my_drives": "My drives",
+    "my_drive": "My Drive",
     "providers": "Providers",
     "accounts": "Accounts",
     "shared_tag": "Shared",

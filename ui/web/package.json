@@ -18,6 +18,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
+    "@pilio/gemini-watermark-remover": "^1.0.43",
     "@sigma/edge-curve": "^3.1.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^5.95.2",

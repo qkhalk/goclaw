@@ -91,7 +91,34 @@
     "storyboard": "分镜",
     "job_n": "任务 {{id}}",
     "scenes_count": "{{n}} 个场景",
-    "limit_hint": "最多 60 个场景，每个 1–30 秒，总计 10 分钟。"
+    "limit_hint": "最多 60 个场景，每个 1–30 秒，总计 10 分钟。",
+    "tabs": {
+      "editor": "编辑",
+      "render": "渲染"
+    },
+    "canvas": {
+      "play": "播放",
+      "pause": "暂停"
+    },
+    "timeline": {
+      "title": "时间线",
+      "undo": "撤销",
+      "redo": "重做"
+    },
+    "scene": {
+      "duration": "时长 (秒)",
+      "narration": "旁白",
+      "voice": "语音",
+      "preview_tts": "预览TTS"
+    },
+    "render_panel": {
+      "title": "渲染设置",
+      "client_method": "客户端渲染",
+      "server_method": "服务端渲染",
+      "client_ok": "客户端可用",
+      "server_recommended": "建议使用服务端",
+      "render_button": "开始渲染"
+    }
   },
   "watermark": {
     "title": "Gemini 水印移除",
@@ -112,6 +139,21 @@
     "empty": "还没有图片",
     "credits": "算法：gemini-watermark-remover（MIT），作者 GargantuaX，基于 AllenK 的逆向 alpha 混合方法。",
     "usage_note": "仅对你有权修改的图片使用。你需自行确保遵守适用的服务条款。",
-    "confidence": "置信度"
+    "confidence": "置信度",
+    "tabs": {
+      "images": "图片",
+      "videos": "视频"
+    },
+    "video": {
+      "mask_position": "拖动放置遮罩",
+      "max_duration": "最长30秒",
+      "max_size": "最大100MB",
+      "processing_frame": "处理帧 {{current}}/{{total}}"
+    },
+    "comparison": {
+      "before": "处理前",
+      "after": "处理后",
+      "drag_to_compare": "拖动比较"
+    }
   }
 }

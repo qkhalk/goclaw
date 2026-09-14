@@ -92,7 +92,13 @@
     "title": "Cài đặt đám mây",
     "description": "Quản lý nhà cung cấp, OAuth client riêng và quy tắc phạm vi.",
     "provider": "Nhà cung cấp",
-    "scope_rules": "Quy tắc phạm vi"
+    "scope_rules": "Quy tắc phạm vi",
+    "preview": "Cài đặt xem trước",
+    "thumbnail_size": "Kích thước hình thu nhỏ",
+    "small": "Nhỏ",
+    "medium": "Trung bình",
+    "large": "Lớn",
+    "show_hidden": "Hiển thị file ẩn"
   },
   "scope": {
     "title": "Phạm vi sử dụng",
@@ -141,6 +147,7 @@
   },
   "drive": {
     "my_drives": "Ổ của tôi",
+    "my_drive": "Ổ của tôi",
     "providers": "Nhà cung cấp",
     "accounts": "Tài khoản",
     "shared_tag": "Dùng chung",
