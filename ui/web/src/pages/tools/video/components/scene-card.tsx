@@ -179,6 +179,58 @@ export function SceneCard({
         </div>
       </div>
 
+      {/* OpenCut-style transform + color grading (image/video scenes only) */}
+      {(scene.type === "image" || scene.type === "video") && (
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm font-medium">{t("video.advanced")}</summary>
+          <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+            {([
+              ["video.transform_scale", "scale", 0.3, 3, 0.05, scene.transform?.scale ?? 1],
+              ["video.transform_pos_x", "x", -50, 50, 1, scene.transform?.x ?? 0],
+              ["video.transform_pos_y", "y", -50, 50, 1, scene.transform?.y ?? 0],
+              ["video.transform_rotate", "rotate", -180, 180, 1, scene.transform?.rotate ?? 0],
+              ["video.transform_opacity", "opacity", 0, 1, 0.05, scene.transform?.opacity ?? 1],
+              ["video.filter_brightness", "brightness", 0.2, 2, 0.05, scene.filter?.brightness ?? 1],
+              ["video.filter_contrast", "contrast", 0.2, 2, 0.05, scene.filter?.contrast ?? 1],
+              ["video.filter_saturate", "saturate", 0, 2, 0.05, scene.filter?.saturate ?? 1],
+              ["video.filter_blur", "blur", 0, 20, 0.5, scene.filter?.blur ?? 0],
+            ] as const).map(([labelKey, key, min, max, step, value]) => (
+              <div key={key} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">{t(labelKey)}</Label>
+                  <span className="text-xs tabular-nums text-muted-foreground">{value}</span>
+                </div>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={value}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    if (key === "brightness" || key === "contrast" || key === "saturate" || key === "blur") {
+                      const next = { ...scene.filter };
+                      if (v === (key === "blur" ? 0 : 1)) delete next[key];
+                      else next[key] = v;
+                      const empty = Object.keys(next).length === 0;
+                      onUpdate({ filter: empty ? undefined : next });
+                    } else {
+                      const next = { ...scene.transform };
+                      if (v === (key === "opacity" ? 1 : key === "scale" ? 1 : 0)) delete next[key as "scale" | "x" | "y" | "rotate" | "opacity"];
+                      else next[key as "scale" | "x" | "y" | "rotate" | "opacity"] = v;
+                      const empty = Object.keys(next).length === 0;
+                      onUpdate({ transform: empty ? undefined : next });
+                    }
+                  }}
+                  className="w-full accent-primary"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{t("video.advanced_hint")}</p>
+        </details>
+      )}
+
       {/* Enter transition (browser preview + client export; server cuts hard) */}
       <div className="flex flex-col gap-1.5 sm:max-w-xs">
         <Label className="text-xs">{t("video.transition")}</Label>

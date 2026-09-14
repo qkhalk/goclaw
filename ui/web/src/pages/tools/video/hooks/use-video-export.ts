@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { useHttp } from "@/hooks/use-ws";
 import { submitRenderJob, type VideoRenderJob } from "./use-video";
-import { renderSceneWithTransition, type SceneTransition } from "../components/scene-transition";
+import type { SceneTransition } from "../components/scene-transition";
+import { drawStoryboardFrame } from "../components/render-shared";
 
 // ── Types ──
 
@@ -114,133 +115,6 @@ function sceneAtTime(scenes: Scene[], time: number): { index: number; localTime:
   return { index: 0, localTime: 0 };
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (ctx.measureText(test).width > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : [""];
-}
-
-function renderSceneToCanvas(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  scene: Scene,
-  localTime: number,
-  imageCache: Map<string, HTMLImageElement>,
-) {
-  const { width, height } = canvas;
-  ctx.clearRect(0, 0, width, height);
-
-  if (scene.type === "color") {
-    ctx.fillStyle = scene.color || "#000000";
-    ctx.fillRect(0, 0, width, height);
-    return;
-  }
-
-  const img = scene.source ? imageCache.get(scene.source) : undefined;
-  if (!img) {
-    ctx.fillStyle = "#1a1a2e";
-    ctx.fillRect(0, 0, width, height);
-    return;
-  }
-
-  let scale = 1;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (scene.ken_burns) {
-    const progress = scene.duration_sec > 0 ? localTime / scene.duration_sec : 0;
-    const kb = scene.ken_burns;
-    scale = kb.zoom_from + (kb.zoom_to - kb.zoom_from) * progress;
-    const panAmount = (scale - 1) * Math.min(width, height) * 0.5;
-    switch (kb.pan) {
-      case "left":
-        offsetX = panAmount * progress;
-        break;
-      case "right":
-        offsetX = -panAmount * progress;
-        break;
-      case "up":
-        offsetY = panAmount * progress;
-        break;
-      case "down":
-        offsetY = -panAmount * progress;
-        break;
-    }
-  }
-
-  const imgAspect = img.naturalWidth / img.naturalHeight;
-  const canvasAspect = width / height;
-  let drawW: number;
-  let drawH: number;
-
-  if (scene.fit === "contain") {
-    if (imgAspect > canvasAspect) {
-      drawW = width * scale;
-      drawH = (width / imgAspect) * scale;
-    } else {
-      drawH = height * scale;
-      drawW = (height * imgAspect) * scale;
-    }
-  } else {
-    if (imgAspect > canvasAspect) {
-      drawH = height * scale;
-      drawW = (height * imgAspect) * scale;
-    } else {
-      drawW = width * scale;
-      drawH = (width / imgAspect) * scale;
-    }
-  }
-
-  const x = (width - drawW) / 2 + offsetX;
-  const y = (height - drawH) / 2 + offsetY;
-  ctx.drawImage(img, x, y, drawW, drawH);
-
-  // Caption
-  if (scene.caption?.text) {
-    const fontSize = scene.caption.font_size || Math.round(Math.min(width, height) * 0.035);
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.shadowColor = "rgba(0,0,0,0.7)";
-    ctx.shadowBlur = fontSize * 0.25;
-
-    const lines = wrapText(ctx, scene.caption.text, width * 0.85);
-    const lineHeight = fontSize * 1.3;
-    const totalTextH = lines.length * lineHeight;
-
-    let baseY: number;
-    switch (scene.caption.position) {
-      case "top":
-        baseY = totalTextH / 2 + fontSize;
-        break;
-      case "center":
-        baseY = height / 2;
-        break;
-      default:
-        baseY = height - totalTextH / 2 - fontSize;
-        break;
-    }
-
-    ctx.fillStyle = "#fff";
-    lines.forEach((line, li) => {
-      ctx.fillText(line, width / 2, baseY + (li - (lines.length - 1) / 2) * lineHeight);
-    });
-    ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-  }
-}
-
 // ── Client-side export (single-pass MediaRecorder, wall-clock paced) ──
 
 /** Render the storyboard to a video Blob entirely in the browser.
@@ -277,21 +151,6 @@ async function exportWithMediaRecorder(
   scratchB.width = width;
   scratchB.height = height;
 
-  const drawFrame = (time: number) => {
-    const { index, localTime } = sceneAtTime(storyboard.scenes, time);
-    renderSceneWithTransition(
-      ctx,
-      canvas,
-      storyboard.scenes,
-      index,
-      localTime,
-      imageCache,
-      renderSceneToCanvas,
-      scratchA,
-      scratchB,
-    );
-  };
-
   // Preload all images (video scenes fall back to the dark placeholder —
   // same as the preview player).
   const imageCache = new Map<string, HTMLImageElement>();
@@ -308,7 +167,18 @@ async function exportWithMediaRecorder(
     }
   }
 
-  const stream = canvas.captureStream(fps);
+  const drawFrame = (time: number) => {
+    const { index, localTime } = sceneAtTime(storyboard.scenes, time);
+    drawStoryboardFrame(ctx, canvas, storyboard.scenes, index, localTime, imageCache, scratchA, scratchB);
+  };
+
+  // Manual frame capture: captureStream(0) + requestFrame() per drawn frame.
+  // captureStream(fps) depends on compositor vsync, which stops entirely in
+  // occluded/backgrounded windows (rAF goes silent once MediaRecorder starts)
+  // and the recording freezes on frame one; explicit requestFrame() does not.
+  const stream = canvas.captureStream(0);
+  const videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+  const pushFrame = () => videoTrack?.requestFrame();
   const mimeType = pickMimeType();
   const recorder = new MediaRecorder(
     stream,
@@ -334,10 +204,12 @@ async function exportWithMediaRecorder(
 
   recorder.start(250);
 
-  // Wall-clock draw loop: one rAF per display frame, scene chosen by elapsed
-  // time so the recording always lasts exactly totalSec.
+  // Timer-paced draw loop (not rAF — rAF stalls in occluded windows): one
+  // frame per 1/fps tick, scene chosen by elapsed wall-clock time so the
+  // recording always lasts exactly totalSec.
   const startMs = performance.now();
   const totalMs = totalSec * 1000;
+  const frameMs = 1000 / Math.max(1, fps);
 
   await new Promise<void>((resolve) => {
     const step = () => {
@@ -347,10 +219,11 @@ async function exportWithMediaRecorder(
         return;
       }
       drawFrame(elapsedMs / 1000);
+      pushFrame();
       if (onProgress) onProgress(Math.min(99, Math.round((elapsedMs / totalMs) * 100)));
-      requestAnimationFrame(step);
+      setTimeout(step, frameMs);
     };
-    requestAnimationFrame(step);
+    step();
   });
 
   // Let the encoder flush the last drawn frame before closing the container.

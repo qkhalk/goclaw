@@ -1,7 +1,7 @@
 {
   "video": {
     "title": "비디오 편집기",
-    "description": "캔버스 타임라인에서 장면을 편집하고 즉시 미리 본 뒤 브라우저에서 바로 내보내세요 — 무거운 작업은 서버 렌더링으로 보낼 수 있습니다.",
+    "description": "캔버스 타임라인에서 장면을 편집하고 즉시 미리 본 뒤 브라우저에서 바로 내보내세요. 무거운 작업은 서버 렌더링으로 보낼 수 있습니다.",
     "composer": "스토리보드",
     "new_job": "새 렌더링",
     "jobs_title": "렌더링 작업",
@@ -75,6 +75,11 @@
     "created": "렌더 작업이 생성되었습니다",
     "finished": "완료",
     "cancel": "취소",
+    "delete": "삭제",
+    "delete_confirm_title": "이 렌더 작업을 삭제할까요?",
+    "delete_confirm_desc": "작업과 렌더링된 MP4 파일이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.",
+    "deleted": "렌더 작업이 삭제되었습니다",
+    "delete_failed": "렌더 작업 삭제 실패",
     "cancel_confirm_title": "이 렌더링을 취소할까요?",
     "cancel_confirm_desc": "작업이 중지되고 미완성 출력은 폐기됩니다.",
     "download": "MP4 다운로드",
@@ -128,14 +133,25 @@
     "transition_fade": "검정에서 페이드인",
     "transition_crossfade": "크로스페이드",
     "transition_slide_left": "왼쪽 슬라이드",
-    "transition_slide_up": "위로 슬라이드"
+    "transition_slide_up": "위로 슬라이드",
+    "advanced": "고급: 변환 및 색상",
+    "advanced_hint": "브라우저 미리보기와 클라이언트 내보내기에 적용되며 서버 렌더링은 무시합니다.",
+    "transform_scale": "크기",
+    "transform_pos_x": "X 오프셋 (%)",
+    "transform_pos_y": "Y 오프셋 (%)",
+    "transform_rotate": "회전 (°)",
+    "transform_opacity": "불투명도",
+    "filter_brightness": "밝기",
+    "filter_contrast": "대비",
+    "filter_saturate": "채도",
+    "filter_blur": "흐림 (px)"
   },
   "watermark": {
     "title": "워터마크 제거",
-    "description": "브라우저에서 이미지와 짧은 동영상의 워터마크를 제거하세요 — AI 이미지의 Gemini 워터마크도 포함. 파일은 절대 기기를 떠나지 않습니다.",
-    "privacy": "100% 로컬 — 아무것도 업로드되지 않습니다. 보이는 워터마크만 처리합니다(SynthID 같은 보이지 않는 마크 제외).",
+    "description": "브라우저에서 이미지와 짧은 동영상의 워터마크를 제거하세요(AI 이미지의 Gemini 워터마크도 포함). 파일은 절대 기기를 떠나지 않습니다.",
+    "privacy": "100% 로컬, 아무것도 업로드되지 않습니다. 보이는 워터마크만 처리합니다(SynthID 같은 보이지 않는 마크 제외).",
     "drop_title": "이미지를 여기에 끌어다 놓으세요",
-    "drop_hint": "또는 클릭하여 선택 — PNG/JPEG/WebP, 일괄 처리 지원",
+    "drop_hint": "또는 클릭하여 선택(PNG/JPEG/WebP, 일괄 처리 지원)",
     "processing": "처리 중…",
     "processed": "워터마크 제거됨",
     "skipped": "워터마크 감지 안 됨",
@@ -159,7 +175,7 @@
       "max_duration": "최대 30초",
       "max_size": "최대 100MB",
       "processing_frame": "프레임 처리 중 {{current}}/{{total}}",
-      "auto_note": "역 알파 블렌딩(gemini-watermark-remover)으로 Gemini 워터마크를 프레임 단위로 자동 제거합니다 — 모든 처리는 브라우저에서 이루어집니다."
+      "auto_note": "역 알파 블렌딩(gemini-watermark-remover)으로 Gemini 워터마크를 프레임 단위로 자동 제거합니다. 모든 처리는 브라우저에서 이루어집니다."
     },
     "comparison": {
       "before": "처리 전",

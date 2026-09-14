@@ -194,6 +194,29 @@ func (s *PGVideoJobStore) ClaimNextQueued(ctx context.Context) (*store.VideoRend
 	return j, err
 }
 
+func (s *PGVideoJobStore) Delete(ctx context.Context, id string) error {
+	tenantID := tenantIDArg(ctx)
+	var res sql.Result
+	var err error
+	if hasTenant(ctx) {
+		res, err = s.db.ExecContext(ctx,
+			"DELETE FROM video_render_jobs WHERE id=$1 AND tenant_id=$2",
+			id, tenantID)
+	} else {
+		res, err = s.db.ExecContext(ctx,
+			"DELETE FROM video_render_jobs WHERE id=$1",
+			id)
+	}
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return store.ErrVideoJobNotFound
+	}
+	return nil
+}
+
 func (s *PGVideoJobStore) DeleteExpired(ctx context.Context, before time.Time) (int64, error) {
 	tenantID := tenantIDArg(ctx)
 	var res sql.Result

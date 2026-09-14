@@ -26,6 +26,23 @@ export interface Scene {
   /** How this scene ENTERS (browser preview + client export; the server
    * render pipeline ignores it and cuts hard). */
   transition?: SceneTransition;
+  /** OpenCut-style per-scene transform (image/video scenes): scale multiple
+   * around the frame center, x/y offset in % of frame size, rotation in
+   * degrees, 0-1 opacity. */
+  transform?: {
+    scale?: number;
+    x?: number;
+    y?: number;
+    rotate?: number;
+    opacity?: number;
+  };
+  /** Color grading applied to the scene's media (CSS filter values). */
+  filter?: {
+    brightness?: number;
+    contrast?: number;
+    saturate?: number;
+    blur?: number;
+  };
 }
 
 const MAX_HISTORY = 50;

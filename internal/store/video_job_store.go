@@ -60,4 +60,7 @@ type VideoRenderJobStore interface {
 	// DeleteExpired removes terminal jobs whose expires_at < before.
 	// Returns the number of deleted rows.
 	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
+	// Delete removes a single terminal job row (tenant-scoped). Callers must
+	// verify the job is not queued/rendering before deleting.
+	Delete(ctx context.Context, id string) error
 }

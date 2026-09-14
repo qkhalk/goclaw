@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -22,7 +24,7 @@ const maxStoryboardBytes = 1 << 20 // 1 MB
 //	POST   /v1/video/jobs       — create a job from a storyboard JSON
 //	GET    /v1/video/jobs       — list jobs for caller's tenant
 //	GET    /v1/video/jobs/{id}  — get one job by ID
-//	DELETE /v1/video/jobs/{id}  — cancel a queued/rendering job
+//	DELETE /v1/video/jobs/{id}  — cancel queued/rendering; delete terminal jobs
 type VideoHandler struct {
 	videoJobs  store.VideoRenderJobStore
 	worker     *videopkg.WorkerClient
@@ -175,6 +177,9 @@ func (h *VideoHandler) handleGetJob(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- DELETE /v1/video/jobs/{id} ---
+//
+// queued/rendering jobs are cancelled; terminal jobs (done/failed/cancelled)
+// are removed entirely along with their output file.
 
 func (h *VideoHandler) handleCancelJob(w http.ResponseWriter, r *http.Request) {
 	if !h.available(w) {
@@ -196,6 +201,26 @@ func (h *VideoHandler) handleCancelJob(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get job"})
 		return
 	}
+
+	// Terminal jobs: remove the row and the rendered output file.
+	switch job.Status {
+	case string(videopkg.JobDone), string(videopkg.JobFailed), string(videopkg.JobCancelled):
+		h.removeJobOutput(job)
+		if err := h.videoJobs.Delete(r.Context(), id); err != nil {
+			if errors.Is(err, store.ErrVideoJobNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "job not found"})
+				return
+			}
+			slog.Error("video: delete job failed", "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete job"})
+			return
+		}
+		slog.Info("video: job deleted", "job_id", id, "status", job.Status)
+		writeJSON(w, http.StatusOK, map[string]string{"jobId": id, "status": "deleted"})
+		return
+	}
+
+	// Active jobs (queued/rendering): cancel, not delete.
 
 	// Only queued or rendering jobs can be cancelled.
 	if job.Status != string(videopkg.JobQueued) && job.Status != string(videopkg.JobRendering) {
@@ -226,6 +251,23 @@ func (h *VideoHandler) handleCancelJob(w http.ResponseWriter, r *http.Request) {
 		"jobId":  id,
 		"status": string(videopkg.JobCancelled),
 	})
+}
+
+// removeJobOutput deletes the rendered MP4 for a terminal job. The path was
+// written server-side by the dispatcher, but guard it anyway: only remove
+// files named {jobID}.mp4 directly inside a "videos" directory.
+func (h *VideoHandler) removeJobOutput(job *store.VideoRenderJob) {
+	p := job.OutputPath
+	if p == "" {
+		return
+	}
+	if filepath.Base(p) != job.ID+".mp4" || filepath.Base(filepath.Dir(p)) != "videos" {
+		slog.Warn("video: unexpected output path, skipping file removal", "job_id", job.ID, "path", p)
+		return
+	}
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		slog.Warn("video: failed to remove output file", "job_id", job.ID, "path", p, "error", err)
+	}
 }
 
 // available writes the gate response (403) when the Video surface is off,

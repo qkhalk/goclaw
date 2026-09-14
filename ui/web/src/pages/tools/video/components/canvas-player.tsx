@@ -61,14 +61,14 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
   const player = useCanvasPlayer(storyboard);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-resize canvas to container
+  // Auto-resize canvas to container (16px = the container's p-2 padding)
   const handleResize = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-    const rect = container.getBoundingClientRect();
     const { width: sbW, height: sbH } = storyboard.canvas;
-    const containerW = rect.width;
-    const containerH = rect.height;
+    const containerW = container.clientWidth - 16;
+    const containerH = container.clientHeight - 16;
+    if (containerW <= 0 || containerH <= 0) return;
 
     // Fit inside container maintaining aspect ratio
     const scale = Math.min(containerW / sbW, containerH / sbH, 1);
@@ -118,16 +118,18 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Canvas container */}
+      {/* Canvas container — fixed height so the ResizeObserver → resize →
+          layout loop cannot feed back into itself (that feedback half-painted
+          the bitmap and hid captions). */}
       <div
         ref={containerRef}
         className="flex items-center justify-center rounded-lg border bg-black/90 p-2"
-        style={{ minHeight: 200 }}
+        style={{ height: "min(60vh, 560px)" }}
       >
         <canvas
           ref={player.canvasRef}
           className="block rounded"
-          style={{ maxWidth: "100%", maxHeight: "60vh" }}
+          style={{ maxWidth: "100%", maxHeight: "100%" }}
         />
       </div>
 

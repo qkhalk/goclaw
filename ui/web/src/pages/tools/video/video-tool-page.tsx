@@ -7,6 +7,7 @@ import {
   Download,
   Loader2,
   RefreshCw,
+  Trash2,
   X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -24,6 +25,7 @@ import { formatFileSize } from "@/lib/format";
 import {
   submitRenderJob,
   useVideoCancel,
+  useVideoDelete,
   useVideoJobs,
   type VideoRenderJob,
 } from "./hooks/use-video";
@@ -81,11 +83,16 @@ function statusClass(status: VideoRenderJob["status"]): string {
   }
 }
 
+function isTerminal(status: VideoRenderJob["status"]): boolean {
+  return status === "done" || status === "failed" || status === "cancelled";
+}
+
 export function VideoToolPage() {
   const { t } = useTranslation("toolbox");
   const http = useHttp();
   const { jobs, loading, refresh, progressById } = useVideoJobs(true);
   const cancel = useVideoCancel();
+  const removeJob = useVideoDelete();
 
   const [meta, setMeta] = useState<StoryboardMeta>(defaultStoryboard);
   const [showJson, setShowJson] = useState(false);
@@ -93,6 +100,7 @@ export function VideoToolPage() {
   const [jsonError, setJsonError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<VideoRenderJob | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VideoRenderJob | null>(null);
   const [jobsOpen, setJobsOpen] = useState(true);
 
   // Feature gate
@@ -262,7 +270,7 @@ export function VideoToolPage() {
               <ul className="flex flex-col gap-2">
                 {jobs.map((job) => (
                   <li key={job.id} className="rounded-md border p-3">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                       <Badge
                         variant="outline"
                         className={cn(
@@ -272,14 +280,14 @@ export function VideoToolPage() {
                       >
                         {t(`video.status.${job.status}`)}
                       </Badge>
-                      <span className="truncate font-mono text-xs text-muted-foreground">
+                      <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">
                         {job.id.slice(0, 8)}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs tabular-nums text-muted-foreground">
                         {new Date(job.created_at).toLocaleString()}
                       </span>
                       {job.status === "done" && job.output_size_bytes > 0 && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs tabular-nums text-muted-foreground">
                           {formatFileSize(job.output_size_bytes)}
                         </span>
                       )}
@@ -310,6 +318,18 @@ export function VideoToolPage() {
                           >
                             <X className="mr-2 h-4 w-4" />
                             {t("video.cancel")}
+                          </Button>
+                        )}
+                        {isTerminal(job.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("video.delete")}
+                            title={t("video.delete")}
+                            className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-8 sm:min-w-8"
+                            onClick={() => setDeleteTarget(job)}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
@@ -490,6 +510,27 @@ export function VideoToolPage() {
             await cancel(cancelTarget.id);
           } finally {
             setCancelTarget(null);
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title={t("video.delete_confirm_title")}
+        description={t("video.delete_confirm_desc")}
+        confirmLabel={t("video.delete")}
+        variant="destructive"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            await removeJob(deleteTarget.id);
+            toast.success(t("video.deleted"));
+            await refresh();
+          } catch {
+            toast.error(t("video.delete_failed"));
+          } finally {
+            setDeleteTarget(null);
           }
         }}
       />
