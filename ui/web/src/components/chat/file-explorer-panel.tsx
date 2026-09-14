@@ -15,7 +15,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Methods } from "@/api/protocol";
 import { useWs } from "@/hooks/use-ws";
-import { cn } from "@/lib/utils";
 import type { FileEntry } from "@/types/workspace";
 import { type UseFileTreeResult, useFileTree } from "@/pages/chat/hooks/use-file-tree";
 
@@ -59,10 +58,7 @@ export function FileExplorerPanel({ open, onClose, workspaceId }: FileExplorerPa
   };
 
   return (
-    <div className={cn(
-      "flex h-full w-72 shrink-0 flex-col border-l bg-background",
-      "max-sm:fixed max-sm:inset-y-0 max-sm:right-0 max-sm:z-50 max-sm:w-full max-sm:max-w-[85vw] max-sm:shadow-xl",
-    )}>
+    <div className="flex h-full min-h-0 flex-col bg-background">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-sm font-medium">{t("fileExplorer.title")}</span>

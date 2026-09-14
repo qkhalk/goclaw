@@ -1,4 +1,7 @@
 {
+  "pane": {
+    "resize": "Kéo để đổi độ rộng — nhấp đúp để về mặc định"
+  },
   "actions": "Thao tác",
   "active": "Hoạt động",
   "add": "Thêm",

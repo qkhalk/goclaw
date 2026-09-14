@@ -1,4 +1,7 @@
 {
+  "pane": {
+    "resize": "Drag to resize — double-click to reset"
+  },
   "refresh": "Refresh",
   "cancel": "Cancel",
   "confirm": "Confirm",

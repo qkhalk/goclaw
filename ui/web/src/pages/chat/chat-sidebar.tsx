@@ -17,6 +17,8 @@ interface ChatSidebarProps {
   onNewChat: () => void;
   /** Increment to open the agent dropdown programmatically (empty-state CTA). */
   agentSelectorOpenSignal?: number;
+  /** Desktop drag-resizable width (px). Undefined on mobile → w-72 drawer. */
+  width?: number;
 }
 
 export const ChatSidebar = memo(function ChatSidebar({
@@ -29,10 +31,14 @@ export const ChatSidebar = memo(function ChatSidebar({
   onDeleteSession,
   onNewChat,
   agentSelectorOpenSignal,
+  width,
 }: ChatSidebarProps) {
   const { t } = useTranslation("chat");
   return (
-    <div className="flex h-full w-72 max-w-[85vw] flex-col border-r bg-background">
+    <div
+      className="flex h-full w-72 max-w-[85vw] flex-col border-r bg-background"
+      style={width !== undefined ? { width, maxWidth: undefined } : undefined}
+    >
       {/* Agent selector */}
       <div className="border-b p-3">
         <AgentSelector value={agentId} onChange={onAgentChange} openSignal={agentSelectorOpenSignal} />
