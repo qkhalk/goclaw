@@ -623,6 +623,12 @@ func isReadMethod(method string) bool {
 		// Mission Mode read-only (single mission + list).
 		protocol.MethodMissionGet,
 		protocol.MethodMissionList,
+
+		// Browser panel result post (client-side browsing) — resolves a
+		// waiter the gateway itself created for THIS connection (bridge binds
+		// browseId to clientID+tenant+user, spoof-checked like nodes.result),
+		// so any authenticated role may answer its own invoke.
+		protocol.MethodBrowserPanelResult,
 	}
 	return slices.Contains(readMethods, method)
 }
