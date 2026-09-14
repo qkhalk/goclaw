@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Clock, Folder, PackageOpen, Trash2 } from "lucide-react";
@@ -20,6 +20,12 @@ export function RecentView() {
   const { accounts } = useCloudAccounts();
   const [entries, setEntries] = useState<CloudRecentEntry[]>(() => readRecents(userId));
   const [clearOpen, setClearOpen] = useState(false);
+
+  // userId may hydrate after first render (auth store) — re-read the list for
+  // the resolved user so we don't keep showing the anonymous bucket.
+  useEffect(() => {
+    setEntries(readRecents(userId));
+  }, [userId]);
 
   function refresh() {
     setEntries(readRecents(userId));

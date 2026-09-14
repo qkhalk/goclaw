@@ -42,6 +42,7 @@ export function DriveTopBar({
   viewMode,
   onViewModeChange,
   onRefresh,
+  refreshing,
   // Page-level extras (gear, connect buttons, upload actions…)
   right,
 }: {
@@ -58,6 +59,7 @@ export function DriveTopBar({
   viewMode?: ViewMode;
   onViewModeChange?: (m: ViewMode) => void;
   onRefresh?: () => void;
+  refreshing?: boolean;
   right?: React.ReactNode;
 }) {
   const { t } = useTranslation("cloud");
@@ -79,6 +81,7 @@ export function DriveTopBar({
           {onRefresh && (
             <RefreshButton
               onRefresh={onRefresh}
+              refreshing={refreshing}
               label={t("refresh")}
             />
           )}

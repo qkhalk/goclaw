@@ -3,6 +3,7 @@
     "core": "Chính",
     "conversations": "Hội thoại",
     "cloud": "Clouds",
+    "tools": "Công cụ",
     "connectivity": "Kết nối",
     "capabilities": "Khả năng",
     "data": "Dữ liệu",
@@ -47,6 +48,7 @@
     "tenants": "Tổ chức",
     "backupRestore": "Sao lưu & Khôi phục",
     "workstations": "Workstations",
-    "cloud": "Clouds"
+    "cloud": "Clouds",
+    "tools": "Công cụ"
   }
 }

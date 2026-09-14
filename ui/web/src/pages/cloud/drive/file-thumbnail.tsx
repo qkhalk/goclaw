@@ -8,6 +8,10 @@ import type { CloudFileEntry } from "../hooks/use-cloud";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "tiff", "tif"]);
 
+/** Thumbnail size cap — mirrors the preview sheet's image cap (25 MB):
+ * never auto-download anything bigger just for a thumbnail. */
+const THUMB_CAP = 25 << 20;
+
 function extOf(name: string): string {
   const i = name.lastIndexOf(".");
   return i < 0 ? "" : name.slice(i + 1).toLowerCase();
@@ -36,8 +40,10 @@ export function FileThumbnail({ entry, accountId, path, className }: FileThumbna
   const http = useHttp();
   const queryClient = useQueryClient();
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  const shouldFetch = !entry.is_dir && isImage(entry.name);
+  // Oversized entries skip the fetch entirely — icon fallback immediately.
+  const shouldFetch = !entry.is_dir && isImage(entry.name) && entry.size <= THUMB_CAP;
 
   useEffect(() => {
     if (!shouldFetch) return;
@@ -66,12 +72,10 @@ export function FileThumbnail({ entry, accountId, path, className }: FileThumbna
     };
   }, [shouldFetch, accountId, path, http, queryClient]);
 
-  // Cleanup blob URLs on unmount
-  useEffect(() => {
-    return () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    };
-  }, [blobUrl]);
+  // NOTE: blob URLs live in the react-query cache, which outlives this
+  // component — never revoke them on unmount. A revoked URL left in the
+  // cache would permanently break the next mount of the same file; the
+  // query cache's gcTime releases the blob when the entry expires.
 
   // Directory: folder icon
   if (entry.is_dir) {
@@ -85,8 +89,9 @@ export function FileThumbnail({ entry, accountId, path, className }: FileThumbna
     );
   }
 
-  // Image with blob URL loaded: show thumbnail
-  if (blobUrl) {
+  // Image with blob URL loaded: show thumbnail (fall back to the file icon
+  // if the load fails, e.g. a dead cached URL or a provider error)
+  if (blobUrl && !failed) {
     return (
       <img
         src={blobUrl}
@@ -96,6 +101,7 @@ export function FileThumbnail({ entry, accountId, path, className }: FileThumbna
           className,
         )}
         draggable={false}
+        onError={() => setFailed(true)}
       />
     );
   }

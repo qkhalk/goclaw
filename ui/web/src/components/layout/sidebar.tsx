@@ -33,6 +33,7 @@ import {
   Cable,
   MonitorCog,
   CloudCog,
+  Wrench,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SidebarGroup } from "./sidebar-group";
@@ -109,6 +110,10 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
             <SidebarItem to={ROUTES.CLOUD} icon={CloudCog} label={t("nav.cloud")} collapsed={collapsed} />
           </SidebarGroup>
         )}
+
+        <SidebarGroup label={t("groups.tools")} collapsed={collapsed}>
+          <SidebarItem to={ROUTES.TOOLS} icon={Wrench} label={t("nav.tools")} collapsed={collapsed} />
+        </SidebarGroup>
 
         <SidebarGroup label={t("groups.connectivity")} collapsed={collapsed}>
           <SidebarItem to={ROUTES.CHANNELS} icon={Radio} label={t("nav.channels")} collapsed={collapsed} />

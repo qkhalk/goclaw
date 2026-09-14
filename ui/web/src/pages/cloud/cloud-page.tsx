@@ -37,6 +37,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { queryKeys } from "@/lib/query-keys";
 import { ROUTES } from "@/lib/routes";
 import { useAuthStore } from "@/stores/use-auth-store";
+import { toast } from "@/stores/use-toast-store";
 import {
   useCloudAccounts,
   useCloudStatus,
@@ -91,7 +92,7 @@ export function CloudPage() {
   const userId = useAuthStore((s) => s.userId);
   const isAdmin = role === "admin" || role === "owner";
 
-  const { data: cloudStatus } = useCloudStatus();
+  const { data: cloudStatus, isLoading: cloudStatusLoading } = useCloudStatus();
   const { accounts, loading, refresh, disconnect, startConnect, completeConnect, setShared } = useCloudAccounts();
 
   // URL-derived view state (never duplicated into useState).
@@ -122,6 +123,12 @@ export function CloudPage() {
   useEffect(() => {
     localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
   }, [sort]);
+  // Search is per-account ephemeral state: switching accounts via the rail
+  // must not leak the previous account's filter into the next file list.
+  // (Sort/viewMode are global prefs — deliberately NOT reset here.)
+  useEffect(() => {
+    setSearch("");
+  }, [accountId]);
 
   // Connect flow (home + provider views) — same embedded/paste-back flow.
   const [connecting, setConnecting] = useState(false);
@@ -168,8 +175,12 @@ export function CloudPage() {
       } else {
         window.location.href = res.auth_url;
       }
-    } catch {
-      setPasteError("");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setPasteError(message);
+      // The paste panel is only visible on home/provider views — always toast
+      // so the failure is never silent.
+      toast.error(message);
     } finally {
       setConnecting(false);
     }
@@ -205,8 +216,15 @@ export function CloudPage() {
     if (view === "account" && accountId) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.cloud.allFiles(accountId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.cloud.about(accountId) });
+      // Also re-fetch the accounts list so token/status changes surface.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cloud.accounts });
       return;
     }
+    if (view === "home" && activeView === "starred") {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cloud.starred });
+    }
+    // RecentView is localStorage-backed (refresh() re-fetches accounts, which
+    // is all a recent list needs to resolve accounts again).
     refresh();
   }
 
@@ -304,6 +322,7 @@ export function CloudPage() {
           title={view === "home" ? homeTitle : providerMeta?.name}
           subtitle={view === "home" && !activeView ? t("description") : undefined}
           onRefresh={refreshCurrent}
+          refreshing={loading}
           right={headerRight}
         />
       }
@@ -328,8 +347,12 @@ export function CloudPage() {
             </div>
           )}
 
-          {/* Dashboard tổng: aggregate across all providers */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {/* Dashboard tổng: aggregate across all providers — gated on the
+              status query so unconfigured defaults never flash while loading */}
+          {cloudStatusLoading ? (
+            <TableSkeleton rows={3} />
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-lg border p-4">
               <p className="text-sm text-muted-foreground">{t("dashboard.accounts")}</p>
               <p className="mt-1 text-2xl font-semibold tabular-nums">{accounts.length}</p>
@@ -359,7 +382,8 @@ export function CloudPage() {
                 ))}
               </div>
             </div>
-          </div>
+            </div>
+          )}
 
           {showPastePanel && (
             <PasteBackPanel
@@ -405,7 +429,11 @@ export function CloudPage() {
             )}
           </div>
 
-          {/* Provider picker */}
+          {/* Provider picker — same status-loading gate as the dashboard */}
+          {cloudStatusLoading ? (
+            <TableSkeleton rows={3} />
+          ) : (
+            <>
           <div>
             <p className="text-sm font-medium">{t("picker.title")}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t("picker.description")}</p>
@@ -459,6 +487,8 @@ export function CloudPage() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">{t("picker.more_via_rclone")}</p>
+            </>
+          )}
         </div>
       )}
 

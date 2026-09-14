@@ -3,6 +3,7 @@
     "core": "核心",
     "conversations": "会话",
     "cloud": "云盘",
+    "tools": "工具",
     "connectivity": "连接",
     "capabilities": "能力",
     "data": "数据",
@@ -47,6 +48,7 @@
     "tenants": "租户",
     "backupRestore": "备份与恢复",
     "workstations": "工作站",
-    "cloud": "云盘"
+    "cloud": "云盘",
+    "tools": "工具"
   }
 }

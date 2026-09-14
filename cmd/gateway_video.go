@@ -61,7 +61,7 @@ func wireVideo(
 	// Wire the HTTP handler for /v1/video/* endpoints.
 	// The handler is registered unconditionally so the API surface is
 	// discoverable; it returns 403 when disabled.
-	videoHandler := httpapi.NewVideoHandler(stack.VideoJobs, stack.Worker, true)
+	videoHandler := httpapi.NewVideoHandler(stack.VideoJobs, stack.Worker, stack.Dispatcher, true)
 	server.SetVideoHandler(videoHandler)
 
 	// Start the dispatcher goroutine.
