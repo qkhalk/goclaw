@@ -122,7 +122,13 @@
     },
     "jobs_refresh": "Làm mới job",
     "audio_section": "Âm thanh",
-    "narration_placeholder": "Lời thoại của cảnh cho TTS…"
+    "narration_placeholder": "Lời thoại của cảnh cho TTS…",
+    "transition": "Chuyển cảnh (vào)",
+    "transition_none": "Không",
+    "transition_fade": "Mờ dần từ đen",
+    "transition_crossfade": "Chuyển mờ",
+    "transition_slide_left": "Trượt sang trái",
+    "transition_slide_up": "Trượt lên"
   },
   "watermark": {
     "title": "Xóa watermark",

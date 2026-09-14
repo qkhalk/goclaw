@@ -122,7 +122,13 @@
     },
     "jobs_refresh": "刷新任务",
     "audio_section": "音频",
-    "narration_placeholder": "场景旁白文本（用于 TTS）…"
+    "narration_placeholder": "场景旁白文本（用于 TTS）…",
+    "transition": "转场（入场）",
+    "transition_none": "无",
+    "transition_fade": "从黑淡入",
+    "transition_crossfade": "叠化",
+    "transition_slide_left": "左滑入",
+    "transition_slide_up": "上滑入"
   },
   "watermark": {
     "title": "水印移除",

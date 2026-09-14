@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TRANSITION_TYPES } from "./scene-transition";
 import { cn } from "@/lib/utils";
 import type { Scene } from "../hooks/use-timeline";
 
@@ -176,6 +177,26 @@ export function SceneCard({
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* Enter transition (browser preview + client export; server cuts hard) */}
+      <div className="flex flex-col gap-1.5 sm:max-w-xs">
+        <Label className="text-xs">{t("video.transition")}</Label>
+        <Select
+          value={scene.transition ?? "none"}
+          onValueChange={(v) => onUpdate({ transition: v === "none" ? undefined : (v as Scene["transition"]) })}
+        >
+          <SelectTrigger className="text-base md:text-sm" aria-label={t("video.transition")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TRANSITION_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                {t("video.transition_" + type)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Narration (TTS) */}

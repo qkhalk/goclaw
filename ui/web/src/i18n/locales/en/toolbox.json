@@ -122,7 +122,13 @@
     },
     "jobs_refresh": "Refresh jobs",
     "audio_section": "Audio",
-    "narration_placeholder": "Scene narration text for TTS…"
+    "narration_placeholder": "Scene narration text for TTS…",
+    "transition": "Transition (enter)",
+    "transition_none": "None",
+    "transition_fade": "Fade from black",
+    "transition_crossfade": "Crossfade",
+    "transition_slide_left": "Slide left",
+    "transition_slide_up": "Slide up"
   },
   "watermark": {
     "title": "Watermark Remover",

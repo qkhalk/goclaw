@@ -122,7 +122,13 @@
     },
     "jobs_refresh": "작업 새로고침",
     "audio_section": "오디오",
-    "narration_placeholder": "TTS용 장면 내레이션 텍스트…"
+    "narration_placeholder": "TTS용 장면 내레이션 텍스트…",
+    "transition": "전환(등장)",
+    "transition_none": "없음",
+    "transition_fade": "검정에서 페이드인",
+    "transition_crossfade": "크로스페이드",
+    "transition_slide_left": "왼쪽 슬라이드",
+    "transition_slide_up": "위로 슬라이드"
   },
   "watermark": {
     "title": "워터마크 제거",

@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import type { SceneTransition } from "../components/scene-transition";
 
 // ── Types (matching storyboard types) ──
 
@@ -22,6 +23,9 @@ export interface Scene {
   ken_burns?: KenBurns;
   caption?: Caption;
   narration?: string;
+  /** How this scene ENTERS (browser preview + client export; the server
+   * render pipeline ignores it and cuts hard). */
+  transition?: SceneTransition;
 }
 
 const MAX_HISTORY = 50;
