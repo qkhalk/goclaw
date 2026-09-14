@@ -27,6 +27,10 @@ import type { CloudProvider } from "./hooks/use-cloud";
 const CLOUD_THUMB_SIZE_KEY = "cloud.thumbnail_size";
 const CLOUD_SHOW_HIDDEN_KEY = "cloud.show_hidden";
 
+/** Fired on window whenever a preview setting changes so open drive views
+ * (which read these values from localStorage) re-render immediately. */
+export const CLOUD_SETTINGS_EVENT = "cloud:settings-changed";
+
 export type ThumbnailSize = "small" | "medium" | "large";
 
 export function getThumbnailSize(): ThumbnailSize {
@@ -75,11 +79,13 @@ export function SettingsModal({
     const val = v as ThumbnailSize;
     setThumbSize(val);
     try { localStorage.setItem(CLOUD_THUMB_SIZE_KEY, val); } catch { /* ignore */ }
+    window.dispatchEvent(new Event(CLOUD_SETTINGS_EVENT));
   }
 
   function handleShowHiddenChange(checked: boolean) {
     setShowHidden(checked);
     try { localStorage.setItem(CLOUD_SHOW_HIDDEN_KEY, String(checked)); } catch { /* ignore */ }
+    window.dispatchEvent(new Event(CLOUD_SETTINGS_EVENT));
   }
 
   return (

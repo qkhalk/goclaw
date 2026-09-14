@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Download,
   Loader2,
+  RefreshCw,
   X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { useHttp } from "@/hooks/use-ws";
 import { toast } from "@/stores/use-toast-store";
 import { cn } from "@/lib/utils";
+import { formatFileSize } from "@/lib/format";
 import {
   submitRenderJob,
   useVideoCancel,
@@ -26,20 +28,23 @@ import {
   type VideoRenderJob,
 } from "./hooks/use-video";
 import { useTimeline, type Scene } from "./hooks/use-timeline";
-import { useVideoExport } from "./hooks/use-video-export";
+import { useVideoExport, exportExtension } from "./hooks/use-video-export";
 import { CanvasPlayer } from "./components/canvas-player";
 import { Timeline } from "./components/timeline";
 import { SceneCard } from "./components/scene-card";
 import { RenderPanel } from "./components/render-panel";
 
-// ── Storyboard types ──
+// ── Storyboard (non-scene fields; scenes live in the timeline) ──
 
-interface Storyboard {
+interface StoryboardMeta {
   version: number;
   canvas: { width: number; height: number; fps: number };
-  scenes: Scene[];
   audio?: { bgm_path?: string; bgm_volume?: number };
   output?: { format?: string; height?: number };
+}
+
+export interface Storyboard extends StoryboardMeta {
+  scenes: Scene[];
 }
 
 const ASPECTS = {
@@ -48,11 +53,10 @@ const ASPECTS = {
   "1:1": { width: 1080, height: 1080 },
 } as const;
 
-function defaultStoryboard(): Storyboard {
+function defaultStoryboard(): StoryboardMeta {
   return {
     version: 1,
     canvas: { ...ASPECTS["9:16"], fps: 30 },
-    scenes: [{ type: "image", source: "", duration_sec: 5, fit: "cover" }],
     output: { height: 720 },
   };
 }
@@ -83,7 +87,7 @@ export function VideoToolPage() {
   const { jobs, loading, refresh, progressById } = useVideoJobs(true);
   const cancel = useVideoCancel();
 
-  const [sb, setSb] = useState<Storyboard>(defaultStoryboard);
+  const [meta, setMeta] = useState<StoryboardMeta>(defaultStoryboard);
   const [showJson, setShowJson] = useState(false);
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState("");
@@ -100,74 +104,19 @@ export function VideoToolPage() {
   });
   const enabled = gateError === null || gate !== undefined;
 
-  // Timeline hook
-  const timeline = useTimeline(sb.scenes);
+  // Timeline hook — the single source of truth for scenes. The full
+  // storyboard is derived, so undo/redo and scene edits can never desync
+  // the canvas player or the submit payload from the timeline strip.
+  const timeline = useTimeline();
 
-  // Sync timeline scenes back to storyboard
-  const syncScenes = useCallback(
-    (newScenes: Scene[]) => {
-      setSb((prev) => ({ ...prev, scenes: newScenes }));
-    },
-    [],
+  const sb: Storyboard = useMemo(
+    () => ({ ...meta, scenes: timeline.state.scenes }),
+    [meta, timeline.state.scenes],
   );
 
-  // Wrap timeline update to also sync storyboard
-  const updateScene = useCallback(
-    (index: number, patch: Partial<Scene>) => {
-      timeline.updateScene(index, patch);
-      // Sync after state update (will be picked up by scenes in timeline)
-      const newScenes = timeline.state.scenes.map((s, i) =>
-        i === index ? { ...s, ...patch } : s,
-      );
-      syncScenes(newScenes);
-    },
-    [timeline, syncScenes],
-  );
-
-  const addScene = useCallback(
-    (patch?: Partial<Scene>) => {
-      timeline.addScene(patch);
-      const newScene: Scene = {
-        type: "image",
-        source: "",
-        duration_sec: 5,
-        fit: "cover",
-        ...patch,
-      };
-      syncScenes([...timeline.state.scenes, newScene]);
-    },
-    [timeline, syncScenes],
-  );
-
-  const removeScene = useCallback(
-    (index: number) => {
-      timeline.removeScene(index);
-      const newScenes = timeline.state.scenes.filter((_, i) => i !== index);
-      syncScenes(newScenes.length > 0 ? newScenes : [{ type: "image" as const, source: "", duration_sec: 5, fit: "cover" as const }]);
-    },
-    [timeline, syncScenes],
-  );
-
-  const moveScene = useCallback(
-    (from: number, to: number) => {
-      timeline.moveScene(from, to);
-      const next = [...timeline.state.scenes];
-      const [moved] = next.splice(from, 1);
-      if (moved) next.splice(to, 0, moved);
-      syncScenes(next);
-    },
-    [timeline, syncScenes],
-  );
-
-  const undo = useCallback(() => {
-    timeline.undo();
-    syncScenes(timeline.state.scenes);
-  }, [timeline, syncScenes]);
-
-  const redo = useCallback(() => {
-    timeline.redo();
-    syncScenes(timeline.state.scenes);
-  }, [timeline, syncScenes]);
+  const updateMeta = useCallback((patch: Partial<StoryboardMeta>) => {
+    setMeta((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   // Export
   const {
@@ -188,7 +137,7 @@ export function VideoToolPage() {
     setSubmitting(true);
     try {
       await submitRenderJob(http, sb);
-      toast.success(t("video.jobs_title"));
+      toast.success(t("video.created"));
       setJobsOpen(true);
       await refresh();
     } catch (e) {
@@ -206,9 +155,9 @@ export function VideoToolPage() {
     try {
       const parsed = JSON.parse(jsonDraft) as Storyboard;
       if (!parsed || typeof parsed !== "object") throw new Error("not an object");
-      const loaded = { ...defaultStoryboard(), ...parsed, version: 1 };
-      setSb(loaded);
-      timeline.replaceScenes(loaded.scenes);
+      const { scenes, ...parsedMeta } = parsed;
+      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
+      timeline.replaceScenes(scenes ?? []);
       setJsonError("");
       setShowJson(false);
     } catch (e) {
@@ -223,18 +172,18 @@ export function VideoToolPage() {
   function handleExportClient() {
     exportClient(sb, (p) => {
       if (p >= 100) {
-        toast.success("Export complete!");
+        toast.success(t("video.render_panel.export_complete"));
       }
     }).then((blob) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "video-export.webm";
+      a.download = `video-export.${exportExtension(blob)}`;
       a.click();
       URL.revokeObjectURL(url);
-    }).catch((e) => {
-      if (e.message !== "Export cancelled") {
-        toast.error("Export failed: " + e.message);
+    }).catch((e: unknown) => {
+      if (e instanceof Error && e.message !== "Export cancelled") {
+        toast.error(t("video.render_panel.export_failed", { error: e.message }));
       }
     });
   }
@@ -242,11 +191,11 @@ export function VideoToolPage() {
   async function handleExportServer() {
     try {
       await exportServer(sb);
-      toast.success(t("video.jobs_title"));
+      toast.success(t("video.created"));
       setJobsOpen(true);
       await refresh();
-    } catch (e) {
-      toast.error("Server export failed");
+    } catch {
+      toast.error(t("video.render_panel.server_failed"));
     }
   }
 
@@ -271,7 +220,8 @@ export function VideoToolPage() {
             onClick={() => refresh()}
             className="min-h-11 sm:min-h-9"
           >
-            {t("video.new_job")}
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {t("video.jobs_refresh")}
           </Button>
         }
       />
@@ -328,6 +278,11 @@ export function VideoToolPage() {
                       <span className="text-xs text-muted-foreground">
                         {new Date(job.created_at).toLocaleString()}
                       </span>
+                      {job.status === "done" && job.output_size_bytes > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatFileSize(job.output_size_bytes)}
+                        </span>
+                      )}
                       <div className="ml-auto flex items-center gap-1">
                         {job.status === "done" && job.output_path && (
                           <Button
@@ -380,11 +335,6 @@ export function VideoToolPage() {
                         {t("video.error")}: {job.error}
                       </p>
                     )}
-                    {job.status === "done" && job.output_size_bytes > 0 && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {(job.output_size_bytes / 1024 / 1024).toFixed(1)} MB
-                      </p>
-                    )}
                   </li>
                 ))}
               </ul>
@@ -411,13 +361,13 @@ export function VideoToolPage() {
               scenes={timeline.state.scenes}
               selectedIndex={timeline.state.selectedIndex}
               onSelect={timeline.selectScene}
-              onAdd={() => addScene()}
-              onRemove={removeScene}
-              onMove={moveScene}
+              onAdd={() => timeline.addScene()}
+              onRemove={timeline.removeScene}
+              onMove={timeline.moveScene}
               canUndo={timeline.canUndo}
               canRedo={timeline.canRedo}
-              onUndo={undo}
-              onRedo={redo}
+              onUndo={timeline.undo}
+              onRedo={timeline.redo}
             />
           </div>
 
@@ -429,17 +379,17 @@ export function VideoToolPage() {
               index={timeline.state.selectedIndex}
               total={timeline.state.scenes.length}
               onUpdate={(patch) =>
-                updateScene(timeline.state.selectedIndex, patch)
+                timeline.updateScene(timeline.state.selectedIndex, patch)
               }
-              onRemove={() => removeScene(timeline.state.selectedIndex)}
+              onRemove={() => timeline.removeScene(timeline.state.selectedIndex)}
               onMoveUp={() =>
-                moveScene(
+                timeline.moveScene(
                   timeline.state.selectedIndex,
                   timeline.state.selectedIndex - 1,
                 )
               }
               onMoveDown={() =>
-                moveScene(
+                timeline.moveScene(
                   timeline.state.selectedIndex,
                   timeline.state.selectedIndex + 1,
                 )
@@ -450,7 +400,8 @@ export function VideoToolPage() {
           {/* JSON mode toggle */}
           <div className="flex items-center justify-between rounded-lg border p-3">
             <span className="text-sm text-muted-foreground">
-              Total: {totalSec.toFixed(1)}s | {sb.scenes.length} scenes
+              {t("video.total_duration", { sec: totalSec.toFixed(1) })} ·{" "}
+              {t("video.scenes_count", { n: sb.scenes.length })}
             </span>
             <Button
               variant="ghost"
@@ -492,7 +443,10 @@ export function VideoToolPage() {
         <TabsContent value="render" className="flex flex-col gap-4">
           <RenderPanel
             storyboard={sb}
-            onStoryboardChange={setSb}
+            onStoryboardChange={(next) => {
+              const { scenes: _scenes, ...nextMeta } = next;
+              updateMeta(nextMeta);
+            }}
             hardware={hardware}
             isExporting={isExporting}
             progress={progress}

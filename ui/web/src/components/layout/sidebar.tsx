@@ -33,7 +33,6 @@ import {
   Cable,
   MonitorCog,
   CloudCog,
-  Wrench,
   Clapperboard,
   Eraser,
 } from "lucide-react";
@@ -115,7 +114,6 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
 
         <SidebarGroup label={t("groups.tools")} collapsed={collapsed}>
           <SidebarItem to={ROUTES.TOOLS_VIDEO} icon={Clapperboard} label={t("nav.videoEditor")} collapsed={collapsed} />
-          <SidebarItem to={ROUTES.TOOLS} icon={Wrench} label={t("nav.tools")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.TOOLS_WATERMARK} icon={Eraser} label={t("nav.watermarkRemover")} collapsed={collapsed} />
         </SidebarGroup>
 

@@ -1,18 +1,7 @@
 {
-  "title": "工具",
-  "description": "实用工具集 — 繁重计算在最合适的地方运行。",
-  "hub": {
-    "open": "打开",
-    "client_badge": "浏览器内运行",
-    "server_badge": "服务器渲染",
-    "video_title": "视频渲染",
-    "video_desc": "将图片、视频片段和纯色组成的分镜脚本渲染为 MP4，支持字幕、Ken Burns 动效和背景音乐。",
-    "watermark_title": "Gemini 水印移除",
-    "watermark_desc": "移除 AI 生成图片上可见的 Gemini 水印。100% 客户端处理 — 文件永不离开浏览器。"
-  },
   "video": {
-    "title": "视频渲染",
-    "description": "编辑分镜脚本，通过服务器端 ffmpeg 管线渲染为 MP4。",
+    "title": "视频编辑器",
+    "description": "在画布时间线上编辑场景、即时预览，并直接在浏览器中导出 — 重任务可交给服务器渲染。",
     "composer": "分镜脚本",
     "new_job": "新建渲染",
     "jobs_title": "渲染任务",
@@ -51,7 +40,14 @@
     "pos_center": "居中",
     "pos_bottom": "底部",
     "font_size": "字号",
-    "canvas": "画布",
+    "canvas": {
+      "play": "播放",
+      "pause": "暂停",
+      "start": "回到开头",
+      "prev_frame": "上一帧",
+      "next_frame": "下一帧",
+      "end": "跳到结尾"
+    },
     "aspect": "宽高比",
     "width": "宽度",
     "height": "高度",
@@ -76,7 +72,7 @@
       "cancelled": "已取消"
     },
     "progress": "进度",
-    "created": "创建于",
+    "created": "已创建渲染任务",
     "finished": "完成于",
     "cancel": "取消",
     "cancel_confirm_title": "取消此渲染任务？",
@@ -96,10 +92,6 @@
       "editor": "编辑",
       "render": "渲染"
     },
-    "canvas": {
-      "play": "播放",
-      "pause": "暂停"
-    },
     "timeline": {
       "title": "时间线",
       "undo": "撤销",
@@ -117,12 +109,24 @@
       "server_method": "服务端渲染",
       "client_ok": "客户端可用",
       "server_recommended": "建议使用服务端",
-      "render_button": "开始渲染"
-    }
+      "render_button": "开始渲染",
+      "hardware": "硬件",
+      "cores": "CPU：{{n}} 核",
+      "ram": "RAM：{{n}} GB",
+      "percent": "已完成 {{pct}}%",
+      "server_processing": "服务器处理中…",
+      "client_hint": "浏览器导出会实时录制画布（仅视频，不含背景音乐）。视频越长导出越慢。",
+      "export_complete": "导出完成！",
+      "export_failed": "导出失败：{{error}}",
+      "server_failed": "服务器导出失败"
+    },
+    "jobs_refresh": "刷新任务",
+    "audio_section": "音频",
+    "narration_placeholder": "场景旁白文本（用于 TTS）…"
   },
   "watermark": {
-    "title": "Gemini 水印移除",
-    "description": "使用逆向 alpha 混合移除 AI 生成图片上可见的 Gemini 水印。全部在浏览器中运行 — 图片不会被上传。",
+    "title": "水印移除",
+    "description": "在浏览器中本地去除图片和短视频上的水印 — 包括 AI 图片上的 Gemini 水印。文件永远不会离开你的设备。",
     "privacy": "100% 本地 — 不上传任何内容。仅处理可见水印（不处理 SynthID 等隐形标记）。",
     "drop_title": "拖放图片到此处",
     "drop_hint": "或点击浏览 — 支持 PNG/JPEG/WebP 批量处理",
@@ -154,6 +158,7 @@
       "before": "处理前",
       "after": "处理后",
       "drag_to_compare": "拖动比较"
-    }
+    },
+    "drop_title_video": "将视频拖放到此处"
   }
 }

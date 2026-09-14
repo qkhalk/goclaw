@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
-import { parentPath } from "../drive/paths";
+import { parentPath, rawPath } from "../drive/paths";
 
 /** One connected cloud account (tokens never returned by the API). */
 export interface CloudAccount {
@@ -388,14 +388,16 @@ export function useCloudFileOps(accountId: string) {
   }, [queryClient, accountId]);
 
   const mkdir = useCallback(
-    async (path: string) => {
+    async (encoded: string) => {
+      // The UI passes childPath-form paths; the API takes the raw remote path.
+      const path = rawPath(encoded);
       await http.post(`/v1/cloud/accounts/${accountId}/folders`, { path });
       // Mkdir only adds one entry to the PARENT listing: invalidate just that
       // key and let react-query refetch it in the background (no await, no
       // quota refetch, no purge of every cached folder of the account) — this
       // keeps "New folder" as fast as the POST round trip.
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.cloud.files(accountId, parentPath(path)),
+        queryKey: queryKeys.cloud.files(accountId, parentPath(encoded)),
       });
     },
     [http, accountId, queryClient],
@@ -404,7 +406,10 @@ export function useCloudFileOps(accountId: string) {
   /** Rename or move within the account (PATCH — same endpoint). */
   const move = useCallback(
     async (from: string, to: string) => {
-      await http.patch(`/v1/cloud/accounts/${accountId}/files`, { from, to });
+      await http.patch(`/v1/cloud/accounts/${accountId}/files`, {
+        from: rawPath(from),
+        to: rawPath(to),
+      });
       await invalidate();
     },
     [http, accountId, invalidate],
@@ -412,7 +417,10 @@ export function useCloudFileOps(accountId: string) {
 
   const copy = useCallback(
     async (from: string, to: string) => {
-      await http.post(`/v1/cloud/accounts/${accountId}/files/copy`, { from, to });
+      await http.post(`/v1/cloud/accounts/${accountId}/files/copy`, {
+        from: rawPath(from),
+        to: rawPath(to),
+      });
       await invalidate();
     },
     [http, accountId, invalidate],
@@ -420,9 +428,9 @@ export function useCloudFileOps(accountId: string) {
 
   /** PERMANENT delete (no trash on the provider side). */
   const remove = useCallback(
-    async (path: string, isDir: boolean) => {
+    async (encoded: string, isDir: boolean) => {
       await http.delete(
-        `/v1/cloud/accounts/${accountId}/files?path=${encodeURIComponent(path)}&isDir=${isDir}`,
+        `/v1/cloud/accounts/${accountId}/files?path=${encodeURIComponent(rawPath(encoded))}&isDir=${isDir}`,
       );
       await invalidate();
     },
@@ -431,10 +439,10 @@ export function useCloudFileOps(accountId: string) {
 
   /** Upload one file into folder `dir` with real progress (XHR). */
   const upload = useCallback(
-    (file: File, dir: string, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) => {
+    (file: File, encodedDir: string, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) => {
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("path", dir);
+      fd.append("path", rawPath(encodedDir));
       return http
         .uploadWithProgress<{ path: string; filename: string; size: number }>(
           `/v1/cloud/accounts/${accountId}/files`,
@@ -451,7 +459,8 @@ export function useCloudFileOps(accountId: string) {
 
   /** Download one file as a Blob (auth headers required — no direct href). */
   const download = useCallback(
-    (path: string) => http.fetchBlob(`/v1/cloud/accounts/${accountId}/files/download`, { path }),
+    (encoded: string) =>
+      http.fetchBlob(`/v1/cloud/accounts/${accountId}/files/download`, { path: rawPath(encoded) }),
     [http, accountId],
   );
 

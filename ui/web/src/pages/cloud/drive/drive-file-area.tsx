@@ -38,7 +38,30 @@ import { useSelection } from "./use-selection";
 import { useCloudUploads } from "./use-cloud-uploads";
 import { UploadPanel } from "./upload-panel";
 import { opErrorToast } from "./op-error";
-import { childPath, parentPath, type SortSpec, type ViewMode } from "./paths";
+import { childPath, parentPath, rawPath, type SortSpec, type ViewMode } from "./paths";
+import {
+  CLOUD_SETTINGS_EVENT,
+  getShowHiddenFiles,
+  getThumbnailSize,
+  type ThumbnailSize,
+} from "../settings-modal";
+
+/** Preview settings (thumbnail size + show hidden) live in localStorage;
+ * re-read them whenever the settings modal dispatches the change event so
+ * open drive views apply them without a reload. */
+function usePreviewSettings(): { thumbSize: ThumbnailSize; showHidden: boolean } {
+  const [settings, setSettings] = useState(() => ({
+    thumbSize: getThumbnailSize(),
+    showHidden: getShowHiddenFiles(),
+  }));
+  useEffect(() => {
+    const update = () =>
+      setSettings({ thumbSize: getThumbnailSize(), showHidden: getShowHiddenFiles() });
+    window.addEventListener(CLOUD_SETTINGS_EVENT, update);
+    return () => window.removeEventListener(CLOUD_SETTINGS_EVENT, update);
+  }, []);
+  return settings;
+}
 
 /** File area of the Drive shell for one account: browsing + the full set of
  * file operations (upload w/ progress, mkdir, rename, move, copy, permanent
@@ -94,13 +117,17 @@ export function DriveFileArea({
     staleTime: 30_000,
     queryFn: () =>
       http.get<{ path: string; entries: CloudFileEntry[] }>(
-        `/v1/cloud/accounts/${account.id}/files?path=${encodeURIComponent(path)}&limit=200`,
+        `/v1/cloud/accounts/${account.id}/files?path=${encodeURIComponent(rawPath(path))}&limit=200`,
       ),
   });
 
+  const { thumbSize, showHidden } = usePreviewSettings();
+
   const entries = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = (files.data?.entries ?? []).filter((e) => !q || e.name.toLowerCase().includes(q));
+    const list = (files.data?.entries ?? [])
+      .filter((e) => showHidden || !e.name.startsWith("."))
+      .filter((e) => !q || e.name.toLowerCase().includes(q));
     list.sort((a, b) => {
       if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
       let cmp = 0;
@@ -117,7 +144,7 @@ export function DriveFileArea({
       return sort.dir === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [files.data, search, sort]);
+  }, [files.data, search, sort, showHidden]);
 
   const visibleNames = useMemo(() => entries.map((e) => e.name), [entries]);
   const selection = useSelection(path);
@@ -471,6 +498,7 @@ export function DriveFileArea({
                         entry={e}
                         path={childPath(path, e.name)}
                         accountId={account.id}
+                        thumbSize={thumbSize}
                         canWrite={canWrite}
                         selected={selection.has(e.name)}
                         anySelected={selection.count > 0}

@@ -704,7 +704,7 @@ export function WatermarkToolPage() {
 
         {/* Videos tab content */}
         <TabsContent value="videos" className="flex flex-col gap-4">
-          <DropZone onDrop={addFiles} title={t("watermark.drop_title")}>
+          <DropZone onDrop={addFiles} title={t("watermark.drop_title_video")}>
             <div
               role="button"
               tabIndex={0}
@@ -715,7 +715,7 @@ export function WatermarkToolPage() {
               className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center transition-colors hover:bg-muted/40"
             >
               <Video className="h-8 w-8 text-muted-foreground" />
-              <p className="text-sm font-medium">{t("watermark.drop_title")}</p>
+              <p className="text-sm font-medium">{t("watermark.drop_title_video")}</p>
               <p className="text-xs text-muted-foreground">{t("watermark.video.max_duration")} &middot; {t("watermark.video.max_size")}</p>
             </div>
           </DropZone>

@@ -74,13 +74,13 @@ export function SceneCard({
           {t("video.scene_n", { n: index + 1 })}
         </span>
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" aria-label="Move up" disabled={index === 0} onClick={onMoveUp}>
+          <Button variant="ghost" size="icon-sm" aria-label={t("video.move_up")} disabled={index === 0} onClick={onMoveUp}>
             <ArrowUp className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Move down" disabled={index === total - 1} onClick={onMoveDown}>
+          <Button variant="ghost" size="icon-sm" aria-label={t("video.move_down")} disabled={index === total - 1} onClick={onMoveDown}>
             <ArrowDown className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Remove scene" disabled={total === 1} onClick={onRemove} className="text-destructive hover:text-destructive">
+          <Button variant="ghost" size="icon-sm" aria-label={t("video.remove_scene")} disabled={total === 1} onClick={onRemove} className="text-destructive hover:text-destructive">
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
@@ -182,7 +182,7 @@ export function SceneCard({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="flex flex-col gap-1.5 sm:col-span-3">
           <Label className="text-xs">{t("video.scene.narration")}</Label>
-          <Textarea value={scene.narration ?? ""} onChange={(e) => onUpdate({ narration: e.target.value || undefined })} rows={2} placeholder="Scene narration text for TTS..." className="text-base md:text-sm" />
+          <Textarea value={scene.narration ?? ""} onChange={(e) => onUpdate({ narration: e.target.value || undefined })} rows={2} placeholder={t("video.narration_placeholder")} className="text-base md:text-sm" />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">{t("video.scene.voice")}</Label>

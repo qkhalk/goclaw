@@ -27,7 +27,7 @@ import {
   type CloudAccount,
   type CloudFileEntry,
 } from "../hooks/use-cloud";
-import { childPath, pathDisplayName } from "./paths";
+import { childPath, pathDisplayName, rawPath } from "./paths";
 import { FolderPickerDialog } from "./folder-picker-dialog";
 
 /** Sentinel for "no target account picked" (Radix Select forbids empty values). */
@@ -160,9 +160,9 @@ export function TransferDialog({
         try {
           const res = await doTransfer({
             source_account_id: sourceAccount.id,
-            source_path: src,
+            source_path: rawPath(src),
             target_account_id: target.id,
-            target_path: dst,
+            target_path: rawPath(dst),
             mode,
           });
           if (res.job_id) {
