@@ -81,6 +81,7 @@ export function FileThumbnail({ entry, accountId, path, className }: FileThumbna
   if (entry.is_dir) {
     return (
       <Folder
+        strokeWidth={1.5}
         className={cn(
           "h-12 w-12 shrink-0 fill-sky-100 text-sky-500 dark:fill-sky-950",
           className,
@@ -106,15 +107,21 @@ export function FileThumbnail({ entry, accountId, path, className }: FileThumbna
     );
   }
 
-  // Fallback: file icon
+  // Fallback: file icon with extension badge
+  const ext = extOf(entry.name).toUpperCase();
   return (
     <span
       className={cn(
-        "flex h-12 w-12 shrink-0 items-center justify-center [&>svg]:h-10 [&>svg]:w-10",
+        "relative flex h-12 w-12 shrink-0 items-center justify-center [&>svg]:h-10 [&>svg]:w-10",
         className,
       )}
     >
       <FileIcon name={entry.name} />
+      {ext && (
+        <span className="absolute bottom-0 right-0 rounded-sm bg-muted px-1 py-px text-[9px] font-medium leading-none text-muted-foreground">
+          {ext}
+        </span>
+      )}
     </span>
   );
 }

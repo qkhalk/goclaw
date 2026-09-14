@@ -92,7 +92,13 @@
     "title": "云盘设置",
     "description": "管理提供商、自有 OAuth 客户端和范围规则。",
     "provider": "提供商",
-    "scope_rules": "范围规则"
+    "scope_rules": "范围规则",
+    "preview": "预览设置",
+    "thumbnail_size": "缩略图大小",
+    "small": "小",
+    "medium": "中",
+    "large": "大",
+    "show_hidden": "显示隐藏文件"
   },
   "scope": {
     "title": "使用范围",
@@ -141,6 +147,7 @@
   },
   "drive": {
     "my_drives": "我的云盘",
+    "my_drive": "我的云盘",
     "providers": "提供商",
     "accounts": "账户",
     "shared_tag": "共享",

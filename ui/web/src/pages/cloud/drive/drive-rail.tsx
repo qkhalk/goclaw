@@ -78,6 +78,12 @@ export function DriveRail({
     });
   }
 
+  /** Navigate to cloud root (My Drive). */
+  function openMyDrive() {
+    onNavigate?.();
+    navigate(ROUTES.CLOUD);
+  }
+
   /** Starred / recent pseudo-views live on /cloud itself (?view=…). */
   function openView(view: "starred" | "recent") {
     onNavigate?.();
@@ -104,28 +110,38 @@ export function DriveRail({
     navigate(`${ROUTES.CLOUD_PROVIDER.replace(":provider", provider)}/${id}`);
   }
 
-  return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-3">
-      <nav className="flex flex-col gap-1">
-        <RailLink
-          icon={Star}
-          label={t("starred.title")}
-          active={activeView === "starred"}
-          badge={starred.items.length > 0 ? starred.items.length : undefined}
-          onClick={() => openView("starred")}
-        />
-        <RailLink
-          icon={Clock}
-          label={t("recent.title")}
-          active={activeView === "recent"}
-          onClick={() => openView("recent")}
-        />
-      </nav>
+  /** My Drive is active when we're at the cloud root with no provider param. */
+  const myDriveActive = !routeProvider && activeView === "";
 
-      <nav className="flex flex-col gap-1">
-        <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-          {t("drive.providers")}
-        </p>
+  return (
+    <div className="flex h-full flex-col overflow-y-auto p-3">
+      <div className="flex flex-1 flex-col gap-4">
+        <nav className="flex flex-col gap-1">
+          <RailLink
+            icon={HardDrive}
+            label={t("drive.my_drive")}
+            active={myDriveActive}
+            onClick={openMyDrive}
+          />
+          <RailLink
+            icon={Star}
+            label={t("starred.title")}
+            active={activeView === "starred"}
+            badge={starred.items.length > 0 ? starred.items.length : undefined}
+            onClick={() => openView("starred")}
+          />
+          <RailLink
+            icon={Clock}
+            label={t("recent.title")}
+            active={activeView === "recent"}
+            onClick={() => openView("recent")}
+          />
+        </nav>
+
+        <nav className="flex flex-col gap-1">
+          <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+            {t("drive.providers")}
+          </p>
         {CLOUD_PROVIDERS.map((p) => {
           const items = byProvider.get(p.id) ?? [];
           const providerActive = routeProvider === p.id;
@@ -206,6 +222,7 @@ export function DriveRail({
           );
         })}
       </nav>
+      </div>
 
       {accountId && <RailQuotaCard accountId={accountId} />}
 

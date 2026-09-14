@@ -92,7 +92,13 @@
     "title": "클라우드 설정",
     "description": "공급자, 자체 OAuth 클라이언트 및 범위 규칙을 관리합니다.",
     "provider": "공급자",
-    "scope_rules": "범위 규칙"
+    "scope_rules": "범위 규칙",
+    "preview": "미리보기 설정",
+    "thumbnail_size": "썸네일 크기",
+    "small": "작게",
+    "medium": "보통",
+    "large": "크게",
+    "show_hidden": "숨김 파일 표시"
   },
   "scope": {
     "title": "사용 범위",
@@ -141,6 +147,7 @@
   },
   "drive": {
     "my_drives": "내 드라이브",
+    "my_drive": "내 드라이브",
     "providers": "공급자",
     "accounts": "계정",
     "shared_tag": "공유됨",

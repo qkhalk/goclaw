@@ -35,6 +35,7 @@ function EntryIcon({ entry, large }: { entry: CloudFileEntry; large?: boolean })
   if (entry.is_dir)
     return (
       <Folder
+        strokeWidth={1.5}
         className={cn(
           "shrink-0 fill-sky-100 text-sky-500 dark:fill-sky-950",
           large ? "h-12 w-12" : "h-5 w-5",
