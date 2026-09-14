@@ -123,6 +123,10 @@ export const Methods = {
   // browser.panel.invoke the gateway sent (correlated by browseId).
   BROWSER_PANEL_RESULT: "browser.panel.result",
 
+  // Client-initiated navigation (URL bar, link click in the relay): the
+  // gateway fetches + sanitizes + signs the page and returns the relay URL.
+  BROWSER_PANEL_OPEN: "browser.panel.open",
+
   // Phase 2 - NEEDED
   SKILLS_LIST: "skills.list",
   SKILLS_GET: "skills.get",

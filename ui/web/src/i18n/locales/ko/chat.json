@@ -128,6 +128,10 @@
     "reload": "새로고침",
     "close": "패널 닫기",
     "urlBar": "페이지 URL",
+    "urlPlaceholder": "검색 또는 URL 입력",
+    "back": "뒤로",
+    "forward": "앞으로",
+    "staticNote": "정적 페이지 — 스크립트가 비활성화되어 있지만 링크 클릭과 입력은 작동합니다.",
     "empty": "열린 페이지가 없습니다. 에이전트에게 페이지를 열어달라고 하세요."
   },
   "permissionModes": {

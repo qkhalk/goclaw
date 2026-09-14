@@ -112,6 +112,10 @@
     "reload": "Reload",
     "close": "Close panel",
     "urlBar": "Page URL",
+    "urlPlaceholder": "Search or type a URL",
+    "back": "Back",
+    "forward": "Forward",
+    "staticNote": "Static page — scripts disabled; links and typing still work.",
     "empty": "No page open. Ask the agent to browse something."
   },
   "taskTree": {

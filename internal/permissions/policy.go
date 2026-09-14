@@ -629,6 +629,10 @@ func isReadMethod(method string) bool {
 		// browseId to clientID+tenant+user, spoof-checked like nodes.result),
 		// so any authenticated role may answer its own invoke.
 		protocol.MethodBrowserPanelResult,
+		// browser.panel.open navigates the caller's OWN panel: the URL goes
+		// through the same SSRF/domain-policy pipeline as the web_browse tool
+		// and the relayed document is only readable by the requesting client.
+		protocol.MethodBrowserPanelOpen,
 	}
 	return slices.Contains(readMethods, method)
 }

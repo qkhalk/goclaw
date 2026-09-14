@@ -25,7 +25,10 @@ interface ChatSidePaneProps {
   browser: {
     state: BrowserPanelState;
     onIframeLoad: (iframe: HTMLIFrameElement | null) => void;
+    onBack: () => void;
+    onForward: () => void;
     onReload: () => void;
+    onURLSubmit: (url: string) => void;
   };
 }
 
@@ -105,7 +108,10 @@ export function ChatSidePane({ active, workspaceId, width, onResize, onResetWidt
             onClose={onClose}
             state={browser.state}
             onIframeLoad={browser.onIframeLoad}
+            onBack={browser.onBack}
+            onForward={browser.onForward}
             onReload={browser.onReload}
+            onURLSubmit={browser.onURLSubmit}
           />
         )}
       </div>

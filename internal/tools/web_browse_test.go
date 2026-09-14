@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/browse"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // mockBrowserInvoker stubs the gateway bridge for tool-level tests.
@@ -122,12 +123,62 @@ func TestWebBrowseFallbackRouting(t *testing.T) {
 }
 
 func TestWebBrowseFormatResult(t *testing.T) {
-	out := formatBrowseResult("hello", "T", "https://example.com", 10, true)
+	out := formatBrowseResult("hello", "T", "https://example.com", 10, true, false)
 	if !strings.Contains(out, "URL: https://example.com") || !strings.Contains(out, "user-browser") {
 		t.Fatalf("formatBrowseResult missing metadata:\n%s", out)
 	}
-	long := formatBrowseResult(strings.Repeat("x", 50), "T", "u", 10, false)
+	long := formatBrowseResult(strings.Repeat("x", 50), "T", "u", 10, false, false)
 	if !strings.Contains(long, "[... truncated]") {
 		t.Fatal("truncation marker missing")
+	}
+	// Refs hint appears only when requested and the content carries [eN] tags.
+	withRefs := formatBrowseResult("link [e3] here", "T", "u", 5000, true, true)
+	if !strings.Contains(withRefs, "action") {
+		t.Fatal("refs hint missing for tagged content")
+	}
+	noTags := formatBrowseResult("plain", "T", "u", 5000, true, true)
+	if strings.Contains(noTags, "action") {
+		t.Fatal("refs hint leaked for untagged content")
+	}
+}
+
+func TestWebBrowseActionRouter(t *testing.T) {
+	inv := &mockBrowserInvoker{reply: map[string]any{
+		"content":  "page [e1] [e2]",
+		"title":    "T",
+		"finalUrl": "https://example.com/x",
+	}}
+	tool := newTestWebBrowseTool(inv)
+	ctx := store.WithTenantID(WithToolChannel(WithToolChatID(context.Background(), "user-1"), ChannelWeb), uuid.New())
+
+	// Unknown action.
+	if r := tool.Execute(ctx, map[string]any{"action": "sniff"}); r == nil || !strings.Contains(r.ForLLM, "unknown action") {
+		t.Fatalf("unknown action: %+v", r)
+	}
+	// click/type without ref.
+	if r := tool.Execute(ctx, map[string]any{"action": "click"}); r == nil || !strings.Contains(r.ForLLM, "requires ref") {
+		t.Fatalf("click no ref: %+v", r)
+	}
+	if r := tool.Execute(ctx, map[string]any{"action": "type", "ref": "e1"}); r == nil || !strings.Contains(r.ForLLM, "requires text") {
+		t.Fatalf("type no text: %+v", r)
+	}
+	// Valid type action reaches the invoker with action/ref/text payload.
+	r := tool.Execute(ctx, map[string]any{"action": "type", "ref": "e1", "text": "hello world"})
+	if r == nil || r.IsError {
+		t.Fatalf("type action failed: %+v", r)
+	}
+	if inv.calls != 1 {
+		t.Fatalf("invoker calls = %d, want 1", inv.calls)
+	}
+	if inv.captured["action"] != "type" || inv.captured["ref"] != "e1" || inv.captured["text"] != "hello world" {
+		t.Fatalf("payload mismatch: %+v", inv.captured)
+	}
+	if !strings.Contains(r.ForLLM, "page [e1] [e2]") {
+		t.Fatalf("content missing from result: %s", r.ForLLM)
+	}
+	// Actions require the web channel.
+	telegramCtx := WithToolChannel(context.Background(), "telegram")
+	if r := tool.Execute(telegramCtx, map[string]any{"action": "extract"}); r == nil || !strings.Contains(r.ForLLM, "requires the user's browser panel") {
+		t.Fatalf("extract on telegram: %+v", r)
 	}
 }

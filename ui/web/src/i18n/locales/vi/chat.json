@@ -112,6 +112,10 @@
     "reload": "Tải lại",
     "close": "Đóng panel",
     "urlBar": "URL trang",
+    "urlPlaceholder": "Tìm kiếm hoặc nhập URL",
+    "back": "Quay lại",
+    "forward": "Tiến",
+    "staticNote": "Trang tĩnh — không chạy script; nhấp link và gõ chữ vẫn hoạt động.",
     "empty": "Chưa mở trang nào. Yêu cầu agent mở trang nhé."
   },
   "taskTree": {
