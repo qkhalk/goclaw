@@ -102,6 +102,18 @@
     "connecting": "Connecting…",
     "failed": "Terminal failed: {{message}}"
   },
+  "browserPanel": {
+    "title": "Browser",
+    "loading": "Loading page…",
+    "ready": "Ready",
+    "error": "Page could not be displayed",
+    "errorHint": "The site may block embedding — use \"Open in new tab\".",
+    "openNewTab": "Open in new tab",
+    "reload": "Reload",
+    "close": "Close panel",
+    "urlBar": "Page URL",
+    "empty": "No page open. Ask the agent to browse something."
+  },
   "taskTree": {
     "empty": "No tasks yet",
     "priority": "Priority",

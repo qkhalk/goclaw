@@ -119,6 +119,10 @@ export const Methods = {
   TERMINAL_RESIZE: "terminal.resize",
   TERMINAL_CLOSE: "terminal.close",
 
+  // Client-side browsing: post the extracted page content back for a
+  // browser.panel.invoke the gateway sent (correlated by browseId).
+  BROWSER_PANEL_RESULT: "browser.panel.result",
+
   // Phase 2 - NEEDED
   SKILLS_LIST: "skills.list",
   SKILLS_GET: "skills.get",
@@ -336,6 +340,11 @@ export const Events = {
   SKILL_DEPS_INSTALLED: "skill.deps.installed",
 
   HEARTBEAT: "heartbeat",
+
+  // Client-side browsing: the gateway targets this client with a browse
+  // request; the browser panel renders the relayed page and posts the
+  // extracted content back (server pushes this event directly, not via bus).
+  BROWSER_PANEL_INVOKE: "browser.panel.invoke",
 } as const;
 
 /** All event names relevant to team debug view */

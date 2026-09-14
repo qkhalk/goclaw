@@ -20,6 +20,8 @@ import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { FileExplorerPanel } from "@/components/chat/file-explorer-panel";
 import { JobsTasksPanel } from "@/components/chat/jobs-tasks-panel";
 import { TerminalPanel } from "@/components/chat/terminal-panel";
+import { BrowserPanel } from "@/components/chat/browser-panel";
+import { useBrowserPanel } from "./hooks/use-browser-panel";
 
 export function ChatPage() {
   const { t } = useTranslation("chat");
@@ -179,6 +181,9 @@ export function ChatPage() {
   const [jobsPanelOpen, setJobsPanelOpen] = useState(false);
   // Paseo Phase 4 (§25): web terminal side panel.
   const [termOpen, setTermOpen] = useState(false);
+  // Client-side browsing: agent's web_browse renders here (browser.panel.invoke).
+  const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
+  const browserPanel = useBrowserPanel(useCallback(() => setBrowserPanelOpen(true), []));
 
   const handleSessionSelectMobile = useCallback(
     (key: string) => {
@@ -262,6 +267,8 @@ export function ChatPage() {
             jobsTasksPanelOpen={jobsPanelOpen}
             onToggleTerminal={() => setTermOpen((v) => !v)}
             termPanelOpen={termOpen}
+            onToggleBrowser={() => setBrowserPanelOpen((v) => !v)}
+            browserPanelOpen={browserPanelOpen}
             workspaceId={workspaceId}
             onWorkspaceChange={setWorkspaceId}
           />
@@ -337,6 +344,9 @@ export function ChatPage() {
       {termOpen && !filesPanelOpen && !jobsPanelOpen && isMobile && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setTermOpen(false)} />
       )}
+      {browserPanelOpen && !filesPanelOpen && !jobsPanelOpen && !termOpen && isMobile && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setBrowserPanelOpen(false)} />
+      )}
 
       <FileExplorerPanel
         open={filesPanelOpen}
@@ -352,6 +362,13 @@ export function ChatPage() {
         open={termOpen}
         onClose={() => setTermOpen(false)}
         workspaceId={workspaceId}
+      />
+      <BrowserPanel
+        open={browserPanelOpen}
+        onClose={() => setBrowserPanelOpen(false)}
+        state={browserPanel.state}
+        onIframeLoad={browserPanel.handleIframeLoad}
+        onReload={browserPanel.reload}
       />
     </div>
   );

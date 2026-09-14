@@ -51,6 +51,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/systemmessages"
+	"github.com/nextlevelbuilder/goclaw/internal/browse"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
 	usagepricing "github.com/nextlevelbuilder/goclaw/internal/usage/pricing"
@@ -667,6 +668,20 @@ func runGateway() {
 	server.SetPairingService(pgStores.Pairing)
 	server.SetMessageBus(msgBus)
 	server.SetExecApprovalManager(execApprovalMgr)
+
+	// Client-side browsing (web_browse): the gateway fetches ONE sanitized
+	// document per browse and relays it same-origin; the user's browser panel
+	// loads every subresource from the origin site and posts the extracted
+	// content back via browser.panel.* correlation. Registered after the
+	// server exists because the tool needs its browser-panel bridge.
+	browseStore := browse.NewStore()
+	webBrowseTool := tools.NewWebBrowseTool(webFetchTool, browseStore)
+	webBrowseTool.SetClientInvoker(server.BrowserPanelBridge())
+	webBrowseTool.SetRelayTokenSigner(func(path string) string {
+		return httpapi.SignFileToken(path, httpapi.FileSigningKey(), httpapi.FileTokenTTL)
+	})
+	toolsReg.Register(webBrowseTool)
+	server.SetBrowseRelayHandler(httpapi.NewBrowseRelayHandler(browseStore))
 	server.SetOAuthHandler(httpapi.NewOAuthHandler(pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
 	server.SetClaudeOAuthHandler(httpapi.NewClaudeOAuthHandler(pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
 	server.SetCopilotOAuthHandler(httpapi.NewCopilotOAuthHandler(pgStores.Providers, providerRegistry, msgBus))
