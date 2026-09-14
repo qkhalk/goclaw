@@ -296,8 +296,8 @@ func TestTransformInteractiveReply_Passthrough(t *testing.T) {
 
 func TestAskKeyboard(t *testing.T) {
 	rows := askKeyboard([]string{"Postgres", "MySQL", "SQLite"}, "vi")
-	if len(rows) != 2+1 { // 2 option rows + Other
-		t.Fatalf("rows = %d, want 3", len(rows))
+	if len(rows) != 3+1 { // 3 option rows (one per row) + Other
+		t.Fatalf("rows = %d, want 4", len(rows))
 	}
 	other := rows[len(rows)-1][0]
 	if other.CallbackData != "ak:o" || !strings.HasPrefix(other.Text, "✏️") {
@@ -310,26 +310,88 @@ func TestAskKeyboard(t *testing.T) {
 	}
 }
 
-func TestHandleAskCallback_OptionPublishesInbound(t *testing.T) {
+func TestAskKeyboardSelected(t *testing.T) {
+	rows := askKeyboardSelected([]string{"Postgres", "MySQL", "SQLite"}, 1, "vi")
+	// 3 option rows + confirm/back row
+	if len(rows) != 3+1 {
+		t.Fatalf("rows = %d, want 4", len(rows))
+	}
+	// Selected option should have ✓ prefix.
+	if !strings.HasPrefix(rows[1][0].Text, "✓ ") {
+		t.Errorf("selected row text = %q, want ✓ prefix", rows[1][0].Text)
+	}
+	// Confirm and back buttons in last row.
+	lastRow := rows[len(rows)-1]
+	if len(lastRow) != 2 {
+		t.Fatalf("confirm/back row buttons = %d, want 2", len(lastRow))
+	}
+	if lastRow[0].CallbackData != "ak:c" {
+		t.Errorf("confirm button data = %q", lastRow[0].CallbackData)
+	}
+	if lastRow[1].CallbackData != "ak:b" {
+		t.Errorf("back button data = %q", lastRow[1].CallbackData)
+	}
+}
+
+func TestHandleAskCallback_OptionSelectsThenConfirms(t *testing.T) {
 	ch, caller := newPickerTestChannel(t, nil)
 	tenant := uuid.New()
 	ch.SetTenantID(tenant)
 	ch.pendingAsks.Store(chatMsgKey(-100, 101), askCtx{
 		question:  "Which DB?",
 		options:   []string{"Postgres", "MySQL"},
+		selected:  -1,
 		chatIDStr: "-100",
 		localKey:  "-100",
 		expires:   time.Now().Add(time.Minute),
 	})
 
-	ch.handleAskCallback(context.Background(), testCallbackQuery("ak:1", -100, 101, "vi"), "ak:1")
-
+	// Start a single consumer before any action — it blocks on the bus
+	// until step 2 publishes.
 	inCh := make(chan bus.InboundMessage, 1)
 	go func() {
 		if in, ok := ch.Bus().ConsumeInbound(context.Background()); ok {
 			inCh <- in
 		}
 	}()
+	time.Sleep(10 * time.Millisecond) // let goroutine block on ConsumeInbound
+
+	// Step 1: Select option — should NOT publish, should edit keyboard.
+	ch.handleAskCallback(context.Background(), testCallbackQuery("ak:1", -100, 101, "vi"), "ak:1")
+
+	// Verify the consumer didn't receive anything yet.
+	select {
+	case in := <-inCh:
+		t.Fatalf("select should not publish inbound, got %q", in.Content)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	// Keyboard should have been edited (EditMessageReplyMarkup for selection).
+	var editMarkup *recordedTelegramCall
+	for i := len(caller.calls) - 1; i >= 0; i-- {
+		if caller.calls[i].method == "editMessageReplyMarkup" {
+			editMarkup = &caller.calls[i]
+			break
+		}
+	}
+	if editMarkup == nil {
+		t.Fatalf("editMessageReplyMarkup not called after select, methods: %v", caller.methodNames())
+	}
+
+	// State should still be present with selected=1.
+	raw, ok := ch.pendingAsks.Load(chatMsgKey(-100, 101))
+	if !ok {
+		t.Fatalf("pendingAsk should still exist after select")
+	}
+	ac := raw.(askCtx)
+	if ac.selected != 1 {
+		t.Errorf("selected = %d, want 1", ac.selected)
+	}
+
+	// Step 2: Confirm — should publish inbound via the same consumer.
+	caller.calls = nil // clear previous calls
+	ch.handleAskCallback(context.Background(), testCallbackQuery("ak:c", -100, 101, "vi"), "ak:c")
+
 	select {
 	case in := <-inCh:
 		if !strings.HasPrefix(in.Content, "[Answering your question] Which DB?") ||
@@ -343,23 +405,93 @@ func TestHandleAskCallback_OptionPublishesInbound(t *testing.T) {
 			t.Errorf("tenant = %v, want %v", in.TenantID, tenant)
 		}
 	case <-time.After(time.Second):
-		t.Fatalf("no inbound message published")
+		t.Fatalf("no inbound message published after confirm")
 	}
 
-	// Question message must be edited with the answered card.
-	var edit *recordedTelegramCall
+	// State must be consumed.
+	if _, ok := ch.pendingAsks.Load(chatMsgKey(-100, 101)); ok {
+		t.Errorf("pendingAsk still present after confirm")
+	}
+}
+
+func TestHandleAskCallback_BackClearsSelection(t *testing.T) {
+	ch, caller := newPickerTestChannel(t, nil)
+	ch.pendingAsks.Store(chatMsgKey(-100, 101), askCtx{
+		question:  "Which DB?",
+		options:   []string{"Postgres", "MySQL"},
+		selected:  1,
+		chatIDStr: "-100",
+		localKey:  "-100",
+		expires:   time.Now().Add(time.Minute),
+	})
+
+	ch.handleAskCallback(context.Background(), testCallbackQuery("ak:b", -100, 101, "vi"), "ak:b")
+
+	// Should NOT publish.
+	selectCh := make(chan bus.InboundMessage, 1)
+	go func() {
+		if in, ok := ch.Bus().ConsumeInbound(context.Background()); ok {
+			selectCh <- in
+		}
+	}()
+	select {
+	case in := <-selectCh:
+		t.Fatalf("back should not publish inbound, got %q", in.Content)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	// State should have selected=-1.
+	raw, ok := ch.pendingAsks.Load(chatMsgKey(-100, 101))
+	if !ok {
+		t.Fatalf("pendingAsk should still exist after back")
+	}
+	ac := raw.(askCtx)
+	if ac.selected != -1 {
+		t.Errorf("selected = %d, want -1 after back", ac.selected)
+	}
+
+	// Keyboard should have been edited (EditMessageReplyMarkup for back).
+	var editMarkup *recordedTelegramCall
 	for i := len(caller.calls) - 1; i >= 0; i-- {
-		if caller.calls[i].method == "editMessageText" {
-			edit = &caller.calls[i]
+		if caller.calls[i].method == "editMessageReplyMarkup" {
+			editMarkup = &caller.calls[i]
 			break
 		}
 	}
-	if edit == nil {
-		t.Fatalf("editMessageText not called, methods: %v", caller.methodNames())
+	if editMarkup == nil {
+		t.Fatalf("editMessageReplyMarkup not called after back, methods: %v", caller.methodNames())
 	}
-	// State must be consumed.
-	if _, ok := ch.pendingAsks.Load(chatMsgKey(-100, 101)); ok {
-		t.Errorf("pendingAsk still present after answer")
+}
+
+func TestHandleAskCallback_ConfirmWithoutSelectionIgnored(t *testing.T) {
+	ch, _ := newPickerTestChannel(t, nil)
+	ch.pendingAsks.Store(chatMsgKey(-100, 101), askCtx{
+		question:  "Which DB?",
+		options:   []string{"Postgres"},
+		selected:  -1,
+		chatIDStr: "-100",
+		localKey:  "-100",
+		expires:   time.Now().Add(time.Minute),
+	})
+
+	ch.handleAskCallback(context.Background(), testCallbackQuery("ak:c", -100, 101, "vi"), "ak:c")
+
+	// Must not publish anything.
+	selectCh := make(chan bus.InboundMessage, 1)
+	go func() {
+		if in, ok := ch.Bus().ConsumeInbound(context.Background()); ok {
+			selectCh <- in
+		}
+	}()
+	select {
+	case in := <-selectCh:
+		t.Fatalf("confirm without selection should not publish, got %q", in.Content)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	// State must remain (not deleted).
+	if _, ok := ch.pendingAsks.Load(chatMsgKey(-100, 101)); !ok {
+		t.Errorf("pendingAsk should still exist after no-op confirm")
 	}
 }
 

@@ -181,6 +181,8 @@
     "readOnly": "只读视图 — 打开聊天以回答",
     "other": "其他…",
     "otherPlaceholder": "输入你自己的回答…",
-    "send": "发送回答"
+    "send": "发送回答",
+    "confirm": "✔ 确认",
+    "back": "◀ 返回"
   }
 }

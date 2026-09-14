@@ -221,6 +221,8 @@ func init() {
 		"telegram.ask.other": "직접 입력",
 		"telegram.ask.otherhint": "✏️ 이 메시지에 답장하여 답변을 입력하세요.",
 		"telegram.ask.answered": "✓ 답변됨: %s → %s",
+		"telegram.ask.confirm": "✔ 확인",
+		"telegram.ask.back": "◀ 뒤로",
 		"telegram.language.unavailable": "언어 설정을 사용할 수 없습니다 (세션 스토어 미구성).",
 		"telegram.language.title": "🌐 이 채팅의 언어 — 선택하세요:",
 		"telegram.language.current": "🌐 언어: %s",
