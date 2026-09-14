@@ -41,7 +41,7 @@ func TestShellAbort_ProcessGroupKilled(t *testing.T) {
 
 	done := make(chan *Result, 1)
 	go func() {
-		done <- tool.executeOnHost(ctx, command, tmpDir)
+		done <- tool.executeOnHost(ctx, command, tmpDir, 0)
 	}()
 
 	sleepPIDs := waitForRecordedPIDs(t, pidFile, 2, time.Second)
