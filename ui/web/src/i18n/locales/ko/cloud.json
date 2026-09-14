@@ -169,7 +169,8 @@
     },
     "not_found": "계정을 찾을 수 없거나 더 이상 접근할 수 없습니다",
     "back_home": "클라우드로 돌아가기",
-    "toggle_accounts": "계정 펼치기/접기"
+    "toggle_accounts": "계정 펼치기/접기",
+    "quick_views": "빠른 보기"
   },
   "files": {
     "upload": "업로드",
