@@ -152,7 +152,8 @@
       "mask_position": "拖动放置遮罩",
       "max_duration": "最长30秒",
       "max_size": "最大100MB",
-      "processing_frame": "处理帧 {{current}}/{{total}}"
+      "processing_frame": "处理帧 {{current}}/{{total}}",
+      "auto_note": "通过逆 alpha 混合（gemini-watermark-remover）自动逐帧去除 Gemini 水印 — 全部在浏览器中处理。"
     },
     "comparison": {
       "before": "处理前",
