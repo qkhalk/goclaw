@@ -89,6 +89,9 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	if terminals != nil {
 		methods.NewTerminalMethods(terminals, workspaceStore, server.EventPublisher()).Register(router)
 	}
+	// Client-side browsing: web client posts extracted page content back for
+	// a browser.panel.invoke it received (web_browse tool correlation).
+	methods.NewBrowserPanelMethods(server.BrowserPanelBridge()).Register(router)
 	configMethods := methods.NewConfigMethods(cfg, cfgPath, configSecretsStore, msgBus)
 	if sysConfigStore != nil {
 		configMethods.SetSystemConfigSync(func(ctx context.Context, c *config.Config) {

@@ -102,6 +102,18 @@
     "connecting": "Đang kết nối…",
     "failed": "Terminal gặp lỗi: {{message}}"
   },
+  "browserPanel": {
+    "title": "Trình duyệt",
+    "loading": "Đang tải trang…",
+    "ready": "Sẵn sàng",
+    "error": "Không hiển thị được trang",
+    "errorHint": "Trang có thể chặn nhúng — dùng \"Mở tab mới\".",
+    "openNewTab": "Mở tab mới",
+    "reload": "Tải lại",
+    "close": "Đóng panel",
+    "urlBar": "URL trang",
+    "empty": "Chưa mở trang nào. Yêu cầu agent mở trang nhé."
+  },
   "taskTree": {
     "empty": "Chưa có nhiệm vụ nào",
     "priority": "Ưu tiên",
