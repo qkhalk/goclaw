@@ -50,6 +50,18 @@ export function childPath(parent: string, name: string): string {
   return parent === "/" ? `/${encoded}` : `${parent}/${encoded}`;
 }
 
+/** Decode a childPath-form path back to the RAW remote path (real spaces,
+ * real unicode). The backend expects raw paths: Go's query parsing and JSON
+ * bodies are decoded zero extra times server-side, so passing the encoded
+ * form double-encodes (%20 → %2520) and 404s/502s on the provider. Encode
+ * exactly once at the fetch boundary (encodeURIComponent / URLSearchParams). */
+export function rawPath(path: string): string {
+  return path
+    .split("/")
+    .map((seg) => safeDecode(seg))
+    .join("/");
+}
+
 /** Parent directory path ("/" for root-level entries). */
 export function parentPath(path: string): string {
   const idx = path.lastIndexOf("/");

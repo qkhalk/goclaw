@@ -177,11 +177,12 @@ export function Timeline({
       {/* Drag reorder hint */}
       <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground">
         <span>
-          {scenes.length} scenes |{" "}
-          {scenes
-            .reduce((a, s) => a + (Number(s.duration_sec) || 0), 0)
-            .toFixed(1)}
-          s total
+          {t("video.scenes_count", { n: scenes.length })} ·{" "}
+          {t("video.total_duration", {
+            sec: scenes
+              .reduce((a, s) => a + (Number(s.duration_sec) || 0), 0)
+              .toFixed(1),
+          })}
         </span>
       </div>
     </div>

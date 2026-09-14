@@ -22,8 +22,9 @@ import {
 import { cn } from "@/lib/utils";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { CloudFileEntry } from "../hooks/use-cloud";
+import type { ThumbnailSize } from "../settings-modal";
 import { buildItemActions, type ItemAction, type ItemActionHandlers } from "./drive-item-menu";
-import { FileThumbnail } from "./file-thumbnail";
+import { FileThumbnail, thumbContainerClass } from "./file-thumbnail";
 
 /** One cloud file entry for grid (card) and list (row) mode: selection
  * checkbox, ⋮ actions menu, right-click context menu (same action list),
@@ -211,6 +212,8 @@ export interface DriveItemProps {
   path: string;
   /** Cloud account ID for thumbnail fetches. */
   accountId?: string;
+  /** Grid thumbnail zone size (clouds preview setting; default medium). */
+  thumbSize?: ThumbnailSize;
   canWrite: boolean;
   selected: boolean;
   anySelected: boolean;
@@ -291,12 +294,19 @@ export function DriveGridItem(props: DriveItemProps) {
               <StarBadge />
             </span>
           )}
-          <div className="flex h-24 items-center justify-center overflow-hidden rounded-md" aria-hidden>
+          <div
+            className={cn(
+              "flex items-center justify-center overflow-hidden rounded-md",
+              thumbContainerClass(props.thumbSize ?? "medium"),
+            )}
+            aria-hidden
+          >
             {props.accountId ? (
               <FileThumbnail
                 entry={entry}
                 accountId={props.accountId}
                 path={props.path}
+                size={props.thumbSize ?? "medium"}
                 className="h-full w-full"
               />
             ) : (

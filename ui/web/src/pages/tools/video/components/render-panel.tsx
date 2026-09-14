@@ -154,15 +154,15 @@ export function RenderPanel({
 
       {/* Hardware Detection */}
       <div className="rounded-lg border p-4">
-        <p className="mb-2 text-sm font-medium">Hardware Detection</p>
+        <p className="mb-2 text-sm font-medium">{t("video.render_panel.hardware")}</p>
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span>
-            CPU: {hardware.cores} cores
-          </span>
-          <span>|</span>
-          <span>
-            RAM: {hardware.memoryGB !== null ? hardware.memoryGB + " GB" : "Unknown"}
-          </span>
+          <span>{t("video.render_panel.cores", { n: hardware.cores })}</span>
+          {hardware.memoryGB !== null && (
+            <>
+              <span>|</span>
+              <span>{t("video.render_panel.ram", { n: hardware.memoryGB })}</span>
+            </>
+          )}
         </div>
         <div className="mt-2">
           <Badge
@@ -187,24 +187,29 @@ export function RenderPanel({
       {/* Export Actions */}
       <div className="rounded-lg border p-4">
         {!isExporting ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={onExportClient}
-              disabled={totalSec <= 0}
-              className="min-h-11 sm:min-h-9"
-            >
-              <Monitor className="mr-2 h-4 w-4" />
-              {t("video.render_panel.client_method")}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={onExportServer}
-              disabled={totalSec <= 0}
-              className="min-h-11 sm:min-h-9"
-            >
-              <Cloud className="mr-2 h-4 w-4" />
-              {t("video.render_panel.server_method")}
-            </Button>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={onExportClient}
+                disabled={totalSec <= 0}
+                className="min-h-11 sm:min-h-9"
+              >
+                <Monitor className="mr-2 h-4 w-4" />
+                {t("video.render_panel.client_method")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onExportServer}
+                disabled={totalSec <= 0}
+                className="min-h-11 sm:min-h-9"
+              >
+                <Cloud className="mr-2 h-4 w-4" />
+                {t("video.render_panel.server_method")}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("video.render_panel.client_hint")}
+            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -226,13 +231,13 @@ export function RenderPanel({
               <>
                 <Progress value={progress} className="h-2" />
                 <p className="text-xs text-muted-foreground">
-                  {progress}% complete
+                  {t("video.render_panel.percent", { pct: progress })}
                 </p>
               </>
             )}
             {progress < 0 && (
               <p className="text-xs text-muted-foreground">
-                Processing on server...
+                {t("video.render_panel.server_processing")}
               </p>
             )}
           </div>
@@ -241,7 +246,7 @@ export function RenderPanel({
 
       {/* Audio settings */}
       <div className="rounded-lg border p-4">
-        <p className="mb-3 text-sm font-medium">Audio</p>
+        <p className="mb-3 text-sm font-medium">{t("video.audio_section")}</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">{t("video.bgm_path")}</Label>

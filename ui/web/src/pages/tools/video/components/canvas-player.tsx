@@ -137,7 +137,7 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
           variant="ghost"
           size="icon-sm"
           onClick={() => player.seek(0)}
-          aria-label="Go to start"
+          aria-label={t("video.canvas.start")}
           className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
         >
           <SkipBack className="h-4 w-4" />
@@ -147,7 +147,7 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
           variant="ghost"
           size="icon-sm"
           onClick={() => player.stepFrame(-1)}
-          aria-label="Previous frame"
+          aria-label={t("video.canvas.prev_frame")}
           className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -167,7 +167,7 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
           variant="ghost"
           size="icon-sm"
           onClick={() => player.stepFrame(1)}
-          aria-label="Next frame"
+          aria-label={t("video.canvas.next_frame")}
           className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
         >
           <ChevronRight className="h-4 w-4" />
@@ -177,7 +177,7 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
           variant="ghost"
           size="icon-sm"
           onClick={() => player.seek(totalDuration)}
-          aria-label="Go to end"
+          aria-label={t("video.canvas.end")}
           className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
         >
           <SkipForward className="h-4 w-4" />

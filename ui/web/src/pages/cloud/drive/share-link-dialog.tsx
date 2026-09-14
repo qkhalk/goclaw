@@ -14,6 +14,7 @@ import { useClipboard } from "@/hooks/use-clipboard";
 import { useHttp } from "@/hooks/use-ws";
 import { toast } from "@/stores/use-toast-store";
 import { opErrorToast } from "./op-error";
+import { rawPath } from "./paths";
 
 /** "Sao chép liên kết": POST files/publiclink (Phase 4) for one path, show the
  * URL with a copy button and the public-access warning. Provider gaps (e.g.
@@ -46,7 +47,7 @@ export function ShareLinkDialog({
     setLoading(true);
     setUrl(null);
     http
-      .post<{ url: string }>(`/v1/cloud/accounts/${accountId}/files/publiclink`, { path })
+      .post<{ url: string }>(`/v1/cloud/accounts/${accountId}/files/publiclink`, { path: rawPath(path) })
       .then((res) => {
         if (!cancelled) setUrl(res.url);
       })

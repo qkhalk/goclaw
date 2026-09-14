@@ -1,18 +1,7 @@
 {
-  "title": "Công cụ",
-  "description": "Tiện ích đa dạng — phần xử lý nặng chạy ở nơi phù hợp nhất.",
-  "hub": {
-    "open": "Mở",
-    "client_badge": "Chạy trên trình duyệt",
-    "server_badge": "Render trên server",
-    "video_title": "Render video",
-    "video_desc": "Biến storyboard gồm ảnh, video và màu thành file MP4 với phụ đề, hiệu ứng Ken Burns và nhạc nền.",
-    "watermark_title": "Xóa watermark Gemini",
-    "watermark_desc": "Xóa watermark Gemini hiển thị trên ảnh AI. 100% xử lý phía client — file không bao giờ rời khỏi trình duyệt."
-  },
   "video": {
-    "title": "Render video",
-    "description": "Soạn storyboard và render thành MP4 qua pipeline ffmpeg phía server.",
+    "title": "Trình sửa video",
+    "description": "Soạn cảnh trên timeline canvas, xem trước tức thì và xuất video ngay trong trình duyệt — job nặng có thể gửi render server.",
     "composer": "Storyboard",
     "new_job": "Render mới",
     "jobs_title": "Job render",
@@ -51,7 +40,14 @@
     "pos_center": "Giữa",
     "pos_bottom": "Dưới",
     "font_size": "Cỡ chữ",
-    "canvas": "Khung hình",
+    "canvas": {
+      "play": "Phát",
+      "pause": "Tạm dừng",
+      "start": "Về đầu",
+      "prev_frame": "Khung trước",
+      "next_frame": "Khung sau",
+      "end": "Tới cuối"
+    },
     "aspect": "Tỷ lệ",
     "width": "Rộng",
     "height": "Cao",
@@ -76,7 +72,7 @@
       "cancelled": "Đã hủy"
     },
     "progress": "Tiến độ",
-    "created": "Tạo lúc",
+    "created": "Đã tạo job render",
     "finished": "Xong lúc",
     "cancel": "Hủy",
     "cancel_confirm_title": "Hủy job render này?",
@@ -96,10 +92,6 @@
       "editor": "Biên tập",
       "render": "Xuất video"
     },
-    "canvas": {
-      "play": "Phát",
-      "pause": "Tạm dừng"
-    },
     "timeline": {
       "title": "Dòng thời gian",
       "undo": "Hoàn tác",
@@ -117,12 +109,24 @@
       "server_method": "Xuất trên server",
       "client_ok": "Trình duyệt OK",
       "server_recommended": "Khuyến nghị dùng server",
-      "render_button": "Bắt đầu xuất"
-    }
+      "render_button": "Bắt đầu xuất",
+      "hardware": "Phần cứng",
+      "cores": "CPU: {{n}} nhân",
+      "ram": "RAM: {{n}} GB",
+      "percent": "Hoàn tất {{pct}}%",
+      "server_processing": "Đang xử lý trên server…",
+      "client_hint": "Xuất trên trình duyệt ghi canvas theo thời gian thực (chỉ video, không có nhạc nền). Video càng dài xuất càng lâu.",
+      "export_complete": "Xuất video hoàn tất!",
+      "export_failed": "Xuất video thất bại: {{error}}",
+      "server_failed": "Xuất trên server thất bại"
+    },
+    "jobs_refresh": "Làm mới job",
+    "audio_section": "Âm thanh",
+    "narration_placeholder": "Lời thoại của cảnh cho TTS…"
   },
   "watermark": {
-    "title": "Xóa watermark Gemini",
-    "description": "Xóa watermark Gemini hiển thị trên ảnh AI bằng phép trộn alpha nghịch. Mọi thứ chạy trong trình duyệt — ảnh không bị tải lên đâu cả.",
+    "title": "Xóa watermark",
+    "description": "Xóa watermark khỏi ảnh và video ngắn ngay trên trình duyệt — kể cả watermark Gemini trên ảnh AI. File không bao giờ rời khỏi thiết bị của bạn.",
     "privacy": "100% cục bộ — không tải gì lên server. Chỉ xử lý watermark hiển thị (không phải dấu vô hình như SynthID).",
     "drop_title": "Kéo thả ảnh vào đây",
     "drop_hint": "hoặc bấm để chọn file — PNG/JPEG/WebP, hỗ trợ nhiều file",
@@ -154,6 +158,7 @@
       "before": "Trước",
       "after": "Sau",
       "drag_to_compare": "Kéo để so sánh"
-    }
+    },
+    "drop_title_video": "Kéo thả video vào đây"
   }
 }

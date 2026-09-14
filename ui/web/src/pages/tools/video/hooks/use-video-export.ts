@@ -58,6 +58,30 @@ function detectHardware(): HardwareInfo {
   return { cores, memoryGB, recommendation };
 }
 
+// ── MediaRecorder container support ──
+
+/** Best container the browser can actually record. MP4 first (plays
+ * everywhere) with a WebM fallback chain; "" lets the browser pick. */
+function pickMimeType(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = [
+    "video/mp4;codecs=avc1.42E01E",
+    "video/mp4",
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+  ];
+  for (const mime of candidates) {
+    if (MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return "";
+}
+
+/** File extension matching the recorded container. */
+export function exportExtension(blob: Blob): string {
+  return blob.type.includes("mp4") ? "mp4" : "webm";
+}
+
 // ── Image loading helper ──
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -215,24 +239,36 @@ function renderSceneToCanvas(
   }
 }
 
-// ── Client-side export via WebCodecs ──
+// ── Client-side export (single-pass MediaRecorder, wall-clock paced) ──
 
-async function exportToMP4(
+/** Render the storyboard to a video Blob entirely in the browser.
+ *
+ * MediaRecorder captures a canvas stream in REAL time, so frames are drawn
+ * against the wall clock: drawing frame for elapsed time t keeps the output
+ * duration equal to the storyboard duration no matter the display refresh
+ * rate. (WebCodecs would allow faster-than-realtime encoding but there is no
+ * muxer in the bundle to containerize the raw H.264 chunks.) */
+async function exportWithMediaRecorder(
   storyboard: Storyboard,
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
 ): Promise<Blob> {
+  if (typeof MediaRecorder === "undefined") {
+    throw new Error("MediaRecorder is not supported in this browser");
+  }
+
   const { width, height, fps } = storyboard.canvas;
   const totalSec = totalDuration(storyboard.scenes);
-  const totalFrames = Math.ceil(totalSec * fps);
+  if (totalSec <= 0) throw new Error("Storyboard has no duration");
 
-  // Create offscreen canvas
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D context unavailable");
 
-  // Preload all images
+  // Preload all images (video scenes fall back to the dark placeholder —
+  // same as the preview player).
   const imageCache = new Map<string, HTMLImageElement>();
   for (const scene of storyboard.scenes) {
     if ((scene.type === "image" || scene.type === "video") && scene.source) {
@@ -247,102 +283,62 @@ async function exportToMP4(
     }
   }
 
-  // Check WebCodecs support
-  if (typeof VideoEncoder === "undefined" || typeof VideoFrame === "undefined") {
-    throw new Error("WebCodecs API not supported in this browser");
-  }
-
-  // Collect encoded chunks
-  const chunks: EncodedVideoChunk[] = [];
-  const encoder = new VideoEncoder({
-    output: (chunk) => {
-      chunks.push(chunk);
-    },
-    error: (e) => {
-      console.error("VideoEncoder error:", e);
-    },
-  });
-
-  encoder.configure({
-    codec: "avc1.42E01E", // H.264 Baseline
-    width,
-    height,
-    bitrate: 2_000_000,
-    framerate: fps,
-  });
-
-  // Encode frame by frame
-  for (let frame = 0; frame < totalFrames; frame++) {
-    if (signal?.aborted) {
-      throw new Error("Export cancelled");
-    }
-
-    const time = frame / fps;
-    const { index, localTime } = sceneAtTime(storyboard.scenes, time);
-    const scene = storyboard.scenes[index];
-    if (scene) {
-      renderSceneToCanvas(ctx, canvas, scene, localTime, imageCache);
-    }
-
-    const videoFrame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) });
-    await encoder.encode(videoFrame, { keyFrame: frame % (fps * 2) === 0 });
-    videoFrame.close();
-
-    if (onProgress && frame % 10 === 0) {
-      onProgress(Math.round((frame / totalFrames) * 100));
-    }
-  }
-
-  await encoder.flush();
-
-  if (onProgress) onProgress(100);
-
-  // Combine chunks into MP4 using Mp4Muxer or return raw WebM via MediaRecorder fallback
-  // For simplicity, return a blob with the chunks encoded as webm
-  if (chunks.length === 0) {
-    throw new Error("No frames encoded");
-  }
-
-  // Use MediaRecorder as a simpler fallback for the blob
   const stream = canvas.captureStream(fps);
-  const recorder = new MediaRecorder(stream, {
-    mimeType: "video/webm;codecs=vp9",
-    videoBitsPerSecond: 2_000_000,
-  });
+  const mimeType = pickMimeType();
+  const recorder = new MediaRecorder(
+    stream,
+    mimeType ? { mimeType, videoBitsPerSecond: 2_000_000 } : { videoBitsPerSecond: 2_000_000 },
+  );
 
-  const blobs: Blob[] = [];
-  return new Promise<Blob>((resolve, reject) => {
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) blobs.push(e.data);
-    };
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => {
+    if (e.data.size > 0) chunks.push(e.data);
+  };
+
+  const finished = new Promise<Blob>((resolve, reject) => {
     recorder.onstop = () => {
-      resolve(new Blob(blobs, { type: "video/webm" }));
-    };
-    recorder.onerror = () => reject(new Error("MediaRecorder error"));
-
-    recorder.start();
-
-    // Replay frames to MediaRecorder
-    let frameIdx = 0;
-    const replayFrame = () => {
-      if (frameIdx >= totalFrames) {
-        recorder.stop();
+      stream.getTracks().forEach((track) => track.stop());
+      if (chunks.length === 0) {
+        reject(new Error("No frames recorded"));
         return;
       }
-      const time = frameIdx / fps;
-      const { index, localTime } = sceneAtTime(storyboard.scenes, time);
+      resolve(new Blob(chunks, { type: recorder.mimeType || "video/webm" }));
+    };
+    recorder.onerror = () => reject(new Error("MediaRecorder error"));
+  });
+
+  recorder.start(250);
+
+  // Wall-clock draw loop: one rAF per display frame, scene chosen by elapsed
+  // time so the recording always lasts exactly totalSec.
+  const startMs = performance.now();
+  const totalMs = totalSec * 1000;
+
+  await new Promise<void>((resolve) => {
+    const step = () => {
+      const elapsedMs = performance.now() - startMs;
+      if (signal?.aborted || elapsedMs >= totalMs) {
+        resolve();
+        return;
+      }
+      const { index, localTime } = sceneAtTime(storyboard.scenes, elapsedMs / 1000);
       const scene = storyboard.scenes[index];
       if (scene) {
         renderSceneToCanvas(ctx, canvas, scene, localTime, imageCache);
       }
-      frameIdx++;
-      if (frameIdx % 10 === 0 && onProgress) {
-        onProgress(Math.round((frameIdx / totalFrames) * 100));
-      }
-      requestAnimationFrame(replayFrame);
+      if (onProgress) onProgress(Math.min(99, Math.round((elapsedMs / totalMs) * 100)));
+      requestAnimationFrame(step);
     };
-    requestAnimationFrame(replayFrame);
+    requestAnimationFrame(step);
   });
+
+  // Let the encoder flush the last drawn frame before closing the container.
+  await new Promise((r) => setTimeout(r, 150));
+  if (recorder.state !== "inactive") recorder.stop();
+
+  if (signal?.aborted) throw new Error("Export cancelled");
+  if (onProgress) onProgress(100);
+  return finished;
 }
 
 // ── Hook ──
@@ -362,7 +358,7 @@ export function useVideoExport(): UseVideoExportReturn {
       setProgress(0);
 
       try {
-        const blob = await exportToMP4(
+        const blob = await exportWithMediaRecorder(
           sb,
           (p) => {
             setProgress(p);
