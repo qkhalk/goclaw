@@ -1,10 +1,12 @@
 package http
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -12,31 +14,112 @@ import (
 	videopkg "github.com/nextlevelbuilder/goclaw/internal/video"
 )
 
+// maxStoryboardBytes caps the inline storyboard JSON body size.
+const maxStoryboardBytes = 1 << 20 // 1 MB
+
 // VideoHandler exposes the HTTP API for video render jobs.
 //
+//	POST   /v1/video/jobs       — create a job from a storyboard JSON
 //	GET    /v1/video/jobs       — list jobs for caller's tenant
 //	GET    /v1/video/jobs/{id}  — get one job by ID
 //	DELETE /v1/video/jobs/{id}  — cancel a queued/rendering job
 type VideoHandler struct {
-	videoJobs store.VideoRenderJobStore
-	worker    *videopkg.WorkerClient
-	enabled   bool
+	videoJobs  store.VideoRenderJobStore
+	worker     *videopkg.WorkerClient
+	dispatcher *videopkg.Dispatcher
+	enabled    bool
 }
 
-// NewVideoHandler creates a VideoHandler.
-func NewVideoHandler(videoJobs store.VideoRenderJobStore, worker *videopkg.WorkerClient, enabled bool) *VideoHandler {
+// NewVideoHandler creates a VideoHandler. dispatcher may be nil (the job is
+// then picked up on the dispatcher's next poll tick).
+func NewVideoHandler(videoJobs store.VideoRenderJobStore, worker *videopkg.WorkerClient, dispatcher *videopkg.Dispatcher, enabled bool) *VideoHandler {
 	return &VideoHandler{
-		videoJobs: videoJobs,
-		worker:    worker,
-		enabled:   enabled,
+		videoJobs:  videoJobs,
+		worker:     worker,
+		dispatcher: dispatcher,
+		enabled:    enabled,
 	}
 }
 
 // RegisterRoutes registers all video routes on the given mux.
 func (h *VideoHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /v1/video/jobs", requireAuth("", h.handleCreateJob))
 	mux.HandleFunc("GET /v1/video/jobs", requireAuth("", h.handleListJobs))
 	mux.HandleFunc("GET /v1/video/jobs/{id}", requireAuth("", h.handleGetJob))
 	mux.HandleFunc("DELETE /v1/video/jobs/{id}", requireAuth("", h.handleCancelJob))
+}
+
+// --- POST /v1/video/jobs ---
+// Body: {"storyboard": {...}} or {"storyboard_json": "<raw json>"} — the same
+// shapes the render_video agent tool accepts.
+
+func (h *VideoHandler) handleCreateJob(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w) {
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxStoryboardBytes)
+	var req struct {
+		Storyboard     *json.RawMessage `json:"storyboard"`
+		StoryboardJSON string           `json:"storyboard_json"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body: " + err.Error()})
+		return
+	}
+
+	var raw []byte
+	switch {
+	case req.Storyboard != nil:
+		raw = []byte(*req.Storyboard)
+	case req.StoryboardJSON != "":
+		raw = []byte(req.StoryboardJSON)
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provide storyboard or storyboard_json"})
+		return
+	}
+
+	// Validate against the shared contract (same rules as the agent tool).
+	var sb videopkg.Storyboard
+	if err := json.Unmarshal(raw, &sb); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid storyboard JSON: " + err.Error()})
+		return
+	}
+	if err := sb.Validate(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "storyboard validation failed: " + err.Error()})
+		return
+	}
+
+	tenantID := store.TenantIDFromContext(r.Context())
+	userID := store.UserIDFromContext(r.Context())
+
+	jobID := uuid.New().String()
+	now := time.Now()
+	job := &store.VideoRenderJob{
+		ID:             jobID,
+		TenantID:       tenantID.String(),
+		UserID:         userID,
+		Status:         string(videopkg.JobQueued),
+		Engine:         "ffmpeg",
+		StoryboardJSON: string(raw),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := h.videoJobs.Create(r.Context(), job); err != nil {
+		slog.Error("video: create job failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create render job"})
+		return
+	}
+	if h.dispatcher != nil {
+		h.dispatcher.Notify()
+	}
+
+	slog.Info("video: job created via http", "job_id", jobID, "scenes", len(sb.Scenes), "user_id", userID)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"jobId":  jobID,
+		"status": string(videopkg.JobQueued),
+		"scenes": len(sb.Scenes),
+	})
 }
 
 // --- GET /v1/video/jobs ---

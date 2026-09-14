@@ -320,8 +320,8 @@ export function DriveFileArea({
       } else {
         window.location.href = res.auth_url;
       }
-    } catch {
-      setPasteError("");
+    } catch (e) {
+      setPasteError(e instanceof Error ? e.message : String(e));
     } finally {
       setConnecting(false);
     }
@@ -386,6 +386,7 @@ export function DriveFileArea({
               viewMode={viewMode}
               onViewModeChange={onViewModeChange}
               onRefresh={onRefresh}
+              refreshing={files.isFetching}
               right={
                 <>
                   <input

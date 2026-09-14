@@ -92,6 +92,11 @@ func (d *Dispatcher) loop() {
 // pollOnce processes all rendering jobs: submits queued ones, polls active
 // ones, and handles timeouts.
 func (d *Dispatcher) pollOnce() {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("video.dispatcher: pollOnce panic", "recover", r)
+		}
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -99,6 +104,9 @@ func (d *Dispatcher) pollOnce() {
 	for {
 		job, err := d.store.ClaimNextQueued(ctx)
 		if err != nil {
+			if err != store.ErrNoQueuedJobs {
+				slog.Warn("video.dispatcher: claim failed", "error", err)
+			}
 			break // ErrNoQueuedJobs or other error
 		}
 		d.submitJob(ctx, job)
