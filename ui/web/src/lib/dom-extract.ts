@@ -6,6 +6,11 @@
  * scripts); the user's browser loaded the images/CSS and laid the page out —
  * this module turns that DOM into readable markdown for the agent, keeping
  * the parsing CPU off the server.
+ *
+ * With `annotateRefs` the walk also tags interactive elements with
+ * data-gcref="eN" (the tag doubles as the action selector for click/type)
+ * and emits an [eN] marker next to each one, so the agent can operate the
+ * page via web_browse actions.
  */
 
 const SKIP_TAGS = new Set([
@@ -14,26 +19,76 @@ const SKIP_TAGS = new Set([
   "TEXTAREA", "LABEL", "PICTURE", "SOURCE", "VIDEO", "AUDIO", "CANVAS", "MAP",
 ]);
 
+const READ_SKIP_TAGS = new Set([...SKIP_TAGS]);
+
+/** Tags whose subtree is skipped when reading but which get an [eN] ref. */
+const REF_TAGS = new Set(["BUTTON", "SELECT", "TEXTAREA", "INPUT", "SUMMARY"]);
+
 /** Max extracted markdown size sent back to the server. */
 export const MAX_EXTRACT_CHARS = 200_000;
 
 /** Minimum body text for the extraction to be considered useful. */
 export const MIN_USEFUL_CHARS = 80;
 
+/** Ref attribute stamped onto interactive elements for click/type actions. */
+export const REF_ATTR = "data-gcref";
+
+export interface ExtractResult {
+  markdown: string;
+  /** Live elements for refs e1..eN (index 0 = e1). Empty when not annotating. */
+  refs: Element[];
+}
+
 interface WalkCtx {
   out: string[];
   listDepth: number;
   ordered: boolean[];
   counters: number[];
+  /** When present, interactive elements are tagged + emitted as [eN]. */
+  refs: Element[] | null;
 }
 
 /** Extract readable markdown from a document (or document body). */
 export function extractMarkdown(doc: Document): string {
   const body = doc.body ?? doc.documentElement;
   if (!body) return "";
-  const ctx: WalkCtx = { out: [], listDepth: 0, ordered: [], counters: [] };
+  const ctx: WalkCtx = { out: [], listDepth: 0, ordered: [], counters: [], refs: null };
   walkChildren(body, ctx);
   return clean(ctx.out.join(""));
+}
+
+/** Like extractMarkdown, but tags interactive elements and returns ref info. */
+export function extractPageWithRefs(doc: Document): ExtractResult {
+  const body = doc.body ?? doc.documentElement;
+  if (!body) return { markdown: "", refs: [] };
+  const ctx: WalkCtx = { out: [], listDepth: 0, ordered: [], counters: [], refs: [] };
+  walkChildren(body, ctx);
+  return { markdown: clean(ctx.out.join("")), refs: ctx.refs ?? [] };
+}
+
+/** Look up the ref element for an "[eN]" id (1-based) in the tagged doc. */
+export function refElement(doc: Document, ref: string): Element | null {
+  const n = Number.parseInt(ref.replace(/^e/i, ""), 10);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return doc.querySelector(`[${REF_ATTR}="e${n}"]`);
+}
+
+function isInteractive(el: Element): boolean {
+  const tag = el.tagName.toUpperCase();
+  if (tag === "A" && el.getAttribute("href")) return true;
+  if (REF_TAGS.has(tag)) return true;
+  const role = el.getAttribute("role");
+  return role === "button" || role === "link" || role === "textbox";
+}
+
+function describeControl(el: Element): string {
+  const hint =
+    el.getAttribute("placeholder") ??
+    el.getAttribute("aria-label") ??
+    el.getAttribute("name") ??
+    el.getAttribute("type") ??
+    "";
+  return hint ? ` (${hint.slice(0, 60)})` : "";
 }
 
 function walkChildren(node: Element | DocumentFragment | Node, ctx: WalkCtx): void {
@@ -52,8 +107,31 @@ function walk(node: Node, ctx: WalkCtx): void {
   const el = node as Element;
   const tag = el.tagName.toUpperCase();
 
-  if (SKIP_TAGS.has(tag)) return;
   if (el.getAttribute("aria-hidden") === "true" || el.getAttribute("hidden") !== null) return;
+
+  // Ref-annotation mode: interactive elements become [eN] markers. Links keep
+  // their markdown form; controls get a descriptor (their subtrees are noise).
+  if (ctx.refs && isInteractive(el)) {
+    ctx.refs.push(el);
+    el.setAttribute(REF_ATTR, `e${ctx.refs.length}`);
+    const marker = `[e${ctx.refs.length}]`;
+    if (tag === "A") {
+      const href = (el.getAttribute("href") ?? "").trim();
+      const inner = collapse(el.textContent ?? "") || href;
+      ctx.out.push(` [${inner}](<${href}>) ${marker} `);
+      return;
+    }
+    if (tag === "BUTTON" || tag === "SUMMARY" || roleIsClickable(el)) {
+      const label = collapse(el.textContent ?? "") || describeControl(el);
+      ctx.out.push(` ${marker} **${label || tag.toLowerCase()}** `);
+      return;
+    }
+    // INPUT / SELECT / TEXTAREA descriptors.
+    ctx.out.push(` ${marker} **${tag.toLowerCase()}**${describeControl(el)} `);
+    return;
+  }
+
+  if (READ_SKIP_TAGS.has(tag)) return;
 
   switch (tag) {
     case "H1": return heading(el, ctx, 1);
@@ -92,6 +170,11 @@ function walk(node: Node, ctx: WalkCtx): void {
     case "FIGURE": return block(el, ctx, "\n\n", "\n\n");
     default: return walkChildren(el, ctx);
   }
+}
+
+function roleIsClickable(el: Element): boolean {
+  const role = el.getAttribute("role");
+  return role === "button" || role === "link";
 }
 
 function heading(el: Element, ctx: WalkCtx, level: number): void {
