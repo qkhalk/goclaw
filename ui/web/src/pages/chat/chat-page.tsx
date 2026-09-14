@@ -368,7 +368,10 @@ export function ChatPage() {
         onClose={() => setBrowserPanelOpen(false)}
         state={browserPanel.state}
         onIframeLoad={browserPanel.handleIframeLoad}
+        onBack={browserPanel.goBack}
+        onForward={browserPanel.goForward}
         onReload={browserPanel.reload}
+        onURLSubmit={browserPanel.openURL}
       />
     </div>
   );

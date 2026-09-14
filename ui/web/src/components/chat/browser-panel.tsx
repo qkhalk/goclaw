@@ -1,9 +1,12 @@
 // Browser panel (client-side browsing): renders the sanitized relay document
-// in a sandboxed same-origin iframe. The user's browser loads every
-// subresource directly from the origin site — the server only relayed the
-// single HTML document (web_browse). Extraction posts back from the hook.
-import { ExternalLink, Globe, RotateCw, X } from "lucide-react";
-import { useRef } from "react";
+// in a sandboxed same-origin iframe with ZCode-style navigation chrome —
+// back/forward/reload, an editable URL bar, open-in-new-tab. The user's
+// browser loads every subresource directly from the origin site; link clicks
+// and URL-bar entries navigate through the gateway's sanitized relay
+// (browser.panel.open), and agent actions operate the live page via the
+// use-browser-panel hook.
+import { ArrowLeft, ArrowRight, ExternalLink, Globe, RotateCw, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BrowserPanelState } from "@/pages/chat/hooks/use-browser-panel";
 import { cn } from "@/lib/utils";
@@ -13,17 +16,33 @@ interface BrowserPanelProps {
   onClose: () => void;
   state: BrowserPanelState;
   onIframeLoad: (iframe: HTMLIFrameElement | null) => void;
+  onBack: () => void;
+  onForward: () => void;
   onReload: () => void;
+  onURLSubmit: (url: string) => void;
 }
 
-export function BrowserPanel({ open, onClose, state, onIframeLoad, onReload }: BrowserPanelProps) {
+export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onForward, onReload, onURLSubmit }: BrowserPanelProps) {
   const { t } = useTranslation("chat");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [urlDraft, setUrlDraft] = useState(state.url);
+
+  // Keep the URL bar in sync while the user is not editing it.
+  useEffect(() => {
+    setUrlDraft(state.url);
+  }, [state.url]);
 
   if (!open) return null;
 
   const showIframe = state.relayUrl !== "" && state.status !== "error";
   const displayTitle = state.title || state.finalUrl || t("browserPanel.title");
+
+  const submitURL = () => {
+    const trimmed = urlDraft.trim();
+    if (!trimmed || trimmed === state.url) return;
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    onURLSubmit(withScheme);
+  };
 
   return (
     <div className={cn(
@@ -31,61 +50,79 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onReload }: B
       "max-sm:fixed max-sm:inset-0 max-sm:z-50 max-sm:w-full max-sm:shadow-xl",
     )}>
       {/* Header: title + actions */}
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2 safe-top">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2 safe-top">
         <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
           <Globe className="h-4 w-4 shrink-0 text-primary" />
           <span className="truncate">{displayTitle}</span>
         </span>
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={() => window.open(state.finalUrl, "_blank", "noopener")}
-            disabled={!state.finalUrl}
-            title={t("browserPanel.openNewTab")}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onReload}
-            disabled={!state.relayUrl}
-            title={t("browserPanel.reload")}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
-          >
-            <RotateCw className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            title={t("browserPanel.close")}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => window.open(state.finalUrl, "_blank", "noopener")}
+          disabled={!state.finalUrl}
+          title={t("browserPanel.openNewTab")}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* URL bar (read-only): shows where assets actually come from */}
-      {state.finalUrl && (
-        <div className="border-b px-3 py-1.5">
-          <input
-            type="text"
-            readOnly
-            value={state.finalUrl}
-            onFocus={(e) => e.target.select()}
-            className="w-full rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground md:text-xs"
-            aria-label={t("browserPanel.urlBar")}
-          />
-        </div>
-      )}
+      {/* Navigation toolbar: back / forward / reload / URL bar (ZCode-style) */}
+      <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={!state.canBack}
+          title={t("browserPanel.back")}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onForward}
+          disabled={!state.canForward}
+          title={t("browserPanel.forward")}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <ArrowRight className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onReload}
+          disabled={!state.url}
+          title={t("browserPanel.reload")}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <RotateCw className="h-4 w-4" />
+        </button>
+        <input
+          type="text"
+          value={urlDraft}
+          onChange={(e) => setUrlDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submitURL();
+          }}
+          onBlur={() => setUrlDraft(state.url)}
+          placeholder={t("browserPanel.urlPlaceholder")}
+          spellCheck={false}
+          className="min-w-0 flex-1 rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground md:text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+          aria-label={t("browserPanel.urlBar")}
+        />
+        <button
+          type="button"
+          onClick={onClose}
+          title={t("browserPanel.close")}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
       {/* Content */}
-      <div className="relative flex-1 overflow-hidden overscroll-contain">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden overscroll-contain">
         {showIframe ? (
           <iframe
             ref={iframeRef}
-            key={`${state.relayUrl}#${state.reloadNonce}`}
             src={state.relayUrl}
             title={displayTitle}
             sandbox="allow-same-origin"
@@ -108,11 +145,16 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onReload }: B
       </div>
 
       {/* Status bar */}
-      <div className="border-t px-3 py-1.5 text-xs text-muted-foreground safe-bottom">
-        {state.status === "loading" && t("browserPanel.loading")}
-        {state.status === "ready" && t("browserPanel.ready")}
-        {state.status === "error" && t("browserPanel.errorHint")}
-        {state.status === "idle" && t("browserPanel.empty")}
+      <div className="shrink-0 border-t px-3 py-1.5 text-xs text-muted-foreground safe-bottom">
+        {state.note
+          ? state.note
+          : state.status === "loading"
+            ? t("browserPanel.loading")
+            : state.status === "ready"
+              ? t("browserPanel.staticNote")
+              : state.status === "error"
+                ? t("browserPanel.errorHint")
+                : t("browserPanel.empty")}
       </div>
     </div>
   );
