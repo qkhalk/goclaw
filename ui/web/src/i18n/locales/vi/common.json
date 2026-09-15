@@ -141,6 +141,10 @@
     "uploading": "Đang tải lên...",
     "uploadCount": "Tải lên {{count}} tệp"
   },
+  "planCard": {
+    "title": "Kế hoạch công việc",
+    "progress": "{{done}}/{{total}} hoàn thành"
+  },
   "errors": {
     "serverError": "Đã xảy ra lỗi. Vui lòng thử lại sau."
   }

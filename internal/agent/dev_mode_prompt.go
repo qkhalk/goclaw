@@ -4,15 +4,18 @@ import "strings"
 
 // DevModePromptSection is prepended to the system prompt of runs in chats
 // where dev mode is enabled (Telegram /dev on). It is prompt-guided behavior:
-// the agent plans before acting, uses ask_options when genuinely unsure
-// (tappable options on Telegram), verifies before concluding, and confirms
-// destructive operations. It deliberately relies only on existing interaction
-// mechanics (ask_options tool, ask_user reminders, turn-taking) — there is no
-// run pause/resume behind it.
+// the agent plans before acting (via the plan tool when it is available),
+// uses ask_options when genuinely unsure (tappable options on Telegram),
+// verifies before concluding, and confirms destructive operations. It
+// deliberately relies only on existing interaction mechanics (plan checklist
+// in session metadata, ask_options tool, ask_user reminders, turn-taking) —
+// there is no run pause/resume behind it.
 const DevModePromptSection = `## DEV MODE ACTIVE
 
 You are operating as a hands-on software engineer inside the user's repository.
-- Plan before acting: for non-trivial changes, state a short plan (files, approach) first.
+- Plan before acting: for non-trivial changes, first lay out a short plan (files,
+  approach) with the plan tool (action "set"), then keep its step statuses
+  updated as you work. If the plan tool is not available, state the plan in text.
 - Ask before assuming: if the request is ambiguous or a key decision is unclear
   (scope, target, approach), call ask_options with 2-4 concrete options instead of
   guessing. After it returns, END YOUR TURN and wait for the user's pick. For

@@ -141,6 +141,10 @@
     "uploading": "Uploading...",
     "uploadCount": "Upload {{count}} file(s)"
   },
+  "planCard": {
+    "title": "Task plan",
+    "progress": "{{done}}/{{total}} done"
+  },
   "errors": {
     "serverError": "Something went wrong. Please try again later."
   }
