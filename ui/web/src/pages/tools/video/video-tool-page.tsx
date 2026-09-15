@@ -31,6 +31,7 @@ import {
 } from "./hooks/use-video";
 import { useTimeline, type Scene } from "./hooks/use-timeline";
 import { useVideoExport, exportExtension } from "./hooks/use-video-export";
+import { useWebCodecsExport } from "./hooks/use-webcodecs-export";
 import { CanvasPlayer } from "./components/canvas-player";
 import { Timeline } from "./components/timeline";
 import { SceneCard } from "./components/scene-card";
@@ -136,6 +137,18 @@ export function VideoToolPage() {
     cancel: cancelExport,
   } = useVideoExport();
 
+  // WebCodecs export (faster-than-realtime, with overload detection)
+  const {
+    isSupported: webCodecsSupported,
+    exportMethod,
+    setExportMethod,
+    exportWebCodecs,
+    isExporting: isWebCodecsExporting,
+    progress: webCodecsProgress,
+    isOverloaded,
+    cancel: cancelWebCodecsExport,
+  } = useWebCodecsExport();
+
   const totalSec = useMemo(
     () => sb.scenes.reduce((acc, s) => acc + (Number(s.duration_sec) || 0), 0),
     [sb.scenes],
@@ -204,6 +217,31 @@ export function VideoToolPage() {
       await refresh();
     } catch {
       toast.error(t("video.render_panel.server_failed"));
+    }
+  }
+
+  /** WebCodecs export with automatic overload fallback to server. */
+  async function handleExportWebCodecs() {
+    try {
+      const blob = await exportWebCodecs(sb, (p) => {
+        if (p >= 100) {
+          toast.success(t("video.render_panel.export_complete"));
+        }
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `video-export.${exportExtension(blob)}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === "OVERLOADED") {
+        // Browser overloaded -- fall back to server export
+        toast.info(t("video.render_panel.overloaded_fallback"));
+        await handleExportServer();
+      } else if (e instanceof Error && e.message !== "Export cancelled") {
+        toast.error(t("video.render_panel.export_failed", { error: e.message }));
+      }
     }
   }
 
@@ -468,11 +506,16 @@ export function VideoToolPage() {
               updateMeta(nextMeta);
             }}
             hardware={hardware}
-            isExporting={isExporting}
-            progress={progress}
+            isExporting={isExporting || isWebCodecsExporting}
+            progress={isWebCodecsExporting ? webCodecsProgress : progress}
             onExportClient={handleExportClient}
             onExportServer={handleExportServer}
-            onCancel={cancelExport}
+            onCancel={isWebCodecsExporting ? cancelWebCodecsExport : cancelExport}
+            webCodecsSupported={webCodecsSupported}
+            exportMethod={exportMethod}
+            onExportMethodChange={setExportMethod}
+            onExportWebCodecs={handleExportWebCodecs}
+            isOverloaded={isOverloaded}
           />
 
           {/* Submit to server button */}

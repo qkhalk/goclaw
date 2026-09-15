@@ -50,6 +50,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/security"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	videopkg "github.com/nextlevelbuilder/goclaw/internal/video"
 	"github.com/nextlevelbuilder/goclaw/internal/systemmessages"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
@@ -626,6 +627,17 @@ func runGateway() {
 
 	skillsLoader, skillSearchTool, globalSkillsDir, bundledSkillsDir, builtinSkillsDir := setupSkillsSystem(cfg, workspace, dataDir, pgStores, toolsReg, providerRegistry, msgBus)
 	_ = skillSearchTool // used via wireExtras → skillsLoader; kept for type clarity
+
+	// Video designer agent: ensure the design-only agent + its design skills
+	// exist (idempotent, master tenant). Needed by the /tools/video designer
+	// column; harmless when the video surface itself is off.
+	if cfg.Video.VideoEnabled() && pgStores.Agents != nil {
+		var skillManage store.SkillManageStore
+		if sm, ok := pgStores.Skills.(store.SkillManageStore); ok {
+			skillManage = sm
+		}
+		go videopkg.EnsureDesignerAgent(context.Background(), cfg, pgStores.Agents, skillManage, dataDir)
+	}
 
 	// Register cron/heartbeat/session/message tools, aliases, allow-paths, store wiring.
 	heartbeatTool, hasMemory := wireExtraTools(pgStores, toolsReg, msgBus, workspace, dataDir, agentCfg, globalSkillsDir, builtinSkillsDir, cfg.Cron.CommandEnabled)

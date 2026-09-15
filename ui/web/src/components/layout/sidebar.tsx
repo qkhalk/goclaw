@@ -35,6 +35,7 @@ import {
   CloudCog,
   Clapperboard,
   Eraser,
+  Wrench,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SidebarGroup } from "./sidebar-group";
@@ -113,6 +114,7 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
         )}
 
         <SidebarGroup label={t("groups.tools")} collapsed={collapsed}>
+          <SidebarItem to={ROUTES.TOOLS} icon={Wrench} label={t("nav.toolsHub")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.TOOLS_VIDEO} icon={Clapperboard} label={t("nav.videoEditor")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.TOOLS_WATERMARK} icon={Eraser} label={t("nav.watermarkRemover")} collapsed={collapsed} />
         </SidebarGroup>

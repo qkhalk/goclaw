@@ -1,4 +1,14 @@
 {
+  "hub": {
+    "title": "工具",
+    "description": "创意与效率工具，触手可及。",
+    "tools": {
+      "videoEditor": "视频编辑器",
+      "videoEditor_desc": "在画布时间线上编辑场景、预览并导出。",
+      "watermarkRemover": "水印去除器",
+      "watermarkRemover_desc": "去除图片和短视频中的水印。"
+    }
+  },
   "video": {
     "title": "视频编辑器",
     "description": "在画布时间线上编辑场景、即时预览，并直接在浏览器中导出，重任务可交给服务器渲染。",
@@ -123,7 +133,13 @@
       "client_hint": "浏览器导出会实时录制画布（仅视频，不含背景音乐）。视频越长导出越慢。",
       "export_complete": "导出完成！",
       "export_failed": "导出失败：{{error}}",
-      "server_failed": "服务器导出失败"
+      "server_failed": "服务器导出失败",
+      "export_method": "导出方式",
+      "method_browser_fast": "浏览器（快速）",
+      "method_browser_quality": "浏览器（高质量）",
+      "webcodecs_method": "导出（WebCodecs）",
+      "overloaded_warning": "浏览器过载 -- 编码速度过慢，建议使用服务端导出。",
+      "overloaded_fallback": "浏览器过载 -- 自动切换到服务端导出。"
     },
     "jobs_refresh": "刷新任务",
     "audio_section": "音频",

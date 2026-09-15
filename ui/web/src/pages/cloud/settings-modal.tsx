@@ -123,9 +123,9 @@ export function SettingsModal({
           {isAdmin && <ScopeBindingsPanel provider={provider} />}
           {isAdmin && <SyncSection />}
 
-          <div className="flex flex-col gap-3 border-t pt-4">
+          <div className="flex flex-col gap-4 border-t pt-4">
             <Label className="text-sm font-medium">{t("settings.preview")}</Label>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label className="text-xs text-muted-foreground">{t("settings.thumbnail_size")}</Label>
               <RadioGroup
                 value={thumbSize}

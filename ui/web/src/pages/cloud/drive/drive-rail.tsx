@@ -114,8 +114,8 @@ export function DriveRail({
   const myDriveActive = !routeProvider && activeView === "";
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-3">
-      <div className="flex flex-1 flex-col gap-5">
+    <div className="flex h-full flex-col p-3">
+      <div className="flex flex-1 flex-col gap-5 overflow-y-auto">
         <nav className="flex flex-col gap-1">
           <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
             {t("drive.quick_views")}

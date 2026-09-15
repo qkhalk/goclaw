@@ -1,4 +1,14 @@
 {
+  "hub": {
+    "title": "Công cụ",
+    "description": "Công cụ sáng tạo và năng suất ngay trong tầm tay.",
+    "tools": {
+      "videoEditor": "Trình sửa video",
+      "videoEditor_desc": "Soạn cảnh trên timeline, xem trước và xuất video.",
+      "watermarkRemover": "Xoá watermark",
+      "watermarkRemover_desc": "Xoá watermark khỏi hình ảnh và video ngắn."
+    }
+  },
   "video": {
     "title": "Trình sửa video",
     "description": "Soạn cảnh trên timeline canvas, xem trước tức thì và xuất video ngay trong trình duyệt, job nặng có thể gửi render server.",
@@ -123,7 +133,13 @@
       "client_hint": "Xuất trên trình duyệt ghi canvas theo thời gian thực (chỉ video, không có nhạc nền). Video càng dài xuất càng lâu.",
       "export_complete": "Xuất video hoàn tất!",
       "export_failed": "Xuất video thất bại: {{error}}",
-      "server_failed": "Xuất trên server thất bại"
+      "server_failed": "Xuất trên server thất bại",
+      "export_method": "Phương thức xuất",
+      "method_browser_fast": "Trình duyệt (nhanh)",
+      "method_browser_quality": "Trình duyệt (chất lượng)",
+      "webcodecs_method": "Xuất (WebCodecs)",
+      "overloaded_warning": "Trình duyệt quá tải -- mã hóa quá chậm. Hãy dùng xuất trên server.",
+      "overloaded_fallback": "Trình duyệt quá tải -- chuyển sang xuất trên server."
     },
     "jobs_refresh": "Làm mới job",
     "audio_section": "Âm thanh",
