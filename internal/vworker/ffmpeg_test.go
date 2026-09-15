@@ -1,6 +1,8 @@
 package vworker
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,7 +39,11 @@ func TestBuildImageSceneArgs_KenBurnsCaption(t *testing.T) {
 		Caption:     &contract.Caption{Text: "Xin chào!", Position: "bottom", FontSize: 48},
 	}
 
-	args := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_001.mp4")
+	tmp := t.TempDir()
+	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_001.mp4", tmp, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Check that input is specified
 	if !containsArg(args, "-loop") {
@@ -63,9 +69,14 @@ func TestBuildImageSceneArgs_KenBurnsCaption(t *testing.T) {
 	if !strings.Contains(vf, "fontfile=") {
 		t.Errorf("expected fontfile in filtergraph, got: %s", vf)
 	}
-	// Check text is escaped
-	if !strings.Contains(vf, "Xin chào!") {
-		t.Errorf("expected caption text in filtergraph, got: %s", vf)
+	// Caption text goes through a textfile (arbitrary text survives ffmpeg
+	// filtergraph escaping) — the filtergraph references it, the file holds it.
+	if !strings.Contains(vf, "textfile=") {
+		t.Errorf("expected textfile in filtergraph, got: %s", vf)
+	}
+	capPath := filepath.Join(tmp, "caption_001.txt")
+	if _, err := os.Stat(capPath); err != nil {
+		t.Errorf("expected caption file at %s: %v", capPath, err)
 	}
 
 	// Check output file
@@ -83,7 +94,10 @@ func TestBuildImageSceneArgs_NoCaptionNoFont(t *testing.T) {
 		DurationSec: 3,
 	}
 
-	args := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4")
+	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	vfIdx := indexOfArg(args, "-vf")
 	if vfIdx < 0 {
@@ -155,7 +169,10 @@ func TestBuildColorSceneArgs_WithCaption(t *testing.T) {
 		Caption:     &contract.Caption{Text: "Ket thuc", Position: "center", FontSize: 32},
 	}
 
-	args := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_003.mp4")
+	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_003.mp4", t.TempDir(), 3)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Should use lavfi color source
 	if !containsArg(args, "-f") {
@@ -193,7 +210,10 @@ func TestBuildColorSceneArgs_NoCaption(t *testing.T) {
 		DurationSec: 1,
 	}
 
-	args := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4")
+	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	vfIdx := indexOfArg(args, "-vf")
 	if vfIdx < 0 {
