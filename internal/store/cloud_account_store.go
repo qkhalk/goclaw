@@ -31,9 +31,12 @@ type CloudAccount struct {
 	Settings       string     `json:"settings"` // JSON object string
 	// Shared exposes the account to every agent in the tenant (admin-set),
 	// not just its owner — the enterprise "company drive" pattern.
-	Shared    bool      `json:"shared"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Shared bool `json:"shared"`
+	// AgentAccess gates what AGENTS may do through the cloud/mail tools:
+	// none | read | write | full (empty/legacy rows behave as "read").
+	AgentAccess string    `json:"agent_access"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // Cloud binding scope types for cloud_account_bindings.
@@ -103,6 +106,9 @@ type CloudAccountStore interface {
 	// SetShared toggles the tenant-wide shared flag on one account (scoped to
 	// the ctx tenant+user — the owner or an admin acting in scope).
 	SetShared(ctx context.Context, id string, shared bool) error
+	// SetAgentAccess updates the per-account agent permission level
+	// (none|read|write|full; scoped to ctx tenant+user like SetShared).
+	SetAgentAccess(ctx context.Context, id string, access string) error
 	// UpdateTokens applies CloudAccountUpdate to the account with the given ID
 	// (scoped to ctx tenant+user). Returns ErrCloudAccountNotFound if missing.
 	UpdateTokens(ctx context.Context, id string, upd CloudAccountUpdate) error

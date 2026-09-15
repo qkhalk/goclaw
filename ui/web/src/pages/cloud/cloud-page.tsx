@@ -10,12 +10,20 @@ import {
   PackageOpen,
   Plus,
   Settings,
+  ShieldCheck,
   Unplug,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SettingsModal } from "./settings-modal";
 import { CLOUD_PROVIDERS } from "./drive/drive-rail";
 import { StarredView } from "./drive/starred-view";
@@ -93,7 +101,7 @@ export function CloudPage() {
   const isAdmin = role === "admin" || role === "owner";
 
   const { data: cloudStatus, isLoading: cloudStatusLoading } = useCloudStatus();
-  const { accounts, loading, refresh, disconnect, startConnect, completeConnect, setShared } = useCloudAccounts();
+  const { accounts, loading, refresh, disconnect, startConnect, completeConnect, setShared, setAgentAccess } = useCloudAccounts();
 
   // URL-derived view state (never duplicated into useState).
   const activeProvider: CloudProvider | null =
@@ -316,7 +324,7 @@ export function CloudPage() {
 
   return (
     <DriveShell
-      railTitle={t("drive.my_drives")}
+      railTitle={t("drive.dashboard")}
       header={
         <DriveTopBar
           title={view === "home" ? homeTitle : providerMeta?.name}
@@ -395,39 +403,8 @@ export function CloudPage() {
             />
           )}
 
-          {/* My drives: every connected account as a clickable drive card */}
-          <div>
-            <p className="text-sm font-medium">{t("drive.my_drives")}</p>
-            {loading ? (
-              <div className="mt-3">
-                <TableSkeleton rows={2} />
-              </div>
-            ) : accounts.length === 0 ? (
-              <div className="mt-3">
-                <EmptyState
-                  icon={PackageOpen}
-                  title={t("empty.title")}
-                  description={t("empty.description")}
-                />
-              </div>
-            ) : (
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {accounts.map((a) => (
-                  <AccountCard
-                    key={a.id}
-                    account={a}
-                    isAdmin={isAdmin}
-                    userId={userId}
-                    connecting={connecting}
-                    onOpen={() => navigate(`/cloud/${a.provider}/${a.id}`)}
-                    onRegrant={() => handleConnect(a.provider as CloudProvider)}
-                    onSharedChange={(v) => void setShared(a.id, v)}
-                    onDisconnect={() => setDeleteTarget(a)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Per-account cards live in each provider's view — the dashboard
+              itself stays an overview (stats + connect providers). */}
 
           {/* Provider picker — same status-loading gate as the dashboard */}
           {cloudStatusLoading ? (
@@ -549,6 +526,7 @@ export function CloudPage() {
                     onOpen={() => navigate(`/cloud/${a.provider}/${a.id}`)}
                     onRegrant={() => handleConnect(a.provider as CloudProvider)}
                     onSharedChange={(v) => void setShared(a.id, v)}
+                    onAgentAccess={(level) => void setAgentAccess(a.id, level)}
                     onDisconnect={() => setDeleteTarget(a)}
                   />
                 ))}
@@ -633,7 +611,12 @@ function PasteBackPanel({
   );
 }
 
-/** Clickable drive card for one account (home + provider views). */
+/** Agent access levels for one account (admin-set; gates the cloud/mail
+ * agent tools only — the web UI is unaffected). */
+const AGENT_ACCESS_LEVELS = ["none", "read", "write", "full"] as const;
+type AgentAccessLevel = (typeof AGENT_ACCESS_LEVELS)[number];
+
+/** Clickable drive card for one account (provider views). */
 function AccountCard({
   account,
   isAdmin,
@@ -642,6 +625,7 @@ function AccountCard({
   onOpen,
   onRegrant,
   onSharedChange,
+  onAgentAccess,
   onDisconnect,
 }: {
   account: CloudAccount;
@@ -651,10 +635,12 @@ function AccountCard({
   onOpen: () => void;
   onRegrant: () => void;
   onSharedChange: (v: boolean) => void;
+  onAgentAccess: (level: AgentAccessLevel) => void;
   onDisconnect: () => void;
 }) {
   const { t } = useTranslation("cloud");
   const canRegrant = !account.shared || account.user_id === userId;
+  const access: AgentAccessLevel = account.agent_access ?? "read";
 
   return (
     <div
@@ -706,13 +692,30 @@ function AccountCard({
         </div>
       )}
       {isAdmin && (
-        <label
-          className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span>{t("share.toggle")}</span>
-          <Switch checked={account.shared} onCheckedChange={onSharedChange} />
-        </label>
+        <div className="flex flex-col gap-2 text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+          <label className="flex items-center justify-between gap-2">
+            <span>{t("share.toggle")}</span>
+            <Switch checked={account.shared} onCheckedChange={onSharedChange} />
+          </label>
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {t("agent_access.title")}
+            </span>
+            <Select value={access} onValueChange={(v) => onAgentAccess(v as AgentAccessLevel)}>
+              <SelectTrigger className="h-7 w-36 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AGENT_ACCESS_LEVELS.map((level) => (
+                  <SelectItem key={level} value={level} className="text-xs">
+                    {t(`agent_access.${level}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       )}
       <div className="mt-auto flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{account.provider}</span>
