@@ -84,6 +84,10 @@ func downloadAsset(ctx context.Context, assetsDir, rawURL string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("create request: %w", err)
 	}
+	// Bare GETs are rejected by many CDNs (vnecdn returns 401 without a
+	// browser UA); send the same header set web_fetch uses.
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "image/avif,image/webp,image/png,image/jpeg,*/*;q=0.8")
 
 	client := &http.Client{Timeout: downloadTimeout}
 	resp, err := client.Do(req)
