@@ -218,8 +218,11 @@ func (t *ExecTool) HasSecureCLIStore() bool {
 	return t.secureCLIStore != nil
 }
 
-func (t *ExecTool) Name() string        { return "exec" }
-func (t *ExecTool) Description() string { return "Execute a shell command and return its output" }
+func (t *ExecTool) Name() string { return "exec" }
+func (t *ExecTool) Description() string {
+	return "Execute a shell command and return its output. Default timeout is 60s — pass " +
+		"timeout_seconds for slow commands (large scans, package installs, builds) instead of wrapping them in `timeout N`."
+}
 func (t *ExecTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -232,6 +235,12 @@ func (t *ExecTool) Parameters() map[string]any {
 				"type":        "string",
 				"description": "Working directory for the command (default: workspace root)",
 			},
+			"timeout_seconds": map[string]any{
+				"type":        "number",
+				"description": "Per-call timeout in seconds (1-3600). Default: 60. On timeout the command is killed but any output it already produced is returned.",
+				"minimum":     float64(ExecMinTimeoutSeconds),
+				"maximum":     float64(ExecMaxTimeoutSeconds),
+			},
 		},
 		"required": []string{"command"},
 	}
@@ -242,6 +251,7 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *Result {
 	if command == "" {
 		return ErrorResult("command is required")
 	}
+	timeoutOverride := parseTimeoutArg(args)
 
 	// Reject NUL bytes — they cause silent shell truncation enabling injection.
 	if strings.ContainsRune(command, '\x00') {
@@ -481,11 +491,11 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *Result {
 	// Sandbox routing (sandboxKey from ctx — thread-safe)
 	sandboxKey := ToolSandboxKeyFromCtx(ctx)
 	if t.sandboxMgr != nil && sandboxKey != "" {
-		return t.executeInSandbox(ctx, command, cwd, sandboxKey)
+		return t.executeInSandbox(ctx, command, cwd, sandboxKey, timeoutOverride)
 	}
 
 	// Host execution
-	return t.executeOnHost(ctx, command, cwd)
+	return t.executeOnHost(ctx, command, cwd, timeoutOverride)
 }
 
 type execSettings struct {
@@ -573,8 +583,27 @@ func posixShellPath() (string, error) {
 // executeOnHost runs a command directly on the host (original behavior).
 // ctx cancellation (e.g. agent abort) triggers SIGTERM → 3s grace → SIGKILL on the
 // entire process group so forked children are also cleaned up (no orphans).
-func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Result {
+// parseTimeoutArg extracts the optional per-call timeout_seconds (clamped to
+// [ExecMinTimeoutSeconds, ExecMaxTimeoutSeconds]). Returns 0 when the caller
+// omitted it (or the value is not a positive number) so the effective timeout
+// falls back to tenant settings, then the tool default.
+func parseTimeoutArg(args map[string]any) int {
+	raw, ok := args["timeout_seconds"].(float64)
+	if !ok || raw < ExecMinTimeoutSeconds {
+		return 0
+	}
+	seconds := int(raw)
+	if seconds > ExecMaxTimeoutSeconds {
+		return ExecMaxTimeoutSeconds
+	}
+	return seconds
+}
+
+func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string, timeoutOverride int) *Result {
 	timeout := t.effectiveTimeout(ctx)
+	if timeoutOverride > 0 {
+		timeout = time.Duration(timeoutOverride) * time.Second
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -645,11 +674,33 @@ func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Resu
 			_ = killProcessGroup(cmd, syscallSIGKILL)
 			<-done
 		}
+		reason := "command aborted"
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return ErrorResult(fmt.Sprintf("command timed out after %s", timeout))
+			reason = fmt.Sprintf("command timed out after %s", timeout)
 		}
-		return ErrorResult("command aborted")
+		return timeoutResult(reason, stdout, stderr)
 	}
+}
+
+// timeoutResult keeps whatever the command printed before it was killed so
+// the agent can salvage partial progress (scan results, install logs) instead
+// of losing everything and restarting from scratch.
+func timeoutResult(reason string, stdout, stderr *limitedBuffer) *Result {
+	var partial string
+	if stdout.Len() > 0 {
+		partial = stdout.String()
+	}
+	if stderr.Len() > 0 {
+		if partial != "" {
+			partial += "\n"
+		}
+		partial += "STDERR:\n" + stderr.String()
+	}
+	if strings.TrimSpace(partial) == "" {
+		return ErrorResult(reason)
+	}
+	return ErrorResult(reason + "\n--- partial output before termination ---\n" +
+		capExecOutput(partial, execMaxOutputChars))
 }
 
 // buildHostResult formats the result of a completed host command execution.
@@ -667,7 +718,7 @@ func buildHostResult(err error, stdout, stderr *limitedBuffer, ctx context.Conte
 
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return ErrorResult(fmt.Sprintf("command timed out after %s", timeout))
+			return timeoutResult(fmt.Sprintf("command timed out after %s", timeout), stdout, stderr)
 		}
 		if result == "" {
 			result = err.Error()
@@ -682,7 +733,15 @@ func buildHostResult(err error, stdout, stderr *limitedBuffer, ctx context.Conte
 }
 
 // executeInSandbox routes a command through a Docker sandbox container.
-func (t *ExecTool) executeInSandbox(ctx context.Context, command, cwd, sandboxKey string) *Result {
+func (t *ExecTool) executeInSandbox(ctx context.Context, command, cwd, sandboxKey string, timeoutOverride int) *Result {
+	// Apply the same per-call / tenant / default timeout ladder as host exec.
+	timeout := t.effectiveTimeout(ctx)
+	if timeoutOverride > 0 {
+		timeout = time.Duration(timeoutOverride) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
 	mountWorkspace, err := effectiveSandboxWorkspace(ctx, t.workspace)
 	if err != nil {
 		return ErrorResult(err.Error())
@@ -698,7 +757,7 @@ func (t *ExecTool) executeInSandbox(ctx context.Context, command, cwd, sandboxKe
 			if IsDelegationArtifactRun(ctx) {
 				return ErrorResult(delegatedExecSandboxRequiredError)
 			}
-			return t.executeOnHost(ctx, command, cwd)
+			return t.executeOnHost(ctx, command, cwd, timeoutOverride)
 		}
 		// Docker unavailable (binary missing, daemon down) → fail closed.
 		// Do NOT silently fallback to host — that defeats the purpose of sandboxing.
