@@ -204,26 +204,36 @@ async function exportWithMediaRecorder(
 
   recorder.start(250);
 
-  // Timer-paced draw loop (not rAF — rAF stalls in occluded windows): one
-  // frame per 1/fps tick, scene chosen by elapsed wall-clock time so the
-  // recording always lasts exactly totalSec.
+  // Timer-paced draw loop: one frame per 1/fps of wall clock, scene chosen
+  // by elapsed time so the recording always lasts exactly totalSec. The
+  // pump rides a MessageChannel instead of setTimeout/rAF — Chromium
+  // throttles both of those to ~1 tick/sec in occluded windows, which used
+  // to turn the export into a ~1 fps slideshow.
   const startMs = performance.now();
   const totalMs = totalSec * 1000;
   const frameMs = 1000 / Math.max(1, fps);
 
   await new Promise<void>((resolve) => {
-    const step = () => {
+    const channel = new MessageChannel();
+    let lastFrame = -1;
+    channel.port1.onmessage = () => {
       const elapsedMs = performance.now() - startMs;
       if (signal?.aborted || elapsedMs >= totalMs) {
+        channel.port1.close();
+        channel.port2.close();
         resolve();
         return;
       }
-      drawFrame(elapsedMs / 1000);
-      pushFrame();
-      if (onProgress) onProgress(Math.min(99, Math.round((elapsedMs / totalMs) * 100)));
-      setTimeout(step, frameMs);
+      const frameIndex = Math.floor(elapsedMs / frameMs);
+      if (frameIndex !== lastFrame) {
+        lastFrame = frameIndex;
+        drawFrame(frameIndex / fps);
+        pushFrame();
+        if (onProgress) onProgress(Math.min(99, Math.round((elapsedMs / totalMs) * 100)));
+      }
+      channel.port2.postMessage(null);
     };
-    step();
+    channel.port2.postMessage(null);
   });
 
   // Let the encoder flush the last drawn frame before closing the container.
