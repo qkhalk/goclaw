@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,24 @@ func escapeDrawText(s string) string {
 	return s
 }
 
+// captionFilterValue returns the drawtext text source for a caption. With a
+// tempDir it writes the text to a file and returns textfile=<path> — the only
+// robust way to pass arbitrary caption text (commas, colons, quotes, unicode)
+// through ffmpeg's two-level filtergraph escaping. The path is embedded in
+// single quotes with quote escaping; the path comes from our own temp dir and
+// contains none of the other filtergraph metacharacters.
+func captionFilterValue(tempDir string, sceneIdx int, text string) (string, error) {
+	if tempDir == "" {
+		return "text='" + escapeDrawText(text) + "'", nil
+	}
+	p := filepath.Join(tempDir, fmt.Sprintf("caption_%03d.txt", sceneIdx))
+	if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
+		return "", fmt.Errorf("write caption file: %w", err)
+	}
+	quoted := strings.ReplaceAll(p, `'`, `'\''`)
+	return "textfile='" + quoted + "'", nil
+}
+
 // fontFile returns the fontfile arg portion if a font is configured; empty string otherwise.
 func fontFileArg(fontFile string) string {
 	if fontFile == "" {
@@ -46,7 +65,7 @@ func fontFileArg(fontFile string) string {
 
 // buildImageSceneArgs builds ffmpeg argv for an image scene with optional Ken Burns and caption.
 // Output: scene_N.mp4
-func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, fps int, outputPath string) []string {
+func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int) ([]string, error) {
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 
 	// Input: still image looped for duration_sec
@@ -87,7 +106,10 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 
 	// Caption via drawtext
 	if sc.Caption != nil && sc.Caption.Text != "" && cfg.FontFile != "" {
-		text := escapeDrawText(sc.Caption.Text)
+		tv, err := captionFilterValue(tempDir, sceneIdx, sc.Caption.Text)
+		if err != nil {
+			return nil, err
+		}
 		fa := fontFileArg(cfg.FontFile)
 		fontSize := sc.Caption.FontSize
 		if fontSize <= 0 {
@@ -100,8 +122,8 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 		case "center":
 			pos = "(h-th)/2"
 		}
-		dt := fmt.Sprintf("drawtext=%s:text='%s':fontsize=%d:fontcolor=white:borderw=2:bordercolor=black:x=(w-tw)/2:y=%s",
-			fa, text, fontSize, pos)
+		dt := fmt.Sprintf("drawtext=%s:%s:fontsize=%d:fontcolor=white:borderw=2:bordercolor=black:x=(w-tw)/2:y=%s",
+			fa, tv, fontSize, pos)
 		filters = append(filters, dt)
 	}
 
@@ -115,7 +137,7 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	args = append(args, baseFlags...)
 	args = append(args, "-r", fmt.Sprint(fps))
 	args = append(args, outputPath)
-	return args
+	return args, nil
 }
 
 // buildVideoSceneArgs builds ffmpeg argv for a video scene (trim + scale to canvas).
@@ -148,7 +170,7 @@ func buildVideoSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 }
 
 // buildColorSceneArgs builds ffmpeg argv for a solid color scene with optional caption.
-func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, fps int, outputPath string) []string {
+func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int) ([]string, error) {
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 
 	dur := sc.DurationSec
@@ -165,7 +187,10 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	// Caption via drawtext
 	filters := []string{}
 	if sc.Caption != nil && sc.Caption.Text != "" && cfg.FontFile != "" {
-		text := escapeDrawText(sc.Caption.Text)
+		tv, err := captionFilterValue(tempDir, sceneIdx, sc.Caption.Text)
+		if err != nil {
+			return nil, err
+		}
 		fa := fontFileArg(cfg.FontFile)
 		fontSize := sc.Caption.FontSize
 		if fontSize <= 0 {
@@ -178,8 +203,8 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 		case "center":
 			pos = "(h-th)/2"
 		}
-		dt := fmt.Sprintf("drawtext=%s:text='%s':fontsize=%d:fontcolor=white:borderw=2:bordercolor=black:x=(w-tw)/2:y=%s",
-			fa, text, fontSize, pos)
+		dt := fmt.Sprintf("drawtext=%s:%s:fontsize=%d:fontcolor=white:borderw=2:bordercolor=black:x=(w-tw)/2:y=%s",
+			fa, tv, fontSize, pos)
 		filters = append(filters, dt)
 	}
 
@@ -189,7 +214,7 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	args = append(args, baseFlags...)
 	args = append(args, "-r", fmt.Sprint(fps))
 	args = append(args, outputPath)
-	return args
+	return args, nil
 }
 
 // buildConcatArgs builds the ffmpeg concat demuxer command.

@@ -250,7 +250,11 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 
 		// Build and run ffmpeg
 		outPath := sceneOutputPath(tempDir, i)
-		args := r.buildSceneArgs(ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath)
+		args, err := r.buildSceneArgs(ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath, tempDir, i)
+		if err != nil {
+			r.failJob(js, fmt.Sprintf("scene %d args: %v", i, err))
+			return
+		}
 
 		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, args); err != nil {
 			r.failJob(js, fmt.Sprintf("scene %d render: %v", i, err))
@@ -333,16 +337,16 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 }
 
 // buildSceneArgs dispatches to the appropriate scene builder.
-func (r *Runner) buildSceneArgs(cfg FFmpegConfig, sc *contract.Scene, canvasW, canvasH, fps int, outputPath string) []string {
+func (r *Runner) buildSceneArgs(cfg FFmpegConfig, sc *contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int) ([]string, error) {
 	switch sc.Type {
 	case contract.SceneImage:
-		return buildImageSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath)
+		return buildImageSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx)
 	case contract.SceneVideo:
-		return buildVideoSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath)
+		return buildVideoSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath), nil
 	case contract.SceneColor:
-		return buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath)
+		return buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx)
 	default:
-		return nil
+		return nil, nil
 	}
 }
 
