@@ -116,7 +116,10 @@
     "back": "Quay lại",
     "forward": "Tiến",
     "staticNote": "Trang tĩnh — không chạy script; nhấp link và gõ chữ vẫn hoạt động.",
-    "empty": "Chưa mở trang nào. Yêu cầu agent mở trang nhé."
+    "empty": "Chưa mở trang nào. Yêu cầu agent mở trang nhé.",
+    "switchToLive": "Xem trực tiếp (chạy JavaScript)",
+    "switchToStatic": "Chế độ tĩnh (agent thao tác được)",
+    "liveNote": "Xem trực tiếp — trang thật đang chạy JavaScript. Ở chế độ này agent không đọc/click được; cần thì chuyển về chế độ tĩnh."
   },
   "taskTree": {
     "empty": "Chưa có nhiệm vụ nào",

@@ -15,9 +15,12 @@
 
 const SKIP_TAGS = new Set([
   "SCRIPT", "STYLE", "NOSCRIPT", "SVG", "TEMPLATE", "IFRAME", "OBJECT", "EMBED",
-  "NAV", "FOOTER", "ASIDE", "FORM", "SELECT", "OPTION", "BUTTON", "INPUT",
+  "NAV", "FOOTER", "ASIDE", "SELECT", "OPTION", "BUTTON", "INPUT",
   "TEXTAREA", "LABEL", "PICTURE", "SOURCE", "VIDEO", "AUDIO", "CANVAS", "MAP",
 ]);
+// NB: FORM must NOT be skipped — its subtree carries the page's inputs and
+// submit buttons. Skipping it hid search boxes and login forms from both the
+// markdown and the [eN] ref annotation (walk() never reached the children).
 
 const READ_SKIP_TAGS = new Set([...SKIP_TAGS]);
 
@@ -61,6 +64,10 @@ export function extractMarkdown(doc: Document): string {
 export function extractPageWithRefs(doc: Document): ExtractResult {
   const body = doc.body ?? doc.documentElement;
   if (!body) return { markdown: "", refs: [] };
+  // Re-extraction on an already-tagged document (e.g. agent "extract" action)
+  // must start from a clean slate, otherwise refElement() can match a stale
+  // element that the new walk no longer numbers.
+  doc.querySelectorAll(`[${REF_ATTR}]`).forEach((el) => el.removeAttribute(REF_ATTR));
   const ctx: WalkCtx = { out: [], listDepth: 0, ordered: [], counters: [], refs: [] };
   walkChildren(body, ctx);
   return { markdown: clean(ctx.out.join("")), refs: ctx.refs ?? [] };

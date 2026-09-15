@@ -23,6 +23,16 @@ import {
  */
 export type BrowserPanelStatus = "idle" | "loading" | "ready" | "error";
 
+/**
+ * relay — sanitized same-origin document (default; script-free, agent-operable
+ * via [eN] refs). live — sandboxed preview of the real URL for JavaScript-
+ * rendered pages whose static relay would be blank: scripts run inside the
+ * frame but it gets an opaque origin (no allow-same-origin), so the page is
+ * isolated from the dashboard and the panel cannot read its DOM — preview
+ * only. The panel auto-switches to live when a relay extraction is too thin.
+ */
+export type BrowserPanelMode = "relay" | "live";
+
 export interface BrowserPanelState {
   /** Current page's original URL ("" = nothing open). */
   url: string;
@@ -30,6 +40,7 @@ export interface BrowserPanelState {
   title: string;
   relayUrl: string;
   status: BrowserPanelStatus;
+  mode: BrowserPanelMode;
   canBack: boolean;
   canForward: boolean;
   /** Last action note for the status bar. */
@@ -66,6 +77,7 @@ const initialState: BrowserPanelState = {
   title: "",
   relayUrl: "",
   status: "idle",
+  mode: "relay",
   canBack: false,
   canForward: false,
   note: "",
@@ -78,6 +90,7 @@ export function useBrowserPanel(onInvoke: () => void) {
   // latest values without re-binding (iframe onLoad, WS event handler).
   const stateRef = useRef(state);
   stateRef.current = state;
+  const modeRef = useRef<BrowserPanelMode>("relay");
   const historyRef = useRef<{ entries: HistoryEntry[]; index: number }>({ entries: [], index: -1 });
   const pendingRef = useRef<Pending>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -90,6 +103,16 @@ export function useBrowserPanel(onInvoke: () => void) {
     const h = historyRef.current;
     return { canBack: h.index > 0, canForward: h.index < h.entries.length - 1 };
   }, []);
+
+  /** Switch relay↔live. modeRef updates synchronously so an iframe onLoad
+   *  arriving before React re-renders still reads the right mode. */
+  const setMode = useCallback(
+    (mode: BrowserPanelMode) => {
+      modeRef.current = mode;
+      publishState({ mode, status: "loading", note: "" });
+    },
+    [publishState],
+  );
 
   /** Post an extraction/error back to the server for a pending invocation. */
   const postResult = useCallback(
@@ -122,12 +145,14 @@ export function useBrowserPanel(onInvoke: () => void) {
         h.entries[h.index] = entry;
       }
       pendingRef.current = { id: pendingRef.current?.id ?? "", kind: "open" };
+      modeRef.current = "relay";
       publishState({
         url: entry.url,
         finalUrl: entry.finalUrl,
         title: entry.title,
         relayUrl: entry.relayUrl,
         status: "loading",
+        mode: "relay",
         note: "",
         ...syncNav(),
       });
@@ -171,6 +196,17 @@ export function useBrowserPanel(onInvoke: () => void) {
   const runAction = useCallback(
     (payload: InvokePayload & { browseId: string }) => {
       const action = payload.action ?? "extract";
+      // Live preview frames are cross-origin (opaque origin) — no DOM access,
+      // so refs and extraction are impossible. Navigation actions still work:
+      // they re-open through the relay pipeline.
+      if (modeRef.current === "live" && (action === "click" || action === "type" || action === "extract")) {
+        postResult(payload.browseId, {
+          error:
+            "the panel is showing a live preview of a JavaScript-rendered page — refs and static extraction are unavailable; open a static page instead, or ask the user to interact with the preview",
+        });
+        publishState({ status: "ready" });
+        return;
+      }
       const maxChars = typeof payload.maxChars === "number" ? payload.maxChars : undefined;
       const finish = (note: string) => {
         const ex = extractCurrent();
@@ -342,6 +378,19 @@ export function useBrowserPanel(onInvoke: () => void) {
     (iframe: HTMLIFrameElement | null) => {
       iframeRef.current = iframe;
       const pending = pendingRef.current;
+      if (modeRef.current === "live") {
+        // Live preview: the real page runs in a sandboxed cross-origin frame.
+        // contentDocument is null by design — no interception, no extraction.
+        if (pending) {
+          pendingRef.current = null;
+          postResult(pending.id, {
+            error:
+              "page rendered live (JavaScript) — static extraction unavailable in live preview mode",
+          });
+        }
+        publishState({ status: "ready", ...syncNav() });
+        return;
+      }
       const doc = iframe?.contentDocument ?? null;
       if (!iframe || !doc || !doc.body) {
         if (pending) {
@@ -391,8 +440,14 @@ export function useBrowserPanel(onInvoke: () => void) {
           });
         }
       }
+      // Thin relay extraction = JS-rendered page: the static document is a
+      // blank shell, so switch the panel to the live preview instead. The
+      // agent already got the honest "too thin" error above.
+      if (markdown.length < MIN_USEFUL_CHARS && /^https?:/i.test(cur.finalUrl)) {
+        setMode("live");
+      }
     },
-    [openURL, postResult, publishState, syncNav],
+    [openURL, postResult, publishState, setMode, syncNav],
   );
 
   const goBack = useCallback(() => {
@@ -413,12 +468,26 @@ export function useBrowserPanel(onInvoke: () => void) {
     if (stateRef.current.url) openURL(stateRef.current.url, { note: "" });
   }, [openURL]);
 
+  /** User toggled static↔live. Back to static re-opens through the gateway:
+   *  the signed relay URL may be past its TTL, and a fresh load also restores
+   *  ref extraction for agent actions. */
+  const toggleMode = useCallback(() => {
+    if (!stateRef.current.finalUrl) return;
+    if (modeRef.current === "live") {
+      modeRef.current = "relay";
+      openURL(stateRef.current.url || stateRef.current.finalUrl, { note: "" });
+    } else {
+      setMode("live");
+    }
+  }, [openURL, setMode]);
+
   const reset = useCallback(() => {
     historyRef.current = { entries: [], index: -1 };
     pendingRef.current = null;
     iframeRef.current = null;
+    modeRef.current = "relay";
     setState(initialState);
   }, []);
 
-  return { state, handleIframeLoad, goBack, goForward, reload, reset, openURL };
+  return { state, handleIframeLoad, goBack, goForward, reload, reset, openURL, toggleMode };
 }
