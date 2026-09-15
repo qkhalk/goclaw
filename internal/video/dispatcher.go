@@ -148,6 +148,16 @@ func (d *Dispatcher) submitJob(ctx context.Context, job *store.VideoRenderJob) {
 		return
 	}
 
+	// The worker can refuse at submit time (queue full, or the job fails
+	// validation synchronously) — and a refused job is never registered, so
+	// status polls would 404 forever. Fail honestly instead of "rendering".
+	if resp.Status == JobFailed || resp.Status == JobCancelled {
+		slog.Error("video.dispatcher: worker refused job at submit",
+			"job_id", job.ID, "worker_status", resp.Status)
+		d.failJob(ctx, job.ID, "worker refused job at submit (status="+string(resp.Status)+"; queue full or invalid storyboard)")
+		return
+	}
+
 	slog.Info("video.dispatcher: job submitted to worker",
 		"job_id", job.ID, "worker_status", resp.Status)
 
