@@ -25,6 +25,55 @@ type CloudMailProvider interface {
 	MailClient(ctx context.Context, account string) (*mail.Client, error)
 }
 
+// AgentMailResolver is the agent-permission-aware resolution surface
+// (implemented by *cloud.MailService). When the provider implements it, mail
+// tools resolve + enforce the per-account agent access level; otherwise they
+// fall back to legacy MailClient resolution (test fakes, minimal wiring).
+type AgentMailResolver interface {
+	AgentMailAccount(ctx context.Context, name string, min cloud.AgentAccess) (*store.CloudAccount, error)
+	MailClientFor(ctx context.Context, acct *store.CloudAccount) (*mail.Client, error)
+}
+
+// resolveMailAcct resolves the account for an agent mail call with the access
+// floor enforced (agent-permission-aware when the provider supports it).
+func (t *CloudMailTools) resolveMailAcct(ctx context.Context, account string, min cloud.AgentAccess) (*store.CloudAccount, *Result) {
+	if resolver, ok := t.provider.(AgentMailResolver); ok {
+		acct, err := resolver.AgentMailAccount(ctx, account, min)
+		if err != nil {
+			return nil, ErrorResult(err.Error())
+		}
+		return acct, nil
+	}
+	// Legacy fallback: resolve through MailClient's account selection; the
+	// per-account access check degrades to "any resolvable account".
+	acct, err := t.provider.Accounts(ctx)
+	if err != nil {
+		return nil, ErrorResult(err.Error())
+	}
+	for i := range acct {
+		if account == "" || strings.EqualFold(acct[i].Email, account) || acct[i].ID == account {
+			return &acct[i], nil
+		}
+	}
+	return nil, ErrorResult(cloud.ErrNoAccounts.Error())
+}
+
+// mailClientFor returns the client for a pre-resolved account.
+func (t *CloudMailTools) mailClientFor(ctx context.Context, acct *store.CloudAccount) (*mail.Client, *Result) {
+	if resolver, ok := t.provider.(AgentMailResolver); ok {
+		client, err := resolver.MailClientFor(ctx, acct)
+		if err != nil {
+			return nil, ErrorResult(err.Error())
+		}
+		return client, nil
+	}
+	client, err := t.provider.MailClient(ctx, acct.ID)
+	if err != nil {
+		return nil, ErrorResult(err.Error())
+	}
+	return client, nil
+}
+
 // CloudMailTools groups the Gmail agent tools sharing one provider.
 type CloudMailTools struct {
 	provider CloudMailProvider
@@ -72,19 +121,25 @@ func (t *cloudAccountsTool) Execute(ctx context.Context, _ map[string]any) *Resu
 		return ErrorResult("failed to list cloud accounts: " + err.Error())
 	}
 	type acctOut struct {
-		Email    string `json:"email"`
-		Provider string `json:"provider"`
-		Status   string `json:"status"`
-		Shared   bool   `json:"shared"`
-		Mail     bool   `json:"mail"`
-		Storage  bool   `json:"storage"`
+		Email       string `json:"email"`
+		Provider    string `json:"provider"`
+		Status      string `json:"status"`
+		Shared      bool   `json:"shared"`
+		Mail        bool   `json:"mail"`
+		Storage     bool   `json:"storage"`
+		AgentAccess string `json:"agent_access"`
 	}
 	out := make([]acctOut, 0, len(accounts))
 	for _, a := range accounts {
+		level := cloud.AgentAccessOf(&a)
+		if level == cloud.AgentAccessNone {
+			continue // admin disabled agent access — the account is invisible here
+		}
 		out = append(out, acctOut{
 			Email: a.Email, Provider: a.Provider, Status: a.Status, Shared: a.Shared,
-			Mail:    a.Provider == cloud.GoogleProvider && cloud.AccountHasGmailScope(&a),
-			Storage: cloud.IsStorageProvider(a.Provider),
+			Mail:        a.Provider == cloud.GoogleProvider && cloud.AccountHasGmailScope(&a),
+			Storage:     cloud.IsStorageProvider(a.Provider),
+			AgentAccess: string(level),
 		})
 	}
 	data, _ := json.Marshal(out)
@@ -116,9 +171,13 @@ func (t *mailSearchTool) Execute(ctx context.Context, args map[string]any) *Resu
 	account, _ := args["account"].(string)
 	maxResults, _ := args["max_results"].(float64)
 
-	client, err := t.parent.provider.MailClient(ctx, account)
-	if err != nil {
-		return ErrorResult(err.Error())
+	acct, errResult := t.parent.resolveMailAcct(ctx, account, cloud.AgentAccessRead)
+	if errResult != nil {
+		return errResult
+	}
+	client, errResult := t.parent.mailClientFor(ctx, acct)
+	if errResult != nil {
+		return errResult
 	}
 	summaries, _, err := client.Search(ctx, query, int(maxResults), "")
 	if err != nil {
@@ -156,9 +215,13 @@ func (t *mailReadTool) Execute(ctx context.Context, args map[string]any) *Result
 	if strings.TrimSpace(id) == "" {
 		return ErrorResult("message_id is required")
 	}
-	client, err := t.parent.provider.MailClient(ctx, account)
-	if err != nil {
-		return ErrorResult(err.Error())
+	acct, errResult := t.parent.resolveMailAcct(ctx, account, cloud.AgentAccessRead)
+	if errResult != nil {
+		return errResult
+	}
+	client, errResult := t.parent.mailClientFor(ctx, acct)
+	if errResult != nil {
+		return errResult
 	}
 	detail, err := client.Get(ctx, id, false)
 	if err != nil {
@@ -226,9 +289,13 @@ func (t *mailArchiveTool) Execute(ctx context.Context, args map[string]any) *Res
 		return ErrorResult(err.Error())
 	}
 
-	client, err := t.parent.provider.MailClient(ctx, account)
-	if err != nil {
-		return ErrorResult(err.Error())
+	acct, errResult := t.parent.resolveMailAcct(ctx, account, cloud.AgentAccessWrite)
+	if errResult != nil {
+		return errResult
+	}
+	client, errResult := t.parent.mailClientFor(ctx, acct)
+	if errResult != nil {
+		return errResult
 	}
 
 	// Resolve a user label name to its id (system labels like INBOX/TRASH/UNREAD
@@ -325,9 +392,13 @@ func (t *mailUnsubscribeTool) Execute(ctx context.Context, args map[string]any) 
 		return ErrorResult("message_id is required")
 	}
 
-	client, err := t.parent.provider.MailClient(ctx, account)
-	if err != nil {
-		return ErrorResult(err.Error())
+	acct, errResult := t.parent.resolveMailAcct(ctx, account, cloud.AgentAccessWrite)
+	if errResult != nil {
+		return errResult
+	}
+	client, errResult := t.parent.mailClientFor(ctx, acct)
+	if errResult != nil {
+		return errResult
 	}
 	detail, err := client.Get(ctx, id, true)
 	if err != nil {

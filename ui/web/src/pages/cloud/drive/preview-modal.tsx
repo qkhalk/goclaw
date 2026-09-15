@@ -1,17 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { useHttp } from "@/hooks/use-ws";
 import { formatFileSize } from "@/lib/format";
 import { toast } from "@/stores/use-toast-store";
+import { queryKeys } from "@/lib/query-keys";
 import type { CloudFileEntry } from "../hooks/use-cloud";
 import { opErrorToast } from "./op-error";
 import { rawPath } from "./paths";
@@ -28,18 +23,20 @@ const AUDIO_EXT = new Set(["mp3", "m4a", "wav"]);
 
 const IMAGE_CAP = 25 << 20; // 25 MB — never auto-load anything bigger
 const TEXT_CAP = 1 << 20; // 1 MB — text renders as <pre>
-/** Video/audio blob cap — mirrors the download endpoint's server cap
- * (cloud.fetch_size_cap_mb, default 100 MB, 413 above it). */
-const MEDIA_CAP = 100 << 20;
 
-/** Size cap for a previewable kind (the cap shown in the too-large message). */
+/** Streaming kinds use short-lived signed URLs (<video>/<audio>/<iframe> tags
+ * cannot send Bearer headers), so the browser streams via HTTP byte-range —
+ * the server's cloud.fetch_size_cap_mb (413) still bounds them. */
+const STREAM_CAP = 100 << 20;
+
 function capFor(kind: PreviewKind): number {
   switch (kind) {
     case "text":
       return TEXT_CAP;
     case "video":
     case "audio":
-      return MEDIA_CAP;
+    case "pdf":
+      return STREAM_CAP;
     default:
       return IMAGE_CAP;
   }
@@ -67,12 +64,12 @@ export interface PreviewFile {
   path: string;
 }
 
-/** Right-side preview Sheet for one file (images / text / pdf / video / audio
- * via the download endpoint + object URLs, revoked on every switch/close).
- * Video/audio stream through an authed blob fetch (a plain <video src> could
- * not send the Bearer header). Prev/next walks the current folder's files;
- * oversized and unsupported files fall back to a download button. */
-export function PreviewSheet({
+/** Front-center preview overlay for one file (replaces the side Sheet):
+ * images/text load via the authed download endpoint (blob object URLs),
+ * video/audio/pdf stream through short-lived signed URLs with HTTP
+ * byte-range seeking. Prev/next walks the current folder's files; oversized
+ * and unsupported files fall back to a download button. */
+export function PreviewModal({
   accountId,
   files,
   index,
@@ -99,11 +96,28 @@ export function PreviewSheet({
   const kind = file ? previewKind(file.entry) : "unsupported";
   const tooLarge = !!file && file.entry.size > capFor(kind);
   const blocked = kind === "unsupported" || tooLarge;
+  const streams = kind === "video" || kind === "audio" || kind === "pdf";
 
-  // Load the preview body whenever the file changes; revoke the object URL on
-  // every switch/close (no leak across a long preview session).
+  // Signed streaming URL (video/audio/pdf) — expires, so it is fetched per
+  // file switch and re-fetched below the TTL while the preview stays open
+  // (seeking after expiry would otherwise error with no recovery).
+  const signed = useQuery({
+    queryKey: queryKeys.cloud.thumb(accountId, file?.path ?? ""),
+    enabled: !!file && streams && !tooLarge,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000, // token TTL is 10 min — refresh before expiry
+    queryFn: async () => {
+      const res = await http.post<{ url: string }>(
+        `/v1/cloud/accounts/${accountId}/files/sign`,
+        { path: rawPath(file!.path) },
+      );
+      return res.url;
+    },
+  });
+
+  // Blob load for image/text kinds; revoked on every switch/close.
   useEffect(() => {
-    if (!file || blocked) return;
+    if (!file || blocked || streams) return;
     let cancelled = false;
     setLoading(true);
     setFailed(false);
@@ -138,7 +152,18 @@ export function PreviewSheet({
       setUrl(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId, name, kind, blocked]);
+  }, [accountId, name, kind, blocked, streams]);
+
+  // Esc / arrow keys at the overlay level (like the image lightbox).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft" && index > 0) onIndexChange(index - 1);
+      else if (e.key === "ArrowRight" && index < files.length - 1) onIndexChange(index + 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [index, files.length, onIndexChange, onClose]);
 
   if (!file) return null;
 
@@ -158,15 +183,38 @@ export function PreviewSheet({
     }
   }
 
-  return (
-    <Sheet open onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="flex w-full flex-col gap-0 sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle className="min-w-0 truncate pr-8">{file.entry.name}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{formatFileSize(file.entry.size)}</p>
-        </SheetHeader>
+  const streamURL = streams && signed.data ? `${signed.data}#t=0.001` : null;
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4">
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={name}
+    >
+      <div className="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border bg-background shadow-2xl">
+        {/* Header */}
+        <div className="flex min-w-0 items-center gap-2 border-b px-4 py-2.5">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{file.entry.name}</p>
+            <p className="text-xs text-muted-foreground">{formatFileSize(file.entry.size)}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            aria-label={t("preview.close")}
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Body */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-black/5 p-4">
           {blocked || failed ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
               <TriangleAlert className="h-8 w-8 text-muted-foreground" />
@@ -184,7 +232,7 @@ export function PreviewSheet({
                 {t("preview.download")}
               </Button>
             </div>
-          ) : loading ? (
+          ) : loading || (streams && !streamURL && !signed.isError) ? (
             <p className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
               {t("preview.loading")}
             </p>
@@ -194,27 +242,34 @@ export function PreviewSheet({
             </pre>
           ) : kind === "image" && url ? (
             <img src={url} alt={file.entry.name} className="mx-auto max-h-full max-w-full rounded-md object-contain" />
-          ) : kind === "video" && url ? (
+          ) : kind === "video" && streamURL ? (
             <video
-              src={url}
+              src={streamURL}
               controls
               preload="metadata"
-              className="mx-auto max-h-full max-w-full rounded-md bg-black object-contain"
+              playsInline
+              className="mx-auto max-h-full w-full max-w-3xl rounded-md bg-black object-contain"
             />
-          ) : kind === "audio" && url ? (
+          ) : kind === "audio" && streamURL ? (
             <div className="flex flex-1 items-center justify-center">
-              <audio src={url} controls preload="metadata" className="w-full max-w-xs" />
+              <audio src={signed.data} controls preload="metadata" className="w-full max-w-xs" />
             </div>
-          ) : kind === "pdf" && url ? (
-            <iframe src={url} title={file.entry.name} className="h-full min-h-[60vh] w-full rounded-md border" />
+          ) : kind === "pdf" && streamURL ? (
+            <iframe src={signed.data} title={file.entry.name} className="h-full min-h-[65vh] w-full rounded-md border bg-white" />
           ) : (
-            <p className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              {t("preview.cannot_preview")}
-            </p>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+              <TriangleAlert className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">{t("preview.error")}</p>
+              <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => void download()}>
+                <Download className="mr-1.5 h-4 w-4" />
+                {t("preview.download")}
+              </Button>
+            </div>
           )}
         </div>
 
-        <SheetFooter className="mt-0">
+        {/* Footer nav */}
+        <div className="flex items-center gap-1 border-t px-3 py-2">
           <Button
             variant="ghost"
             size="sm"
@@ -248,8 +303,8 @@ export function PreviewSheet({
             <Download className="mr-1.5 h-4 w-4" />
             {t("preview.download")}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </div>
+      </div>
+    </div>
   );
 }
