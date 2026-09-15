@@ -154,7 +154,10 @@
       "historyEmpty": "No previous chats yet",
       "historyMessages": "{{n}} messages"
     },
-    "download_failed": "Download failed"
+    "download_failed": "Download failed",
+    "section_content": "Content",
+    "section_display": "Picture & motion",
+    "section_voice": "Voice-over"
   },
   "watermark": {
     "title": "Watermark Remover",

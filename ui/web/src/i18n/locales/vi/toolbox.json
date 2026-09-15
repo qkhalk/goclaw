@@ -154,7 +154,10 @@
       "historyEmpty": "Chưa có đoạn chat nào",
       "historyMessages": "{{n}} tin nhắn"
     },
-    "download_failed": "Tải xuống thất bại"
+    "download_failed": "Tải xuống thất bại",
+    "section_content": "Nội dung",
+    "section_display": "Hình ảnh & chuyển động",
+    "section_voice": "Giọng đọc"
   },
   "watermark": {
     "title": "Xóa watermark",

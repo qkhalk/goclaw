@@ -314,9 +314,9 @@ export function VideoToolPage() {
                 {t("video.empty_jobs")}
               </p>
             ) : (
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col divide-y">
                 {jobs.map((job) => (
-                  <li key={job.id} className="rounded-md border p-3">
+                  <li key={job.id} className="px-1 py-2.5 transition-colors hover:bg-muted/40">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         variant="outline"
@@ -452,9 +452,9 @@ export function VideoToolPage() {
             />
           )}
 
-          {/* JSON mode toggle */}
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <span className="text-sm text-muted-foreground">
+          {/* Summary + JSON mode toggle */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-sm text-muted-foreground tabular-nums">
               {t("video.total_duration", { sec: totalSec.toFixed(1) })} ·{" "}
               {t("video.scenes_count", { n: sb.scenes.length })}
             </span>
