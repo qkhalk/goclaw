@@ -128,7 +128,33 @@
     "transition_fade": "Fade from black",
     "transition_crossfade": "Crossfade",
     "transition_slide_left": "Slide left",
-    "transition_slide_up": "Slide up"
+    "transition_slide_up": "Slide up",
+    "designer": {
+      "title": "Video Designer",
+      "toggle": "Chat with the design assistant",
+      "close": "Close designer",
+      "newChat": "New design chat",
+      "badge": "Designer",
+      "emptyHint": "Describe the video you want and the designer will draft a storyboard.",
+      "chip1": "9s gradient intro, 3 scenes",
+      "chip2": "Turn tech news into a 30s video",
+      "chip3": "Redo my storyboard in a minimal style",
+      "apply": "Apply to timeline",
+      "applied": "Applied",
+      "viewJson": "View JSON",
+      "hideJson": "Hide JSON",
+      "invalid": "Invalid storyboard",
+      "attach": "Attach current storyboard",
+      "attached": "Current storyboard attached to your next message",
+      "attachedPrefix": "[Current storyboard for reference]",
+      "designing": "finalizing storyboard...",
+      "sceneCount": "{{n}} scenes",
+      "duration": "{{sec}}s",
+      "history": "Chat history",
+      "historyEmpty": "No previous chats yet",
+      "historyMessages": "{{n}} messages"
+    },
+    "download_failed": "Download failed"
   },
   "watermark": {
     "title": "Watermark Remover",
@@ -147,8 +173,6 @@
     "clear": "Clear list",
     "remove": "Remove",
     "empty": "No images yet",
-    "credits": "Algorithm: gemini-watermark-remover (MIT) by GargantuaX, based on AllenK's reverse alpha blending method.",
-    "usage_note": "Use only on images you have the rights to modify. You are responsible for complying with applicable terms of service.",
     "confidence": "Confidence",
     "tabs": {
       "images": "Images",
@@ -156,16 +180,117 @@
     },
     "video": {
       "mask_position": "Drag to position mask",
-      "max_duration": "Max 30 seconds",
+      "max_duration": "Max 2 minutes",
       "max_size": "Max 100MB",
       "processing_frame": "Processing frame {{current}}/{{total}}",
-      "auto_note": "Gemini watermark is removed automatically per frame via inverse alpha blending (gemini-watermark-remover) — processing happens entirely in your browser."
+      "auto_note": "Gemini watermark is removed automatically per frame via inverse alpha blending (gemini-watermark-remover) — processing happens entirely in your browser.",
+      "audio_note": "Original audio is preserved in the result."
     },
     "comparison": {
       "before": "Before",
       "after": "After",
       "drag_to_compare": "Drag to compare"
     },
-    "drop_title_video": "Drop a video here"
+    "drop_title_video": "Drop a video here",
+    "process_all": "Remove watermarks",
+    "original": "Original",
+    "result": "Result",
+    "mode": {
+      "parallel": "Side by side",
+      "slider": "Compare slider"
+    },
+    "anim": {
+      "removing": "Removing logo"
+    }
+  },
+  "pptx": {
+    "title": "PPTX Studio",
+    "description": "Design presentation decks with an AI designer, preview every slide, and export an editable .pptx right in the browser.",
+    "export": "Export .pptx",
+    "exporting": "Exporting…",
+    "export_done": "Deck exported",
+    "export_failed": "Export failed: {{error}}",
+    "client_side": "Rendered & exported in your browser",
+    "slides_count": "{{n}} slides",
+    "add_slide": "Add slide",
+    "duplicate": "Duplicate slide",
+    "remove": "Remove slide",
+    "move_up": "Move slide up",
+    "move_down": "Move slide down",
+    "json_mode": "JSON",
+    "json_hide": "Hide JSON",
+    "json_load": "Load JSON",
+    "json_invalid": "Invalid deck: {{error}}",
+    "image_hint": "Images are fetched at export time; external URLs must allow CORS.",
+    "tabs": {
+      "slides": "Slides",
+      "theme": "Theme"
+    },
+    "theme": {
+      "preset": "Theme presets",
+      "preset_deep-blue": "Deep blue",
+      "preset_paper": "Paper",
+      "preset_forest": "Forest",
+      "preset_plum": "Plum",
+      "preset_ink-teal": "Ink teal",
+      "background": "Background",
+      "foreground": "Text",
+      "accent": "Accent",
+      "muted": "Muted text",
+      "font_heading": "Heading font",
+      "font_body": "Body font"
+    },
+    "field": {
+      "layout": "Layout",
+      "title": "Title",
+      "subtitle": "Subtitle",
+      "bullets": "Bullets (one per line)",
+      "quote": "Quote",
+      "author": "Author",
+      "source": "Image URL or path",
+      "caption": "Caption",
+      "notes": "Speaker notes",
+      "heading": "Column heading",
+      "left": "Left column",
+      "right": "Right column",
+      "value": "Value",
+      "label": "Label",
+      "add_stat": "Add stat",
+      "remove_stat": "Remove stat"
+    },
+    "layout": {
+      "title": "Title",
+      "section": "Section",
+      "bullets": "Bullets",
+      "two_column": "Two columns",
+      "quote": "Quote",
+      "stats": "Stats",
+      "image": "Image",
+      "end": "End"
+    },
+    "designer": {
+      "title": "PPTX Designer",
+      "toggle": "Chat with the deck designer",
+      "close": "Close designer",
+      "newChat": "New design chat",
+      "history": "Chat history",
+      "historyEmpty": "No previous chats yet",
+      "historyMessages": "{{n}} messages",
+      "badge": "Designer",
+      "emptyHint": "Describe the presentation you want and the designer will draft the deck.",
+      "chip1": "Q3 review deck, 8 slides",
+      "chip2": "Startup pitch from my notes",
+      "chip3": "Rework my deck in a light theme",
+      "apply": "Apply to studio",
+      "applied": "Applied",
+      "viewJson": "View JSON",
+      "hideJson": "Hide JSON",
+      "invalid": "Invalid deck",
+      "attach": "Attach current deck",
+      "attached": "Current deck attached to your next message",
+      "attachedPrefix": "[Current deck for reference]",
+      "designing": "finalizing deck…",
+      "slideCount": "{{n}} slides"
+    }
   }
 }

@@ -128,7 +128,33 @@
     "transition_fade": "Mờ dần từ đen",
     "transition_crossfade": "Chuyển mờ",
     "transition_slide_left": "Trượt sang trái",
-    "transition_slide_up": "Trượt lên"
+    "transition_slide_up": "Trượt lên",
+    "designer": {
+      "title": "Trình thiết kế video",
+      "toggle": "Trò chuyện với trợ lý thiết kế",
+      "close": "Đóng trình thiết kế",
+      "newChat": "Buổi thiết kế mới",
+      "badge": "Designer",
+      "emptyHint": "Mô tả video bạn muốn, designer sẽ vẽ storyboard giúp bạn.",
+      "chip1": "Intro gradient 9 giây, 3 cảnh",
+      "chip2": "Biến tin công nghệ thành video 30 giây",
+      "chip3": "Làm lại storyboard theo style tối giản",
+      "apply": "Áp dụng vào timeline",
+      "applied": "Đã áp dụng",
+      "viewJson": "Xem JSON",
+      "hideJson": "Ẩn JSON",
+      "invalid": "Storyboard không hợp lệ",
+      "attach": "Đính kèm storyboard hiện tại",
+      "attached": "Storyboard hiện tại sẽ được gửi kèm tin nhắn tiếp theo",
+      "attachedPrefix": "[Storyboard hiện tại để tham khảo]",
+      "designing": "đang chốt storyboard...",
+      "sceneCount": "{{n}} cảnh",
+      "duration": "{{sec}}s",
+      "history": "Lịch sử chat",
+      "historyEmpty": "Chưa có đoạn chat nào",
+      "historyMessages": "{{n}} tin nhắn"
+    },
+    "download_failed": "Tải xuống thất bại"
   },
   "watermark": {
     "title": "Xóa watermark",
@@ -147,8 +173,6 @@
     "clear": "Xóa danh sách",
     "remove": "Bỏ khỏi danh sách",
     "empty": "Chưa có ảnh nào",
-    "credits": "Thuật toán: gemini-watermark-remover (MIT) bởi GargantuaX, dựa trên phương pháp trộn alpha nghịch của AllenK.",
-    "usage_note": "Chỉ dùng với ảnh bạn có quyền chỉnh sửa. Bạn chịu trách nhiệm tuân thủ điều khoản dịch vụ hiện hành.",
     "confidence": "Độ tin cậy",
     "tabs": {
       "images": "Hình ảnh",
@@ -156,16 +180,117 @@
     },
     "video": {
       "mask_position": "Kéo để đặt vị trí mask",
-      "max_duration": "Tối đa 30 giây",
+      "max_duration": "Tối đa 2 phút",
       "max_size": "Tối đa 100MB",
       "processing_frame": "Đang xử lý frame {{current}}/{{total}}",
-      "auto_note": "Watermark Gemini được tự động tẩy từng frame bằng inverse alpha blend (gemini-watermark-remover) — xử lý hoàn toàn trên trình duyệt của bạn."
+      "auto_note": "Watermark Gemini được tự động tẩy từng frame bằng inverse alpha blend (gemini-watermark-remover) — xử lý hoàn toàn trên trình duyệt của bạn.",
+      "audio_note": "Âm thanh gốc được giữ nguyên trong kết quả."
     },
     "comparison": {
       "before": "Trước",
       "after": "Sau",
       "drag_to_compare": "Kéo để so sánh"
     },
-    "drop_title_video": "Kéo thả video vào đây"
+    "drop_title_video": "Kéo thả video vào đây",
+    "process_all": "Xóa watermark",
+    "original": "Bản gốc",
+    "result": "Kết quả",
+    "mode": {
+      "parallel": "Song song",
+      "slider": "Trượt so sánh"
+    },
+    "anim": {
+      "removing": "Đang xóa logo"
+    }
+  },
+  "pptx": {
+    "title": "Studio PPTX",
+    "description": "Thiết kế bài thuyết trình cùng agent thiết kế, xem trước từng slide và xuất file .pptx chỉnh sửa được ngay trên trình duyệt.",
+    "export": "Xuất .pptx",
+    "exporting": "Đang xuất…",
+    "export_done": "Đã xuất bộ slide",
+    "export_failed": "Xuất thất bại: {{error}}",
+    "client_side": "Render & xuất ngay trên trình duyệt",
+    "slides_count": "{{n}} slide",
+    "add_slide": "Thêm slide",
+    "duplicate": "Nhân bản slide",
+    "remove": "Xoá slide",
+    "move_up": "Chuyển slide lên",
+    "move_down": "Chuyển slide xuống",
+    "json_mode": "JSON",
+    "json_hide": "Ẩn JSON",
+    "json_load": "Nạp JSON",
+    "json_invalid": "Bộ slide không hợp lệ: {{error}}",
+    "image_hint": "Ảnh được tải lúc xuất file; URL ngoài phải cho phép CORS.",
+    "tabs": {
+      "slides": "Slide",
+      "theme": "Giao diện"
+    },
+    "theme": {
+      "preset": "Mẫu giao diện",
+      "preset_deep-blue": "Xanh đêm",
+      "preset_paper": "Giấy",
+      "preset_forest": "Rừng",
+      "preset_plum": "Tím than",
+      "preset_ink-teal": "Teal mực",
+      "background": "Nền",
+      "foreground": "Chữ",
+      "accent": "Nhấn",
+      "muted": "Chữ phụ",
+      "font_heading": "Font tiêu đề",
+      "font_body": "Font nội dung"
+    },
+    "field": {
+      "layout": "Bố cục",
+      "title": "Tiêu đề",
+      "subtitle": "Phụ đề",
+      "bullets": "Gạch đầu dòng (mỗi dòng 1 ý)",
+      "quote": "Trích dẫn",
+      "author": "Tác giả",
+      "source": "URL hoặc đường dẫn ảnh",
+      "caption": "Chú thích",
+      "notes": "Ghi chú thuyết trình",
+      "heading": "Tiêu đề cột",
+      "left": "Cột trái",
+      "right": "Cột phải",
+      "value": "Giá trị",
+      "label": "Nhãn",
+      "add_stat": "Thêm số liệu",
+      "remove_stat": "Xoá số liệu"
+    },
+    "layout": {
+      "title": "Trang bìa",
+      "section": "Phần",
+      "bullets": "Gạch đầu dòng",
+      "two_column": "Hai cột",
+      "quote": "Trích dẫn",
+      "stats": "Số liệu",
+      "image": "Ảnh",
+      "end": "Kết"
+    },
+    "designer": {
+      "title": "PPTX Designer",
+      "toggle": "Trò chuyện với designer bài thuyết trình",
+      "close": "Đóng designer",
+      "newChat": "Cuộc trò chuyện mới",
+      "history": "Lịch sử chat",
+      "historyEmpty": "Chưa có đoạn chat nào",
+      "historyMessages": "{{n}} tin nhắn",
+      "badge": "Designer",
+      "emptyHint": "Mô tả bài thuyết trình bạn muốn, designer sẽ dựng bộ slide.",
+      "chip1": "Deck báo cáo Q3, 8 slide",
+      "chip2": "Pitch startup từ ghi chú của tôi",
+      "chip3": "Sửa lại deck theo tông sáng",
+      "apply": "Áp dụng vào studio",
+      "applied": "Đã áp dụng",
+      "viewJson": "Xem JSON",
+      "hideJson": "Ẩn JSON",
+      "invalid": "Bộ slide không hợp lệ",
+      "attach": "Đính kèm deck hiện tại",
+      "attached": "Deck hiện tại sẽ đính kèm vào tin nhắn sau",
+      "attachedPrefix": "[Deck hiện tại để tham khảo]",
+      "designing": "đang hoàn thiện bộ slide…",
+      "slideCount": "{{n}} slide"
+    }
   }
 }
