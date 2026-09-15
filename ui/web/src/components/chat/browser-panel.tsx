@@ -5,7 +5,7 @@
 // and URL-bar entries navigate through the gateway's sanitized relay
 // (browser.panel.open), and agent actions operate the live page via the
 // use-browser-panel hook.
-import { ArrowLeft, ArrowRight, ExternalLink, Globe, RotateCw, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, FileText, Globe, RotateCw, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BrowserPanelState } from "@/pages/chat/hooks/use-browser-panel";
@@ -19,9 +19,10 @@ interface BrowserPanelProps {
   onForward: () => void;
   onReload: () => void;
   onURLSubmit: (url: string) => void;
+  onToggleMode: () => void;
 }
 
-export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onForward, onReload, onURLSubmit }: BrowserPanelProps) {
+export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onForward, onReload, onURLSubmit, onToggleMode }: BrowserPanelProps) {
   const { t } = useTranslation("chat");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [urlDraft, setUrlDraft] = useState(state.url);
@@ -33,8 +34,16 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
 
   if (!open) return null;
 
-  const showIframe = state.relayUrl !== "" && state.status !== "error";
+  const live = state.mode === "live";
+  const frameSrc = live ? state.finalUrl : state.relayUrl;
+  const showIframe = frameSrc !== "" && state.status !== "error";
   const displayTitle = state.title || state.finalUrl || t("browserPanel.title");
+  // Sandbox flips with the mode: the relay needs allow-same-origin so the
+  // dashboard can read/operate its DOM; the live preview runs the real page's
+  // scripts but WITHOUT allow-same-origin — opaque origin, isolated from the
+  // dashboard. Changing sandbox only takes effect on a fresh frame, so the
+  // key includes the mode (and src) to force a remount.
+  const sandbox = live ? "allow-scripts allow-forms" : "allow-same-origin";
 
   const submitURL = () => {
     const trimmed = urlDraft.trim();
@@ -101,9 +110,22 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
           onBlur={() => setUrlDraft(state.url)}
           placeholder={t("browserPanel.urlPlaceholder")}
           spellCheck={false}
-          className="min-w-0 flex-1 rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground md:text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+          className="min-w-0 flex-1 rounded-md border bg-muted px-2 py-1 text-base text-muted-foreground md:text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
           aria-label={t("browserPanel.urlBar")}
         />
+        <button
+          type="button"
+          onClick={onToggleMode}
+          disabled={!state.finalUrl}
+          title={live ? t("browserPanel.switchToStatic") : t("browserPanel.switchToLive")}
+          className={`rounded-md p-1.5 disabled:pointer-events-none disabled:opacity-40 ${
+            live
+              ? "bg-primary/10 text-primary hover:bg-primary/20"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          }`}
+        >
+          {live ? <FileText className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+        </button>
         <button
           type="button"
           onClick={onClose}
@@ -119,9 +141,10 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
         {showIframe ? (
           <iframe
             ref={iframeRef}
-            src={state.relayUrl}
+            key={`${state.mode}:${frameSrc}`}
+            src={frameSrc}
             title={displayTitle}
-            sandbox="allow-same-origin"
+            sandbox={sandbox}
             referrerPolicy="no-referrer"
             className="h-full w-full border-0 bg-white"
             onLoad={() => onIframeLoad(iframeRef.current)}
@@ -146,10 +169,12 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
           ? state.note
           : state.status === "loading"
             ? t("browserPanel.loading")
-            : state.status === "ready"
-              ? t("browserPanel.staticNote")
-              : state.status === "error"
-                ? t("browserPanel.errorHint")
+            : state.status === "error"
+              ? t("browserPanel.errorHint")
+              : state.status === "ready"
+                ? live
+                  ? t("browserPanel.liveNote")
+                  : t("browserPanel.staticNote")
                 : t("browserPanel.empty")}
       </div>
     </div>

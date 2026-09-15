@@ -116,7 +116,10 @@
     "back": "后退",
     "forward": "前进",
     "staticNote": "静态页面 — 已禁用脚本；点击链接和输入仍然可用。",
-    "empty": "尚未打开页面。让助手帮你打开一个网页吧。"
+    "empty": "尚未打开页面。让助手帮你打开一个网页吧。",
+    "switchToLive": "实时预览（运行 JavaScript）",
+    "switchToStatic": "静态视图（助手可操作）",
+    "liveNote": "实时预览 — 真实页面在此运行 JavaScript。此模式下助手无法读取或点击；需要时请切回静态视图。"
   },
   "taskTree": {
     "empty": "暂无任务",

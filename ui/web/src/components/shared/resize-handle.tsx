@@ -6,6 +6,11 @@ interface ResizeHandleProps {
   onResize: (dx: number) => void;
   /** Double-click — reset the column to its default width. */
   onReset?: () => void;
+  /** Drag lifecycle. Drag start/end let owners shield iframes underneath:
+   *  pointer capture does not carry across iframe documents, so an unshielded
+   *  frame swallows pointermove and freezes the drag mid-motion. */
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
   /** Which edge of the neighbouring column this handle sits on (drag direction semantics are identical). */
   side?: "left" | "right";
   className?: string;
@@ -17,16 +22,24 @@ interface ResizeHandleProps {
  * (with pointer capture) so it works for mouse and touch alike; the visual
  * is a 1px hairline with a 4px hit area that tints on hover/drag.
  */
-export function ResizeHandle({ onResize, onReset, side = "left", className, ariaLabel }: ResizeHandleProps) {
+export function ResizeHandle({ onResize, onReset, onDragStart, onDragEnd, side = "left", className, ariaLabel }: ResizeHandleProps) {
   const dragging = useRef(false);
   const lastX = useRef(0);
+
+  const stop = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    onDragEnd?.();
+  }, [onDragEnd]);
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     dragging.current = true;
     lastX.current = e.clientX;
     e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
+    onDragStart?.();
+  }, [onDragStart]);
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -38,11 +51,6 @@ export function ResizeHandle({ onResize, onReset, side = "left", className, aria
     [onResize],
   );
 
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    dragging.current = false;
-    e.currentTarget.releasePointerCapture(e.pointerId);
-  }, []);
-
   return (
     <div
       role="separator"
@@ -51,7 +59,8 @@ export function ResizeHandle({ onResize, onReset, side = "left", className, aria
       title={ariaLabel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
+      onPointerUp={stop}
+      onPointerCancel={stop}
       onDoubleClick={onReset}
       className={cn(
         "group/handle relative z-10 w-1 shrink-0 cursor-col-resize select-none touch-none",

@@ -1,4 +1,5 @@
 import { FolderOpen, Globe, ListTree, SquareTerminal } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ResizeHandle } from "@/components/shared/resize-handle";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ interface ChatSidePaneProps {
     onForward: () => void;
     onReload: () => void;
     onURLSubmit: (url: string) => void;
+    onToggleMode: () => void;
   };
 }
 
@@ -44,6 +46,10 @@ interface ChatSidePaneProps {
 export function ChatSidePane({ active, workspaceId, width, onResize, onResetWidth, onClose, onSelect, browser }: ChatSidePaneProps) {
   const { t } = useTranslation("chat");
   const { t: tCommon } = useTranslation("common");
+  // While the width handle is dragged, the pane body must not receive pointer
+  // events: the browser tab's iframe is a separate document, which swallows
+  // pointermove and freezes the drag once the cursor crosses it.
+  const [dragging, setDragging] = useState(false);
 
   if (!active) return null;
 
@@ -57,6 +63,8 @@ export function ChatSidePane({ active, workspaceId, width, onResize, onResetWidt
         side="left"
         onResize={onResize}
         onReset={onResetWidth}
+        onDragStart={() => setDragging(true)}
+        onDragEnd={() => setDragging(false)}
         ariaLabel={tCommon("pane.resize")}
         className={width === null ? "hidden" : ""}
       />
@@ -64,6 +72,7 @@ export function ChatSidePane({ active, workspaceId, width, onResize, onResetWidt
         className={cn(
           "flex h-full min-h-0 min-w-0 flex-1 flex-col border-l bg-background",
           width === null && "border-l-0 safe-top",
+          dragging && "pointer-events-none",
         )}
         style={width !== null ? { width } : undefined}
       >
@@ -112,6 +121,7 @@ export function ChatSidePane({ active, workspaceId, width, onResize, onResetWidt
             onForward={browser.onForward}
             onReload={browser.onReload}
             onURLSubmit={browser.onURLSubmit}
+            onToggleMode={browser.onToggleMode}
           />
         )}
       </div>
