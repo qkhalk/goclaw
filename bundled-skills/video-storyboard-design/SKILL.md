@@ -32,6 +32,15 @@ seconds, steady rhythm, one idea per scene.
 
 - Ask the user for 2-4 photos or URLs when the topic suits real footage
   (news, products, places). Images make videos feel produced, not generated.
+- When the request references an article or page (news recaps, product
+  launches), fetch it with web_fetch and mine real image URLs before
+  designing: the og:image meta tag, the hero photo, and inline article
+  photos. Use DIRECT image URLs (ends .jpg/.jpeg/.png/.webp, or a CDN image
+  link) as scene "source"; the render worker downloads them at render time.
+- Skip logos, avatars, icons, ads and tracking pixels — photos only. Pick
+  the 2-4 strongest, visually distinct images that map to your scene facts.
+- If the fetch fails or yields nothing usable, fall back to a color-scene
+  design; never invent or guess image URLs.
 - Apply subtle ken_burns to every static image (zoom_from 1.0, zoom_to 1.12)
   and vary the pan direction between scenes (left, then up, then right).
 - Never place two image scenes back to back without different pan or zoom

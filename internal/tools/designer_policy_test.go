@@ -28,10 +28,10 @@ func TestFilterTools_DesignerAgentExposesOnlyKnowledgeTools(t *testing.T) {
 	reg := tools.NewRegistry()
 	for _, name := range []string{
 		// designer allowlist
-		"skill_search", "use_skill", "session_status",
+		"skill_search", "use_skill", "session_status", "web_fetch",
 		// system-touching tools the designer must never see
 		"exec", "write_file", "edit_file", "read_file", "apply_patch",
-		"web_fetch", "web_search", "browser_open",
+		"web_search", "browser_open",
 		"render_video", "delegate_task", "message", "cron_create",
 		"memory_search", "session_spawn",
 	} {
@@ -50,7 +50,7 @@ func TestFilterTools_DesignerAgentExposesOnlyKnowledgeTools(t *testing.T) {
 	}
 	slices.Sort(got)
 
-	want := []string{"session_status", "skill_search", "use_skill"}
+	want := []string{"session_status", "skill_search", "use_skill", "web_fetch"}
 	if !slices.Equal(got, want) {
 		t.Errorf("designer tool surface = %v, want exactly %v", got, want)
 	}
