@@ -128,7 +128,33 @@
     "transition_fade": "从黑淡入",
     "transition_crossfade": "叠化",
     "transition_slide_left": "左滑入",
-    "transition_slide_up": "上滑入"
+    "transition_slide_up": "上滑入",
+    "designer": {
+      "title": "视频设计师",
+      "toggle": "与设计助手对话",
+      "close": "关闭设计师",
+      "newChat": "新的设计对话",
+      "badge": "设计师",
+      "emptyHint": "描述你想要的视频，设计师会为你起草分镜脚本。",
+      "chip1": "9 秒渐变开场，3 个场景",
+      "chip2": "把科技新闻变成 30 秒视频",
+      "chip3": "用极简风格重做我的分镜",
+      "apply": "应用到时间线",
+      "applied": "已应用",
+      "viewJson": "查看 JSON",
+      "hideJson": "隐藏 JSON",
+      "invalid": "分镜脚本无效",
+      "attach": "附上当前分镜",
+      "attached": "当前分镜将随你的下一条消息一并发送",
+      "attachedPrefix": "[当前分镜，供参考]",
+      "designing": "正在敲定分镜...",
+      "sceneCount": "{{n}} 个场景",
+      "duration": "{{sec}} 秒",
+      "history": "聊天记录",
+      "historyEmpty": "还没有历史会话",
+      "historyMessages": "{{n}} 条消息"
+    },
+    "download_failed": "下载失败"
   },
   "watermark": {
     "title": "水印移除",
@@ -147,8 +173,6 @@
     "clear": "清空列表",
     "remove": "移除",
     "empty": "还没有图片",
-    "credits": "算法：gemini-watermark-remover（MIT），作者 GargantuaX，基于 AllenK 的逆向 alpha 混合方法。",
-    "usage_note": "仅对你有权修改的图片使用。你需自行确保遵守适用的服务条款。",
     "confidence": "置信度",
     "tabs": {
       "images": "图片",
@@ -156,16 +180,117 @@
     },
     "video": {
       "mask_position": "拖动放置遮罩",
-      "max_duration": "最长30秒",
+      "max_duration": "最长120秒",
       "max_size": "最大100MB",
       "processing_frame": "处理帧 {{current}}/{{total}}",
-      "auto_note": "通过逆 alpha 混合（gemini-watermark-remover）自动逐帧去除 Gemini 水印 — 全部在浏览器中处理。"
+      "auto_note": "通过逆 alpha 混合（gemini-watermark-remover）自动逐帧去除 Gemini 水印 — 全部在浏览器中处理。",
+      "audio_note": "结果保留原始音频。"
     },
     "comparison": {
       "before": "处理前",
       "after": "处理后",
       "drag_to_compare": "拖动比较"
     },
-    "drop_title_video": "将视频拖放到此处"
+    "drop_title_video": "将视频拖放到此处",
+    "process_all": "移除水印",
+    "original": "原图",
+    "result": "结果",
+    "mode": {
+      "parallel": "并排",
+      "slider": "对比滑块"
+    },
+    "anim": {
+      "removing": "正在移除标志"
+    }
+  },
+  "pptx": {
+    "title": "PPTX 工作室",
+    "description": "与 AI 设计师一起设计演示文稿，逐页预览，并在浏览器中直接导出可编辑的 .pptx。",
+    "export": "导出 .pptx",
+    "exporting": "导出中…",
+    "export_done": "幻灯片已导出",
+    "export_failed": "导出失败：{{error}}",
+    "client_side": "在浏览器中渲染并导出",
+    "slides_count": "{{n}} 页",
+    "add_slide": "添加幻灯片",
+    "duplicate": "复制幻灯片",
+    "remove": "删除幻灯片",
+    "move_up": "上移幻灯片",
+    "move_down": "下移幻灯片",
+    "json_mode": "JSON",
+    "json_hide": "隐藏 JSON",
+    "json_load": "加载 JSON",
+    "json_invalid": "无效的幻灯片组：{{error}}",
+    "image_hint": "图片在导出时获取；外部 URL 需允许 CORS。",
+    "tabs": {
+      "slides": "幻灯片",
+      "theme": "主题"
+    },
+    "theme": {
+      "preset": "主题预设",
+      "preset_deep-blue": "深蓝",
+      "preset_paper": "纸张",
+      "preset_forest": "森林",
+      "preset_plum": "紫檀",
+      "preset_ink-teal": "墨青",
+      "background": "背景",
+      "foreground": "文字",
+      "accent": "强调色",
+      "muted": "次要文字",
+      "font_heading": "标题字体",
+      "font_body": "正文字体"
+    },
+    "field": {
+      "layout": "版式",
+      "title": "标题",
+      "subtitle": "副标题",
+      "bullets": "要点（每行一条）",
+      "quote": "引用",
+      "author": "作者",
+      "source": "图片 URL 或路径",
+      "caption": "说明",
+      "notes": "演讲者备注",
+      "heading": "栏目标题",
+      "left": "左栏",
+      "right": "右栏",
+      "value": "数值",
+      "label": "标签",
+      "add_stat": "添加数据",
+      "remove_stat": "删除数据"
+    },
+    "layout": {
+      "title": "封面",
+      "section": "章节",
+      "bullets": "要点",
+      "two_column": "双栏",
+      "quote": "引用",
+      "stats": "数据",
+      "image": "图片",
+      "end": "结尾"
+    },
+    "designer": {
+      "title": "PPTX 设计师",
+      "toggle": "与幻灯片设计师对话",
+      "close": "关闭设计师",
+      "newChat": "新设计会话",
+      "history": "聊天记录",
+      "historyEmpty": "还没有历史会话",
+      "historyMessages": "{{n}} 条消息",
+      "badge": "设计师",
+      "emptyHint": "描述你想要的演示文稿，设计师会起草整套幻灯片。",
+      "chip1": "Q3 汇报，8 页",
+      "chip2": "把我的笔记做成融资路演",
+      "chip3": "用浅色主题重做我的幻灯片",
+      "apply": "应用到工作室",
+      "applied": "已应用",
+      "viewJson": "查看 JSON",
+      "hideJson": "隐藏 JSON",
+      "invalid": "无效的幻灯片组",
+      "attach": "附加当前幻灯片组",
+      "attached": "当前幻灯片组将附加到下一条消息",
+      "attachedPrefix": "[当前幻灯片组，供参考]",
+      "designing": "正在完成幻灯片组…",
+      "slideCount": "{{n}} 页"
+    }
   }
 }

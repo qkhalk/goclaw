@@ -7,6 +7,7 @@ import {
   Download,
   Loader2,
   RefreshCw,
+  Wand2,
   X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +22,8 @@ import { useHttp } from "@/hooks/use-ws";
 import { toast } from "@/stores/use-toast-store";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
+import { useIsTablet } from "@/hooks/use-media-query";
+import { useUiStore } from "@/stores/use-ui-store";
 import {
   submitRenderJob,
   useVideoCancel,
@@ -29,10 +32,12 @@ import {
 } from "./hooks/use-video";
 import { useTimeline, type Scene } from "./hooks/use-timeline";
 import { useVideoExport, exportExtension } from "./hooks/use-video-export";
+import { normalizeEditorScenes } from "./lib/storyboard-wire";
 import { CanvasPlayer } from "./components/canvas-player";
 import { Timeline } from "./components/timeline";
 import { SceneCard } from "./components/scene-card";
 import { RenderPanel } from "./components/render-panel";
+import { DesignerColumn } from "./components/designer-column";
 
 // ── Storyboard (non-scene fields; scenes live in the timeline) ──
 
@@ -94,6 +99,31 @@ export function VideoToolPage() {
   const [submitting, setSubmitting] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<VideoRenderJob | null>(null);
   const [jobsOpen, setJobsOpen] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  // The output route requires auth (like every /v1 endpoint), so downloads go
+  // through an authorized blob fetch instead of a bare <a href> that 401s.
+  async function handleDownloadJob(job: VideoRenderJob) {
+    try {
+      setDownloadingId(job.id);
+      const blob = await http.fetchBlob(`/v1/video/jobs/${job.id}/output`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `goclaw-video-${job.id.slice(0, 8)}.mp4`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(t("video.download_failed"));
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  // Designer column (chat rail on desktop, bottom sheet on tablets/phones)
+  const isCompact = useIsTablet();
+  const designerOpen = useUiStore((s) => s.videoDesignerOpen);
+  const setDesignerOpen = useUiStore((s) => s.setVideoDesignerOpen);
 
   // Feature gate
   const { data: gate, error: gateError } = useQuery({
@@ -151,13 +181,25 @@ export function VideoToolPage() {
     }
   }
 
+  // Replace the whole editor content with a storyboard — the one Apply path
+  // shared by the JSON mode and the designer column, so undo/redo, canvas
+  // and submit payload stay consistent wherever a storyboard comes from.
+  const applyStoryboardToEditor = useCallback(
+    (next: Storyboard) => {
+      const { scenes, ...parsedMeta } = next;
+      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
+      // Designer storyboards carry wire-shaped narration objects; the editor
+      // edits plain text — flatten on the way in.
+      timeline.replaceScenes(normalizeEditorScenes(scenes ?? []));
+    },
+    [timeline],
+  );
+
   function loadJson() {
     try {
       const parsed = JSON.parse(jsonDraft) as Storyboard;
       if (!parsed || typeof parsed !== "object") throw new Error("not an object");
-      const { scenes, ...parsedMeta } = parsed;
-      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
-      timeline.replaceScenes(scenes ?? []);
+      applyStoryboardToEditor(parsed);
       setJsonError("");
       setShowJson(false);
     } catch (e) {
@@ -209,22 +251,35 @@ export function VideoToolPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
-      <PageHeader
-        title={t("video.title")}
-        description={t("video.description")}
-        actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refresh()}
-            className="min-h-11 sm:min-h-9"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {t("video.jobs_refresh")}
-          </Button>
-        }
-      />
+    <div className="relative mx-auto flex w-full max-w-[1600px] items-start">
+      <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 px-4 py-6">
+        <PageHeader
+          title={t("video.title")}
+          description={t("video.description")}
+          actions={
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refresh()}
+                className="min-h-11 sm:min-h-9"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {t("video.jobs_refresh")}
+              </Button>
+              <Button
+                variant={designerOpen ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDesignerOpen(!designerOpen)}
+                className="min-h-11 sm:min-h-9"
+                title={t("video.designer.toggle")}
+              >
+                <Wand2 className="mr-2 h-4 w-4" />
+                {t("video.designer.title")}
+              </Button>
+            </>
+          }
+        />
 
       {/* Jobs list (collapsible) */}
       <div className="rounded-lg border">
@@ -288,16 +343,16 @@ export function VideoToolPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            asChild
                             className="min-h-11 sm:min-h-9"
+                            disabled={downloadingId === job.id}
+                            onClick={() => handleDownloadJob(job)}
                           >
-                            <a
-                              href={`/v1/files/videos/${job.id}.mp4`}
-                              download
-                            >
+                            {downloadingId === job.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
                               <Download className="mr-2 h-4 w-4" />
-                              {t("video.download")}
-                            </a>
+                            )}
+                            {t("video.download")}
                           </Button>
                         )}
                         {(job.status === "queued" ||
@@ -493,6 +548,18 @@ export function VideoToolPage() {
           }
         }}
       />
+      </div>
+
+      {/* Designer column: sticky chat rail on desktop; on compact screens it
+          renders itself as a portal bottom sheet, so the wrapper stays empty. */}
+      {/* Designer column: sticky chat rail on desktop; on compact screens it
+          renders itself as a portal bottom sheet, so the wrapper stays empty. */}
+      <div className={cn(!isCompact && "sticky top-0 h-dvh")}>
+        <DesignerColumn
+          onApplyStoryboard={applyStoryboardToEditor}
+          currentStoryboard={sb}
+        />
+      </div>
     </div>
   );
 }

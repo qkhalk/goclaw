@@ -21,13 +21,22 @@ interface ChatInputProps {
   disabled?: boolean;
   files: AttachedFile[];
   onFilesChange: (files: AttachedFile[]) => void;
+  /**
+   * localStorage key for persisted composer overrides. Instances embedded in
+   * other surfaces (video designer column) pass their own key so their
+   * provider/model pick never clobbers the main chat's.
+   */
+  storageKey?: string;
+  /** Provider name of the target agent — feeds the model picker when no
+   * provider override is selected (model-only override on agent's provider). */
+  defaultProviderName?: string;
 }
 
 const COMPOSER_OVERRIDE_KEY = "goclaw.composer-override";
 
-function loadComposerOverrides(): ComposerOverrides {
+function loadComposerOverrides(storageKey: string): ComposerOverrides {
   try {
-    const raw = localStorage.getItem(COMPOSER_OVERRIDE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as ComposerOverrides;
     return {
@@ -48,21 +57,23 @@ export function ChatInput({
   disabled,
   files,
   onFilesChange,
+  storageKey = COMPOSER_OVERRIDE_KEY,
+  defaultProviderName,
 }: ChatInputProps) {
   const { t } = useTranslation("common");
   const [value, setValue] = useState("");
-  const [overrides, setOverrides] = useState<ComposerOverrides>(loadComposerOverrides);
+  const [overrides, setOverrides] = useState<ComposerOverrides>(() => loadComposerOverrides(storageKey));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Persist the composer pickers so the selection survives reloads.
   useEffect(() => {
     try {
-      localStorage.setItem(COMPOSER_OVERRIDE_KEY, JSON.stringify(overrides));
+      localStorage.setItem(storageKey, JSON.stringify(overrides));
     } catch {
       // storage unavailable (private mode) — selection just won't persist
     }
-  }, [overrides]);
+  }, [overrides, storageKey]);
 
   const handleOverridesChange = useCallback((next: ComposerOverrides) => {
     setOverrides((prev) => ({ ...prev, ...next }));
@@ -275,6 +286,7 @@ export function ChatInput({
             value={overrides}
             onChange={handleOverridesChange}
             disabled={disabled || voiceRecorder.isRecording}
+            defaultProviderName={defaultProviderName}
           />
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
