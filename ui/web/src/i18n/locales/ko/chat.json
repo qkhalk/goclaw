@@ -118,6 +118,25 @@
     "title": "터미널",
     "noWorkspace": "터미널을 열 워크스페이스를 선택하세요"
   },
+  "browserPanel": {
+    "title": "브라우저",
+    "loading": "페이지 로드 중…",
+    "ready": "준비됨",
+    "error": "페이지를 표시할 수 없습니다",
+    "errorHint": "사이트가 임베딩을 차단할 수 있습니다 — \"새 탭에서 열기\"를 사용하세요.",
+    "openNewTab": "새 탭에서 열기",
+    "reload": "새로고침",
+    "close": "패널 닫기",
+    "urlBar": "페이지 URL",
+    "urlPlaceholder": "검색 또는 URL 입력",
+    "back": "뒤로",
+    "forward": "앞으로",
+    "staticNote": "정적 페이지 — 스크립트가 비활성화되어 있지만 링크 클릭과 입력은 작동합니다.",
+    "empty": "열린 페이지가 없습니다. 에이전트에게 페이지를 열어달라고 하세요.",
+    "switchToLive": "라이브 미리보기 (JavaScript 실행)",
+    "switchToStatic": "정적 보기 (에이전트 조작 가능)",
+    "liveNote": "라이브 미리보기 — 실제 페이지가 JavaScript를 실행합니다. 이 모드에서는 에이전트가 읽거나 클릭할 수 없으니 필요시 정적 보기로 전환하세요."
+  },
   "permissionModes": {
     "default": "에이전트 기본값",
     "plan": "계획(읽기 전용)",

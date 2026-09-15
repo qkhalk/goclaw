@@ -102,6 +102,25 @@
     "connecting": "Connecting…",
     "failed": "Terminal failed: {{message}}"
   },
+  "browserPanel": {
+    "title": "Browser",
+    "loading": "Loading page…",
+    "ready": "Ready",
+    "error": "Page could not be displayed",
+    "errorHint": "The site may block embedding — use \"Open in new tab\".",
+    "openNewTab": "Open in new tab",
+    "reload": "Reload",
+    "close": "Close panel",
+    "urlBar": "Page URL",
+    "urlPlaceholder": "Search or type a URL",
+    "back": "Back",
+    "forward": "Forward",
+    "staticNote": "Static page — scripts disabled; links and typing still work.",
+    "empty": "No page open. Ask the agent to browse something.",
+    "switchToLive": "Live preview (runs JavaScript)",
+    "switchToStatic": "Static view (agent-operable)",
+    "liveNote": "Live preview — the real page runs JavaScript here. The agent cannot read or click in this mode; switch back to static for that."
+  },
   "taskTree": {
     "empty": "No tasks yet",
     "priority": "Priority",

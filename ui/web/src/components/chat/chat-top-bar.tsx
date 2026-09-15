@@ -4,6 +4,7 @@ import { stripLeadingEmoji } from "@/lib/agent-emoji";
 import type { SessionInfo } from "@/types/session";
 import { ConsoleMenu } from "@/components/chat/console-menu";
 import { ContextMeter } from "@/components/chat/context-meter";
+import type { ChatPaneId } from "@/components/chat/chat-side-pane";
 
 interface ChatTopBarProps {
   agentId: string;
@@ -11,13 +12,9 @@ interface ChatTopBarProps {
   /** Current session — when provided, the bar renders the context meter. */
   session?: SessionInfo | null;
   /** Paseo Phase 3 console panels: workspace-scoped tools on the right. */
-  onToggleFiles?: () => void;
-  filesPanelOpen?: boolean;
-  onToggleJobsTasks?: () => void;
-  jobsTasksPanelOpen?: boolean;
-  /** Paseo Phase 4 (§25): web terminal panel toggle. */
-  onToggleTerminal?: () => void;
-  termPanelOpen?: boolean;
+  /** ZCode-style single tabbed pane: active tab + open/toggle request. */
+  activePane?: ChatPaneId | null;
+  onTogglePane?: (id: ChatPaneId) => void;
   /** Selected workspace id + change callback for the console menu. */
   workspaceId?: string | null;
   onWorkspaceChange?: (id: string | null) => void;
@@ -33,12 +30,8 @@ export function ChatTopBar({
   agentId,
   isRunning,
   session,
-  onToggleFiles,
-  filesPanelOpen,
-  onToggleJobsTasks,
-  jobsTasksPanelOpen,
-  onToggleTerminal,
-  termPanelOpen,
+  activePane,
+  onTogglePane,
   workspaceId,
   onWorkspaceChange,
 }: ChatTopBarProps) {
@@ -66,12 +59,8 @@ export function ChatTopBar({
         <ConsoleMenu
           workspaceId={workspaceId ?? null}
           onWorkspaceChange={(id) => onWorkspaceChange?.(id)}
-          filesPanelOpen={!!filesPanelOpen}
-          jobsPanelOpen={!!jobsTasksPanelOpen}
-          termPanelOpen={!!termPanelOpen}
-          onToggleFiles={() => onToggleFiles?.()}
-          onToggleJobsTasks={() => onToggleJobsTasks?.()}
-          onToggleTerminal={() => onToggleTerminal?.()}
+          activePane={activePane ?? null}
+          onTogglePane={(id) => onTogglePane?.(id)}
         />
 
         {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}

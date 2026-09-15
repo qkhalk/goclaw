@@ -17,12 +17,17 @@ import { useChatMessages } from "./hooks/use-chat-messages";
 import { useChatSend } from "./hooks/use-chat-send";
 import { isOwnSession, parseSessionKey } from "@/lib/session-key";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
-import { FileExplorerPanel } from "@/components/chat/file-explorer-panel";
-import { JobsTasksPanel } from "@/components/chat/jobs-tasks-panel";
-import { TerminalPanel } from "@/components/chat/terminal-panel";
+import { ChatSidePane, type ChatPaneId } from "@/components/chat/chat-side-pane";
+import { ResizeHandle } from "@/components/shared/resize-handle";
+import { useBrowserPanel } from "./hooks/use-browser-panel";
+import { useUiStore, CHAT_PANE_WIDTH, CHAT_SIDEBAR_WIDTH } from "@/stores/use-ui-store";
+
+/** Widening the right pane must never squeeze the chat column below this. */
+const MIN_CHAT_COLUMN_PX = 360;
 
 export function ChatPage() {
   const { t } = useTranslation("chat");
+  const { t: tCommon } = useTranslation("common");
   const { sessionKey: urlSessionKey } = useParams<{ sessionKey: string }>();
   const navigate = useNavigate();
   const connected = useAuthStore((s) => s.connected);
@@ -175,10 +180,38 @@ export function ChatPage() {
   const [agentSelectorOpenSignal, setAgentSelectorOpenSignal] = useState(0);
   // Paseo Phase 3 console panels: workspace selection + right-side tools.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [filesPanelOpen, setFilesPanelOpen] = useState(false);
-  const [jobsPanelOpen, setJobsPanelOpen] = useState(false);
-  // Paseo Phase 4 (§25): web terminal side panel.
-  const [termOpen, setTermOpen] = useState(false);
+  // Single ZCode-style tabbed side pane: open a tool = switch its tab, never
+  // stack columns. Null = closed.
+  const [activePane, setActivePane] = useState<ChatPaneId | null>(null);
+  // Client-side browsing: agent's web_browse renders here (browser.panel.invoke).
+  const browserPanel = useBrowserPanel(useCallback(() => setActivePane("browser"), []));
+
+  // Toggle semantics: clicking the open pane's entry closes it.
+  const togglePane = useCallback((id: ChatPaneId) => {
+    setActivePane((cur) => (cur === id ? null : id));
+  }, []);
+
+  const setChatSidebarWidth = useUiStore((s) => s.setChatSidebarWidth);
+  const chatSidebarWidth = useUiStore((s) => s.chatSidebarWidth);
+  const setChatPaneWidth = useUiStore((s) => s.setChatPaneWidth);
+  const chatPaneWidth = useUiStore((s) => s.chatPaneWidth);
+  // Read fresh state inside drag callbacks so rapid pointermove events never
+  // compound a stale closure width.
+  const resizeChatSidebar = useCallback((dx: number) => {
+    const s = useUiStore.getState();
+    s.setChatSidebarWidth(s.chatSidebarWidth + dx);
+  }, []);
+  const resizeChatPane = useCallback((dx: number) => {
+    const s = useUiStore.getState();
+    // Pane sits on the right: drag left = wider. Cap widening so the chat
+    // column keeps a usable minimum (MIN_CHAT_COLUMN_PX) instead of being
+    // crushed into a broken sliver on smaller windows.
+    const dynamicMax = Math.max(
+      CHAT_PANE_WIDTH.min,
+      Math.min(CHAT_PANE_WIDTH.max, window.innerWidth - s.chatSidebarWidth - MIN_CHAT_COLUMN_PX),
+    );
+    s.setChatPaneWidth(Math.min(s.chatPaneWidth - dx, dynamicMax));
+  }, []);
 
   const handleSessionSelectMobile = useCallback(
     (key: string) => {
@@ -224,17 +257,27 @@ export function ChatPage() {
           </div>
         </>
       ) : (
-        <ChatSidebar
-          agentId={agentId}
-          onAgentChange={handleAgentChange}
-          sessions={sessions}
-          sessionsLoading={sessionsLoading}
-          activeSessionKey={sessionKey}
-          onSessionSelect={handleSessionSelect}
-          onDeleteSession={handleDeleteSession}
-          onNewChat={handleNewChat}
-          agentSelectorOpenSignal={agentSelectorOpenSignal}
-        />
+        /* Desktop chat sidebar with drag-resizable width */
+        <>
+          <ChatSidebar
+            agentId={agentId}
+            onAgentChange={handleAgentChange}
+            sessions={sessions}
+            sessionsLoading={sessionsLoading}
+            activeSessionKey={sessionKey}
+            onSessionSelect={handleSessionSelect}
+            onDeleteSession={handleDeleteSession}
+            onNewChat={handleNewChat}
+            agentSelectorOpenSignal={agentSelectorOpenSignal}
+            width={chatSidebarWidth}
+          />
+          <ResizeHandle
+            side="right"
+            onResize={resizeChatSidebar}
+            onReset={() => setChatSidebarWidth(CHAT_SIDEBAR_WIDTH.default)}
+            ariaLabel={tCommon("pane.resize")}
+          />
+        </>
       )}
 
       {/* Main chat area */}
@@ -256,12 +299,8 @@ export function ChatPage() {
             agentId={agentId}
             isRunning={isRunning}
             session={sessions.find((s) => s.key === sessionKey) ?? null}
-            onToggleFiles={() => setFilesPanelOpen((v) => !v)}
-            filesPanelOpen={filesPanelOpen}
-            onToggleJobsTasks={() => setJobsPanelOpen((v) => !v)}
-            jobsTasksPanelOpen={jobsPanelOpen}
-            onToggleTerminal={() => setTermOpen((v) => !v)}
-            termPanelOpen={termOpen}
+            activePane={activePane}
+            onTogglePane={togglePane}
             workspaceId={workspaceId}
             onWorkspaceChange={setWorkspaceId}
           />
@@ -327,31 +366,28 @@ export function ChatPage() {
         </DropZone>
       </div>
 
-      {/* Mobile overlay backdrops for the console panels — one open at a time */}
-      {filesPanelOpen && !jobsPanelOpen && isMobile && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setFilesPanelOpen(false)} />
-      )}
-      {jobsPanelOpen && isMobile && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setJobsPanelOpen(false)} />
-      )}
-      {termOpen && !filesPanelOpen && !jobsPanelOpen && isMobile && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setTermOpen(false)} />
+      {/* Mobile backdrop for the side pane (fullscreen overlay on mobile) */}
+      {activePane && isMobile && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setActivePane(null)} />
       )}
 
-      <FileExplorerPanel
-        open={filesPanelOpen}
-        onClose={() => setFilesPanelOpen(false)}
+      <ChatSidePane
+        active={activePane}
         workspaceId={workspaceId}
-      />
-      <JobsTasksPanel
-        open={jobsPanelOpen}
-        onClose={() => setJobsPanelOpen(false)}
-        workspaceId={workspaceId}
-      />
-      <TerminalPanel
-        open={termOpen}
-        onClose={() => setTermOpen(false)}
-        workspaceId={workspaceId}
+        width={isMobile ? null : chatPaneWidth}
+        onResize={resizeChatPane}
+        onResetWidth={() => setChatPaneWidth(CHAT_PANE_WIDTH.default)}
+        onClose={() => setActivePane(null)}
+        onSelect={togglePane}
+        browser={{
+          state: browserPanel.state,
+          onIframeLoad: browserPanel.handleIframeLoad,
+          onBack: browserPanel.goBack,
+          onForward: browserPanel.goForward,
+          onReload: browserPanel.reload,
+          onURLSubmit: browserPanel.openURL,
+          onToggleMode: browserPanel.toggleMode,
+        }}
       />
     </div>
   );

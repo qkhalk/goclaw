@@ -102,6 +102,25 @@
     "connecting": "Đang kết nối…",
     "failed": "Terminal gặp lỗi: {{message}}"
   },
+  "browserPanel": {
+    "title": "Trình duyệt",
+    "loading": "Đang tải trang…",
+    "ready": "Sẵn sàng",
+    "error": "Không hiển thị được trang",
+    "errorHint": "Trang có thể chặn nhúng — dùng \"Mở tab mới\".",
+    "openNewTab": "Mở tab mới",
+    "reload": "Tải lại",
+    "close": "Đóng panel",
+    "urlBar": "URL trang",
+    "urlPlaceholder": "Tìm kiếm hoặc nhập URL",
+    "back": "Quay lại",
+    "forward": "Tiến",
+    "staticNote": "Trang tĩnh — không chạy script; nhấp link và gõ chữ vẫn hoạt động.",
+    "empty": "Chưa mở trang nào. Yêu cầu agent mở trang nhé.",
+    "switchToLive": "Xem trực tiếp (chạy JavaScript)",
+    "switchToStatic": "Chế độ tĩnh (agent thao tác được)",
+    "liveNote": "Xem trực tiếp — trang thật đang chạy JavaScript. Ở chế độ này agent không đọc/click được; cần thì chuyển về chế độ tĩnh."
+  },
   "taskTree": {
     "empty": "Chưa có nhiệm vụ nào",
     "priority": "Ưu tiên",

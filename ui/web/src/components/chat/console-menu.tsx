@@ -1,21 +1,19 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, ListTree, PanelsTopLeft, SquareTerminal } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, Globe, ListTree, PanelsTopLeft, SquareTerminal } from "lucide-react";
 import { Methods } from "@/api/protocol";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
 import { useWs } from "@/hooks/use-ws";
 import { useWorkspaces } from "@/hooks/use-workspaces";
+import type { ChatPaneId } from "@/components/chat/chat-side-pane";
 
 interface ConsoleMenuProps {
   workspaceId: string | null;
   onWorkspaceChange: (id: string | null) => void;
-  filesPanelOpen: boolean;
-  jobsPanelOpen: boolean;
-  termPanelOpen: boolean;
-  onToggleFiles: () => void;
-  onToggleJobsTasks: () => void;
-  onToggleTerminal: () => void;
+  /** Currently open side-pane tab (null = closed). */
+  activePane: ChatPaneId | null;
+  onTogglePane: (id: ChatPaneId) => void;
 }
 
 /**
@@ -27,12 +25,8 @@ interface ConsoleMenuProps {
 export function ConsoleMenu({
   workspaceId,
   onWorkspaceChange,
-  filesPanelOpen,
-  jobsPanelOpen,
-  termPanelOpen,
-  onToggleFiles,
-  onToggleJobsTasks,
-  onToggleTerminal,
+  activePane,
+  onTogglePane,
 }: ConsoleMenuProps) {
   const { t } = useTranslation("chat");
   const ws = useWs();
@@ -93,7 +87,7 @@ export function ConsoleMenu({
     ignore: [containerRef, dropdownRef],
   });
 
-  const anyPanelOpen = filesPanelOpen || jobsPanelOpen || termPanelOpen;
+  const anyPanelOpen = activePane !== null;
 
   const pickWorkspace = (id: string | null) => {
     onWorkspaceChange(id);
@@ -310,26 +304,32 @@ export function ConsoleMenu({
 
           <div className="my-1 border-t" />
 
-          {/* Panel toggles */}
+          {/* Panel toggles — one ZCode-style tabbed pane, open = switch tab */}
           <MenuRow
-            active={filesPanelOpen}
-            onClick={() => { onToggleFiles(); setOpen(false); }}
+            active={activePane === "files"}
+            onClick={() => { onTogglePane("files"); setOpen(false); }}
             icon={<FolderOpen className="h-4 w-4 shrink-0" />}
             label={t("fileExplorer.title")}
           />
           <MenuRow
-            active={jobsPanelOpen}
-            onClick={() => { onToggleJobsTasks(); setOpen(false); }}
+            active={activePane === "jobs"}
+            onClick={() => { onTogglePane("jobs"); setOpen(false); }}
             icon={<ListTree className="h-4 w-4 shrink-0" />}
             label={t("jobsPanel.title")}
           />
           <MenuRow
-            active={termPanelOpen}
+            active={activePane === "terminal"}
             disabled={!workspaceId}
             title={!workspaceId ? t("terminal.noWorkspace") : undefined}
-            onClick={() => { onToggleTerminal(); setOpen(false); }}
+            onClick={() => { onTogglePane("terminal"); setOpen(false); }}
             icon={<SquareTerminal className="h-4 w-4 shrink-0" />}
             label={t("terminal.title")}
+          />
+          <MenuRow
+            active={activePane === "browser"}
+            onClick={() => { onTogglePane("browser"); setOpen(false); }}
+            icon={<Globe className="h-4 w-4 shrink-0" />}
+            label={t("browserPanel.title")}
           />
         </div>,
         document.body,
