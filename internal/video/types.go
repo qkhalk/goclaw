@@ -19,8 +19,8 @@ type Storyboard struct {
 	Canvas  Canvas   `json:"canvas"`
 	Engine  string   `json:"engine,omitempty"` // default "ffmpeg"
 	Scenes  []Scene  `json:"scenes"`
-	Audio   AudioMix `json:"audio,omitempty"`
-	Output  Output   `json:"output,omitempty"`
+	Audio   AudioMix `json:"audio"`
+	Output  Output   `json:"output"`
 }
 
 // Canvas is the render frame. Defaults: 1080x1920 (9:16) @30fps; capped at
@@ -78,8 +78,8 @@ type Narration struct {
 
 // AudioMix configures the final audio graph.
 type AudioMix struct {
-	BGMPath         string  `json:"bgm_path,omitempty"` // workspace-relative or URL
-	BGMVolume       float64 `json:"bgm_volume,omitempty"`    // default 0.2
+	BGMPath         string  `json:"bgm_path,omitempty"`         // workspace-relative or URL
+	BGMVolume       float64 `json:"bgm_volume,omitempty"`       // default 0.2
 	NarrationVolume float64 `json:"narration_volume,omitempty"` // default 1.0
 }
 
@@ -116,13 +116,13 @@ func DimensionsFor(aspect string, height int) (w, h int, ok bool) {
 }
 
 const (
-	maxScenes       = 60
-	maxSceneSec     = 30.0
-	maxTotalSec     = 600.0
-	maxCanvasEdge   = 1920
-	defaultFPS      = 30
-	defaultHeight   = 720
-	allowedHeights  = "480, 720 or 1080"
+	maxScenes      = 60
+	maxSceneSec    = 30.0
+	maxTotalSec    = 600.0
+	maxCanvasEdge  = 1920
+	defaultFPS     = 30
+	defaultHeight  = 720
+	allowedHeights = "480, 720 or 1080"
 )
 
 // Validate checks the storyboard against the v1 constraints. It is shared by
