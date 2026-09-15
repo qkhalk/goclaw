@@ -22,6 +22,9 @@ import { ResizeHandle } from "@/components/shared/resize-handle";
 import { useBrowserPanel } from "./hooks/use-browser-panel";
 import { useUiStore, CHAT_PANE_WIDTH, CHAT_SIDEBAR_WIDTH } from "@/stores/use-ui-store";
 
+/** Widening the right pane must never squeeze the chat column below this. */
+const MIN_CHAT_COLUMN_PX = 360;
+
 export function ChatPage() {
   const { t } = useTranslation("chat");
   const { t: tCommon } = useTranslation("common");
@@ -200,7 +203,14 @@ export function ChatPage() {
   }, []);
   const resizeChatPane = useCallback((dx: number) => {
     const s = useUiStore.getState();
-    s.setChatPaneWidth(s.chatPaneWidth - dx); // pane sits on the right: drag left = wider
+    // Pane sits on the right: drag left = wider. Cap widening so the chat
+    // column keeps a usable minimum (MIN_CHAT_COLUMN_PX) instead of being
+    // crushed into a broken sliver on smaller windows.
+    const dynamicMax = Math.max(
+      CHAT_PANE_WIDTH.min,
+      Math.min(CHAT_PANE_WIDTH.max, window.innerWidth - s.chatSidebarWidth - MIN_CHAT_COLUMN_PX),
+    );
+    s.setChatPaneWidth(Math.min(s.chatPaneWidth - dx, dynamicMax));
   }, []);
 
   const handleSessionSelectMobile = useCallback(
@@ -376,6 +386,7 @@ export function ChatPage() {
           onForward: browserPanel.goForward,
           onReload: browserPanel.reload,
           onURLSubmit: browserPanel.openURL,
+          onToggleMode: browserPanel.toggleMode,
         }}
       />
     </div>

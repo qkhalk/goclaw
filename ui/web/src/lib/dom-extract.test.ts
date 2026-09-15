@@ -54,6 +54,35 @@ describe("extractPageWithRefs", () => {
 
     expect(d.querySelector(`[${REF_ATTR}]`)).toBeNull();
   });
+
+  it("walks into FORM subtrees so inputs and submit buttons get refs", () => {
+    const d = doc(
+      `<form action="/search"><p>Search the docs</p>` +
+        `<input type="text" name="q" placeholder="Keyword"/>` +
+        `<button type="submit">Search</button></form>`,
+    );
+    const { markdown, refs } = extractPageWithRefs(d);
+
+    expect(refs).toHaveLength(2);
+    expect(refs[0]?.getAttribute(REF_ATTR)).toBe("e1");
+    expect(markdown).toContain("Search the docs");
+    expect(markdown).toContain("[e1] **input** (Keyword)");
+    expect(markdown).toContain("[e2] **Search**");
+  });
+
+  it("clears stale refs from a previous extraction before re-tagging", () => {
+    const d = doc(`<a href="/a">A</a><a href="/b">B</a><a href="/c">C</a>`);
+    extractPageWithRefs(d); // tags e1..e3
+    // Shrink the DOM: B disappears, so the new walk only tags 2 elements.
+    d.body.querySelector(`[${REF_ATTR}="e2"]`)?.remove();
+
+    const { refs } = extractPageWithRefs(d);
+    expect(refs).toHaveLength(2);
+    // The old "e3" tag must be gone — refElement may not match stale elements.
+    expect(d.querySelector(`[${REF_ATTR}="e3"]`)).toBeNull();
+    expect(refElement(d, "e3")).toBeNull();
+    expect(refElement(d, "e2")?.textContent).toBe("C");
+  });
 });
 
 describe("refElement", () => {
