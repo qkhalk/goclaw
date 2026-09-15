@@ -407,6 +407,8 @@ func init() {
 		"telegram.ask.other": "Другое",
 		"telegram.ask.otherhint": "✏️ Ответьте на это сообщение своим ответом.",
 		"telegram.ask.answered": "✓ Ответ: %s → %s",
+		"telegram.ask.confirm": "✔ Подтвердить",
+		"telegram.ask.back": "◀ Назад",
 		"telegram.language.unavailable": "Настройки языка недоступны (хранилище сессий не настроено).",
 		"telegram.language.title": "🌐 Язык для этого чата — выберите:",
 		"telegram.language.current": "🌐 Язык: %s",
