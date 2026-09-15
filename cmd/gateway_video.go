@@ -37,6 +37,7 @@ func newVideoStack(cfg *config.Config, stores *store.Stores, workspace string, e
 		VideoJobs:  stores.VideoJobs,
 		Worker:     worker,
 		Dispatcher: disp,
+		Workspace:  workspace,
 	}
 }
 
@@ -61,7 +62,7 @@ func wireVideo(
 	// Wire the HTTP handler for /v1/video/* endpoints.
 	// The handler is registered unconditionally so the API surface is
 	// discoverable; it returns 403 when disabled.
-	videoHandler := httpapi.NewVideoHandler(stack.VideoJobs, stack.Worker, stack.Dispatcher, true)
+	videoHandler := httpapi.NewVideoHandler(stack.VideoJobs, stack.Worker, stack.Dispatcher, true, stack.Workspace)
 	server.SetVideoHandler(videoHandler)
 
 	// Start the dispatcher goroutine.

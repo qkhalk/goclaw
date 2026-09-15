@@ -3,8 +3,11 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -19,25 +22,30 @@ const maxStoryboardBytes = 1 << 20 // 1 MB
 
 // VideoHandler exposes the HTTP API for video render jobs.
 //
-//	POST   /v1/video/jobs       — create a job from a storyboard JSON
-//	GET    /v1/video/jobs       — list jobs for caller's tenant
-//	GET    /v1/video/jobs/{id}  — get one job by ID
-//	DELETE /v1/video/jobs/{id}  — cancel a queued/rendering job
+//	POST   /v1/video/jobs            — create a job from a storyboard JSON
+//	GET    /v1/video/jobs            — list jobs for caller's tenant
+//	GET    /v1/video/jobs/{id}       — get one job by ID
+//	DELETE /v1/video/jobs/{id}       — cancel a queued/rendering job
+//	GET    /v1/video/jobs/{id}/output — download the finished MP4
 type VideoHandler struct {
 	videoJobs  store.VideoRenderJobStore
 	worker     *videopkg.WorkerClient
 	dispatcher *videopkg.Dispatcher
 	enabled    bool
+	workspace  string
 }
 
 // NewVideoHandler creates a VideoHandler. dispatcher may be nil (the job is
-// then picked up on the dispatcher's next poll tick).
-func NewVideoHandler(videoJobs store.VideoRenderJobStore, worker *videopkg.WorkerClient, dispatcher *videopkg.Dispatcher, enabled bool) *VideoHandler {
+// then picked up on the dispatcher's next poll tick). workspace is the agent
+// workspace root used to locate finished outputs; it may be empty, which
+// disables the download endpoint.
+func NewVideoHandler(videoJobs store.VideoRenderJobStore, worker *videopkg.WorkerClient, dispatcher *videopkg.Dispatcher, enabled bool, workspace string) *VideoHandler {
 	return &VideoHandler{
 		videoJobs:  videoJobs,
 		worker:     worker,
 		dispatcher: dispatcher,
 		enabled:    enabled,
+		workspace:  workspace,
 	}
 }
 
@@ -47,6 +55,7 @@ func (h *VideoHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/video/jobs", requireAuth("", h.handleListJobs))
 	mux.HandleFunc("GET /v1/video/jobs/{id}", requireAuth("", h.handleGetJob))
 	mux.HandleFunc("DELETE /v1/video/jobs/{id}", requireAuth("", h.handleCancelJob))
+	mux.HandleFunc("GET /v1/video/jobs/{id}/output", requireAuth("", h.handleJobOutput))
 }
 
 // --- POST /v1/video/jobs ---
@@ -226,6 +235,71 @@ func (h *VideoHandler) handleCancelJob(w http.ResponseWriter, r *http.Request) {
 		"jobId":  id,
 		"status": string(videopkg.JobCancelled),
 	})
+}
+
+// --- GET /v1/video/jobs/{id}/output ---
+// Streams the finished MP4 for download/preview. Serves the canonical
+// workspace location (<workspace>/videos/<job-id>.mp4 — where the dispatcher
+// writes on completion) reconstructed from the parsed UUID instead of the
+// DB-recorded path, so a tampered row can never turn this into an
+// arbitrary-file read. The generic /v1/files route can't serve these: the
+// workspace root often sits under a denied prefix (/root, /opt) because the
+// gateway runs from those directories in common deployments.
+func (h *VideoHandler) handleJobOutput(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w) {
+		return
+	}
+	id := r.PathValue("id")
+	jobID, err := uuid.Parse(id)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid job id"})
+		return
+	}
+	job, err := h.videoJobs.Get(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrVideoJobNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "job not found"})
+			return
+		}
+		slog.Error("video: get job for output failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get job"})
+		return
+	}
+	if job.Status != string(videopkg.JobDone) {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": "job output not ready (status: " + job.Status + ")",
+		})
+		return
+	}
+	if h.workspace == "" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "output unavailable"})
+		return
+	}
+
+	path := filepath.Join(h.workspace, "videos", jobID.String()+".mp4")
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "output file missing"})
+			return
+		}
+		slog.Error("video: open output failed", "job_id", id, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to open output"})
+		return
+	}
+	defer f.Close()
+
+	// ?download forces an attachment; without it ServeContent's video/mp4
+	// lets the browser preview inline and honor Range requests (seeking).
+	name := "goclaw-video-" + jobID.String()[:8] + ".mp4"
+	if r.URL.Query().Get("download") != "" {
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
+	}
+	if fi, err := f.Stat(); err == nil {
+		http.ServeContent(w, r, name, fi.ModTime(), f)
+		return
+	}
+	http.ServeContent(w, r, name, time.Time{}, f)
 }
 
 // available writes the gate response (403) when the Video surface is off,

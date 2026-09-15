@@ -350,11 +350,14 @@ func copyFile(src, dst string) error {
 
 // --- VideoStack bundles everything the gateway needs for the video pipeline.
 
-// VideoStack holds the components of the video render pipeline.
+// VideoStack holds the components of the video render pipeline. Workspace is
+// the agent workspace root — completed outputs land in <workspace>/videos and
+// the HTTP handler needs it to serve downloads.
 type VideoStack struct {
 	VideoJobs  store.VideoRenderJobStore
 	Worker     *WorkerClient
 	Dispatcher *Dispatcher
+	Workspace  string
 }
 
 // newVideoStack builds the shared video pipeline components. Returns nil when
