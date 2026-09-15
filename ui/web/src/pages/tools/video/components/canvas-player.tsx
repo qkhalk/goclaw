@@ -94,7 +94,8 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
       switch (e.key) {
         case " ":
           e.preventDefault();
-          player.state.isPlaying ? player.pause() : player.play();
+          if (player.state.isPlaying) player.pause();
+          else player.play();
           break;
         case "ArrowLeft":
           e.preventDefault();
