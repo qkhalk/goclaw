@@ -105,6 +105,7 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		{Name: "session_status", DisplayName: "Session Status", Description: "Get the current status and metadata of a specific chat session", Category: "sessions", Enabled: true},
 		{Name: "sessions_history", DisplayName: "Session History", Description: "Retrieve the message history of a specific chat session", Category: "sessions", Enabled: true},
 		{Name: "sessions_send", DisplayName: "Send to Session", Description: "Send a message to an active chat session on behalf of the agent", Category: "sessions", Enabled: true},
+		{Name: "plan", DisplayName: "Plan", Description: "Maintain a visible task plan (checklist) for the current session; persists across turns and renders as a live card in web chat", Category: "sessions", Enabled: true},
 
 		// messaging
 		{Name: "message", DisplayName: "Message", Description: "Send a proactive message to a user on a connected channel (Telegram, Discord, etc.)", Category: "messaging", Enabled: true},

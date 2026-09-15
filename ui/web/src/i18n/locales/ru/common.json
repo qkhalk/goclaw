@@ -141,6 +141,10 @@
     "uploading": "Загрузка...",
     "uploadCount": "Загрузить {{count}} файл(ов)"
   },
+  "planCard": {
+    "title": "План задач",
+    "progress": "{{done}}/{{total}} выполнено"
+  },
   "errors": {
     "serverError": "Что-то пошло не так. Пожалуйста, попробуйте позже."
   }

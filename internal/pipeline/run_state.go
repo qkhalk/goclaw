@@ -70,6 +70,23 @@ func (rs *RunState) Resuming() bool {
 	return rs.resuming
 }
 
+// MarkContinuation re-arms a live in-memory state for one more Pipeline.Run
+// pass after the pipeline already returned: setup stages are skipped and the
+// iteration loop resumes at the current iteration. It gives the state the same
+// shape RestoreCheckpoint produces (resuming flag set, ExitCode back to the
+// zero Continue — checkpoints don't persist ExitCode) so a re-entry behaves
+// identically to a checkpoint resume. The agent loop's completion-verifier
+// recover path uses it after gateCompletion flipped Observe.ContinueAfterFinal:
+// without it, re-running the pipeline fresh would rebuild context/history and
+// drop the continuation flag.
+func (rs *RunState) MarkContinuation() {
+	if rs == nil {
+		return
+	}
+	rs.resuming = true
+	rs.ExitCode = Continue
+}
+
 // maxCheckpointMessages caps the number of messages persisted in a checkpoint.
 // Checkpoints carry substate + conversation so a resume can continue the loop;
 // the session store remains the long-term history authority. History beyond this

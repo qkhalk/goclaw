@@ -77,7 +77,7 @@ func (l *Loop) processToolResult(
 		"id":        tc.ID,
 		"is_error":  result.IsError,
 		"arguments": tc.Arguments,
-		"result":    truncateStr(result.ForLLM, 1000),
+		"result":    truncateStr(result.ForLLM, toolResultPreviewCap(tc.Name)),
 	}
 	if result.IsError && result.ForLLM != "" {
 		toolResultPayload["content"] = result.ForLLM
@@ -286,4 +286,15 @@ func (l *Loop) observeToolLoop(level, tool, runID string) *reliability.Reliabili
 		record()
 	}
 	return relErr
+}
+
+// toolResultPreviewCap returns the tool.result event preview cap. plan
+// results carry the full checklist JSON that the web card renders from and
+// that history replay rebuilds from, so they get headroom over the default
+// 1k preview (a full 20-step plan is a few KB).
+func toolResultPreviewCap(toolName string) int {
+	if toolName == "plan" {
+		return 4096
+	}
+	return 1000
 }
