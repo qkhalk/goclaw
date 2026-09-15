@@ -67,8 +67,19 @@ func NewRunner(cfg WorkerConfig) *Runner {
 
 // Submit adds a job to the queue. Returns immediately.
 func (r *Runner) Submit(ctx context.Context, job contract.SubmitJob) contract.SubmitJobResponse {
+	// Capacity counts queued+rendering jobs only. Terminal jobs stay in the
+	// map for status queries, so len(r.jobs) would permanently consume queue
+	// slots (with max-queue 1, one finished job blocks all future submits).
 	r.mu.Lock()
-	if len(r.jobs) >= r.cfg.MaxQueue {
+	active := 0
+	for _, js := range r.jobs {
+		js.mu.Lock()
+		if js.Status == contract.JobQueued || js.Status == contract.JobRendering {
+			active++
+		}
+		js.mu.Unlock()
+	}
+	if active >= r.cfg.MaxQueue {
 		r.mu.Unlock()
 		return contract.SubmitJobResponse{
 			JobID:  job.JobID,
