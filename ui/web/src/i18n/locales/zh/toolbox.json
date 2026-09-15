@@ -154,7 +154,10 @@
       "historyEmpty": "还没有历史会话",
       "historyMessages": "{{n}} 条消息"
     },
-    "download_failed": "下载失败"
+    "download_failed": "下载失败",
+    "section_content": "内容",
+    "section_display": "画面与动效",
+    "section_voice": "配音"
   },
   "watermark": {
     "title": "水印移除",
