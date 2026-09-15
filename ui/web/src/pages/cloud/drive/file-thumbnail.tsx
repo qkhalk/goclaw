@@ -117,17 +117,26 @@ export function FileThumbnail({ entry, accountId, path, size = "medium", classNa
     );
   }
 
-  // Image with blob URL loaded: show thumbnail (fall back to the file icon
-  // if the load fails, e.g. a dead cached URL or a provider error)
+  // Image with blob URL loaded: show thumbnail with extension badge overlay
+  // (fall back to the file icon if the load fails, e.g. a dead cached URL or
+  // a provider error)
   if (blobUrl && !failed) {
+    const ext = extOf(entry.name).toUpperCase();
     return (
-      <img
-        src={blobUrl}
-        alt={entry.name}
-        className={cn("h-full w-full rounded-md object-cover", className)}
-        draggable={false}
-        onError={() => setFailed(true)}
-      />
+      <span className={cn("relative flex h-full w-full", className)}>
+        <img
+          src={blobUrl}
+          alt={entry.name}
+          className="h-full w-full rounded-md object-cover"
+          draggable={false}
+          onError={() => setFailed(true)}
+        />
+        {ext && (
+          <span className="absolute -bottom-1.5 -right-2 rounded-sm bg-muted px-1 py-px text-[9px] font-medium leading-none text-muted-foreground">
+            {ext}
+          </span>
+        )}
+      </span>
     );
   }
 

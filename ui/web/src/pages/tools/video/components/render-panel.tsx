@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import {
   Monitor,
   Cloud,
+  Zap,
   CheckCircle2,
   AlertTriangle,
   Loader2,
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import type { HardwareInfo } from "../hooks/use-video-export";
+import type { ExportMethod } from "../hooks/use-webcodecs-export";
 import type { Scene } from "../hooks/use-timeline";
 
 // ── Types ──
@@ -41,6 +43,11 @@ interface RenderPanelProps {
   onExportClient: () => void;
   onExportServer: () => void;
   onCancel: () => void;
+  webCodecsSupported: boolean;
+  exportMethod: ExportMethod;
+  onExportMethodChange: (m: ExportMethod) => void;
+  onExportWebCodecs: () => void;
+  isOverloaded: boolean;
 }
 
 const ASPECTS = {
@@ -66,6 +73,11 @@ export function RenderPanel({
   onExportClient,
   onExportServer,
   onCancel,
+  webCodecsSupported,
+  exportMethod,
+  onExportMethodChange,
+  onExportWebCodecs,
+  isOverloaded,
 }: RenderPanelProps) {
   const { t } = useTranslation("toolbox");
 
@@ -188,25 +200,90 @@ export function RenderPanel({
       <div className="rounded-lg border p-4">
         {!isExporting ? (
           <div className="flex flex-col gap-2">
+            {webCodecsSupported && (
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs">{t("video.render_panel.export_method")}</Label>
+                <Select
+                  value={exportMethod}
+                  onValueChange={(v) => onExportMethodChange(v as ExportMethod)}
+                >
+                  <SelectTrigger className="text-base md:text-sm" aria-label={t("video.render_panel.export_method")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="browser-fast">
+                      {t("video.render_panel.method_browser_fast")}
+                    </SelectItem>
+                    <SelectItem value="browser-quality">
+                      {t("video.render_panel.method_browser_quality")}
+                    </SelectItem>
+                    <SelectItem value="server">
+                      {t("video.render_panel.server_method")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={onExportClient}
-                disabled={totalSec <= 0}
-                className="min-h-11 sm:min-h-9"
-              >
-                <Monitor className="mr-2 h-4 w-4" />
-                {t("video.render_panel.client_method")}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onExportServer}
-                disabled={totalSec <= 0}
-                className="min-h-11 sm:min-h-9"
-              >
-                <Cloud className="mr-2 h-4 w-4" />
-                {t("video.render_panel.server_method")}
-              </Button>
+              {exportMethod !== "server" && (
+                <Button
+                  onClick={onExportWebCodecs}
+                  disabled={totalSec <= 0}
+                  className="min-h-11 sm:min-h-9"
+                >
+                  <Zap className="mr-2 h-4 w-4" />
+                  {t("video.render_panel.webcodecs_method")}
+                </Button>
+              )}
+              {exportMethod === "browser-quality" && (
+                <Button
+                  variant="outline"
+                  onClick={onExportClient}
+                  disabled={totalSec <= 0}
+                  className="min-h-11 sm:min-h-9"
+                >
+                  <Monitor className="mr-2 h-4 w-4" />
+                  {t("video.render_panel.client_method")}
+                </Button>
+              )}
+              {exportMethod === "server" && (
+                <Button
+                  onClick={onExportServer}
+                  disabled={totalSec <= 0}
+                  className="min-h-11 sm:min-h-9"
+                >
+                  <Cloud className="mr-2 h-4 w-4" />
+                  {t("video.render_panel.server_method")}
+                </Button>
+              )}
+              {!webCodecsSupported && exportMethod !== "server" && (
+                <Button
+                  onClick={onExportClient}
+                  disabled={totalSec <= 0}
+                  className="min-h-11 sm:min-h-9"
+                >
+                  <Monitor className="mr-2 h-4 w-4" />
+                  {t("video.render_panel.client_method")}
+                </Button>
+              )}
+              {!webCodecsSupported && (
+                <Button
+                  variant="outline"
+                  onClick={onExportServer}
+                  disabled={totalSec <= 0}
+                  className="min-h-11 sm:min-h-9"
+                >
+                  <Cloud className="mr-2 h-4 w-4" />
+                  {t("video.render_panel.server_method")}
+                </Button>
+              )}
             </div>
+            {isOverloaded && (
+              <Badge variant="warning" className="gap-1 w-fit">
+                <AlertTriangle className="h-3 w-3" />
+                {t("video.render_panel.overloaded_warning")}
+              </Badge>
+            )}
             <p className="text-xs text-muted-foreground">
               {t("video.render_panel.client_hint")}
             </p>

@@ -1,4 +1,14 @@
 {
+  "hub": {
+    "title": "Tools",
+    "description": "Creative and productivity tools at your fingertips.",
+    "tools": {
+      "videoEditor": "Video Editor",
+      "videoEditor_desc": "Edit scenes on a canvas timeline, preview, and export.",
+      "watermarkRemover": "Watermark Remover",
+      "watermarkRemover_desc": "Remove watermarks from images and short video clips."
+    }
+  },
   "video": {
     "title": "Video Editor",
     "description": "Edit scenes on a canvas timeline, preview instantly, and export right in the browser, or send heavy jobs to the server render.",
@@ -123,7 +133,13 @@
       "client_hint": "Browser export records the canvas in real time (video only, no background music). Longer videos take longer to export.",
       "export_complete": "Export complete!",
       "export_failed": "Export failed: {{error}}",
-      "server_failed": "Server export failed"
+      "server_failed": "Server export failed",
+      "export_method": "Export method",
+      "method_browser_fast": "Browser (fast)",
+      "method_browser_quality": "Browser (quality)",
+      "webcodecs_method": "Export (WebCodecs)",
+      "overloaded_warning": "Browser overloaded -- encoding is too slow. Consider using server export.",
+      "overloaded_fallback": "Browser overloaded -- falling back to server export."
     },
     "jobs_refresh": "Refresh jobs",
     "audio_section": "Audio",
