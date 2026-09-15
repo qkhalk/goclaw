@@ -35,6 +35,12 @@ var designerSkillSlugs = []string{
 // registry with this allowlist.
 const designerAllowTools = `{"profile":"minimal","allow":["skill_search","use_skill","session_status","web_fetch"]}`
 
+// designerAllowToolsV1 is the pre-web_fetch surface. Kept verbatim so
+// upgradeDesignerTools can recognize agents seeded by earlier builds and
+// bring them to the current surface (admin-customized configs are left
+// alone, mirroring the identity migration rule).
+const designerAllowToolsV1 = `{"profile":"minimal","allow":["skill_search","use_skill","session_status"]}`
+
 // DesignerToolPolicy returns the parsed tool policy of the designer agent.
 // Single source of truth for the designer's tool surface: the loop's
 // PolicyEngine must filter the registry down to exactly these tools.
@@ -223,6 +229,9 @@ func EnsureDesignerAgent(ctx context.Context, cfg *config.Config, agentStore sto
 		if err := upgradeDesignerIdentity(ctx, agentStore, agentID); err != nil {
 			slog.Warn("video: designer agent identity upgrade failed", "error", err)
 		}
+		if err := upgradeDesignerTools(ctx, agentStore, existing); err != nil {
+			slog.Warn("video: designer agent tools upgrade failed", "error", err)
+		}
 	} else {
 		provider := cfg.Agents.Defaults.Provider
 		model := cfg.Agents.Defaults.Model
@@ -293,6 +302,29 @@ func upgradeDesignerIdentity(ctx context.Context, agentStore store.AgentStore, a
 		}
 	}
 	return nil // custom content — leave it alone
+}
+
+// upgradeDesignerTools brings an existing agent's tools_config to the
+// current allowlist when the stored config is still a known system version
+// (compared semantically: same JSON, whitespace-insensitive). A config an
+// admin customized through the UI is never touched.
+func upgradeDesignerTools(ctx context.Context, agentStore store.AgentStore, existing *store.AgentData) error {
+	equal := func(a, b string) bool {
+		var ja, jb any
+		return json.Unmarshal([]byte(a), &ja) == nil &&
+			json.Unmarshal([]byte(b), &jb) == nil &&
+			fmt.Sprintf("%v", ja) == fmt.Sprintf("%v", jb)
+	}
+	if equal(string(existing.ToolsConfig), designerAllowTools) {
+		return nil // already current
+	}
+	if equal(string(existing.ToolsConfig), designerAllowToolsV1) {
+		if err := agentStore.Update(ctx, existing.ID, map[string]any{"tools_config": json.RawMessage(designerAllowTools)}); err != nil {
+			return fmt.Errorf("write tools_config: %w", err)
+		}
+		slog.Info("video: designer agent tools_config upgraded (web_fetch granted)", "agent_id", existing.ID)
+	}
+	return nil // custom config — leave it alone
 }
 
 // grantDesignerSkills scopes the bundled design skills to the designer agent
