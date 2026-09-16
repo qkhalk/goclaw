@@ -349,6 +349,9 @@ export const Events = {
   // request; the browser panel renders the relayed page and posts the
   // extracted content back (server pushes this event directly, not via bus).
   BROWSER_PANEL_INVOKE: "browser.panel.invoke",
+  BROWSER_REMOTE_OPEN: "browser.remote.open",
+  BROWSER_REMOTE_ACT: "browser.remote.act",
+  BROWSER_REMOTE_SCREENSHOT: "browser.remote.screenshot",
 } as const;
 
 /** All event names relevant to team debug view */
