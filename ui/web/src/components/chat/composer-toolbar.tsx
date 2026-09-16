@@ -92,18 +92,24 @@ export function ComposerToolbar({ value, onChange, disabled, defaultProviderName
 
   const levelLabel = (level: string) => t(`thinkingLevels.${level}`, { defaultValue: level });
 
+  // The agent's own provider is a real selectable value (not a "Provider của
+  // agent" placeholder), so the pill always shows an actual provider name.
+  // The sentinel entry stays only as a fallback when the agent's provider is
+  // unknown or disconnected.
+  const agentProvider = enabledProviders.find((p) => p.name === defaultProviderName);
+
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
       {/* Provider picker — only connected (enabled) providers */}
       <Select
-        value={value.providerName ?? AGENT_DEFAULT}
-        onValueChange={(v) =>
-          onChange(
-            v === AGENT_DEFAULT
-              ? { providerName: undefined, model: undefined }
-              : { providerName: v, model: undefined },
-          )
-        }
+        value={value.providerName ?? agentProvider?.name ?? AGENT_DEFAULT}
+        onValueChange={(v) => {
+          if (!v || v === AGENT_DEFAULT || v === defaultProviderName) {
+            onChange({ providerName: undefined, model: undefined });
+          } else {
+            onChange({ providerName: v, model: undefined });
+          }
+        }}
         disabled={disabled || enabledProviders.length === 0}
       >
         <SelectTrigger
@@ -115,9 +121,11 @@ export function ComposerToolbar({ value, onChange, disabled, defaultProviderName
           <SelectValue placeholder={t("composer.providerDefault")} />
         </SelectTrigger>
         <SelectContent position="popper" sideOffset={6} className="w-56">
-          <SelectItem value={AGENT_DEFAULT} className="text-sm">
-            {t("composer.providerDefault")}
-          </SelectItem>
+          {!agentProvider && (
+            <SelectItem value={AGENT_DEFAULT} className="text-sm">
+              {t("composer.providerDefault")}
+            </SelectItem>
+          )}
           {enabledProviders.map((p) => (
             <SelectItem key={p.id} value={p.name} className="text-sm">
               {p.display_name || p.name}
