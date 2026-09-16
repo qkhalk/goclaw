@@ -18,6 +18,9 @@ export interface CloudAccount {
   user_id: string;
   /** Tenant-wide shared (enterprise "company drive") — admin-set. */
   shared: boolean;
+  /** What agents may do with this account via cloud/mail tools:
+   * none | read | write | full (admin-set on the Clouds page). */
+  agent_access?: "none" | "read" | "write" | "full";
   /** True when the stored OAuth grant includes the provider's write scope.
    * False for accounts connected before the write upgrade — read-only until
    * the owner re-grants. */
@@ -182,7 +185,16 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
-  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, setShared };
+  /** Set the per-account agent access level (admin). */
+  const setAgentAccess = useCallback(
+    async (id: string, access: "none" | "read" | "write" | "full") => {
+      await http.put(`/v1/cloud/accounts/${id}/agent-access`, { access });
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, setShared, setAgentAccess };
 }
 
 export function useCloudBindings(enabled: boolean) {

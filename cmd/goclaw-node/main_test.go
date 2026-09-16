@@ -88,7 +88,7 @@ func TestErrString(t *testing.T) {
 func TestBackoffBounds(t *testing.T) {
 	// Mirror the constants: reconnect growth must stay bounded.
 	backoff := reconnectMin
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		backoff *= 2
 		if backoff > reconnectMax {
 			backoff = reconnectMax

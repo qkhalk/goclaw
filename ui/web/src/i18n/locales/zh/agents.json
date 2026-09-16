@@ -158,7 +158,20 @@
     "create": "创建",
     "creating": "创建中...",
     "checkAndCreate": "检查并创建",
-    "failedToCreate": "创建Agent失败"
+    "failedToCreate": "创建Agent失败",
+    "subagent": {
+      "title": "子代理配置",
+      "toolCount": "{{count}} 个工具",
+      "allTools": "全部工具",
+      "allowedTools": "允许的工具",
+      "allowedToolsHint": "选择该子代理可用的工具。留空 = 全部工具。",
+      "allowedToolsPlaceholder": "选择工具（留空 = 全部）",
+      "systemPrompt": "系统提示词",
+      "systemPromptHint": "覆盖 IDENTITY.md — 作为子代理专属系统提示词。",
+      "systemPromptPlaceholder": "你是一个专注于...的子代理",
+      "injectAgents": "注入 AGENTS.md",
+      "injectAgentsHint": "将 AGENTS.md 工作区指令包含在代理上下文中。"
+    }
   },
   "detail": {
     "tabs": {
@@ -934,6 +947,19 @@
       "description": "其他部分未涵盖的高级设置的额外 JSON 配置",
       "formatJson": "格式化 JSON",
       "invalidJson": "JSON 语法无效"
+    },
+    "filePermissions": {
+      "title": "文件权限",
+      "description": "逐项开关代理的文件能力。",
+      "read": "读取文件",
+      "readHint": "read_file、list_files",
+      "write": "编辑文件",
+      "writeHint": "edit — 修改现有文件",
+      "create": "创建文件",
+      "createHint": "write_file — 创建/覆盖文件",
+      "send": "发送文件",
+      "sendHint": "send_file — 将文件发送到聊天",
+      "footnote": "关闭某项能力会把对应工具加入工具策略的 deny 列表（deny 优先于 allow）。"
     }
   },
   "heartbeat": {

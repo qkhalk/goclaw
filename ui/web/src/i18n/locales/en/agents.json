@@ -156,7 +156,20 @@
     "create": "Create",
     "creating": "Creating...",
     "checkAndCreate": "Check & Create",
-    "failedToCreate": "Failed to create agent"
+    "failedToCreate": "Failed to create agent",
+    "subagent": {
+      "title": "Subagent configuration",
+      "toolCount": "{{count}} tools",
+      "allTools": "All tools",
+      "allowedTools": "Allowed tools",
+      "allowedToolsHint": "Pick which tools this subagent may use. Empty = all tools.",
+      "allowedToolsPlaceholder": "Select tools (empty = all)",
+      "systemPrompt": "System prompt",
+      "systemPromptHint": "Overrides IDENTITY.md — the subagent's own system prompt.",
+      "systemPromptPlaceholder": "You are a subagent specialized in...",
+      "injectAgents": "Inject AGENTS.md",
+      "injectAgentsHint": "Include the AGENTS.md workspace instructions in the agent's context."
+    }
   },
   "detail": {
     "tabs": {
@@ -949,6 +962,19 @@
       "description": "Additional JSON config for advanced settings not covered by other sections",
       "formatJson": "Format JSON",
       "invalidJson": "Invalid JSON syntax"
+    },
+    "filePermissions": {
+      "title": "File permissions",
+      "description": "Toggle each file capability of the agent.",
+      "read": "Read files",
+      "readHint": "read_file, list_files",
+      "write": "Edit files",
+      "writeHint": "edit — modify existing files",
+      "create": "Create files",
+      "createHint": "write_file — create/overwrite files",
+      "send": "Send files",
+      "sendHint": "send_file — deliver files to chat",
+      "footnote": "Turning a capability off adds the tools to the tool policy deny list (deny always wins over allow)."
     }
   },
   "heartbeat": {

@@ -37,6 +37,7 @@ func newVideoStack(cfg *config.Config, stores *store.Stores, workspace string, e
 		VideoJobs:  stores.VideoJobs,
 		Worker:     worker,
 		Dispatcher: disp,
+		Workspace:  workspace,
 	}
 }
 

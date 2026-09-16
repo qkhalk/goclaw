@@ -46,7 +46,12 @@ func inferMetadata(name string) ToolMetadata {
 		name == "memory_search" || name == "memory_get" || name == "memory_expand" ||
 		name == "skill_search" || name == "knowledge_graph_search" ||
 		name == "sessions_list" || name == "session_status" || name == "sessions_history" ||
-		name == "datetime" || name == "wait" || name == "web_search" || name == "web_fetch":
+		name == "datetime" || name == "wait" || name == "web_search" || name == "web_fetch" ||
+		// Cloud/mail read surface: browse/read/fetch never mutate remote state
+		// (agent access levels gate them separately in the tools layer).
+		name == "cloud_ls" || name == "cloud_read" || name == "cloud_fetch" ||
+		name == "cloud_about" || name == "cloud_accounts" ||
+		name == "mail_search" || name == "mail_read":
 		meta.Capabilities = []ToolCapability{CapReadOnly}
 	case name == "spawn":
 		meta.Capabilities = []ToolCapability{CapAsync}

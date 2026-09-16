@@ -66,7 +66,7 @@ func TestSupervisorConsecutiveToolFailures(t *testing.T) {
 	sup := NewRunSupervisor(SupervisorLimits{MaxConsecutiveToolFailures: 3, WarnAtPercent: 60}, time.Now())
 
 	// Two failures then a success resets the streak.
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if v := sup.RecordToolResult(true); !v.Allowed {
 			t.Fatalf("failure %d = %+v, want allowed", i+1, v)
 		}
@@ -79,7 +79,7 @@ func TestSupervisorConsecutiveToolFailures(t *testing.T) {
 	}
 	// Fresh streak: one more failure allowed (streak 2), the next trips the
 	// cap — the count blocks when it REACHES the limit (count >= Max).
-	for i := 0; i < 1; i++ {
+	for i := range 1 {
 		if v := sup.RecordToolResult(true); !v.Allowed {
 			t.Fatalf("streak failure %d = %+v, want allowed", i+1, v)
 		}
@@ -130,7 +130,7 @@ func TestSupervisorNegativeCapsDisable(t *testing.T) {
 		MaxRunTime:                 -1,
 		MaxConsecutiveToolFailures: -1,
 	}, time.Now())
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		if v := sup.RecordLLMCall(); !v.Allowed {
 			t.Fatalf("call %d blocked despite disabled cap: %+v", i+1, v)
 		}

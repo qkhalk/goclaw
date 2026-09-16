@@ -21,6 +21,7 @@ import { AgentIdentityAndModelFields } from "./agent-identity-and-model-fields";
 import { AgentDescriptionSection } from "./agent-description-section";
 import { Label } from "@/components/ui/label";
 import { PromptModeCards, type PromptMode } from "./prompt-mode-cards";
+import { AgentSubagentSection } from "./agent-subagent-section";
 
 interface AgentCreateDialogProps {
   open: boolean;
@@ -34,6 +35,11 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
   const { providers, refresh: refreshProviders } = useProviders();
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // Subagent builder extras (kept outside zod — they map onto separate
+  // create-payload fields: tools_config.allow / system_prompt / inject_agents_md)
+  const [allowedTools, setAllowedTools] = useState<string[]>([]);
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [injectAgentsMd, setInjectAgentsMd] = useState(true);
 
   const form = useForm<AgentCreateFormData>({
     resolver: zodResolver(agentCreateSchema),
@@ -83,6 +89,9 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
       reset();
       setSubmitError("");
       resetVerify();
+      setAllowedTools([]);
+      setSystemPrompt("");
+      setInjectAgentsMd(true);
     }
   }, [open, reset, resetVerify, refreshProviders]);
 
@@ -110,6 +119,11 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
         agent_description: data.description?.trim() || null,
         self_evolve: data.selfEvolve || false,
         ...(Object.keys(otherConfig).length > 0 && { other_config: otherConfig }),
+        // Subagent builder extras: empty allowlist = all tools; the system
+        // prompt is persisted as IDENTITY.md server-side before summoning
+        ...(allowedTools.length > 0 && { tools_config: { allow: allowedTools } }),
+        ...(systemPrompt.trim() && { system_prompt: systemPrompt.trim() }),
+        ...(!injectAgentsMd && { inject_agents_md: false }),
       });
       onOpenChange(false);
     } catch (err) {
@@ -158,6 +172,15 @@ export function AgentCreateDialog({ open, onOpenChange, onCreate }: AgentCreateD
               compact
             />
           </div>
+
+              <AgentSubagentSection
+            allowedTools={allowedTools}
+            onAllowedToolsChange={setAllowedTools}
+            systemPrompt={systemPrompt}
+            onSystemPromptChange={setSystemPrompt}
+            injectAgentsMd={injectAgentsMd}
+            onInjectAgentsMdChange={setInjectAgentsMd}
+          />
 
           {submitError && <p className="text-sm text-destructive">{submitError}</p>}
         </div>

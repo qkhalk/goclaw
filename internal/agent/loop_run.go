@@ -198,13 +198,18 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		}
 		// Completion-verifier terminal gate (WS-E): advisory (default) runs the
 		// pipeline exactly once — byte-identical to dev. recover re-runs it at
-		// most once after an incomplete verdict; hard never re-runs.
+		// most once after an incomplete verdict; hard never re-runs. passState
+		// carries the live pipeline state across passes so the gate can flip
+		// Observe.ContinueAfterFinal on it and the retry can re-enter the same
+		// state via MarkContinuation — passing nil here degraded recover to
+		// hard semantics (first incomplete verdict failed the run).
 		mode := l.effectiveVerifierMode()
 		verifierContinued := map[string]bool{}
+		var passState *pipeline.RunState
 		var result *RunResult
 		var err error
 		for {
-			result, err = l.runViaPipeline(ctx, req, nil, checkpointWriter)
+			result, passState, err = l.runViaPipeline(ctx, req, passState, checkpointWriter)
 			if err != nil {
 				break
 			}
@@ -212,9 +217,10 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 			if c == nil || c.Complete || mode == config.VerifierModeAdvisory {
 				break // pass: complete verdict or record-only advisory mode
 			}
-			decision := l.gateCompletion(mode, req.RunID, c, nil, emitRun, verifierContinued)
+			decision := l.gateCompletion(mode, req.RunID, c, passState, emitRun, verifierContinued)
 			if decision == verifierContinue {
-				continue // one more full pipeline pass with ContinueAfterFinal set
+				passState.MarkContinuation()
+				continue // one more pipeline pass with ContinueAfterFinal set
 			}
 			break // verifierFail falls through to hard semantics below; verifierPass cannot happen for incomplete
 		}
@@ -319,7 +325,7 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		// a localized reason instead of COMPLETED. Advisory keeps today's
 		// unconditional completed path untouched (zero behavioral diff).
 		completion := result.Completion()
-		gateFailed := completion != nil && !completion.Complete && l.gateCompletion(mode, req.RunID, completion, nil, emitRun, verifierContinued) == verifierFail
+		gateFailed := completion != nil && !completion.Complete && l.gateCompletion(mode, req.RunID, completion, passState, emitRun, verifierContinued) == verifierFail
 		if gateFailed {
 			reason := i18n.T(store.LocaleFromContext(ctx), i18n.MsgVerifierIncomplete, strings.Join(completion.Missing, ", "))
 			emitRun(AgentEvent{Type: protocol.AgentEventVerificationFailed, AgentID: l.id, RunID: req.RunID,
@@ -436,12 +442,15 @@ func (l *Loop) ResumeRun(ctx context.Context, runID string) (*RunResult, error) 
 	}
 	// Completion-verifier terminal gate on resume (parity with Run): hard ⇒
 	// failed instead of completed on an incomplete verdict; recover ⇒ one
-	// continuation pass then re-evaluate. Advisory never re-runs.
+	// continuation pass then re-evaluate. Advisory never re-runs. state is
+	// re-assigned from the run's return so the fresh-start fallback (nil
+	// checkpoint) still feeds a live state to the gate; MarkContinuation
+	// re-arms it exactly like a checkpoint-restored state.
 	mode := l.effectiveVerifierMode()
 	verifierContinued := map[string]bool{}
 	var result *RunResult
 	for {
-		result, err = l.runViaPipeline(ctx, req, state, checkpointWriter)
+		result, state, err = l.runViaPipeline(ctx, req, state, checkpointWriter)
 		if err != nil {
 			break
 		}
@@ -450,6 +459,7 @@ func (l *Loop) ResumeRun(ctx context.Context, runID string) (*RunResult, error) 
 			break // pass: complete verdict or record-only advisory mode
 		}
 		if l.gateCompletion(mode, runID, c, state, nil, verifierContinued) == verifierContinue {
+			state.MarkContinuation()
 			continue // state.Observe.ContinueAfterFinal was set; pipeline consumes it next pass
 		}
 		break

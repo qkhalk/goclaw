@@ -6,6 +6,7 @@ import { useTenants } from "@/hooks/use-tenants";
 import { SystemBackupPanel } from "./system-backup-panel";
 import { SystemRestorePanel } from "./system-restore-panel";
 import { S3ConfigPanel } from "./s3-config-panel";
+import { SchedulePanel } from "./schedule-panel";
 import { TenantBackupPanel } from "./tenant-backup-panel";
 
 export function BackupRestorePage() {
@@ -31,6 +32,7 @@ export function BackupRestorePage() {
             <TabsTrigger value="system-backup">{t("tabs.systemBackup")}</TabsTrigger>
             <TabsTrigger value="system-restore">{t("tabs.systemRestore")}</TabsTrigger>
             <TabsTrigger value="s3-config">{t("tabs.s3Config")}</TabsTrigger>
+            <TabsTrigger value="schedule">{t("tabs.schedule")}</TabsTrigger>
             {isOwner && (
               <TabsTrigger value="tenant-backup">{t("tabs.tenantBackup")}</TabsTrigger>
             )}
@@ -44,6 +46,9 @@ export function BackupRestorePage() {
           </TabsContent>
           <TabsContent value="s3-config" className="mt-4">
             <S3ConfigPanel />
+          </TabsContent>
+          <TabsContent value="schedule" className="mt-4">
+            <SchedulePanel />
           </TabsContent>
           {isOwner && (
             <TabsContent value="tenant-backup" className="mt-4">

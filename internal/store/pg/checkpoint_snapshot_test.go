@@ -91,7 +91,7 @@ func TestPGCheckpointSnapshotListNewestFirst(t *testing.T) {
 	if len(got) != 4 {
 		t.Fatalf("len = %d, want 4", len(got))
 	}
-	for i := 0; i < len(got); i++ {
+	for i := range got {
 		if got[i].Seq != 4-i {
 			t.Fatalf("order[%d] seq = %d, want %d (newest first)", i, got[i].Seq, 4-i)
 		}

@@ -83,7 +83,7 @@ func TestStreamWatchdog_ResetPreventsFire(t *testing.T) {
 	ctx, reset, cancel := streamWatchdogContext(parent, 120*time.Millisecond, 0)
 	defer cancel()
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		reset()
 		if waitWatchdogDone(t, ctx, 60*time.Millisecond) {
 			t.Fatalf("watchdog fired at reset %d while events kept arriving", i)
@@ -442,9 +442,9 @@ func TestChatStreamWatchdogCleanStreamDoesNotFire(t *testing.T) {
 			return
 		}
 		for _, ev := range []string{
-			"data: "+mustJSON(codexSSEEvent{Type: "response.output_text.delta", Delta: "A"})+"\n\n",
-			"data: "+mustJSON(codexSSEEvent{Type: "response.output_text.delta", Delta: "B"})+"\n\n",
-			"data: "+mustJSON(codexSSEEvent{Type: "response.completed", Response: &codexAPIResponse{ID: "r-1", Status: "completed"}})+"\n\n",
+			"data: " + mustJSON(codexSSEEvent{Type: "response.output_text.delta", Delta: "A"}) + "\n\n",
+			"data: " + mustJSON(codexSSEEvent{Type: "response.output_text.delta", Delta: "B"}) + "\n\n",
+			"data: " + mustJSON(codexSSEEvent{Type: "response.completed", Response: &codexAPIResponse{ID: "r-1", Status: "completed"}}) + "\n\n",
 			"data: [DONE]\n\n",
 		} {
 			fmt.Fprint(w, ev)

@@ -213,7 +213,7 @@ const lines = [
   `- \`ghcr.io/qkhalk/goclaw:${tag}-full\``,
   `- \`ghcr.io/qkhalk/goclaw:fork\` (alias)`,
   "",
-  "Toàn bộ tính năng (reliability layer + AgentKit phases) — xem README.",
+  "Toàn bộ tính năng (reliability layer + agent framework phases) — xem README.",
   "",
 ];
 

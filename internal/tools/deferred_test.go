@@ -26,7 +26,7 @@ func (m *descTool) Execute(ctx context.Context, args map[string]any) *Result {
 // order matches registration order (zero-padded numeric suffixes).
 func registerDeferrable(reg *Registry, n int) []string {
 	names := make([]string, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		name := fmt.Sprintf("deftool_%02d", i)
 		reg.Register(&descTool{name: name, desc: "deftool utility number " + fmt.Sprintf("%02d", i)})
 		names = append(names, name)

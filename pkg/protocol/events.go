@@ -149,6 +149,14 @@ const (
 	// Video render pipeline events (Phase 3).
 	// Payload: {jobId, status, progress, outputPath?, error?}.
 	EventVideoJobUpdated = "video.job.updated"
+
+	// Browser panel invoke (client-side browsing): the gateway targets one
+	// web client with a browse request; the client renders the relayed page
+	// in its browser panel and posts the extracted content back via the
+	// browser.panel.result RPC. Sent directly on the client connection
+	// (never via the bus), so no event-filter branch is needed.
+	// Payload: {browseId, url, relayUrl, finalUrl, deadlineMs}.
+	EventBrowserPanelInvoke = "browser.panel.invoke"
 )
 
 // Agent event subtypes (in payload.type)

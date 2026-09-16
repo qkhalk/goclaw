@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "모든 공급자",
-    "accounts_title": "연결된 계정"
+    "accounts_title": "연결된 계정",
+    "section_personal": "개인",
+    "section_company": "회사(공유)"
   },
   "setup": {
     "title_google": "Google이 아직 구성되지 않았습니다",
@@ -63,7 +65,9 @@
     "cancel": "취소",
     "update": "자격 증명 업데이트",
     "advanced": "자체 OAuth 클라이언트 사용 (고급)",
-    "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. 공유 클라이언트는 이제 전체 Drive 권한을 부여합니다. Gmail 도구에는 여전히 자체 OAuth 클라이언트가 필요합니다(클라우드 설정 참조)."
+    "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. 공유 클라이언트는 이제 전체 Drive 권한을 부여합니다. Gmail 도구에는 여전히 자체 OAuth 클라이언트가 필요합니다(클라우드 설정 참조).",
+    "expand": "지금 설정",
+    "configured": "OAuth 클라이언트 저장됨"
   },
   "disconnect_confirm": {
     "title": "계정 연결을 해제하시겠습니까?",
@@ -104,6 +108,7 @@
     "title": "사용 범위",
     "description": "에이전트가 사용할 계정을 선택하세요: 명시적 요청이 우선하고, 다음은 그룹, 사용자, 조직 기본, 마지막으로 개인 계정입니다.",
     "tenant_default": "조직 기본값",
+    "tenant_default_hint": "agent 또는 작업이 계정을 지정하지 않으면 이 조직 기본 계정이 사용됩니다.",
     "none": "없음",
     "group": "그룹",
     "user": "사용자",
@@ -132,12 +137,12 @@
     "used_of": "{{total}} 중 {{used}} 사용",
     "root": "루트",
     "loading_files": "파일 불러오는 중…",
-    "files_unavailable": "파일을 나열할 수 없습니다 (서버에 rclone이 설치되어 있나요?)",
+    "files_unavailable": "파일을 나열할 수 없습니다(계정 연결을 확인 후 새로고침하세요)",
     "no_files": "이 폴더는 비어 있습니다",
     "col_name": "이름",
     "col_size": "크기",
     "col_modified": "수정",
-    "readonly_note": "rclone을 통한 읽기 전용 보기({{provider}}). 에이전트에게 파일 가져오기나 정리를 요청하세요.",
+    "readonly_note": "읽기 전용 보기({{provider}}). agent에게 파일 다운로드나 정리를 요청하세요.",
     "mailbox": "메일함",
     "loading_mail": "메일함 불러오는 중…",
     "mail_unavailable": "메일함을 읽을 수 없습니다",
@@ -148,6 +153,7 @@
   "drive": {
     "my_drives": "내 드라이브",
     "my_drive": "내 드라이브",
+    "dashboard": "대시보드",
     "providers": "공급자",
     "accounts": "계정",
     "shared_tag": "공유됨",
@@ -170,7 +176,9 @@
     "not_found": "계정을 찾을 수 없거나 더 이상 접근할 수 없습니다",
     "back_home": "클라우드로 돌아가기",
     "toggle_accounts": "계정 펼치기/접기",
-    "quick_views": "빠른 보기"
+    "quick_views": "빠른 보기",
+    "search_accounts": "계정 검색…",
+    "no_accounts_match": "일치하는 계정 없음"
   },
   "files": {
     "upload": "업로드",
@@ -291,7 +299,15 @@
     "download": "다운로드",
     "download_started": "다운로드 시작됨",
     "prev": "이전",
-    "next": "다음"
+    "next": "다음",
+    "close": "닫기"
+  },
+  "agent_access": {
+    "title": "에이전트 권한",
+    "none": "접근 금지",
+    "read": "읽기 전용",
+    "write": "읽기 + 쓰기",
+    "full": "전체 권한"
   },
   "shortcuts": {
     "title": "키보드 단축키",

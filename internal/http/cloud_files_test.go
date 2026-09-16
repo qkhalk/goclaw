@@ -46,6 +46,8 @@ func (m *mockCloudAccountStore) GetByEmail(context.Context, string, string) (*st
 	return nil, store.ErrCloudAccountNotFound
 }
 
+func (m *mockCloudAccountStore) SetAgentAccess(context.Context, string, string) error { return nil }
+
 // List returns the caller's own accounts (ctx tenant + user).
 func (m *mockCloudAccountStore) List(ctx context.Context) ([]store.CloudAccount, error) {
 	tid := store.TenantIDFromContext(ctx)

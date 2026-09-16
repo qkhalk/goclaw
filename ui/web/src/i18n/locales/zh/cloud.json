@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "所有提供商",
-    "accounts_title": "已连接账户"
+    "accounts_title": "已连接账户",
+    "section_personal": "个人",
+    "section_company": "企业（共享）"
   },
   "setup": {
     "title_google": "Google 尚未配置",
@@ -63,7 +65,9 @@
     "cancel": "取消",
     "update": "更新凭据",
     "advanced": "使用您自己的 OAuth 客户端（高级）",
-    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。"
+    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。",
+    "expand": "立即配置",
+    "configured": "OAuth 客户端已保存"
   },
   "disconnect_confirm": {
     "title": "断开账户？",
@@ -104,6 +108,7 @@
     "title": "使用范围",
     "description": "选择智能体在此使用的账户：显式指定优先，其次群组，再按用户，然后是组织默认，最后是个人账户。",
     "tenant_default": "组织默认",
+    "tenant_default_hint": "当 agent 或操作未指定账户时，系统将使用此组织级默认账户。",
     "none": "无",
     "group": "群组",
     "user": "用户",
@@ -132,12 +137,12 @@
     "used_of": "已用 {{used}} / {{total}}",
     "root": "根目录",
     "loading_files": "正在加载文件…",
-    "files_unavailable": "无法列出文件（服务器装了 rclone 吗？）",
+    "files_unavailable": "无法列出文件（请检查账户连接后重试）",
     "no_files": "此文件夹为空",
     "col_name": "名称",
     "col_size": "大小",
     "col_modified": "修改时间",
-    "readonly_note": "通过 rclone 只读浏览（{{provider}}）。让智能体帮您获取或整理文件。",
+    "readonly_note": "只读视图（{{provider}}）。可让 agent 帮您下载或整理文件。",
     "mailbox": "邮箱",
     "loading_mail": "正在加载邮箱…",
     "mail_unavailable": "无法读取邮箱",
@@ -148,6 +153,7 @@
   "drive": {
     "my_drives": "我的云盘",
     "my_drive": "我的云盘",
+    "dashboard": "仪表板",
     "providers": "提供商",
     "accounts": "账户",
     "shared_tag": "共享",
@@ -170,7 +176,9 @@
     "not_found": "账户不存在或已无法访问",
     "back_home": "返回云盘页",
     "toggle_accounts": "展开/收起账户",
-    "quick_views": "快速访问"
+    "quick_views": "快速访问",
+    "search_accounts": "搜索账户…",
+    "no_accounts_match": "没有匹配的账户"
   },
   "files": {
     "upload": "上传",
@@ -291,7 +299,15 @@
     "download": "下载",
     "download_started": "已开始下载",
     "prev": "上一个",
-    "next": "下一个"
+    "next": "下一个",
+    "close": "关闭"
+  },
+  "agent_access": {
+    "title": "Agent 权限",
+    "none": "禁止访问",
+    "read": "只读",
+    "write": "读写",
+    "full": "完全控制"
   },
   "shortcuts": {
     "title": "键盘快捷键",

@@ -445,7 +445,7 @@ func streamDurationsFromRuntime(reg *reliability.Runtime) (idle, firstByte time.
 		return 0, 0
 	}
 	v := reflect.ValueOf(reg)
-	if v.Kind() != reflect.Ptr || v.IsNil() {
+	if v.Kind() != reflect.Pointer || v.IsNil() {
 		return 0, 0
 	}
 	s := v.Elem().FieldByName("Stream")
@@ -470,7 +470,7 @@ func modelStreamTimeoutMs(spec *ModelSpec) int {
 		return 0
 	}
 	v := reflect.ValueOf(spec)
-	if v.Kind() != reflect.Ptr || v.IsNil() {
+	if v.Kind() != reflect.Pointer || v.IsNil() {
 		return 0
 	}
 	f := v.Elem().FieldByName("StreamTimeoutMs")
@@ -513,4 +513,3 @@ func observeStreamStall(provider, model string) {
 		}
 	})
 }
-

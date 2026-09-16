@@ -23,7 +23,7 @@ const (
 	defaultFetchMaxRedirect = 3
 	defaultErrorMaxChars    = 4000
 	fetchTimeoutSeconds     = 30
-	fetchUserAgent          = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	fetchUserAgent          = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
 )
 
 // WebFetchTool implements the web_fetch tool matching TS src/agents/tools/web-fetch.ts.
@@ -272,25 +272,19 @@ func (t *WebFetchTool) doFetch(ctx context.Context, rawURL, extractMode string, 
 
 // fetchRawResult holds the output from fetchRawContent.
 type fetchRawResult struct {
-	content    string
-	extractor  string
-	finalURL   string
-	statusCode int
+	content     string
+	extractor   string
+	finalURL    string
+	statusCode  int
+	contentType string // response Content-Type header (raw fetch only)
 }
 
-// fetchRawContent performs HTTP GET with full security checks (SSRF, domain policy on
-// redirects) and routes content by type. Returns raw extracted content without formatting.
-// Used by both doDirectFetch (text mode) and InProcessExtractor (chain fallback).
-func (t *WebFetchTool) fetchRawContent(ctx context.Context, rawURL, extractMode string, maxChars int, pol webFetchPolicy) (fetchRawResult, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
-	if err != nil {
-		return fetchRawResult{}, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("User-Agent", fetchUserAgent)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-
+// newWebFetchClient builds the shared fetch transport with SSRF and domain
+// policy re-checks on every redirect hop. Built per call so the redirect
+// counter lives in the closure.
+func newWebFetchClient(pol webFetchPolicy) *http.Client {
 	redirectCount := 0
-	client := &http.Client{
+	return &http.Client{
 		Timeout: time.Duration(fetchTimeoutSeconds) * time.Second,
 		Transport: &http.Transport{
 			ForceAttemptHTTP2:   true,
@@ -301,7 +295,7 @@ func (t *WebFetchTool) fetchRawContent(ctx context.Context, rawURL, extractMode 
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			redirectCount++
 			if redirectCount > defaultFetchMaxRedirect {
-				return fmt.Errorf("stopped after %d redirects", defaultFetchMaxRedirect)
+				return fmt.Errorf("stopped after %d redirects", redirectCount)
 			}
 			if err := CheckSSRF(req.URL.String()); err != nil {
 				return fmt.Errorf("redirect SSRF protection: %w", err)
@@ -316,8 +310,21 @@ func (t *WebFetchTool) fetchRawContent(ctx context.Context, rawURL, extractMode 
 			return nil
 		},
 	}
+}
 
-	resp, err := client.Do(req)
+// fetchRawContent performs HTTP GET with full security checks (SSRF, domain policy on
+// redirects) and routes content by type. Returns raw extracted content without formatting.
+// Used by both doDirectFetch (text mode) and InProcessExtractor (chain fallback)
+func (t *WebFetchTool) fetchRawContent(ctx context.Context, rawURL, extractMode string, maxChars int, pol webFetchPolicy) (fetchRawResult, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return fetchRawResult{}, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", fetchUserAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en,*;q=0.5")
+
+	resp, err := newWebFetchClient(pol).Do(req)
 	if err != nil {
 		return fetchRawResult{}, err
 	}
@@ -370,6 +377,51 @@ func (t *WebFetchTool) fetchRawContent(ctx context.Context, rawURL, extractMode 
 		extractor:  extractor,
 		finalURL:   finalURL,
 		statusCode: resp.StatusCode,
+	}, nil
+}
+
+// fetchRawHTML fetches the unconverted document for the client-side browsing
+// relay (web_browse): same SSRF/domain-policy gates and transport as
+// fetchRawContent, but the body is returned as-is so it can be sanitized and
+// relayed to the web client's browser panel. The caller handles content-type
+// routing at serve time.
+func (t *WebFetchTool) fetchRawHTML(ctx context.Context, rawURL string, pol webFetchPolicy) (fetchRawResult, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return fetchRawResult{}, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", fetchUserAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en,*;q=0.5")
+
+	resp, err := newWebFetchClient(pol).Do(req)
+	if err != nil {
+		return fetchRawResult{}, err
+	}
+	defer resp.Body.Close()
+
+	// A 403 bot-wall or 404 must not be relayed as if it were the page:
+	// surface a typed status error so both the agent result and the panel
+	// error state can say "blocked" vs "not found".
+	if resp.StatusCode >= 400 {
+		sniff, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+		return fetchRawResult{}, fmt.Errorf("http %d: %s", resp.StatusCode, strings.TrimSpace(string(sniff)))
+	}
+
+	// Relay cap: the sanitized document must stay small — the whole point of
+	// the relay is that only this one document transits the server while the
+	// client pulls every subresource directly from the origin.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, browseMaxDocumentBytes))
+	if err != nil {
+		return fetchRawResult{}, fmt.Errorf("read body: %w", err)
+	}
+
+	return fetchRawResult{
+		content:     string(body),
+		extractor:   "raw-document",
+		finalURL:    resp.Request.URL.String(),
+		statusCode:  resp.StatusCode,
+		contentType: resp.Header.Get("Content-Type"),
 	}, nil
 }
 

@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "Tất cả nhà cung cấp",
-    "accounts_title": "Tài khoản đã kết nối"
+    "accounts_title": "Tài khoản đã kết nối",
+    "section_personal": "Cá nhân",
+    "section_company": "Doanh nghiệp (chia sẻ)"
   },
   "setup": {
     "title_google": "Google chưa được cấu hình",
@@ -63,7 +65,9 @@
     "cancel": "Hủy",
     "update": "Cập nhật thông tin",
     "advanced": "Dùng OAuth client riêng (nâng cao)",
-    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Client dùng chung nay cấp quyền Drive đầy đủ. Công cụ Gmail vẫn cần OAuth client riêng của bạn (xem Cài đặt đám mây)."
+    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Client dùng chung nay cấp quyền Drive đầy đủ. Công cụ Gmail vẫn cần OAuth client riêng của bạn (xem Cài đặt đám mây).",
+    "expand": "Cấu hình ngay",
+    "configured": "OAuth client đã lưu"
   },
   "disconnect_confirm": {
     "title": "Ngắt kết nối tài khoản?",
@@ -104,6 +108,7 @@
     "title": "Phạm vi sử dụng",
     "description": "Chọn tài khoản agent dùng tại đây: yêu cầu chỉ định rõ thắng, rồi nhóm, rồi người dùng, rồi mặc định tổ chức, cuối cùng là tài khoản cá nhân.",
     "tenant_default": "Mặc định tổ chức",
+    "tenant_default_hint": "Khi agent hoặc thao tác không chỉ định tài khoản, hệ thống dùng tài khoản mặc định này cho toàn tổ chức.",
     "none": "Không",
     "group": "Nhóm",
     "user": "Người dùng",
@@ -132,12 +137,12 @@
     "used_of": "Đã dùng {{used}} / {{total}}",
     "root": "Gốc",
     "loading_files": "Đang tải tệp…",
-    "files_unavailable": "Không liệt kê được tệp (rclone đã cài trên server chưa?)",
+    "files_unavailable": "Không liệt kê được tệp (kiểm tra kết nối tài khoản rồi thử làm mới)",
     "no_files": "Thư mục này trống",
     "col_name": "Tên",
     "col_size": "Dung lượng",
     "col_modified": "Sửa đổi",
-    "readonly_note": "Chế độ chỉ đọc qua rclone ({{provider}}). Hãy bảo agent tải hoặc sắp xếp tệp giúp bạn.",
+    "readonly_note": "Chế độ chỉ đọc ({{provider}}). Hãy bảo agent tải hoặc sắp xếp tệp giúp bạn.",
     "mailbox": "Hộp thư",
     "loading_mail": "Đang tải hộp thư…",
     "mail_unavailable": "Không đọc được hộp thư",
@@ -148,6 +153,9 @@
   "drive": {
     "my_drives": "Ổ của tôi",
     "my_drive": "Ổ của tôi",
+    "dashboard": "Dashboard",
+    "search_accounts": "Tìm tài khoản…",
+    "no_accounts_match": "Không có tài khoản nào khớp",
     "providers": "Nhà cung cấp",
     "accounts": "Tài khoản",
     "shared_tag": "Dùng chung",
@@ -291,7 +299,15 @@
     "download": "Tải xuống",
     "download_started": "Đã bắt đầu tải xuống",
     "prev": "Trước",
-    "next": "Sau"
+    "next": "Sau",
+    "close": "Đóng"
+  },
+  "agent_access": {
+    "title": "Quyền agent",
+    "none": "Không cho phép",
+    "read": "Chỉ đọc",
+    "write": "Đọc + ghi",
+    "full": "Toàn quyền"
   },
   "shortcuts": {
     "title": "Phím tắt",

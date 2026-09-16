@@ -8,6 +8,7 @@
   "noMatchDescription": "请尝试其他搜索词。",
   "columns": {
     "session": "Session",
+    "origin": "来源",
     "agent": "Agent",
     "context": "上下文",
     "messages": "消息",
@@ -72,5 +73,16 @@
     "runResumed": "运行已恢复",
     "runWoken": "运行已唤醒",
     "runActionFailed": "运行操作失败"
+  },
+  "origin": {
+    "web": "网页聊天",
+    "telegram": "Telegram",
+    "video": "视频编辑",
+    "pptx": "PPTX",
+    "subagent": "子代理",
+    "cron": "定时",
+    "team": "团队",
+    "heartbeat": "心跳",
+    "channel": "{{channel}}"
   }
 }

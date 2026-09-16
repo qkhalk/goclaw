@@ -7,18 +7,18 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuthStore } from "@/stores/use-auth-store";
+import { useUiStore } from "@/stores/use-ui-store";
 import { useWsCall } from "@/hooks/use-ws-call";
 import { useWsEvent } from "@/hooks/use-ws-event";
 import { useProviders } from "@/pages/providers/hooks/use-providers";
 import { Methods, Events } from "@/api/protocol";
 import { ROUTES } from "@/lib/constants";
-import { formatTokens, formatApiCost } from "@/lib/format";
+import { formatTokens, formatApiCost, resolveTimezone } from "@/lib/format";
 
 import type {
   HealthPayload,
   StatusPayload,
   QuotaUsageResult,
-  CronListPayload,
   ChannelStatusPayload,
 } from "./types";
 import { useLiveUptime } from "./hooks/use-live-uptime";
@@ -26,10 +26,10 @@ import { StatCard } from "./stat-card";
 import { useOverviewSparklines } from "./hooks/use-overview-sparklines";
 import { SystemHealthCard } from "./system-health-card";
 import { ConnectedClientsCard } from "./connected-clients-card";
-import { CronJobsCard } from "./cron-jobs-card";
 import { RecentRequestsCard } from "./recent-requests-card";
 import { RoutingGraphCard } from "./routing-graph-card";
 import { QuotaUsageCard } from "./quota-usage-card";
+import { SystemCard } from "./system-card";
 import { useRuntimes } from "@/pages/skills/hooks/use-runtimes";
 import {
   getChannelAttentionPriority,
@@ -47,6 +47,7 @@ const MAX_OVERVIEW_CHANNEL_INSTANCES = 200;
 export function OverviewPage() {
   const { t } = useTranslation("overview");
   const connected = useAuthStore((s) => s.connected);
+  const timezone = useUiStore((s) => s.timezone);
   const { call: fetchHealth, data: health } =
     useWsCall<HealthPayload>(Methods.HEALTH);
   const { call: fetchStatus, data: status } =
@@ -54,8 +55,6 @@ export function OverviewPage() {
   const { call: fetchQuota, data: quota } =
     useWsCall<QuotaUsageResult>(Methods.QUOTA_USAGE);
   const sparklines = useOverviewSparklines();
-  const { call: fetchCron, data: cronData } =
-    useWsCall<CronListPayload>(Methods.CRON_LIST);
   const { call: fetchChannels, data: channelStatusData } =
     useWsCall<ChannelStatusPayload>(Methods.CHANNELS_STATUS);
   const { providers, loading: providersLoading } = useProviders();
@@ -74,10 +73,10 @@ export function OverviewPage() {
   const fetchAll = useCallback(() => {
     fetchHealth();
     fetchStatus();
-    fetchQuota();
-    fetchCron({ includeDisabled: true });
+    // Server counts "today" from the user's local midnight, not UTC
+    fetchQuota({ tz: resolveTimezone(timezone) });
     fetchChannels();
-  }, [fetchHealth, fetchStatus, fetchQuota, fetchCron, fetchChannels]);
+  }, [fetchHealth, fetchStatus, fetchQuota, fetchChannels, timezone]);
 
   useEffect(() => {
     if (!connected) return;
@@ -254,6 +253,18 @@ export function OverviewPage() {
             />
           </div>
 
+          {/* Surface topology (9router-style) + live Recent Requests */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <RoutingGraphCard
+                channelEntries={channelEntries}
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <RecentRequestsCard />
+            </div>
+          </div>
+
           {/* System Health */}
           <SystemHealthCard
             health={health}
@@ -265,23 +276,13 @@ export function OverviewPage() {
             runtimeEntries={runtimes?.runtimes}
           />
 
-          {/* Connected Clients + Cron Jobs */}
+          {/* Host system (CPU/mem/disk) + Connected Clients */}
           <div className="grid gap-4 lg:grid-cols-2">
+            <SystemCard />
             <ConnectedClientsCard
               clients={clientList}
               currentId={health?.currentId}
             />
-            <CronJobsCard jobs={cronData?.jobs ?? []} />
-          </div>
-
-          {/* Routing graph + Recent Requests (9router-style dashboard) */}
-          <div className="grid gap-4 lg:grid-cols-5">
-            <div className="lg:col-span-2">
-              <RoutingGraphCard />
-            </div>
-            <div className="lg:col-span-3">
-              <RecentRequestsCard />
-            </div>
           </div>
 
           {/* Quota Usage */}

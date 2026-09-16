@@ -7,6 +7,7 @@ package workflow
 import (
 	"context"
 	"errors"
+	"maps"
 	"sync"
 	"time"
 )
@@ -81,9 +82,7 @@ func (rc *RunCtx) Outputs() map[string]any {
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 	out := make(map[string]any, len(rc.values))
-	for k, v := range rc.values {
-		out[k] = v
-	}
+	maps.Copy(out, rc.values)
 	return out
 }
 
