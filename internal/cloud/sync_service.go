@@ -20,14 +20,14 @@ import (
 //   - A single goroutine sweeps every tenant on a fixed tick; pairs of the
 //     same tenant run SEQUENTIALLY (provider rate-limit friendly, and an
 //     accidental A→B + B→A loop degrades to idempotent re-copy, not ping-pong).
-//   - Folder sync goes through sync/copy ASYNC + job polling — the rc client's
-//     60s timeout makes blocking folder syncs a guaranteed hang for big trees.
+//   - Folder sync runs as a detached async copy job (copyjob.go) polled for
+//     progress — a blocking walk of a big tree would stall every other pair.
 //   - last_run_at is set at run START (MarkRunning); MarkResult only records
 //     the outcome. The due check therefore never re-fires a running pair.
 //   - Pairs stuck in "running" after a crash are failed at Start (stale
 //     cleanup, 30 min cutoff).
 //   - Manual "run now" pushes a request into a small queue the loop drains —
-//     never executed inside the HTTP handler (no 60s timeout exposure).
+//     never executed inside the HTTP handler (no request-timeout exposure).
 type SyncService struct {
 	pairs    store.CloudSyncPairStore
 	accounts tenantAccountLister
@@ -270,14 +270,14 @@ func (s *SyncService) executePair(ctx context.Context, p *store.CloudSyncPair) e
 	return s.awaitJob(ctx, jobID, p.ID)
 }
 
-// awaitJob polls the async rc job until it finishes, fails, or the deadline
+// awaitJob polls the async copy job until it finishes, fails, or the deadline
 // (or the gateway shutdown) cuts the run short.
 func (s *SyncService) awaitJob(ctx context.Context, jobID int64, pairID string) error {
 	deadline := s.now().Add(s.maxRun)
 	for {
 		job, err := s.runner.SyncJobStatus(ctx, jobID)
 		if err != nil {
-			// An rcd restart invalidates job ids — treat as a failed run, the
+			// A gateway restart invalidates job ids — treat as a failed run, the
 			// next sweep re-copies what is missing (additive mirror is idempotent).
 			return fmt.Errorf("poll job %d: %w", jobID, err)
 		}
