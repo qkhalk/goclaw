@@ -100,6 +100,11 @@ func (s *AgentSummoner) SummonAgent(agentID uuid.UUID, tenantID uuid.UUID, provi
 
 	if err == nil {
 		slog.Info("summoning: single-call succeeded", "agent", agentID)
+		// Preserve a pre-seeded custom IDENTITY.md (subagent builder system
+		// prompt written at create time) — generation must not clobber it.
+		if s.isGenerated(existingMap, bootstrap.IdentityFile) {
+			files[bootstrap.IdentityFile] = existingMap[bootstrap.IdentityFile]
+		}
 		s.storeFiles(ctx, agentID, tenantID, files)
 		s.finishSummon(ctx, agentID, tenantID, files[bootstrap.IdentityFile], files[frontmatterKey], description)
 		return

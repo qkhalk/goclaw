@@ -256,6 +256,13 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var createReq struct {
 		store.AgentData
 		GrantGatewayOperatorAccess bool `json:"grant_gateway_operator_access,omitempty"`
+		// Subagent builder extras (web UI create dialog): a custom system
+		// prompt is written to IDENTITY.md before the async summoner starts
+		// (so it counts as already-generated and is preserved); the AGENTS.md
+		// toggle controls whether the standard workspace instructions file is
+		// injected for this agent.
+		SystemPrompt   string `json:"system_prompt,omitempty"`
+		InjectAgentsMd *bool  `json:"inject_agents_md,omitempty"`
 	}
 	if !bindJSON(w, r, locale, &createReq) {
 		return
@@ -343,6 +350,20 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	// For summoning agents, templates serve as fallback if LLM fails.
 	if _, err := bootstrap.SeedToStore(r.Context(), h.agents, req.ID, req.AgentType); err != nil {
 		slog.Warn("failed to seed context files for new agent", "agent", req.AgentKey, "error", err)
+	}
+
+	// Subagent builder extras — applied after seeding and BEFORE the async
+	// summoner starts, so the custom IDENTITY.md is treated as already
+	// generated and survives summoning untouched.
+	if prompt := strings.TrimSpace(createReq.SystemPrompt); prompt != "" {
+		if err := h.agents.SetAgentContextFile(r.Context(), req.ID, bootstrap.IdentityFile, prompt); err != nil {
+			slog.Warn("failed to apply custom system prompt", "agent", req.AgentKey, "error", err)
+		}
+	}
+	if createReq.InjectAgentsMd != nil && !*createReq.InjectAgentsMd {
+		if err := h.agents.SetAgentContextFile(r.Context(), req.ID, bootstrap.AgentsFile, ""); err != nil {
+			slog.Warn("failed to disable AGENTS.md injection", "agent", req.AgentKey, "error", err)
+		}
 	}
 
 	// Start LLM summoning in background if applicable
