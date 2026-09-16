@@ -120,3 +120,16 @@ ui/web/nginx.staging.conf
 /*.sql
 scripts/docker-patch-*.sql
 __pycache__/
+
+# Local build/deploy artifacts (one-off binaries shipped to the home server)
+/goclaw-*.bin
+/goclaw-*-linux*
+/videoworker*
+/dist/
+/internal/webui/dist/
+/.tmp-browse/
+/.zcode/
+/nul
+/package.json
+/pnpm-lock.yaml
+ui/web/.pnpm-store/
