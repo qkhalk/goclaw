@@ -83,6 +83,19 @@ var goldenFixtures = []struct {
 			]
 		}`,
 	},
+	{
+		// Scene enter transitions must survive both parsers so server renders
+		// can xfade exactly what the browser preview shows.
+		name: "scene_transitions",
+		json: `{
+			"version": 1,
+			"scenes": [
+				{ "type": "color", "color": "#0f172a", "duration_sec": 3 },
+				{ "type": "color", "color": "#1e293b", "duration_sec": 3, "transition": "crossfade" },
+				{ "type": "color", "color": "#334155", "duration_sec": 3, "transition": "slide_up" }
+			]
+		}`,
+	},
 }
 
 // TestGoldenParseMatchGateway verifies that the worker contract parser

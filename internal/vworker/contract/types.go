@@ -47,6 +47,9 @@ type Scene struct {
 	KenBurns    *KenBurns  `json:"ken_burns,omitempty"`
 	Caption     *Caption   `json:"caption,omitempty"`
 	Narration   *Narration `json:"narration,omitempty"`
+	// Transition is the scene's enter transition (applied at the junction
+	// with the previous scene): none|fade|crossfade|slide_left|slide_up.
+	Transition string `json:"transition,omitempty"`
 }
 
 // KenBurns animates a slow zoom/pan on image scenes.

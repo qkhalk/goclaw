@@ -188,7 +188,6 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		FontFile:    r.cfg.FontFile,
 		MaxSceneSec: r.cfg.MaxSceneSec,
 	}
-
 	// Determine canvas dimensions
 	canvasW, canvasH, fps := effectiveCanvas(sb)
 
@@ -204,6 +203,34 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 	narrMap := make(map[int]string)
 	for _, na := range job.Narration {
 		narrMap[na.SceneIndex] = na.AudioPath
+	}
+
+	// Transition timeline math: xfade overlaps scene tails by transitionSec,
+	// so every scene except the last renders transitionSec longer — the
+	// output start of scene i then still equals the sum of the original
+	// durations, keeping narration alignment exact.
+	hasTransitions := false
+	for i := 1; i < len(sb.Scenes); i++ {
+		if tr := sb.Scenes[i].Transition; tr != "" && tr != "none" {
+			hasTransitions = true
+			break
+		}
+	}
+	offsets := make([]float64, 0, len(sb.Scenes)-1) // absolute start of scene i (i>=1)
+	if hasTransitions {
+		// Scene renders grow by transitionSec; let the safety cap follow so
+		// the builder never trims the overlap away (that would desync xfade).
+		if ffcfg.MaxSceneSec > 0 {
+			ffcfg.MaxSceneSec += transitionSec
+		}
+		cum := 0.0
+		for i := 0; i < len(sb.Scenes); i++ {
+			cum += sb.Scenes[i].DurationSec
+			if i < len(sb.Scenes)-1 {
+				offsets = append(offsets, cum)
+				sb.Scenes[i].DurationSec += transitionSec
+			}
+		}
 	}
 
 	// Per-scene: narrate + render
@@ -250,13 +277,8 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 
 		// Build and run ffmpeg
 		outPath := sceneOutputPath(tempDir, i)
-		args, err := r.buildSceneArgs(ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath, tempDir, i)
+		err = r.renderScene(ctx, ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath, tempDir, i)
 		if err != nil {
-			r.failJob(js, fmt.Sprintf("scene %d args: %v", i, err))
-			return
-		}
-
-		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, args); err != nil {
 			r.failJob(js, fmt.Sprintf("scene %d render: %v", i, err))
 			return
 		}
@@ -269,17 +291,30 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		js.mu.Unlock()
 	}
 
-	// Concat scenes
-	concatPath := filepath.Join(tempDir, "concat.txt")
-	if err := writeConcatFile(concatPath, sceneFiles); err != nil {
-		r.failJob(js, fmt.Sprintf("write concat file: %v", err))
-		return
-	}
+	// Concat scenes — xfade chain when transitions are present, stream-copy
+	// concat demuxer otherwise (cheaper, byte-identical to before).
 	concatOut := filepath.Join(tempDir, "concat.mp4")
-	concatArgs := buildConcatArgs(ffcfg, sceneFiles, concatPath, concatOut)
-	if err := execFFmpeg(ctx, r.cfg.FFmpegPath, concatArgs); err != nil {
-		r.failJob(js, fmt.Sprintf("concat: %v", err))
-		return
+	if hasTransitions {
+		transitions := make([]string, len(sb.Scenes))
+		for i := range sb.Scenes {
+			transitions[i] = sb.Scenes[i].Transition
+		}
+		xfadeArgs := buildXfadeArgs(ffcfg, sceneFiles, transitions, offsets, fps, concatOut)
+		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, xfadeArgs); err != nil {
+			r.failJob(js, fmt.Sprintf("xfade concat: %v", err))
+			return
+		}
+	} else {
+		concatPath := filepath.Join(tempDir, "concat.txt")
+		if err := writeConcatFile(concatPath, sceneFiles); err != nil {
+			r.failJob(js, fmt.Sprintf("write concat file: %v", err))
+			return
+		}
+		concatArgs := buildConcatArgs(ffcfg, sceneFiles, concatPath, concatOut)
+		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, concatArgs); err != nil {
+			r.failJob(js, fmt.Sprintf("concat: %v", err))
+			return
+		}
 	}
 
 	js.mu.Lock()
@@ -336,17 +371,36 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		"size", info.Size(), "duration", elapsed)
 }
 
-// buildSceneArgs dispatches to the appropriate scene builder.
-func (r *Runner) buildSceneArgs(cfg FFmpegConfig, sc *contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int) ([]string, error) {
+// renderScene dispatches to the appropriate scene builder and runs ffmpeg.
+// Color scenes try the animated gradient first and fall back to the flat
+// color source when the local ffmpeg lacks `gradients` (pre-4.4 builds).
+func (r *Runner) renderScene(ctx context.Context, cfg FFmpegConfig, sc *contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int) error {
 	switch sc.Type {
 	case contract.SceneImage:
-		return buildImageSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx)
+		args, err := buildImageSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx)
+		if err != nil {
+			return err
+		}
+		return execFFmpeg(ctx, r.cfg.FFmpegPath, args)
 	case contract.SceneVideo:
-		return buildVideoSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath), nil
+		return execFFmpeg(ctx, r.cfg.FFmpegPath,
+			buildVideoSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath))
 	case contract.SceneColor:
-		return buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx)
+		args, err := buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, true)
+		if err != nil {
+			return err
+		}
+		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, args); err != nil {
+			slog.Warn("gradient color scene failed, retrying flat color", "scene", sceneIdx)
+			flatArgs, ferr := buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, false)
+			if ferr != nil {
+				return ferr
+			}
+			return execFFmpeg(ctx, r.cfg.FFmpegPath, flatArgs)
+		}
+		return nil
 	default:
-		return nil, nil
+		return fmt.Errorf("unknown scene type %q", sc.Type)
 	}
 }
 
