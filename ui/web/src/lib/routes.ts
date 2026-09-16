@@ -28,6 +28,7 @@ export const ROUTES = {
   TOOLS: "/tools",
   TOOLS_VIDEO: "/tools/video",
   TOOLS_WATERMARK: "/tools/watermark",
+  TOOLS_PPTX: "/tools/pptx",
   CONTACTS: "/contacts",
   APPROVALS: "/approvals",
   NODES: "/nodes",
