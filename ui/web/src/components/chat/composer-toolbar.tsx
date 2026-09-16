@@ -31,6 +31,13 @@ interface ComposerToolbarProps {
   value: ComposerOverrides;
   onChange: (next: ComposerOverrides) => void;
   disabled?: boolean;
+  /**
+   * Provider name of the agent this composer talks to. When no provider
+   * override is picked, the model list is fed from this provider so a model
+   * can be selected alone (chat.send applies model-only overrides on the
+   * agent's own provider).
+   */
+  defaultProviderName?: string;
 }
 
 const FALLBACK_LEVELS = ["off", "low", "medium", "high"];
@@ -50,7 +57,7 @@ const AGENT_DEFAULT = "agent-default";
  * is selected). Popper also flips upward automatically for the bottom-docked
  * composer.
  */
-export function ComposerToolbar({ value, onChange, disabled }: ComposerToolbarProps) {
+export function ComposerToolbar({ value, onChange, disabled, defaultProviderName }: ComposerToolbarProps) {
   const { t } = useTranslation("chat");
   const { providers } = useProviders(!disabled);
 
@@ -59,9 +66,14 @@ export function ComposerToolbar({ value, onChange, disabled }: ComposerToolbarPr
     [providers],
   );
 
+  // With a provider override the model list follows that provider; without
+  // one it follows the agent's own provider (model-only override), so the
+  // model picker stays usable in both states.
   const selectedProvider = useMemo(
-    () => enabledProviders.find((p) => p.name === value.providerName),
-    [enabledProviders, value.providerName],
+    () =>
+      enabledProviders.find((p) => p.name === value.providerName) ??
+      enabledProviders.find((p) => p.name === defaultProviderName),
+    [enabledProviders, value.providerName, defaultProviderName],
   );
 
   const { models, loading: modelsLoading } = useProviderModels(selectedProvider?.id);
