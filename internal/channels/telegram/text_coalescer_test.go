@@ -236,3 +236,43 @@ func TestTextCoalescer_ConcurrentPushSingleFlush(t *testing.T) {
 		t.Fatalf("merged content = %q", got[0].rctx.content)
 	}
 }
+
+func TestTextCoalescer_SplitHintExtendsWindow(t *testing.T) {
+	// A part at/over the split threshold implies a client-side split with
+	// more fragments in flight. The silence window must extend so a
+	// straggling tail (arriving after the base window but inside the
+	// extended one) still lands in the SAME dispatch.
+	co, d := newTextTestCoalescer(80 * time.Millisecond)
+	long := strings.Repeat("a", textCoalesceSplitHintRunes)
+
+	co.push(testRctx("100", "42", long), textMsg(1, long))
+	// Straddle: past the base 80ms window, inside the extended 320ms one.
+	time.Sleep(120 * time.Millisecond)
+	co.push(testRctx("100", "42", "tail"), textMsg(2, "tail"))
+
+	got := waitDispatches(t, d, 1)
+	if len(got) != 1 {
+		t.Fatalf("got %d dispatches, want 1 (extended window must hold the buffer)", len(got))
+	}
+	if len(got[0].msgs) != 2 {
+		t.Fatalf("dispatched %d msgs, want 2 (split + tail merged)", len(got[0].msgs))
+	}
+	if got[0].rctx.content != long+"\ntail" {
+		t.Fatal("merged content must be split part + tail, newline joined")
+	}
+}
+
+func TestTextCoalescer_ShortPartsKeepBaseWindow(t *testing.T) {
+	// Short parts (normal typing) must NOT get the extended window — a
+	// 80ms buffer flushes even though another push follows at 120ms.
+	co, d := newTextTestCoalescer(80 * time.Millisecond)
+
+	co.push(testRctx("100", "42", "short one"), textMsg(1, "short one"))
+	time.Sleep(120 * time.Millisecond)
+	co.push(testRctx("100", "42", "short two"), textMsg(2, "short two"))
+
+	// First flush (1 msg) must already have happened at the base window.
+	if got := d.snapshot(); len(got) != 1 || got[0].rctx.content != "short one" {
+		t.Fatalf("short part must flush at base window, got %+v", got)
+	}
+}
