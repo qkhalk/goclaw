@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "모든 공급자",
-    "accounts_title": "연결된 계정"
+    "accounts_title": "연결된 계정",
+    "section_personal": "개인",
+    "section_company": "회사(공유)"
   },
   "setup": {
     "title_google": "Google이 아직 구성되지 않았습니다",

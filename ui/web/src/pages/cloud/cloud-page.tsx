@@ -515,31 +515,18 @@ export function CloudPage() {
                 />
               </div>
             ) : (
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {providerAccounts(accounts, activeProvider).map((a) => (
-                  <AccountCard
-                    key={a.id}
-                    account={a}
-                    isAdmin={isAdmin}
-                    userId={userId}
-                    connecting={connecting}
-                    onOpen={() => navigate(`/cloud/${a.provider}/${a.id}`)}
-                    onRegrant={() => handleConnect(a.provider as CloudProvider)}
-                    onSharedChange={(v) => void setShared(a.id, v)}
-                    onAgentAccess={(level) => void setAgentAccess(a.id, level)}
-                    onDisconnect={() => setDeleteTarget(a)}
-                  />
-                ))}
-                <Button
-                  variant="outline"
-                  className="min-h-11 border-dashed"
-                  onClick={() => handleConnect(activeProvider)}
-                  disabled={connecting}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t("connect.another")}
-                </Button>
-              </div>
+              <ProviderAccountGrid
+                accounts={providerAccounts(accounts, activeProvider)}
+                isAdmin={isAdmin}
+                userId={userId}
+                connecting={connecting}
+                onOpen={(a) => navigate(`/cloud/${a.provider}/${a.id}`)}
+                onRegrant={(a) => handleConnect(a.provider as CloudProvider)}
+                onSharedChange={(a, v) => void setShared(a.id, v)}
+                onAgentAccess={(a, level) => void setAgentAccess(a.id, level)}
+                onDisconnect={(a) => setDeleteTarget(a)}
+                onConnectAnother={() => handleConnect(activeProvider)}
+              />
             )}
           </div>
         </div>
@@ -567,6 +554,100 @@ export function CloudPage() {
 
 function providerAccounts(accounts: CloudAccount[], provider: CloudProvider): CloudAccount[] {
   return accounts.filter((a) => a.provider === provider);
+}
+
+/** Provider accounts split into Personal vs Company (shared) sections —
+ * the personal/business split of the clouds surface. Personal accounts are
+ * the user's own OAuth grants; Company accounts are tenant-shared drives an
+ * admin marked as shared. */
+function ProviderAccountGrid({
+  accounts,
+  isAdmin,
+  userId,
+  connecting,
+  onOpen,
+  onRegrant,
+  onSharedChange,
+  onAgentAccess,
+  onDisconnect,
+  onConnectAnother,
+}: {
+  accounts: CloudAccount[];
+  isAdmin: boolean;
+  userId: string;
+  connecting: boolean;
+  onOpen: (a: CloudAccount) => void;
+  onRegrant: (a: CloudAccount) => void;
+  onSharedChange: (a: CloudAccount, v: boolean) => void;
+  onAgentAccess: (a: CloudAccount, level: "none" | "read" | "write" | "full") => void;
+  onDisconnect: (a: CloudAccount) => void;
+  onConnectAnother: () => void;
+}) {
+  const { t } = useTranslation("cloud");
+  const personal = accounts.filter((a) => !a.shared);
+  const company = accounts.filter((a) => a.shared);
+
+  const renderCards = (list: CloudAccount[]) =>
+    list.map((a) => (
+      <AccountCard
+        key={a.id}
+        account={a}
+        isAdmin={isAdmin}
+        userId={userId}
+        connecting={connecting}
+        onOpen={() => onOpen(a)}
+        onRegrant={() => onRegrant(a)}
+        onSharedChange={(v) => onSharedChange(a, v)}
+        onAgentAccess={(level) => onAgentAccess(a, level)}
+        onDisconnect={() => onDisconnect(a)}
+      />
+    ));
+
+  return (
+    <div className="mt-3 space-y-5">
+      {personal.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t("provider.section_personal")}
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {renderCards(personal)}
+            <Button
+              variant="outline"
+              className="min-h-11 border-dashed"
+              onClick={onConnectAnother}
+              disabled={connecting}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {t("connect.another")}
+            </Button>
+          </div>
+        </div>
+      )}
+      {company.length > 0 && (
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <Building2 className="h-3.5 w-3.5 text-amber-500" />
+            {t("provider.section_company")}
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {renderCards(company)}
+          </div>
+        </div>
+      )}
+      {personal.length === 0 && company.length > 0 && (
+        <Button
+          variant="outline"
+          className="min-h-11 border-dashed"
+          onClick={onConnectAnother}
+          disabled={connecting}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          {t("connect.another")}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /** Paste-back panel for the embedded shared client flow. */

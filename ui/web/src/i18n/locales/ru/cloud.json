@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "Все провайдеры",
-    "accounts_title": "Подключённые аккаунты"
+    "accounts_title": "Подключённые аккаунты",
+    "section_personal": "Личные",
+    "section_company": "Корпоративные (общие)"
   },
   "setup": {
     "title_google": "Google ещё не настроен",
