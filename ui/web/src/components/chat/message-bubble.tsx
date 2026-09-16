@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { User } from "lucide-react";
 import { GoclawAvatar } from "@/components/chat/goclaw-avatar";
 import { MessageContent } from "./message-content";
@@ -6,7 +7,7 @@ import { ToolCallCard } from "./tool-call-card";
 import { BlockReplyBubble } from "./block-reply-bubble";
 import { MediaGallery } from "./media-gallery";
 import { useUiStore } from "@/stores/use-ui-store";
-import { resolveTimezone } from "@/lib/format";
+import { formatChatTimestamp, resolveTimezone } from "@/lib/format";
 import type { ChatMessage } from "@/types/chat";
 
 interface MessageBubbleProps {
@@ -15,6 +16,7 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const timezone = useUiStore((s) => s.timezone);
+  const { t } = useTranslation("chat");
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
 
@@ -86,11 +88,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 isUser ? "text-primary-foreground/70" : "text-muted-foreground"
               }`}
             >
-              {new Intl.DateTimeFormat([], {
-                timeZone: resolveTimezone(timezone),
-                hour: "numeric",
-                minute: "2-digit",
-              }).format(new Date(message.timestamp))}
+              {formatChatTimestamp(
+                // Shift the instant into the viewer's tz by formatting a Date
+                // built from the tz-adjusted wall time (keeps Intl locale work).
+                new Date(new Date(message.timestamp).toLocaleString("en-US", { timeZone: resolveTimezone(timezone) })),
+                t,
+              )}
             </div>
           )}
         </div>

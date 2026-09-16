@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { Fragment, memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { GoclawAvatar } from "@/components/chat/goclaw-avatar";
 import { MessageBubble } from "@/components/chat/message-bubble";
@@ -8,6 +8,7 @@ import { ToolCallCard } from "@/components/chat/tool-call-card";
 import { ThinkingBlock } from "@/components/chat/thinking-block";
 import { ChatImageGalleryProvider } from "@/components/chat/chat-image-gallery-context";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
+import { dayKey, formatDayLabel } from "@/lib/format";
 import type { ChatMessage, ToolStreamEntry, RunActivity } from "@/types/chat";
 import type { LightboxImage } from "@/components/shared/image-lightbox";
 
@@ -148,15 +149,34 @@ export const ChatThread = memo(function ChatThread({
         }}
       >
         <div className="mx-auto max-w-3xl space-y-3">
-          {displayItems.map((item) => {
-            switch (item.kind) {
-              case "notification":
-                return <SystemNotification key={`notif-${item.idx}`} message={item.msg} />;
-              case "message":
-                return <MessageBubble key={`msg-${item.idx}`} message={item.msg} />;
-              case "merged-tools":
-                return <MergedToolGroup key={`tools-${item.idx}`} msgs={item.msgs} />;
-            }
+          {displayItems.map((item, i) => {
+            const first = (item as { msgs?: ChatMessage[] }).msgs?.[0] ?? (item as { msg: ChatMessage }).msg;
+            const prevItem = i > 0 ? displayItems[i - 1] : undefined;
+            const prev = prevItem ? ((prevItem as { msgs?: ChatMessage[] }).msgs?.[0] ?? (prevItem as { msg: ChatMessage }).msg) : undefined;
+            const firstTs = first?.timestamp;
+            const newDay =
+              firstTs != null &&
+              (!prev || prev.timestamp == null || dayKey(prev.timestamp) !== dayKey(firstTs));
+            const sep = firstTs != null && newDay ? (
+              <div className="flex items-center gap-3 py-1" key={`day-${item.idx}`}>
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {formatDayLabel(firstTs, t)}
+                </span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            ) : null;
+            const body = (() => {
+              switch (item.kind) {
+                case "notification":
+                  return <SystemNotification key={`notif-${item.idx}`} message={item.msg} />;
+                case "message":
+                  return <MessageBubble key={`msg-${item.idx}`} message={item.msg} />;
+                case "merged-tools":
+                  return <MergedToolGroup key={`tools-${item.idx}`} msgs={item.msgs} />;
+              }
+            })();
+            return sep ? <Fragment key={`wrap-${item.idx}`}>{sep}{body}</Fragment> : body;
           })}
 
           <ActiveRunZone
