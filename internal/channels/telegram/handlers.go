@@ -700,6 +700,10 @@ func (c *Channel) dispatchResolvedMessage(ctx context.Context, rctx resolvedMess
 			ids = append(ids, fmt.Sprintf("%d", m.MessageID))
 		}
 		metadata["merged_message_ids"] = strings.Join(ids, ",")
+		// How many consecutive platform messages this inbound merges — lets
+		// downstream (prompt context, logs) tell a client-split long paste
+		// from several quick separate commands.
+		metadata["coalesced_message_count"] = fmt.Sprintf("%d", len(members))
 	}
 	if rep.Chat.Title != "" {
 		metadata[tools.MetaChatTitle] = rep.Chat.Title
