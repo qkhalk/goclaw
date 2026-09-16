@@ -88,13 +88,13 @@
   },
   "routing": {
     "title": "Định tuyến mô hình",
-    "window": "24 giờ",
+    "window": "1 giờ",
     "moreProviders": "+{{count}} nhà cung cấp khác",
     "surfaces": {
       "telegram": "Telegram",
-      "webChat": "Chat web",
+      "web": "Chat web",
       "pptx": "PPTX",
-      "videoEdit": "Sửa video"
+      "video": "Sửa video"
     }
   },
   "system": {

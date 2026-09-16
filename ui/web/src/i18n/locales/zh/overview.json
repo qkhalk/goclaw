@@ -88,13 +88,13 @@
   },
   "routing": {
     "title": "模型路由",
-    "window": "24小时",
+    "window": "1 小时",
     "moreProviders": "还有 {{count}} 个提供商",
     "surfaces": {
       "telegram": "Telegram",
-      "webChat": "网页聊天",
+      "web": "网页聊天",
       "pptx": "PPTX",
-      "videoEdit": "视频剪辑"
+      "video": "视频剪辑"
     }
   },
   "system": {

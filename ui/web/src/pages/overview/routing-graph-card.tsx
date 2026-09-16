@@ -62,6 +62,12 @@ const SURFACE_TINT = {
 } as const;
 
 const POSITIONS = [Position.Bottom, Position.Left, Position.Top, Position.Right];
+const OPPOSITE: Record<Position, Position> = {
+  [Position.Bottom]: Position.Top,
+  [Position.Top]: Position.Bottom,
+  [Position.Left]: Position.Right,
+  [Position.Right]: Position.Left,
+};
 
 /** 9router ProviderTopology layout: surfaces on an ellipse around the hub.
  * rx scales with node count so nodes never crowd, and the canvas is
@@ -90,7 +96,7 @@ function buildLayout(surfaces: SurfaceData[]): {
     const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
     const px = rx * Math.cos(angle);
     const py = ry * Math.sin(angle);
-    const handlePos = POSITIONS[posIndex(i)];
+    const handlePos = POSITIONS[posIndex(i)] ?? Position.Bottom;
     nodes.push({
       id: `surface-${s.key}`,
       type: "surface",
@@ -103,7 +109,9 @@ function buildLayout(surfaces: SurfaceData[]): {
       source: `surface-${s.key}`,
       sourceHandle: `s-${handlePos}`,
       target: "goclaw",
-      targetHandle: `t-${handlePos}`,
+      // The hub handle must face the surface: a node above connects to the
+      // hub's top edge, not its bottom (opposite side of the surface handle).
+      targetHandle: `t-${OPPOSITE[handlePos]}`,
       type: "default",
       animated: s.status === "active",
       style: {

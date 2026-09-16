@@ -88,13 +88,13 @@
   },
   "routing": {
     "title": "Model routing",
-    "window": "24h",
+    "window": "1h",
     "moreProviders": "+{{count}} more providers",
     "surfaces": {
       "telegram": "Telegram",
-      "webChat": "Web chat",
+      "web": "Web chat",
       "pptx": "PPTX",
-      "videoEdit": "Video editor"
+      "video": "Video editor"
     }
   },
   "system": {
