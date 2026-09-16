@@ -5,6 +5,18 @@ import { type Language } from "@/lib/constants";
 
 export type Theme = "light" | "dark" | "system";
 
+// Draggable column widths (px). Clamped in the setters so a stray persisted
+// value or an aggressive drag can never break the chat axis layout.
+export const NAV_SIDEBAR_WIDTH = { min: 224, max: 320, default: 256 } as const;
+export const CHAT_SIDEBAR_WIDTH = { min: 220, max: 440, default: 288 } as const;
+export const CHAT_PANE_WIDTH = { min: 320, max: 720, default: 384 } as const;
+export const VIDEO_DESIGNER_WIDTH = { min: 320, max: 560, default: 384 } as const;
+export const PPTX_DESIGNER_WIDTH = { min: 320, max: 560, default: 384 } as const;
+
+function clampWidth(w: number, range: { min: number; max: number }): number {
+  return Math.max(range.min, Math.min(range.max, Math.round(w)));
+}
+
 interface UiState {
   theme: Theme;
   language: Language;
@@ -12,6 +24,13 @@ interface UiState {
   sidebarCollapsed: boolean;
   mobileSidebarOpen: boolean;
   pageSize: number; // global pagination page size preference
+  navSidebarWidth: number; // global nav sidebar (expanded), px
+  chatSidebarWidth: number; // chat session-list column, px
+  chatPaneWidth: number; // right tabbed side pane, px
+  videoDesignerWidth: number; // video tool designer chat column, px
+  videoDesignerOpen: boolean; // video tool designer column visibility
+  pptxDesignerWidth: number; // pptx tool designer chat column, px
+  pptxDesignerOpen: boolean; // pptx tool designer column visibility
 
   setTheme: (theme: Theme) => void;
   setLanguage: (language: Language) => void;
@@ -20,6 +39,13 @@ interface UiState {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setMobileSidebarOpen: (open: boolean) => void;
   setPageSize: (size: number) => void;
+  setNavSidebarWidth: (w: number) => void;
+  setChatSidebarWidth: (w: number) => void;
+  setChatPaneWidth: (w: number) => void;
+  setVideoDesignerWidth: (w: number) => void;
+  setVideoDesignerOpen: (open: boolean) => void;
+  setPptxDesignerWidth: (w: number) => void;
+  setPptxDesignerOpen: (open: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -31,6 +57,13 @@ export const useUiStore = create<UiState>()(
       sidebarCollapsed: false,
       mobileSidebarOpen: false,
       pageSize: 20,
+      navSidebarWidth: NAV_SIDEBAR_WIDTH.default,
+      chatSidebarWidth: CHAT_SIDEBAR_WIDTH.default,
+      chatPaneWidth: CHAT_PANE_WIDTH.default,
+      videoDesignerWidth: VIDEO_DESIGNER_WIDTH.default,
+      videoDesignerOpen: false,
+      pptxDesignerWidth: PPTX_DESIGNER_WIDTH.default,
+      pptxDesignerOpen: false,
 
       setTheme: (theme) => {
         set({ theme });
@@ -56,6 +89,14 @@ export const useUiStore = create<UiState>()(
       setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
 
       setPageSize: (size) => set({ pageSize: size }),
+
+      setNavSidebarWidth: (w) => set({ navSidebarWidth: clampWidth(w, NAV_SIDEBAR_WIDTH) }),
+      setChatSidebarWidth: (w) => set({ chatSidebarWidth: clampWidth(w, CHAT_SIDEBAR_WIDTH) }),
+      setChatPaneWidth: (w) => set({ chatPaneWidth: clampWidth(w, CHAT_PANE_WIDTH) }),
+      setVideoDesignerWidth: (w) => set({ videoDesignerWidth: clampWidth(w, VIDEO_DESIGNER_WIDTH) }),
+      setVideoDesignerOpen: (open) => set({ videoDesignerOpen: open }),
+      setPptxDesignerWidth: (w) => set({ pptxDesignerWidth: clampWidth(w, PPTX_DESIGNER_WIDTH) }),
+      setPptxDesignerOpen: (open) => set({ pptxDesignerOpen: open }),
     }),
     {
       name: "goclaw:ui", // localStorage key
@@ -66,6 +107,13 @@ export const useUiStore = create<UiState>()(
         timezone: state.timezone,
         sidebarCollapsed: state.sidebarCollapsed,
         pageSize: state.pageSize,
+        navSidebarWidth: state.navSidebarWidth,
+        chatSidebarWidth: state.chatSidebarWidth,
+        chatPaneWidth: state.chatPaneWidth,
+        videoDesignerWidth: state.videoDesignerWidth,
+        videoDesignerOpen: state.videoDesignerOpen,
+        pptxDesignerWidth: state.pptxDesignerWidth,
+        pptxDesignerOpen: state.pptxDesignerOpen,
       }),
     }
   )
