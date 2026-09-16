@@ -17,7 +17,7 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync, appendFileSync } from "node:fs";
 
-const base = process.env.FORK_BASE || "3.16.0";
+const base = process.env.FORK_BASE || "4.6.0";
 const prerelease = process.env.PRERELEASE_ID || "fork";
 const override = process.env.VERSION_OVERRIDE || "";
 const plainMode = (process.env.TAG_MODE || "fork") === "plain";
