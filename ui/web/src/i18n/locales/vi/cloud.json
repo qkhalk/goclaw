@@ -330,6 +330,12 @@
   },
   "agent_access": {
     "title": "Quyền agent",
+    "cap_read": "Đọc file",
+    "cap_read_hint": "Duyệt, tải file, đọc thư",
+    "cap_write": "Tạo & cập nhật file",
+    "cap_write_hint": "Tạo, ghi đè và sửa file trên cloud",
+    "cap_manage": "Quản trị",
+    "cap_manage_hint": "Xoá, di chuyển, tạo link chia sẻ",
     "none": "Không cho phép",
     "read": "Chỉ đọc",
     "write": "Đọc + ghi",

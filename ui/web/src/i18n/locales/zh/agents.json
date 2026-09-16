@@ -947,19 +947,6 @@
       "description": "其他部分未涵盖的高级设置的额外 JSON 配置",
       "formatJson": "格式化 JSON",
       "invalidJson": "JSON 语法无效"
-    },
-    "filePermissions": {
-      "title": "文件权限",
-      "description": "逐项开关代理的文件能力。",
-      "read": "读取文件",
-      "readHint": "read_file、list_files",
-      "write": "编辑文件",
-      "writeHint": "edit — 修改现有文件",
-      "create": "创建文件",
-      "createHint": "write_file — 创建/覆盖文件",
-      "send": "发送文件",
-      "sendHint": "send_file — 将文件发送到聊天",
-      "footnote": "关闭某项能力会把对应工具加入工具策略的 deny 列表（deny 优先于 allow）。"
     }
   },
   "heartbeat": {

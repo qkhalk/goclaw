@@ -330,6 +330,12 @@
   },
   "agent_access": {
     "title": "에이전트 권한",
+    "cap_read": "파일 읽기",
+    "cap_read_hint": "파일 탐색·다운로드, 메일 읽기",
+    "cap_write": "파일 생성 및 수정",
+    "cap_write_hint": "드라이브에 업로드·작성·편집",
+    "cap_manage": "관리",
+    "cap_manage_hint": "삭제, 이동, 공유 링크 생성",
     "none": "접근 금지",
     "read": "읽기 전용",
     "write": "읽기 + 쓰기",
