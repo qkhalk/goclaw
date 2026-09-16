@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Building2, ChevronDown, Clock, Cloud, HardDrive, Inbox, Loader2, Star } from "lucide-react";
+import { Building2, ChevronDown, Clock, Cloud, Database, HardDrive, Inbox, LayoutDashboard, Loader2, Search, Star } from "lucide-react";
+import { DropboxIcon } from "@/components/icons/dropbox-icon";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
@@ -22,9 +23,15 @@ const RAIL_ROW =
   "flex min-h-11 min-w-0 items-center gap-2 rounded-md py-1.5 text-left text-sm transition-colors hover:bg-muted/60";
 
 /** Connectable providers (backend mirror: cloud.SupportedProviders). */
-export const CLOUD_PROVIDERS: { id: CloudProvider; name: string; icon: typeof Cloud }[] = [
+export const CLOUD_PROVIDERS: {
+  id: CloudProvider;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { id: "google", name: "Google Drive", icon: Cloud },
   { id: "onedrive", name: "Microsoft OneDrive", icon: HardDrive },
+  { id: "dropbox", name: "Dropbox", icon: DropboxIcon },
+  { id: "s3", name: "S3 Compatible", icon: Database },
 ];
 
 /** rclone quota for one account (GET /v1/cloud/accounts/{id}/about). */
@@ -53,6 +60,8 @@ export function DriveRail({
   const starred = useCloudStarred();
   const [mailAccountId, setMailAccountId] = useState<string | null>(null);
   const activeView = params.get("view") ?? "";
+  // Per-provider account search (client-side email/name filter).
+  const [accountQueries, setAccountQueries] = useState<Record<string, string>>({});
 
   // Collapsed provider groups (localStorage, default expanded).
   const [collapsed, setCollapsed] = useState<string[]>(() => {
@@ -115,11 +124,14 @@ export function DriveRail({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3">
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-5">
         <nav className="flex flex-col gap-1">
+          <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+            {t("drive.quick_views")}
+          </p>
           <RailLink
-            icon={HardDrive}
-            label={t("drive.my_drive")}
+            icon={LayoutDashboard}
+            label={t("drive.dashboard")}
             active={myDriveActive}
             onClick={openMyDrive}
           />
@@ -146,6 +158,15 @@ export function DriveRail({
           const items = byProvider.get(p.id) ?? [];
           const providerActive = routeProvider === p.id;
           const isCollapsed = collapsed.includes(p.id);
+          const rawQuery = accountQueries[p.id] ?? "";
+          const q = rawQuery.trim().toLowerCase();
+          const visible = q
+            ? items.filter(
+                (a) =>
+                  a.email.toLowerCase().includes(q) ||
+                  (a.display_name ?? "").toLowerCase().includes(q),
+              )
+            : items;
           return (
             <div key={p.id} className="w-full">
               <div className="flex w-full items-center gap-0.5">
@@ -157,7 +178,10 @@ export function DriveRail({
                   <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
                   {items.length > 0 && (
-                    <span className="ml-1 shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+                    <span
+                      className="shrink-0 text-xs tabular-nums text-muted-foreground"
+                      title={t("drive.toggle_accounts")}
+                    >
                       {items.length}
                     </span>
                   )}
@@ -175,48 +199,65 @@ export function DriveRail({
                 )}
               </div>
               {items.length > 0 && !isCollapsed && (
-                <ul className="flex w-full flex-col gap-0.5">
-                  {items.map((a) => {
-                    const active = a.id === accountId;
-                    return (
-                      <li key={a.id} className="w-full">
-                        <button
-                          type="button"
-                          onClick={() => openAccount(a.provider, a.id)}
-                          className={cn(RAIL_ROW, "w-full pl-8 pr-2", active && "bg-muted font-medium")}
-                          title={a.shared ? `${t("drive.shared_tag")} · ${a.email}` : a.email}
-                        >
-                          {a.shared ? (
-                            <Building2 className="h-4 w-4 shrink-0 text-amber-500" aria-label={t("drive.shared_tag")} />
-                          ) : (
-                            <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          )}
-                          <span className="min-w-0 flex-1 truncate">{a.email}</span>
-                          {accountCanMail(a) && (
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              aria-label={t("drive.mail")}
-                              className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMailAccountId(a.id);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
+                <>
+                  <div className="relative px-1 pb-1 pt-0.5">
+                    <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3 w-3 -translate-y-[calc(50%+2px)] text-muted-foreground" />
+                    <input
+                      value={rawQuery}
+                      onChange={(e) => setAccountQueries((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                      placeholder={t("drive.search_accounts")}
+                      autoComplete="off"
+                      className="h-8 w-full rounded-md border bg-background pl-7 pr-2 text-base outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring md:text-sm"
+                    />
+                  </div>
+                  <ul className="flex w-full flex-col gap-0.5">
+                    {visible.map((a) => {
+                      const active = a.id === accountId;
+                      return (
+                        <li key={a.id} className="w-full">
+                          <button
+                            type="button"
+                            onClick={() => openAccount(a.provider, a.id)}
+                            className={cn(RAIL_ROW, "w-full pl-8 pr-2", active && "bg-muted font-medium")}
+                            title={a.shared ? `${t("drive.shared_tag")} · ${a.email}` : a.email}
+                          >
+                            {a.shared ? (
+                              <Building2 className="h-4 w-4 shrink-0 text-amber-500" aria-label={t("drive.shared_tag")} />
+                            ) : (
+                              <p.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate">{a.email}</span>
+                            {accountCanMail(a) && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                aria-label={t("drive.mail")}
+                                className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                onClick={(e) => {
                                   e.stopPropagation();
                                   setMailAccountId(a.id);
-                                }
-                              }}
-                            >
-                              <Inbox className="h-3.5 w-3.5" />
-                            </span>
-                          )}
-                        </button>
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.stopPropagation();
+                                    setMailAccountId(a.id);
+                                  }
+                                }}
+                              >
+                                <Inbox className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                    {visible.length === 0 && (
+                      <li className="w-full px-8 py-1.5 text-xs text-muted-foreground">
+                        {t("drive.no_accounts_match")}
                       </li>
-                    );
-                  })}
-                </ul>
+                    )}
+                  </ul>
+                </>
               )}
             </div>
           );
@@ -270,7 +311,8 @@ function RailLink({
   );
 }
 
-/** Storage quota card for the currently open account (red >90% / amber >75% / emerald). */
+/** Storage quota card for the currently open account (red >90% / amber >75% /
+ * emerald). Pinned to the rail bottom (mt-auto) — Google-Drive style. */
 function RailQuotaCard({ accountId }: { accountId: string }) {
   const { t } = useTranslation("cloud");
   const http = useHttp();
@@ -286,31 +328,38 @@ function RailQuotaCard({ accountId }: { accountId: string }) {
     return Math.min(100, Math.round((about.data.used / about.data.total) * 100));
   }, [about.data]);
 
+  const barColor =
+    pct !== null && pct > 90 ? "bg-red-500" : pct !== null && pct > 75 ? "bg-amber-500" : "bg-emerald-500";
+  const pctColor =
+    pct !== null && pct > 90 ? "text-red-500" : pct !== null && pct > 75 ? "text-amber-500" : "text-emerald-500";
+
   return (
-    <div className="mt-auto rounded-lg border p-3">
-      <p className="text-xs font-medium text-muted-foreground">{t("drive.storage")}</p>
+    <div className="mt-auto shrink-0 rounded-lg border bg-muted/30 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <HardDrive className="h-3.5 w-3.5" />
+          {t("drive.storage")}
+        </p>
+        {pct !== null && (
+          <span className={cn("text-xs font-semibold tabular-nums", pctColor)}>{pct}%</span>
+        )}
+      </div>
       {about.isError ? (
-        <p className="mt-1 text-xs text-muted-foreground">{t("drive.storage_unavailable")}</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">{t("drive.storage_unavailable")}</p>
       ) : about.data && pct !== null ? (
-        <div className="mt-1.5">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              {t("detail.used_of", {
-                used: formatFileSize(about.data.used),
-                total: formatFileSize(about.data.total),
-              })}
-            </span>
-            <span className="tabular-nums">{pct}%</span>
+        <>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
           </div>
-          <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={`h-full rounded-full transition-all ${pct > 90 ? "bg-red-500" : pct > 75 ? "bg-amber-500" : "bg-emerald-500"}`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {t("detail.used_of", {
+              used: formatFileSize(about.data.used),
+              total: formatFileSize(about.data.total),
+            })}
+          </p>
+        </>
       ) : (
-        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" />
           {t("detail.loading_quota")}
         </div>

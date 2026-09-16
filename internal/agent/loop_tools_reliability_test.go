@@ -32,7 +32,7 @@ func metricsSnapshot() reliability.Snapshot {
 // matching argsHash AND matching resultHash.
 func loopStatePrimed(streak int, toolName string, args map[string]any, resultForLLM string) *runState {
 	rs := &runState{}
-	for i := 0; i < streak; i++ {
+	for range streak {
 		h := rs.loopDetector.record(toolName, args)
 		rs.loopDetector.recordResult(h, resultForLLM)
 	}
@@ -162,7 +162,7 @@ func TestObserveToolLoopSameResultCycle(t *testing.T) {
 	loop := newTestLoopForToolCallbacks(func(AgentEvent) {})
 	rs := &runState{}
 	// 3 records with distinct args but identical content.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		h := rs.loopDetector.record("read_file", map[string]any{"path": "/tmp/x.txt", "i": i})
 		rs.loopDetector.recordResult(h, "same-result")
 	}

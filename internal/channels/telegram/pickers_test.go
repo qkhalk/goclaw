@@ -295,7 +295,7 @@ func TestTransformInteractiveReply_Passthrough(t *testing.T) {
 // --- ask_options keyboard + callbacks ---
 
 func TestAskKeyboard(t *testing.T) {
-	rows := askKeyboard([]string{"Postgres", "MySQL", "SQLite"}, "vi")
+	rows := askKeyboard([]string{"Postgres", "MySQL", "SQLite"}, "vi", "")
 	if len(rows) != 3+1 { // 3 option rows (one per row) + Other
 		t.Fatalf("rows = %d, want 4", len(rows))
 	}
@@ -311,7 +311,7 @@ func TestAskKeyboard(t *testing.T) {
 }
 
 func TestAskKeyboardSelected(t *testing.T) {
-	rows := askKeyboardSelected([]string{"Postgres", "MySQL", "SQLite"}, 1, "vi")
+	rows := askKeyboardSelected([]string{"Postgres", "MySQL", "SQLite"}, 1, "vi", "")
 	// 3 option rows + confirm/back row
 	if len(rows) != 3+1 {
 		t.Fatalf("rows = %d, want 4", len(rows))
@@ -541,7 +541,7 @@ func TestSendAskQuestion_SendsKeyboard(t *testing.T) {
 	ch, caller := newPickerTestChannel(t, nil)
 	encoded, _ := json.Marshal([]string{"Postgres", "MySQL"})
 
-	if err := ch.sendAskQuestion(context.Background(), -100, "-100", "Which DB?", string(encoded), 0, 0); err != nil {
+	if err := ch.sendAskQuestion(context.Background(), -100, "-100", "Which DB?", string(encoded), "", 0, 0); err != nil {
 		t.Fatalf("sendAskQuestion: %v", err)
 	}
 
@@ -621,7 +621,7 @@ func TestSendAskQuestion_PlaceholderSentinelSendsFresh(t *testing.T) {
 	ch.placeholders.Store("-100", -1)
 	encoded, _ := json.Marshal([]string{"Postgres"})
 
-	if err := ch.sendAskQuestion(context.Background(), -100, "-100", "Which DB?", string(encoded), 0, 0); err != nil {
+	if err := ch.sendAskQuestion(context.Background(), -100, "-100", "Which DB?", string(encoded), "", 0, 0); err != nil {
 		t.Fatalf("sendAskQuestion: %v", err)
 	}
 	var send *recordedTelegramCall

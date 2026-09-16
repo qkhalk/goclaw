@@ -531,8 +531,8 @@ func rejectArtifactReparsePoint(handle windows.Handle) error {
 }
 
 func artifactNTAbsolutePath(absolute string) string {
-	if strings.HasPrefix(absolute, `\\`) {
-		return `\??\UNC\` + strings.TrimPrefix(absolute, `\\`)
+	if after, ok := strings.CutPrefix(absolute, `\\`); ok {
+		return `\??\UNC\` + after
 	}
 	return `\??\` + absolute
 }

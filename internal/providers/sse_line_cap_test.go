@@ -46,7 +46,7 @@ func TestSSEScanner_LargeButLegalFrameOK(t *testing.T) {
 // The cap is per-line: many small lines never trip it.
 func TestSSEScanner_ManySmallLinesOK(t *testing.T) {
 	var b strings.Builder
-	for i := 0; i < 10_000; i++ {
+	for range 10_000 {
 		b.WriteString("data: {\"i\":")
 		b.WriteString(strings.Repeat("0", 100))
 		b.WriteString("}\n\n")

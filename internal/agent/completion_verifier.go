@@ -159,11 +159,15 @@ func (l *Loop) gateCompletion(mode, runID string, completion *CompletionResult, 
 	case config.VerifierModeRecover:
 		if !continued[runID] &&
 			state != nil &&
+			state.ExitCode != pipeline.AbortRun &&
+			!state.Tool.LoopKilled &&
 			l.maxIterations > 0 &&
 			state.Iteration+1 < l.maxIterations &&
 			!state.Observe.ContinuationGateFired {
 			// Mirror contguard_stage.go: flip ContinueAfterFinal exactly like
 			// the continuation gate does, then let the loop run one more pass.
+			// Aborted or loop-killed runs are never continued — the run ended
+			// for an unrecoverable reason, not from a weak final answer.
 			state.Observe.ContinueAfterFinal = true
 			continued[runID] = true
 			slog.Info("completion_verifier.recover_continue",

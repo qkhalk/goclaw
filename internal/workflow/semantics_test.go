@@ -206,7 +206,7 @@ func TestRunCtx_ValueExchange(t *testing.T) {
 // steps does not race.
 func TestRunCtx_ParallelSafe(t *testing.T) {
 	d := NewDAG("ctx-par")
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		i := i
 		mustAdd(t, d, &Step{ID: string(rune('a' + i)), Type: StepParallel,
 			Run: func(_ context.Context, rc *RunCtx) error {

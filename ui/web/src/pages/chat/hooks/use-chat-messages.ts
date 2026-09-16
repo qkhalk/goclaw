@@ -477,6 +477,15 @@ export function useChatMessages(sessionKey: string, agentId: string) {
               setSessionThinking(sessionKey, null);
               setToolStream([]);
               void loadHistory();
+            } else {
+              // First-connect race: a chat surface that mounted before the WS
+              // handshake settled ran loadHistory while !isConnected — it
+              // bailed and never retried, leaving a persisted conversation
+              // invisible. Backfill when nothing has loaded for the session.
+              const cur = useChatMessagesStore.getState().sessions[sessionKey];
+              if (!cur || cur.messages.length === 0) {
+                void loadHistory();
+              }
             }
             return;
           }

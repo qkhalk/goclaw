@@ -21,10 +21,10 @@ import type { SortDir, SortKey, SortSpec, ViewMode } from "./paths";
 
 const SORT_KEYS: SortKey[] = ["name", "size", "modified"];
 
-/** Drive top bar: breadcrumbs/title row + tools row (search / sort / grid-list
- * toggle). Purely controlled — state lives in the page (search & sort are
- * ephemeral UI state, not URL state). The mobile rail hamburger is rendered by
- * the shell around this component. */
+/** Drive top bar: breadcrumbs/title row with inline search + upload actions,
+ * plus a tools row (sort / grid-list toggle). Purely controlled — state lives
+ * in the page (search & sort are ephemeral UI state, not URL state). The
+ * mobile rail hamburger is rendered by the shell around this component. */
 export function DriveTopBar({
   // Breadcrumb mode (account view)
   path,
@@ -77,6 +77,19 @@ export function DriveTopBar({
           </div>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          {isAccountView && onSearchChange && (
+            <div className="relative mr-1 min-w-0">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search ?? ""}
+                onChange={(e) => onSearchChange?.(e.target.value)}
+                placeholder={t("drive.search_placeholder")}
+                className="h-8 w-28 pl-8 text-base sm:w-44 md:w-52 md:text-sm"
+                autoComplete="off"
+                data-cloud-search
+              />
+            </div>
+          )}
           {right}
           {onRefresh && (
             <RefreshButton
@@ -90,18 +103,6 @@ export function DriveTopBar({
 
       {isAccountView && (
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-0 flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search ?? ""}
-              onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder={t("drive.search_placeholder")}
-              className="pl-8 text-base md:text-sm"
-              autoComplete="off"
-              data-cloud-search
-            />
-          </div>
-
           {sort && onSortChange && (
             <div className="flex items-center gap-1">
               <Select

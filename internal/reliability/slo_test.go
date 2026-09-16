@@ -48,7 +48,7 @@ func TestSLOTrackerIdleNoBurn(t *testing.T) {
 
 	// Idle snapshots (zero requests) must never contribute samples and must
 	// not trigger division-by-zero.
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		tr.Observe(takeSnapshot(0, 0))
 	}
 	if st := tr.Status(); st.TotalRequests != 0 {
@@ -56,7 +56,7 @@ func TestSLOTrackerIdleNoBurn(t *testing.T) {
 	}
 
 	// Failure deltas do count, and every one is a failed interval.
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		tr.Observe(takeSnapshot(3, 0))
 	}
 	st := tr.Status()
@@ -109,7 +109,7 @@ func TestSLOTrackerOnTarget(t *testing.T) {
 	tr := newTestTracker(t, 0.99, time.Hour, &now)
 
 	// 99 ok intervals + 1 failed interval → rate exactly 0.99.
-	for i := 0; i < 99; i++ {
+	for range 99 {
 		tr.Observe(takeSnapshot(1, 1))
 	}
 	tr.Observe(takeSnapshot(1, 0))
@@ -173,14 +173,12 @@ func TestSLOTrackerAllDead(t *testing.T) {
 func TestSLOTrackerConcurrentObserve(t *testing.T) {
 	tr := NewSLOTracker(0.99, time.Hour)
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < 100; j++ {
+	for range 8 {
+		wg.Go(func() {
+			for range 100 {
 				tr.Observe(takeSnapshot(1, 1))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	st := tr.Status()

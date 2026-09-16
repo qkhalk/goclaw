@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -10,14 +11,14 @@ import (
 )
 
 func join(parts []string) string {
-	out := ""
+	var out strings.Builder
 	for i, p := range parts {
 		if i > 0 {
-			out += ","
+			out.WriteString(",")
 		}
-		out += p
+		out.WriteString(p)
 	}
-	return out
+	return out.String()
 }
 
 // TestRun_SequentialChain executes a linear dependency chain and verifies
@@ -68,7 +69,6 @@ func TestRun_SequentialSharesLevel(t *testing.T) {
 
 	d := NewDAG("seq-same")
 	for _, id := range []string{"x", "y", "z"} {
-		id := id
 		mustAdd(t, d, &Step{ID: id, Run: func(context.Context, *RunCtx) error {
 			mu.Lock()
 			active++
@@ -110,7 +110,7 @@ func TestRun_SequentialSharesLevel(t *testing.T) {
 func TestRun_ParallelFanOut(t *testing.T) {
 	var ran atomic.Int32
 	d := NewDAG("par")
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		i := i
 		mustAdd(t, d, &Step{ID: string(rune('a' + i)), Type: StepParallel, Run: func(context.Context, *RunCtx) error {
 			time.Sleep(20 * time.Millisecond)

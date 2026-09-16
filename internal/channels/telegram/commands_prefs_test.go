@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -34,9 +35,7 @@ func (f *fakePrefsStore) SetSessionMetadata(_ context.Context, key string, metad
 	if f.data[key] == nil {
 		f.data[key] = map[string]string{}
 	}
-	for k, v := range metadata {
-		f.data[key][k] = v
-	}
+	maps.Copy(f.data[key], metadata)
 }
 
 func (f *fakePrefsStore) Save(_ context.Context, _ string) error {

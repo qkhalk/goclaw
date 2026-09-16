@@ -85,6 +85,22 @@ func (f *fakeVideoJobStore) DeleteExpired(_ context.Context, before time.Time) (
 	return 0, errors.New("not implemented")
 }
 
+func (f *fakeVideoJobStore) Delete(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.jobs[id]; !ok {
+		return store.ErrVideoJobNotFound
+	}
+	delete(f.jobs, id)
+	for i, v := range f.order {
+		if v == id {
+			f.order = append(f.order[:i], f.order[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
 // validStoryboard passes internal/video Validate() rules: version 1, one
 // color scene with a legal duration.
 const validStoryboard = `{"version":1,"canvas":{"width":1080,"height":1920,"fps":30},"scenes":[{"type":"color","color":"#101010","duration_sec":2}]}`
@@ -199,6 +215,54 @@ func TestVideoListJobs_ContainsCreated(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"jobs"`) || !strings.Contains(rec.Body.String(), `"status":"queued"`) {
 		t.Errorf("list response missing jobs payload: %s", rec.Body.String()[:min(len(rec.Body.String()), 300)])
+	}
+}
+
+// firstJobID returns the single job created by a POST in these tests.
+func firstJobID(fake *fakeVideoJobStore) string {
+	for id := range fake.jobs {
+		return id
+	}
+	return ""
+}
+
+func TestVideoDeleteJob_TerminalJobRemoved(t *testing.T) {
+	h, fake := setupVideoHandler(t)
+	doVideoReq(t, h, "POST", "/v1/video/jobs", `{"storyboard":`+validStoryboard+`}`)
+	id := firstJobID(fake)
+	if err := fake.UpdateStatus(context.Background(), id, store.VideoJobUpdate{Status: "done"}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	rec := doVideoReq(t, h, "DELETE", "/v1/video/jobs/"+id, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"deleted"`) {
+		t.Errorf("response should report deleted: %s", rec.Body.String())
+	}
+	if len(fake.jobs) != 0 {
+		t.Fatalf("store jobs = %d, want 0 after delete", len(fake.jobs))
+	}
+}
+
+func TestVideoDeleteJob_ActiveJobCancelledNotRemoved(t *testing.T) {
+	h, fake := setupVideoHandler(t)
+	doVideoReq(t, h, "POST", "/v1/video/jobs", `{"storyboard":`+validStoryboard+`}`)
+	id := firstJobID(fake)
+
+	rec := doVideoReq(t, h, "DELETE", "/v1/video/jobs/"+id, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"cancelled"`) {
+		t.Errorf("active job should be cancelled: %s", rec.Body.String())
+	}
+	if len(fake.jobs) != 1 {
+		t.Fatalf("store jobs = %d, want 1 (cancel, not delete)", len(fake.jobs))
+	}
+	if got := fake.jobs[id].Status; got != string(videopkg.JobCancelled) {
+		t.Fatalf("status = %q, want cancelled", got)
 	}
 }
 

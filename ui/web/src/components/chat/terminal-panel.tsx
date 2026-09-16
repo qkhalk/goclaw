@@ -9,7 +9,6 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Events, Methods } from "@/api/protocol";
 import { useWs } from "@/hooks/use-ws";
 import { useWsEvent } from "@/hooks/use-ws-event";
-import { cn } from "@/lib/utils";
 import {
   type TerminalPhase,
   type UseTerminalResult,
@@ -37,12 +36,7 @@ export function TerminalPanel({ open, onClose, workspaceId }: TerminalPanelProps
   if (!open) return null;
 
   return (
-    <div
-      className={cn(
-        "flex h-full w-72 shrink-0 flex-col border-l bg-background",
-        "max-sm:fixed max-sm:inset-y-0 max-sm:right-0 max-sm:z-50 max-sm:w-full max-sm:max-w-[85vw] max-sm:shadow-xl",
-      )}
-    >
+    <div className="flex h-full min-h-0 flex-col bg-background">
       {/* Header — mirrors file-explorer-panel */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-sm font-medium">{t("terminal.title")}</span>

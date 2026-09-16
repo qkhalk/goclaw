@@ -102,6 +102,33 @@
     "connecting": "正在连接…",
     "failed": "终端出错：{{message}}"
   },
+  "browserPanel": {
+    "title": "浏览器",
+    "loading": "正在加载页面…",
+    "ready": "就绪",
+    "error": "无法显示页面",
+    "errorHint": "该网站可能禁止嵌入 — 请使用\"在新标签页打开\"。",
+    "openNewTab": "在新标签页打开",
+    "reload": "重新加载",
+    "close": "关闭面板",
+    "urlBar": "页面 URL",
+    "urlPlaceholder": "搜索或输入网址",
+    "back": "后退",
+    "forward": "前进",
+    "staticNote": "静态页面 — 已禁用脚本；点击链接和输入仍然可用。",
+    "empty": "尚未打开页面。让助手帮你打开一个网页吧。",
+    "switchToLive": "实时预览（运行 JavaScript）",
+    "switchToStatic": "静态视图（助手可操作）",
+    "liveNote": "实时预览 — 真实页面在此运行 JavaScript。此模式下助手无法读取或点击；需要时请切回静态视图。",
+    "thinStaticNote": "此页面需要 JavaScript 渲染，因此静态视图几乎为空。请切换到实时预览（闪电图标）或在新标签页打开。",
+    "remote": {
+      "toggle": "服务器浏览器（由代理控制）",
+      "placeholder": "URL — 在服务器端无头 Chrome 中打开",
+      "empty": "输入 URL 以在服务器浏览器中打开（真实 Chrome、可运行 JS — 代理共用此浏览器）。",
+      "note": "服务器浏览器 — 页面由网关渲染；代理可以读取并控制即使被 JS/iframe 拦截的网站。",
+      "noCapture": "页面已打开但未捕获截图 — 请尝试刷新。"
+    }
+  },
   "taskTree": {
     "empty": "暂无任务",
     "priority": "优先级",
@@ -183,6 +210,16 @@
     "otherPlaceholder": "输入你自己的回答…",
     "send": "发送回答",
     "confirm": "✔ 确认",
-    "back": "◀ 返回"
+    "back": "◀ 返回",
+    "recommended": "推荐"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev 模式已开启 — 点击关闭",
+    "off": "Dev 模式已关闭 — 点击开启（先规划、自动用技能、不确定时询问）"
+  },
+  "daySep": {
+    "today": "今天",
+    "yesterday": "昨天"
   }
 }

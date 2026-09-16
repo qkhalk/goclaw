@@ -18,6 +18,9 @@ export interface CloudAccount {
   user_id: string;
   /** Tenant-wide shared (enterprise "company drive") — admin-set. */
   shared: boolean;
+  /** What agents may do with this account via cloud/mail tools:
+   * none | read | write | full (admin-set on the Clouds page). */
+  agent_access?: "none" | "read" | "write" | "full";
   /** True when the stored OAuth grant includes the provider's write scope.
    * False for accounts connected before the write upgrade — read-only until
    * the owner re-grants. */
@@ -41,7 +44,7 @@ export interface CloudBinding {
   priority: number;
 }
 
-export type CloudProvider = "google" | "onedrive";
+export type CloudProvider = "google" | "onedrive" | "dropbox" | "s3";
 
 /** One tenant-level one-way folder sync pair (source → target, additive
  * mirror — files deleted at the source are never deleted at the target). */
@@ -87,7 +90,12 @@ export interface CloudFileEntry {
 export interface CloudStatus {
   enabled: boolean;
   edition: string;
-  providers: { google?: { configured: boolean }; onedrive?: { configured: boolean } };
+  providers: {
+    google?: { configured: boolean };
+    onedrive?: { configured: boolean };
+    dropbox?: { configured: boolean };
+    s3?: { configured: boolean };
+  };
 }
 
 export interface CloudStartResponse {
@@ -162,6 +170,17 @@ export function useCloudAccounts() {
     [http],
   );
 
+  /** S3-compatible connect (R2/B2/Wasabi/MinIO/DO/AWS): static access keys,
+   * validated server-side against the endpoint — no OAuth round trip. */
+  const connectS3 = useCallback(
+    async (input: { label?: string; endpoint?: string; region?: string; bucket: string; access_key: string; secret_key: string }) => {
+      const res = await http.post<CloudAccount>("/v1/cloud/accounts/s3", input);
+      await invalidate();
+      return res;
+    },
+    [http, invalidate],
+  );
+
   /** Finish the paste-back flow: submit the address-bar URL the browser
    * landed on after consent (loopback redirect, nothing listening). */
   const completeConnect = useCallback(
@@ -182,7 +201,16 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
-  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, setShared };
+  /** Set the per-account agent access level (admin). */
+  const setAgentAccess = useCallback(
+    async (id: string, access: "none" | "read" | "write" | "full") => {
+      await http.put(`/v1/cloud/accounts/${id}/agent-access`, { access });
+      await invalidate();
+    },
+    [http, invalidate],
+  );
+
+  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, connectS3, setShared, setAgentAccess };
 }
 
 export function useCloudBindings(enabled: boolean) {

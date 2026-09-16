@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 import { useHttp } from "@/hooks/use-ws";
 import { useWsEvent } from "@/hooks/use-ws-event";
+import { toWireStoryboard } from "../lib/storyboard-wire";
 
 /** One video render job (mirrors store.VideoRenderJob, snake_case wire). */
 export interface VideoRenderJob {
@@ -86,9 +87,29 @@ export function useVideoCancel() {
   );
 }
 
+/** Remove a terminal job (done/failed/cancelled) — same DELETE endpoint, the
+ * server hard-deletes the row and its output file. */
+export function useVideoDelete() {
+  const http = useHttp();
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (id: string) => {
+      const res = await http.delete<{ jobId: string; status: string }>(`/v1/video/jobs/${id}`);
+      await queryClient.invalidateQueries({ queryKey: ["video", "jobs"] });
+      return res;
+    },
+    [http, queryClient],
+  );
+}
+
 /** Server-side storyboard validation before submit: POST /v1/video/jobs
  * runs the same Validate() as the render_video tool. Errors come back as
- * {error} JSON. */
-export async function submitRenderJob(http: ReturnType<typeof useHttp>, storyboard: unknown) {
-  return http.post<{ jobId: string; status: string }>("/v1/video/jobs", { storyboard });
+ * {error} JSON. Narration is converted to the wire {text, voice} shape. */
+export async function submitRenderJob(
+  http: ReturnType<typeof useHttp>,
+  storyboard: Parameters<typeof toWireStoryboard>[0],
+) {
+  return http.post<{ jobId: string; status: string }>("/v1/video/jobs", {
+    storyboard: toWireStoryboard(storyboard),
+  });
 }

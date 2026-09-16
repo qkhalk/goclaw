@@ -25,30 +25,33 @@ const askPickerTTL = 24 * time.Hour
 
 // Callback data constants for ask_options keyboard actions.
 const (
-	askOtherPayload  = "ak:o" // free-text "Other" button
+	askOtherPayload   = "ak:o" // free-text "Other" button
 	askConfirmPayload = "ak:c" // confirm selected answer
-	askBackPayload   = "ak:b" // go back / clear selection
+	askBackPayload    = "ak:b" // go back / clear selection
 )
 
 // askCtx is the state behind one ask_options question message.
 type askCtx struct {
-	question  string
-	options   []string
-	selected  int    // -1 = none, 0..n = option index pending confirmation
-	chatIDStr string // raw ChatID (may carry :topic:/:thread: suffix)
-	localKey  string // composite key the consumer expects in metadata
-	isForum   bool
-	threadID  int
-	expires   time.Time
+	question    string
+	options     []string
+	selected    int    // -1 = none, 0..n = option index pending confirmation
+	recommended string // agent-suggested option ("" = none)
+	chatIDStr   string // raw ChatID (may carry :topic:/:thread: suffix)
+	localKey    string // composite key the consumer expects in metadata
+	isForum     bool
+	threadID    int
+	expires     time.Time
 }
 
 // askKeyboard builds the option keyboard for the initial (unselected) state:
-// one option per row plus a dedicated Other row.
-func askKeyboard(options []string, loc string) [][]telego.InlineKeyboardButton {
+// one option per row plus a dedicated Other row. Callback data carries the
+// option index; labels are recovered from askCtx (64-byte callback budget).
+// The agent-recommended option is prefixed with a checkmark.
+func askKeyboard(options []string, loc string, recommended string) [][]telego.InlineKeyboardButton {
 	var rows [][]telego.InlineKeyboardButton
 	for i, opt := range options {
 		rows = append(rows, []telego.InlineKeyboardButton{
-			{Text: opt, CallbackData: fmt.Sprintf("ak:%d", i)},
+			{Text: keyboardLabel(opt, i, recommended), CallbackData: fmt.Sprintf("ak:%d", i)},
 		})
 	}
 	return append(rows, []telego.InlineKeyboardButton{
@@ -58,18 +61,21 @@ func askKeyboard(options []string, loc string) [][]telego.InlineKeyboardButton {
 
 // askKeyboardSelected builds the keyboard after the user has selected an option:
 // the selected option shown with a checkmark, plus Confirm and Back buttons.
-func askKeyboardSelected(options []string, selected int, loc string) [][]telego.InlineKeyboardButton {
+func askKeyboardSelected(options []string, selected int, loc string, recommended string) [][]telego.InlineKeyboardButton {
 	var rows [][]telego.InlineKeyboardButton
 	for i, opt := range options {
 		prefix := "  "
-		if i == selected {
+		switch {
+		case i == selected:
 			prefix = "✓ "
+		case recommended != "" && opt == recommended:
+			prefix = "✅ "
 		}
 		rows = append(rows, []telego.InlineKeyboardButton{
 			{Text: prefix + opt, CallbackData: fmt.Sprintf("ak:%d", i)},
 		})
 	}
-	// Confirm + Other + Back row
+	// Confirm + Back row
 	rows = append(rows, []telego.InlineKeyboardButton{
 		{Text: i18n.T(loc, i18n.MsgTGAskConfirm), CallbackData: askConfirmPayload},
 		{Text: i18n.T(loc, i18n.MsgTGAskBack), CallbackData: askBackPayload},
@@ -77,11 +83,21 @@ func askKeyboardSelected(options []string, selected int, loc string) [][]telego.
 	return rows
 }
 
+// keyboardLabel decorates an option label for the keyboard: the
+// agent-recommended option is prefixed with a checkmark so the user can
+// confirm with one tap.
+func keyboardLabel(label string, idx int, recommended string) string {
+	if recommended != "" && label == recommended {
+		return "✅ " + label
+	}
+	return label
+}
+
 // sendAskQuestion renders an ask_options question: plain text (no HTML so a
 // markdown-ish question never breaks delivery) with the option keyboard. The
 // placeholder for this chat, if any, is edited into the question so the turn
 // visibly ends here.
-func (c *Channel) sendAskQuestion(ctx context.Context, chatID int64, localKey, question, encodedOptions string, replyTo, threadID int) error {
+func (c *Channel) sendAskQuestion(ctx context.Context, chatID int64, localKey, question, encodedOptions, recommended string, replyTo, threadID int) error {
 	var options []string
 	if err := json.Unmarshal([]byte(encodedOptions), &options); err != nil {
 		return fmt.Errorf("ask_options: invalid options payload: %w", err)
@@ -90,16 +106,14 @@ func (c *Channel) sendAskQuestion(ctx context.Context, chatID int64, localKey, q
 		return fmt.Errorf("ask_options: empty options payload")
 	}
 	loc := c.chatLocale(ctx, c.sessionKeyFromLocalKey(localKey, threadID), "")
-	keyboard := telego.InlineKeyboardMarkup{InlineKeyboard: askKeyboard(options, loc)}
+	keyboard := telego.InlineKeyboardMarkup{InlineKeyboard: askKeyboard(options, loc, recommended)}
 
 	msgID := 0
 	if pID, ok := c.placeholders.LoadAndDelete(localKey); ok {
-		msgID = pID.(int)
-		if msgID < 0 {
+		msgID = max(pID.(int),
 			// Stream sentinel: a stream message landed but its ID is unknown —
 			// send the question fresh instead of editing a ghost.
-			msgID = 0
-		}
+			0)
 		if msgID > 0 {
 			if _, err := c.bot.EditMessageText(ctx, &telego.EditMessageTextParams{
 				ChatID:      tu.ID(chatID),
@@ -129,14 +143,15 @@ func (c *Channel) sendAskQuestion(ctx context.Context, chatID int64, localKey, q
 	}
 
 	c.storeAsk(chatID, msgID, askCtx{
-		question:  question,
-		options:   options,
-		selected:  -1,
-		chatIDStr: c.rawChatIDFromLocalKey(localKey),
-		localKey:  localKey,
-		isForum:   strings.Contains(localKey, ":topic:"),
-		threadID:  threadID,
-		expires:   time.Now().Add(askPickerTTL),
+		question:    question,
+		options:     options,
+		selected:    -1,
+		recommended: recommended,
+		chatIDStr:   c.rawChatIDFromLocalKey(localKey),
+		localKey:    localKey,
+		isForum:     strings.Contains(localKey, ":topic:"),
+		threadID:    threadID,
+		expires:     time.Now().Add(askPickerTTL),
 	})
 	return nil
 }
@@ -220,7 +235,7 @@ func (c *Channel) handleAskCallback(ctx context.Context, query *telego.CallbackQ
 		// Back: clear selection, restore original keyboard.
 		ac.selected = -1
 		c.pendingAsks.Store(chatMsgKey(chatID, msgID), ac)
-		keyboard := telego.InlineKeyboardMarkup{InlineKeyboard: askKeyboard(ac.options, loc)}
+		keyboard := telego.InlineKeyboardMarkup{InlineKeyboard: askKeyboard(ac.options, loc, ac.recommended)}
 		if _, err := c.bot.EditMessageReplyMarkup(ctx, &telego.EditMessageReplyMarkupParams{
 			ChatID:      tu.ID(chatID),
 			MessageID:   msgID,
@@ -236,7 +251,7 @@ func (c *Channel) handleAskCallback(ctx context.Context, query *telego.CallbackQ
 			MessageID: msgID,
 			Text:      ac.question + "\n\n" + i18n.T(loc, i18n.MsgTGAskOtherHint),
 			ReplyMarkup: &telego.InlineKeyboardMarkup{
-				InlineKeyboard: askKeyboard(ac.options, loc),
+				InlineKeyboard: askKeyboard(ac.options, loc, ac.recommended),
 			},
 		}); err != nil {
 			slog.Debug("ask_options: other-hint edit failed", "message_id", msgID, "error", err)
@@ -250,7 +265,7 @@ func (c *Channel) handleAskCallback(ctx context.Context, query *telego.CallbackQ
 		}
 		ac.selected = idx
 		c.pendingAsks.Store(chatMsgKey(chatID, msgID), ac)
-		keyboard := telego.InlineKeyboardMarkup{InlineKeyboard: askKeyboardSelected(ac.options, idx, loc)}
+		keyboard := telego.InlineKeyboardMarkup{InlineKeyboard: askKeyboardSelected(ac.options, idx, loc, ac.recommended)}
 		if _, err := c.bot.EditMessageReplyMarkup(ctx, &telego.EditMessageReplyMarkupParams{
 			ChatID:      tu.ID(chatID),
 			MessageID:   msgID,

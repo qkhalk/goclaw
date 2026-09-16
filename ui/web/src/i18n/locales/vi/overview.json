@@ -10,12 +10,6 @@
     "title": "Máy khách đã kết nối",
     "you": "bạn"
   },
-  "cronJobs": {
-    "disabled": "đã tắt",
-    "manage": "Quản lý",
-    "noJobs": "Chưa cấu hình cron job nào",
-    "title": "Tác vụ định kỳ"
-  },
   "description": "Tổng quan gateway và mức sử dụng quota",
   "tabs": {
     "overview": "Tổng quan",
@@ -88,10 +82,27 @@
   },
   "routing": {
     "title": "Định tuyến mô hình",
-    "window": "24 giờ",
-    "noData": "Chưa có dữ liệu định tuyến",
-    "req": "{{count}} req",
+    "window": "5 phút",
     "moreProviders": "+{{count}} nhà cung cấp khác",
-    "moreModels": "+{{count}} mô hình khác"
+    "surfaces": {
+      "telegram": "Telegram",
+      "web": "Chat web",
+      "pptx": "PPTX",
+      "video": "Sửa video"
+    }
+  },
+  "system": {
+    "title": "Hệ thống",
+    "cpu": "CPU",
+    "memory": "Bộ nhớ",
+    "disk": "Ổ đĩa",
+    "cores": "{{count}} nhân",
+    "hostUptime": "Uptime máy chủ",
+    "platform": "Nền tảng",
+    "loadAvg": "Tải",
+    "goroutines": "Goroutine",
+    "heap": "Heap",
+    "goVersion": "Go",
+    "swap": "Swap"
   }
 }

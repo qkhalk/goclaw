@@ -8,6 +8,7 @@
   "noMatchDescription": "다른 검색어를 사용해 보세요.",
   "columns": {
     "session": "세션",
+    "origin": "출처",
     "agent": "에이전트",
     "context": "컨텍스트",
     "messages": "메시지",
@@ -62,5 +63,16 @@
     "runResumed": "실행이 재개되었습니다",
     "runWoken": "실행이 깨어났습니다",
     "runActionFailed": "실행 작업 실패"
+  },
+  "origin": {
+    "web": "웹 채팅",
+    "telegram": "Telegram",
+    "video": "영상 편집",
+    "pptx": "PPTX",
+    "subagent": "서브에이전트",
+    "cron": "크론",
+    "team": "팀",
+    "heartbeat": "하트비트",
+    "channel": "{{channel}}"
   }
 }

@@ -1,28 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Scene } from "../hooks/use-timeline";
+import { drawStoryboardFrame } from "../components/render-shared";
 
-// ── Types ──
+// ── Types (Scene is the canonical model from use-timeline) ──
 
-interface KenBurns {
-  zoom_from: number;
-  zoom_to: number;
-  pan: "none" | "left" | "right" | "up" | "down";
-}
-interface Caption {
-  text: string;
-  position?: "top" | "center" | "bottom";
-  font_size?: number;
-}
-interface Scene {
-  type: "image" | "video" | "color";
-  source?: string;
-  color?: string;
-  duration_sec: number;
-  fit?: "cover" | "contain";
-  mute?: boolean;
-  ken_burns?: KenBurns;
-  caption?: Caption;
-  narration?: string;
-}
 interface Storyboard {
   version: number;
   canvas: { width: number; height: number; fps: number };
@@ -79,161 +60,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 // ── Canvas rendering ──
 
-function renderScene(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  scene: Scene,
-  localTime: number,
-  imageCache: Map<string, HTMLImageElement>,
-) {
-  const { width, height } = canvas;
-
-  // Clear
-  ctx.clearRect(0, 0, width, height);
-
-  if (scene.type === "color") {
-    ctx.fillStyle = scene.color || "#000000";
-    ctx.fillRect(0, 0, width, height);
-    return;
-  }
-
-  // For image/video scenes, draw the image
-  const imgSrc = scene.source;
-  if (!imgSrc) {
-    ctx.fillStyle = "#1a1a2e";
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = "#666";
-    ctx.font = `${Math.min(width, height) * 0.04}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("No source", width / 2, height / 2);
-    return;
-  }
-
-  const img = imageCache.get(imgSrc);
-  if (!img) {
-    ctx.fillStyle = "#1a1a2e";
-    ctx.fillRect(0, 0, width, height);
-    return;
-  }
-
-  // Ken Burns effect
-  let scale = 1;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (scene.ken_burns) {
-    const progress = scene.duration_sec > 0 ? localTime / scene.duration_sec : 0;
-    const kb = scene.ken_burns;
-    scale = kb.zoom_from + (kb.zoom_to - kb.zoom_from) * progress;
-
-    // Pan offset
-    const panAmount = (scale - 1) * Math.min(width, height) * 0.5;
-    switch (kb.pan) {
-      case "left":
-        offsetX = panAmount * progress;
-        break;
-      case "right":
-        offsetX = -panAmount * progress;
-        break;
-      case "up":
-        offsetY = panAmount * progress;
-        break;
-      case "down":
-        offsetY = -panAmount * progress;
-        break;
-    }
-  }
-
-  // Fit image (cover or contain)
-  const imgAspect = img.naturalWidth / img.naturalHeight;
-  const canvasAspect = width / height;
-  let drawW: number;
-  let drawH: number;
-
-  if (scene.fit === "contain") {
-    if (imgAspect > canvasAspect) {
-      drawW = width * scale;
-      drawH = (width / imgAspect) * scale;
-    } else {
-      drawH = height * scale;
-      drawW = (height * imgAspect) * scale;
-    }
-  } else {
-    // cover (default)
-    if (imgAspect > canvasAspect) {
-      drawH = height * scale;
-      drawW = (height * imgAspect) * scale;
-    } else {
-      drawW = width * scale;
-      drawH = (width / imgAspect) * scale;
-    }
-  }
-
-  const x = (width - drawW) / 2 + offsetX;
-  const y = (height - drawH) / 2 + offsetY;
-
-  ctx.drawImage(img, x, y, drawW, drawH);
-
-  // Caption
-  if (scene.caption?.text) {
-    const fontSize = scene.caption.font_size || Math.round(Math.min(width, height) * 0.035);
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    // Text shadow for readability
-    ctx.shadowColor = "rgba(0,0,0,0.7)";
-    ctx.shadowBlur = fontSize * 0.25;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = fontSize * 0.05;
-
-    const text = scene.caption.text;
-    const lines = wrapText(ctx, text, width * 0.85);
-    const lineHeight = fontSize * 1.3;
-    const totalTextH = lines.length * lineHeight;
-
-    let baseY: number;
-    switch (scene.caption.position) {
-      case "top":
-        baseY = totalTextH / 2 + fontSize;
-        break;
-      case "center":
-        baseY = height / 2;
-        break;
-      default:
-        baseY = height - totalTextH / 2 - fontSize;
-        break;
-    }
-
-    ctx.fillStyle = "#fff";
-    lines.forEach((line, li) => {
-      ctx.fillText(line, width / 2, baseY + (li - (lines.length - 1) / 2) * lineHeight);
-    });
-
-    ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-  }
-}
-
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (ctx.measureText(test).width > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : [""];
-}
-
 // ── Hook ──
 
 export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
@@ -252,27 +78,36 @@ export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
   const lastFrameTimeRef = useRef(0);
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
   const loadingImagesRef = useRef(new Set<string>());
+  // Reusable offscreen buffers for transition compositing.
+  const scratchARef = useRef<HTMLCanvasElement | null>(null);
+  const scratchBRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Preload images
+  // Preload images (scene sources + image-layer sources)
   useEffect(() => {
+    const wanted = new Set<string>();
     for (const scene of storyboard.scenes) {
       if ((scene.type === "image" || scene.type === "video") && scene.source) {
-        if (!imageCacheRef.current.has(scene.source) && !loadingImagesRef.current.has(scene.source)) {
-          loadingImagesRef.current.add(scene.source);
-          loadImage(scene.source)
-            .then((img) => {
-              imageCacheRef.current.set(scene.source!, img);
-              loadingImagesRef.current.delete(scene.source!);
-              // Force re-render after image loads
-              if (!isPlayingRef.current) {
-                renderCurrentFrame();
-              }
-            })
-            .catch(() => {
-              loadingImagesRef.current.delete(scene.source!);
-            });
-        }
+        wanted.add(scene.source);
       }
+      for (const layer of scene.layers ?? []) {
+        if (layer.kind === "image" && layer.source) wanted.add(layer.source);
+      }
+    }
+    for (const src of wanted) {
+      if (imageCacheRef.current.has(src) || loadingImagesRef.current.has(src)) continue;
+      loadingImagesRef.current.add(src);
+      loadImage(src)
+        .then((img) => {
+          imageCacheRef.current.set(src, img);
+          loadingImagesRef.current.delete(src);
+          // Force re-render after image loads
+          if (!isPlayingRef.current) {
+            renderCurrentFrame();
+          }
+        })
+        .catch(() => {
+          loadingImagesRef.current.delete(src);
+        });
     }
   }, [storyboard.scenes]);
 
@@ -287,7 +122,18 @@ export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
     const scene = storyboard.scenes[index];
     if (!scene) return;
 
-    renderScene(ctx, canvas, scene, localTime, imageCacheRef.current);
+    if (!scratchARef.current) scratchARef.current = document.createElement("canvas");
+    if (!scratchBRef.current) scratchBRef.current = document.createElement("canvas");
+    drawStoryboardFrame(
+      ctx,
+      canvas,
+      storyboard.scenes,
+      index,
+      localTime,
+      imageCacheRef.current,
+      scratchARef.current,
+      scratchBRef.current,
+    );
 
     setState((prev) => ({
       ...prev,

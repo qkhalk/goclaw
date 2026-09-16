@@ -10,30 +10,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCanvasPlayer } from "../hooks/use-canvas-player";
+import type { Scene } from "../hooks/use-timeline";
 
-// ── Types ──
+// ── Types (Scene is the canonical model from use-timeline) ──
 
-interface KenBurns {
-  zoom_from: number;
-  zoom_to: number;
-  pan: "none" | "left" | "right" | "up" | "down";
-}
-interface Caption {
-  text: string;
-  position?: "top" | "center" | "bottom";
-  font_size?: number;
-}
-interface Scene {
-  type: "image" | "video" | "color";
-  source?: string;
-  color?: string;
-  duration_sec: number;
-  fit?: "cover" | "contain";
-  mute?: boolean;
-  ken_burns?: KenBurns;
-  caption?: Caption;
-  narration?: string;
-}
 interface Storyboard {
   version: number;
   canvas: { width: number; height: number; fps: number };
@@ -60,23 +40,28 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
   const { t } = useTranslation("toolbox");
   const player = useCanvasPlayer(storyboard);
   const containerRef = useRef<HTMLDivElement>(null);
+  // The resize effect must not depend on the player's identity: player.state
+  // changes every frame during playback, which would tear down and rebuild
+  // the ResizeObserver per frame.
+  const playerRef = useRef(player);
+  playerRef.current = player;
 
-  // Auto-resize canvas to container
+  // Auto-resize canvas to container (16px = the container's p-2 padding)
   const handleResize = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-    const rect = container.getBoundingClientRect();
     const { width: sbW, height: sbH } = storyboard.canvas;
-    const containerW = rect.width;
-    const containerH = rect.height;
+    const containerW = container.clientWidth - 16;
+    const containerH = container.clientHeight - 16;
+    if (containerW <= 0 || containerH <= 0) return;
 
     // Fit inside container maintaining aspect ratio
     const scale = Math.min(containerW / sbW, containerH / sbH, 1);
     const displayW = Math.round(sbW * scale);
     const displayH = Math.round(sbH * scale);
 
-    player.resize(displayW, displayH);
-  }, [storyboard.canvas, player]);
+    playerRef.current.resize(displayW, displayH);
+  }, [storyboard.canvas]);
 
   useEffect(() => {
     handleResize();
@@ -94,7 +79,8 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
       switch (e.key) {
         case " ":
           e.preventDefault();
-          player.state.isPlaying ? player.pause() : player.play();
+          if (player.state.isPlaying) player.pause();
+          else player.play();
           break;
         case "ArrowLeft":
           e.preventDefault();
@@ -118,16 +104,18 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Canvas container */}
+      {/* Canvas container — fixed height so the ResizeObserver → resize →
+          layout loop cannot feed back into itself (that feedback half-painted
+          the bitmap and hid captions). */}
       <div
         ref={containerRef}
         className="flex items-center justify-center rounded-lg border bg-black/90 p-2"
-        style={{ minHeight: 200 }}
+        style={{ height: "min(60vh, 560px)" }}
       >
         <canvas
           ref={player.canvasRef}
           className="block rounded"
-          style={{ maxWidth: "100%", maxHeight: "60vh" }}
+          style={{ maxWidth: "100%", maxHeight: "100%" }}
         />
       </div>
 

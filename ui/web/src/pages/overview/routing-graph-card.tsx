@@ -1,328 +1,501 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Bot } from "lucide-react";
+import {
+  BaseEdge,
+  Controls,
+  Handle,
+  Position,
+  ReactFlow,
+  getBezierPath,
+  type Edge,
+  type EdgeProps,
+  type Node,
+  type NodeProps,
+  type ReactFlowInstance,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { Clapperboard, MessagesSquare, Presentation, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatTokens } from "@/lib/format";
 import { useHttp } from "@/hooks/use-ws";
+import { useAgents } from "@/pages/agents/hooks/use-agents";
+import type { ChannelStatusEntry } from "./types";
 
-/** One provider→model pair from GET /v1/usage/routing. */
-interface RoutingEdge {
-  provider: string;
-  model: string;
-  calls: number;
-  input_tokens: number;
-  output_tokens: number;
-  errors: number;
+/** Channel names in usage_snapshots — Telegram uses its config name (e.g.
+ *  "telegram-main"), web chat uses "ws".  We match case-insensitively. */
+const TELEGRAM_CHANNEL_RE = /telegram/i;
+const WEB_CHANNEL = "ws";
+
+type SurfaceKey = "telegram" | "web" | "pptx" | "video";
+type SurfaceStatus = "active" | "idle" | "offline";
+
+interface SurfaceData extends Record<string, unknown> {
+  key: SurfaceKey;
+  label: string;
+  status: SurfaceStatus;
+  count: number;
+}
+type SurfaceFlowNode = Node<SurfaceData, "surface">;
+
+interface HubData extends Record<string, unknown> {
+  activeCount: number;
+}
+type HubFlowNode = Node<HubData, "hub">;
+type TopologyNode = SurfaceFlowNode | HubFlowNode;
+
+interface TopologyEdgeData extends Record<string, unknown> {
+  active: boolean;
+}
+type TopologyFlowEdge = Edge<TopologyEdgeData, "topology">;
+
+const SURFACE_ICONS = {
+  telegram: Send,
+  web: MessagesSquare,
+  pptx: Presentation,
+  video: Clapperboard,
+} as const;
+
+/** Per-surface accent: node border + icon tile + count badge when active. */
+const SURFACE_COLOR: Record<SurfaceKey, string> = {
+  telegram: "#3b82f6",
+  web: "#8b5cf6",
+  pptx: "#f59e0b",
+  video: "#f43f5e",
+};
+
+const REFRESH_INTERVAL = 15_000;
+const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
+
+const POSITIONS = [Position.Top, Position.Right, Position.Bottom, Position.Left];
+
+/** Electric beam decoration (9router ProviderTopology): 4 handles per node so
+ *  each edge can leave from the side facing the hub. */
+function AllHandles({ type, prefix }: { type: "source" | "target"; prefix: string }) {
+  return (
+    <>
+      {POSITIONS.map((p) => (
+        <Handle
+          key={p}
+          id={`${prefix}-${p}`}
+          type={type}
+          position={p}
+          isConnectable={false}
+          className="!h-1 !w-1 !border-0 !bg-transparent"
+        />
+      ))}
+    </>
+  );
 }
 
-interface NodeAgg {
-  name: string;
-  calls: number;
-  tokens: number;
-}
-
-const MAX_NODES = 5;
-const ROW_H = 46;
-const ROW_GAP = 10;
-const NODE_W = 168;
-const CENTER_W = 116;
-const GRAPH_MIN_WIDTH = 620;
-const REFRESH_INTERVAL = 30_000;
-
-const DOT_COLORS = [
-  "bg-blue-500",
-  "bg-violet-500",
-  "bg-emerald-500",
-  "bg-amber-500",
-  "bg-rose-500",
-  "bg-cyan-500",
-];
-
-function compactCount(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
-
-function dotColor(name: string): string {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  return DOT_COLORS[Math.abs(h) % DOT_COLORS.length] ?? DOT_COLORS[0]!;
-}
-
-function aggregate(edges: RoutingEdge[], key: "provider" | "model"): NodeAgg[] {
-  const map = new Map<string, NodeAgg>();
-  for (const e of edges) {
-    const name = e[key];
-    const agg = map.get(name) ?? { name, calls: 0, tokens: 0 };
-    agg.calls += e.calls;
-    agg.tokens += e.input_tokens + e.output_tokens;
-    map.set(name, agg);
-  }
-  return [...map.values()].sort((a, b) => b.calls - a.calls).slice(0, MAX_NODES);
-}
-
-/** Node pill shared by both graph columns. */
-function NodePill({
-  name,
-  agg,
-  mono,
-  width,
-  top,
-  left,
-  req,
-}: {
-  name: string;
-  agg: NodeAgg;
-  mono?: boolean;
-  width: number;
-  top: number;
-  left: number;
-  req: (n: number) => string;
-}) {
+function SurfaceNode({ data }: NodeProps<SurfaceFlowNode>) {
+  const Icon = SURFACE_ICONS[data.key];
+  const active = data.status === "active";
+  const offline = data.status === "offline";
+  const color = SURFACE_COLOR[data.key];
   return (
     <div
-      className="absolute flex flex-col justify-center rounded-xl border bg-card px-3 shadow-sm"
-      style={{ left, top, width, height: ROW_H }}
+      className={`relative flex items-center gap-2.5 rounded-lg border-2 bg-card px-4 py-2.5 transition-all duration-300 ${
+        active ? "" : "border-border"
+      } ${offline ? "opacity-55" : ""}`}
+      style={{
+        minWidth: 160,
+        borderColor: active ? color : undefined,
+        boxShadow: active ? `0 0 16px ${color}40` : "none",
+      }}
     >
-      <div className="flex min-w-0 items-center gap-1.5">
-        {!mono && <span className={`h-2 w-2 shrink-0 rounded-full ${dotColor(name)}`} />}
-        <p
-          className={`truncate text-xs font-medium ${mono ? "font-mono" : ""}`}
-          title={name}
-        >
-          {name}
-        </p>
-      </div>
-      <p className="truncate text-[10px] text-muted-foreground tabular-nums">
-        {req(agg.calls)} · {formatTokens(agg.tokens)} tok
-      </p>
+      <AllHandles type="source" prefix="s" />
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+        style={{ backgroundColor: `${color}15` }}
+      >
+        <Icon className="h-[18px] w-[18px]" style={{ color: active ? color : undefined }} />
+      </span>
+      <span className="truncate text-sm font-medium" style={{ color: active ? color : undefined }}>
+        {data.label}
+      </span>
+      {active && (
+        <>
+          <span className="relative -mr-1 ml-1 flex h-2 w-2 shrink-0">
+            <span
+              className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 motion-reduce:hidden"
+              style={{ backgroundColor: color }}
+            />
+            <span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+          </span>
+          {data.count > 0 && (
+            <span
+              className="ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
+              style={{ backgroundColor: color }}
+            >
+              {data.count}
+            </span>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
-/** 9router-style routing graph: providers → GoClaw → models with request
- * counts on the edges (24h llm_call aggregation). Falls back to a compact
- * edge list on narrow screens. */
-export function RoutingGraphCard() {
-  const { t } = useTranslation("overview");
-  const http = useHttp();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
-
-  const { data } = useQuery({
-    queryKey: ["usage", "routing"],
-    refetchInterval: REFRESH_INTERVAL,
-    queryFn: () => http.get<{ window_hours: number; edges: RoutingEdge[] }>("/v1/usage/routing", { hours: "24", limit: "24" }),
-  });
-  const edges = data?.edges ?? [];
-
-  const providers = useMemo(() => aggregate(edges, "provider"), [edges]);
-  const models = useMemo(() => aggregate(edges, "model"), [edges]);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const update = () => setWidth(el.clientWidth);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const totalCalls = edges.reduce((s, e) => s + e.calls, 0);
-  const req = (n: number) => t("routing.req", { count: compactCount(n) });
-  const providersFolded = new Set(edges.map((e) => e.provider)).size - providers.length;
-  const modelsFolded = new Set(edges.map((e) => e.model)).size - models.length;
-  const moreLabel =
-    providersFolded > 0 || modelsFolded > 0
-      ? [
-          providersFolded > 0 ? t("routing.moreProviders", { count: providersFolded }) : "",
-          modelsFolded > 0 ? t("routing.moreModels", { count: modelsFolded }) : "",
-        ]
-            .filter(Boolean)
-            .join(" · ")
-      : "";
-
-  // Narrow screens: compact edge list instead of the graph.
-  if (width > 0 && width < GRAPH_MIN_WIDTH) {
-    return (
-      <Card>
-        <GraphHeader title={t("routing.title")} window={t("routing.window")} />
-        <CardContent>
-          {edges.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">{t("routing.noData")}</p>
-          ) : (
-            <ul className="space-y-2">
-              {edges.slice(0, 8).map((e) => (
-                <li key={`${e.provider}-${e.model}`} className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 truncate text-xs font-medium">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${dotColor(e.provider)}`} />
-                      <span className="truncate">{e.provider}</span>
-                      <span className="text-muted-foreground">→</span>
-                      <span className="truncate font-mono">{e.model}</span>
-                    </p>
-                    <p className="text-[10px] text-muted-foreground tabular-nums">
-                      {formatTokens(e.input_tokens + e.output_tokens)} tok
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {req(e.calls)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {moreLabel && <p className="mt-2 text-[11px] text-muted-foreground">{moreLabel}</p>}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const rows = Math.max(providers.length, models.length, 1);
-  const height = rows * ROW_H + (rows - 1) * ROW_GAP;
-  const colY = (count: number, i: number) => {
-    const colH = count * ROW_H + (count - 1) * ROW_GAP;
-    return (height - colH) / 2 + i * (ROW_H + ROW_GAP);
-  };
-  const gap = Math.max((width - NODE_W * 2 - CENTER_W) / 2, 24);
-  const xProviderRight = NODE_W;
-  const xCenterLeft = NODE_W + gap;
-  const xCenterRight = xCenterLeft + CENTER_W;
-  const xModelLeft = xCenterRight + gap;
-
-  const curve = (x0: number, y0: number, x1: number, y1: number) => {
-    const mid = (x0 + x1) / 2;
-    return `M ${x0} ${y0} C ${mid} ${y0}, ${mid} ${y1}, ${x1} ${y1}`;
-  };
-  const bezierMidY = (y0: number, y1: number) => (y0 + y1) / 2;
-
-  const providerCallsByName = new Map(providers.map((p) => [p.name, p.calls]));
-  const modelCallsByName = new Map(models.map((m) => [m.name, m.calls]));
-  const centerCalls = providers.reduce((s, p) => s + p.calls, 0);
-
+/** GoClaw hub — pulse/glow core while any surface has traffic, mirroring the
+ *  9router router node. */
+function HubNode({ data }: NodeProps<HubFlowNode>) {
+  const powering = (data.activeCount ?? 0) > 0;
   return (
-    <Card>
-      <GraphHeader title={t("routing.title")} window={t("routing.window")} />
-      <CardContent>
-        {edges.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">{t("routing.noData")}</p>
-        ) : (
-          <>
-            <div ref={containerRef} className="relative w-full" style={{ height }}>
-              {width > 0 && (
-                <>
-                  <svg className="absolute inset-0" width={width} height={height} aria-hidden>
-                    {providers.map((p, i) => {
-                      const y0 = colY(providers.length, i) + ROW_H / 2;
-                      const y1 = height / 2;
-                      const mx = (xProviderRight + xCenterLeft) / 2;
-                      const my = bezierMidY(y0, y1);
-                      return (
-                        <g key={`pe-${p.name}`}>
-                          <path
-                            d={curve(xProviderRight, y0, xCenterLeft, y1)}
-                            fill="none"
-                            stroke="currentColor"
-                            className="text-muted-foreground/35"
-                            strokeWidth={1.5}
-                          />
-                          <text
-                            x={mx}
-                            y={my - 5}
-                            textAnchor="middle"
-                            className="fill-muted-foreground text-[10px] font-medium tabular-nums"
-                            style={{ paintOrder: "stroke", stroke: "var(--card)", strokeWidth: 3 }}
-                          >
-                            {req(providerCallsByName.get(p.name) ?? 0)}
-                          </text>
-                        </g>
-                      );
-                    })}
-                    {models.map((m, i) => {
-                      const y0 = height / 2;
-                      const y1 = colY(models.length, i) + ROW_H / 2;
-                      const mx = (xCenterRight + xModelLeft) / 2;
-                      const my = bezierMidY(y0, y1);
-                      return (
-                        <g key={`me-${m.name}`}>
-                          <path
-                            d={curve(xCenterRight, y0, xModelLeft, y1)}
-                            fill="none"
-                            stroke="currentColor"
-                            className="text-muted-foreground/35"
-                            strokeWidth={1.5}
-                          />
-                          <text
-                            x={mx}
-                            y={my - 5}
-                            textAnchor="middle"
-                            className="fill-muted-foreground text-[10px] font-medium tabular-nums"
-                            style={{ paintOrder: "stroke", stroke: "var(--card)", strokeWidth: 3 }}
-                          >
-                            {req(modelCallsByName.get(m.name) ?? 0)}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </svg>
-
-                  {providers.map((p, i) => (
-                    <NodePill
-                      key={p.name}
-                      name={p.name}
-                      agg={p}
-                      width={NODE_W}
-                      left={0}
-                      top={colY(providers.length, i)}
-                      req={req}
-                    />
-                  ))}
-
-                  <div
-                    className="absolute flex flex-col items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 px-2 shadow-sm"
-                    style={{ left: xCenterLeft, top: height / 2 - ROW_H / 2, width: CENTER_W, height: ROW_H }}
-                  >
-                    <Bot className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-semibold leading-tight">GoClaw</p>
-                    <p className="text-[10px] text-muted-foreground tabular-nums">
-                      {req(centerCalls)}
-                    </p>
-                  </div>
-
-                  {models.map((m, i) => (
-                    <NodePill
-                      key={m.name}
-                      name={m.name}
-                      agg={m}
-                      mono
-                      width={NODE_W}
-                      left={xModelLeft}
-                      top={colY(models.length, i)}
-                      req={req}
-                    />
-                  ))}
-                </>
-              )}
-            </div>
-            {moreLabel && <p className="mt-2 text-[11px] text-muted-foreground">{moreLabel}</p>}
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {req(totalCalls)} · {t("routing.window")}
-            </p>
-          </>
-        )}
-      </CardContent>
-    </Card>
+    <div
+      className={`relative z-[1] flex items-center gap-2 rounded-xl border-2 px-5 py-3 ${
+        powering
+          ? "topology-router-core border-yellow-300 bg-gradient-to-br from-primary/30 via-yellow-400/20 to-cyan-400/25"
+          : "border-primary/40 bg-primary/10 shadow-sm"
+      }`}
+    >
+      <AllHandles type="target" prefix="t" />
+      <img src="/goclaw-icon.svg" alt="" className={`h-7 w-7 ${powering ? "topology-router-icon" : ""}`} />
+      <span className={`text-base font-bold ${powering ? "topology-router-label text-yellow-300" : "text-primary"}`}>
+        GoClaw
+      </span>
+      {powering && (
+        <span className="topology-router-badge ml-1 rounded-full bg-yellow-400 px-1.5 py-0.5 text-xs font-bold leading-none text-black">
+          {data.activeCount}
+        </span>
+      )}
+    </div>
   );
 }
 
-function GraphHeader({ title, window: windowLabel }: { title: string; window: string }) {
+/** Active edge: electric kame beam (halo + plasma + white core + particles).
+ *  Idle edge: plain faint line. Path runs surface -> hub, so dashes and
+ *  particles flow INTO the GoClaw border. */
+const BEAM_PARTICLES = 6;
+const BEAM_SPARKS = 5;
+
+function TopologyEdgeView({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  data,
+}: EdgeProps<TopologyFlowEdge>) {
+  const [edgePath] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+  const active = !!data?.active;
+  const stroke = style.stroke ?? "#94a3b8";
+  const filterId = `topo-beam-${id}`;
+
+  if (!active) {
+    return <BaseEdge id={id} path={edgePath} style={{ ...style, stroke }} />;
+  }
+
   return (
-    <CardHeader className="flex flex-row items-center justify-between pb-3">
-      <CardTitle className="text-base">{title}</CardTitle>
-      <Badge variant="outline" className="text-muted-foreground">{windowLabel}</Badge>
-    </CardHeader>
+    <g className="topology-edge-electric">
+      <defs>
+        <filter id={filterId} x="-40%" y="-40%" width="180%" height="180%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="2" result="noise">
+            <animate attributeName="baseFrequency" values="0.8;1.4;0.8" dur="0.25s" repeatCount="indefinite" />
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </defs>
+      {/* Outer electric halo */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="#22d3ee"
+        strokeWidth={10}
+        strokeOpacity={0.35}
+        strokeLinecap="round"
+        filter={`url(#${filterId})`}
+        className="topology-edge-halo"
+      />
+      {/* Mid plasma */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="#4ade80"
+        strokeWidth={5}
+        strokeOpacity={0.85}
+        strokeLinecap="round"
+        filter={`url(#${filterId})`}
+        className="topology-edge-plasma"
+      />
+      {/* Hot white core — dashed, flows into the hub border */}
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={{ stroke: "#f8fafc", strokeWidth: 2.2, opacity: 1 }}
+        className="topology-edge-kame"
+      />
+      {/* Energy orbs riding the path */}
+      {Array.from({ length: BEAM_PARTICLES }, (_, i) => (
+        <circle
+          key={`p-${i}`}
+          r={i % 2 === 0 ? 4 : 2.5}
+          fill={i % 3 === 0 ? "#fde047" : i % 3 === 1 ? "#67e8f9" : "#fff"}
+          opacity={0.95}
+          style={{ filter: "drop-shadow(0 0 4px #22d3ee)" }}
+        >
+          <animateMotion dur={`${0.4 + i * 0.08}s`} repeatCount="indefinite" path={edgePath} begin={`${i * 0.09}s`} />
+        </circle>
+      ))}
+      {/* Short-lived sparks along the path */}
+      {Array.from({ length: BEAM_SPARKS }, (_, i) => (
+        <circle key={`s-${i}`} r={1.8} fill="#e0f2fe" opacity={0}>
+          <animate
+            attributeName="opacity"
+            values="0;1;0;0;1;0"
+            dur={`${0.35 + (i % 3) * 0.1}s`}
+            begin={`${i * 0.07}s`}
+            repeatCount="indefinite"
+          />
+          <animateMotion dur={`${0.28 + i * 0.05}s`} repeatCount="indefinite" path={edgePath} begin={`${i * 0.11}s`} />
+        </circle>
+      ))}
+    </g>
+  );
+}
+
+const nodeTypes = { surface: SurfaceNode, hub: HubNode };
+const edgeTypes = { topology: TopologyEdgeView };
+
+/** 9router ProviderTopology layout: surfaces evenly spaced on an ellipse
+ *  around the hub (rx grows with node count so nodes never crowd). The edge
+ *  leaves each surface from the side facing the hub. */
+function buildLayout(surfaces: SurfaceData[]): {
+  nodes: (SurfaceFlowNode | HubFlowNode)[];
+  edges: TopologyFlowEdge[];
+} {
+  const nodeW = 180;
+  const nodeH = 56;
+  const hubW = 150;
+  const hubH = 56;
+
+  const count = Math.max(surfaces.length, 1);
+  const rx = Math.max(320, ((nodeW + 24) * count) / (2 * Math.PI));
+  const ry = Math.max(200, rx * 0.55);
+
+  const nodes: (SurfaceFlowNode | HubFlowNode)[] = [
+    {
+      id: "goclaw",
+      type: "hub",
+      position: { x: -hubW / 2, y: -hubH / 2 },
+      data: { activeCount: surfaces.filter((s) => s.status === "active").length },
+      draggable: false,
+    },
+  ];
+  const edges: TopologyFlowEdge[] = [];
+
+  surfaces.forEach((s, i) => {
+    const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
+    const px = rx * Math.cos(angle);
+    const py = ry * Math.sin(angle);
+
+    let surfaceHandle: Position;
+    let hubHandle: Position;
+    if (py < -ry / Math.SQRT2) {
+      surfaceHandle = Position.Bottom;
+      hubHandle = Position.Top;
+    } else if (py > ry / Math.SQRT2) {
+      surfaceHandle = Position.Top;
+      hubHandle = Position.Bottom;
+    } else if (px > 0) {
+      surfaceHandle = Position.Left;
+      hubHandle = Position.Right;
+    } else {
+      surfaceHandle = Position.Right;
+      hubHandle = Position.Left;
+    }
+
+    nodes.push({
+      id: `surface-${s.key}`,
+      type: "surface",
+      position: { x: px - nodeW / 2, y: py - nodeH / 2 },
+      data: s,
+      draggable: false,
+    });
+    edges.push({
+      id: `edge-${s.key}`,
+      type: "topology",
+      source: `surface-${s.key}`,
+      sourceHandle: `s-${surfaceHandle}`,
+      target: "goclaw",
+      targetHandle: `t-${hubHandle}`,
+      // The beam animates via SVG particles; ReactFlow's dash animation is CPU-heavy.
+      animated: false,
+      data: { active: s.status === "active" },
+      style:
+        s.status === "active"
+          ? { stroke: "#22d3ee", strokeWidth: 3.5, opacity: 1 }
+          : { stroke: "#94a3b8", strokeWidth: 1, opacity: 0.3 },
+    });
+  });
+
+  return { nodes, edges };
+}
+
+/** 9router-style surface topology: Telegram / web chat / PPTX / video editor
+ *  orbit the GoClaw hub on a pannable, zoomable canvas. A surface lights up
+ *  (electric beam + glow) only while it has real requests in the last 5
+ *  minutes — running services and idle WS connections stay gray. */
+export function RoutingGraphCard({
+  channelEntries = [],
+}: {
+  channelEntries?: [string, ChannelStatusEntry][];
+}) {
+  const { t } = useTranslation("overview");
+  const http = useHttp();
+  const { agents } = useAgents();
+
+  // ── Channel breakdown: real usage per surface in the active window ──
+  const { data: channelBreakdown } = useQuery({
+    queryKey: ["usage", "breakdown", "channel", "5m", "routing-topology"],
+    refetchInterval: REFRESH_INTERVAL,
+    queryFn: () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - ACTIVE_WINDOW_MS);
+      return http.get<{ rows: { key: string; request_count: number }[] }>(
+        "/v1/usage/breakdown",
+        { group_by: "channel", from: from.toISOString(), to: to.toISOString() },
+      );
+    },
+  });
+
+  const channelReqs = useMemo(() => {
+    let telegram = 0;
+    let web = 0;
+    for (const row of channelBreakdown?.rows ?? []) {
+      if (TELEGRAM_CHANNEL_RE.test(row.key)) telegram += row.request_count;
+      else if (row.key === WEB_CHANNEL) web += row.request_count;
+    }
+    return { telegram, web };
+  }, [channelBreakdown]);
+
+  // ── Agent breakdown: PPTX + video agent usage ──
+  const { data: agentBreakdown } = useQuery({
+    queryKey: ["usage", "breakdown", "agent", "5m", "routing-active"],
+    refetchInterval: REFRESH_INTERVAL,
+    queryFn: () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - ACTIVE_WINDOW_MS);
+      return http.get<{ rows: { key: string; request_count: number }[] }>(
+        "/v1/usage/breakdown",
+        { group_by: "agent", from: from.toISOString(), to: to.toISOString() },
+      );
+    },
+  });
+
+  const agentCalls = useMemo(() => {
+    const idToKey = new Map((agents ?? []).map((a) => [a.id, a.agent_key] as const));
+    const byKey = new Map<string, number>();
+    for (const row of agentBreakdown?.rows ?? []) {
+      const key = idToKey.get(row.key) ?? row.key;
+      byKey.set(key, (byKey.get(key) ?? 0) + row.request_count);
+    }
+    return byKey;
+  }, [agents, agentBreakdown]);
+
+  // ── Video jobs: live editor signal ──
+  const { data: videoJobs } = useQuery({
+    queryKey: ["video", "jobs", "routing-active"],
+    refetchInterval: REFRESH_INTERVAL,
+    queryFn: () =>
+      http.get<{ jobs: { status: string; updated_at: string }[] }>("/v1/video/jobs", { limit: "10" }),
+  });
+
+  const surfaces = useMemo<SurfaceData[]>(() => {
+    const now = Date.now();
+    const videoBusy = (videoJobs?.jobs ?? []).some((j) => {
+      if (j.status === "queued" || j.status === "rendering") return true;
+      const updated = new Date(j.updated_at).getTime();
+      return Number.isFinite(updated) && now - updated < ACTIVE_WINDOW_MS;
+    });
+
+    // Telegram: offline if configured but not running.
+    const telegramEntry = channelEntries.find(([n]) => TELEGRAM_CHANNEL_RE.test(n));
+    const telegramRunning = telegramEntry?.[1]?.running ?? false;
+    const telegramOffline = telegramEntry !== undefined && !telegramRunning;
+
+    const surface = (key: SurfaceKey, count: number, offline = false): SurfaceData => ({
+      key,
+      label: t(`routing.surfaces.${key}`),
+      status: offline ? "offline" : count > 0 ? "active" : "idle",
+      count,
+    });
+    return [
+      surface("telegram", channelReqs.telegram, telegramOffline),
+      surface("web", channelReqs.web),
+      surface("pptx", agentCalls.get("pptx-designer") ?? 0),
+      surface("video", Math.max(videoBusy ? 1 : 0, agentCalls.get("video-designer") ?? 0)),
+    ];
+  }, [t, channelEntries, channelReqs, agentCalls, videoJobs]);
+
+  const { nodes, edges } = useMemo(() => buildLayout(surfaces), [surfaces]);
+
+  // Keep the whole topology in view on mount, container resize, and when the
+  // surface count changes (9router ProviderTopology behavior).
+  const rfRef = useRef<ReactFlowInstance<TopologyNode, TopologyFlowEdge> | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const fitOpts = useMemo(() => ({ padding: 0.2, duration: 200 }), []);
+  const onInit = useCallback(
+    (instance: ReactFlowInstance<TopologyNode, TopologyFlowEdge>) => {
+      rfRef.current = instance;
+      // fitView no-ops if the container hasn't been measured yet (e.g. the
+      // card mounts while the layout is still settling), leaving the viewport
+      // at identity and every node off-screen. Retry a few times — once the
+      // container has real dimensions, fitView centers the ellipse.
+      const timers = [50, 400, 1200].map((delay) =>
+        setTimeout(() => instance.fitView(fitOpts), delay),
+      );
+      return () => timers.forEach(clearTimeout);
+    },
+    [fitOpts],
+  );
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => rfRef.current?.fitView(fitOpts));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fitOpts]);
+  useEffect(() => {
+    const id = setTimeout(() => rfRef.current?.fitView(fitOpts), 50);
+    return () => clearTimeout(id);
+  }, [nodes.length, fitOpts]);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <CardTitle className="text-base">{t("routing.title")}</CardTitle>
+        <Badge variant="outline" className="text-muted-foreground">{t("routing.window")}</Badge>
+      </CardHeader>
+      <CardContent>
+        <div ref={containerRef} className="h-[320px] w-full min-w-0 rounded-lg border bg-muted/30 sm:h-[480px]">
+          <ReactFlow<TopologyNode, TopologyFlowEdge>
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+            fitViewOptions={fitOpts}
+            minZoom={0.1}
+            maxZoom={2}
+            onInit={onInit}
+            proOptions={{ hideAttribution: true }}
+            panOnDrag
+            zoomOnScroll
+            zoomOnPinch
+            zoomOnDoubleClick
+            preventScrolling={false}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+          >
+            <Controls showInteractive={false} className="[&>button]:bg-card [&>button]:border-border [&>button:hover]:bg-accent" />
+          </ReactFlow>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

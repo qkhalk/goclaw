@@ -325,6 +325,23 @@ const (
 	MethodBrowserSnapshot   = "browser.snapshot"
 	MethodBrowserScreenshot = "browser.screenshot"
 
+	// Browser panel (client-side browsing): the web client posts the extracted
+	// page content back for a browser.panel.invoke it received. Distinct from
+	// browser.act/snapshot/screenshot which drive the SERVER-side Rod browser.
+	MethodBrowserPanelResult = "browser.panel.result"
+	// browser.panel.open lets the PANEL navigate itself (URL bar, link clicks,
+	// agent-driven navigation): the client asks the gateway to fetch+sanitize+
+	// relay one URL and gets the loadable relay URL back in the RPC response.
+	MethodBrowserPanelOpen = "browser.panel.open"
+
+	// browser.remote.* drives the SERVER-side headless browser (Rod): the
+	// panel asks the gateway to open/operate arbitrary external sites that
+	// the sanitized relay can't run (SPAs, framing-protected pages) and gets
+	// a11y snapshot + screenshot back.
+	MethodBrowserRemoteOpen = "browser.remote.open"
+	MethodBrowserRemoteAct = "browser.remote.act"
+	MethodBrowserRemoteScreenshot = "browser.remote.screenshot"
+
 	// Zalo Personal
 	MethodZaloPersonalQRStart  = "zalo.personal.qr.start"
 	MethodZaloPersonalContacts = "zalo.personal.contacts"

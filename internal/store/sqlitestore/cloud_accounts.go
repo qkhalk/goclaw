@@ -29,7 +29,8 @@ func NewSQLiteCloudAccountStore(db *sql.DB, encryptionKey string) *SQLiteCloudAc
 
 const sqliteCloudAccountColumns = `id, tenant_id, user_id, provider, email, display_name,
 	scopes, access_token, refresh_token, token_expires_at, status,
-	COALESCE(status_message,''), COALESCE(settings,'{}'), COALESCE(shared,0), created_at, updated_at`
+	COALESCE(status_message,''), COALESCE(settings,'{}'), COALESCE(shared,0),
+	COALESCE(agent_access,'read'), created_at, updated_at`
 
 func (s *SQLiteCloudAccountStore) Upsert(ctx context.Context, acct *store.CloudAccount) error {
 	tenantID := store.TenantIDFromContext(ctx).String()
@@ -199,12 +200,16 @@ func (s *SQLiteCloudAccountStore) scan(rs interface{ Scan(dest ...any) error }) 
 	var statusMessage, settings sql.NullString
 	var createdStr, updatedStr string
 	var sharedInt int
+	var agentAccess sql.NullString
 	if err := rs.Scan(&acct.ID, &acct.TenantID, &acct.UserID, &acct.Provider, &acct.Email,
 		&acct.DisplayName, &acct.Scopes, &accessEnc, &refreshEnc, &expiresAtStr,
-		&acct.Status, &statusMessage, &settings, &sharedInt, &createdStr, &updatedStr); err != nil {
+		&acct.Status, &statusMessage, &settings, &sharedInt, &agentAccess, &createdStr, &updatedStr); err != nil {
 		return nil, err
 	}
 	acct.Shared = sharedInt != 0
+	if agentAccess.Valid && agentAccess.String != "" {
+		acct.AgentAccess = agentAccess.String
+	}
 	if expiresAtStr.Valid && expiresAtStr.String != "" {
 		if t, err := time.Parse(time.RFC3339Nano, expiresAtStr.String); err == nil {
 			acct.TokenExpiresAt = &t
@@ -296,6 +301,21 @@ func (s *SQLiteCloudAccountStore) SetShared(ctx context.Context, id string, shar
 		`UPDATE cloud_accounts SET shared=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
 		 WHERE id=? AND tenant_id=? AND user_id=?`,
 		sharedInt, id, store.TenantIDFromContext(ctx), store.UserIDFromContext(ctx))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return store.ErrCloudAccountNotFound
+	}
+	return nil
+}
+
+// SetAgentAccess updates the per-account agent permission level (owner-scoped).
+func (s *SQLiteCloudAccountStore) SetAgentAccess(ctx context.Context, id string, access string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE cloud_accounts SET agent_access=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		 WHERE id=? AND tenant_id=? AND user_id=?`,
+		access, id, store.TenantIDFromContext(ctx), store.UserIDFromContext(ctx))
 	if err != nil {
 		return err
 	}

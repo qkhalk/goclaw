@@ -178,7 +178,8 @@ func (s *PGCloudAccountStore) Delete(ctx context.Context, id string) error {
 
 const cloudAccountColumns = `id, tenant_id, user_id, provider, email, display_name,
 	scopes, access_token, refresh_token, token_expires_at, status,
-	COALESCE(status_message,''), COALESCE(settings,'{}'), COALESCE(shared,false), created_at, updated_at`
+	COALESCE(status_message,''), COALESCE(settings,'{}'), COALESCE(shared,false),
+	COALESCE(agent_access,'read'), created_at, updated_at`
 
 // queryOne runs a scoped SELECT and decrypts token columns. A row outside the
 // caller's tenant/user scope returns ErrCloudAccountNotFound (no existence leak).
@@ -197,11 +198,14 @@ func (s *PGCloudAccountStore) queryOne(ctx context.Context, where string, args .
 func (s *PGCloudAccountStore) scan(rs interface{ Scan(dest ...any) error }) (*store.CloudAccount, error) {
 	var acct store.CloudAccount
 	var accessEnc, refreshEnc string
-	var statusMessage, settings sql.NullString
+	var statusMessage, settings, agentAccess sql.NullString
 	if err := rs.Scan(&acct.ID, &acct.TenantID, &acct.UserID, &acct.Provider, &acct.Email,
 		&acct.DisplayName, &acct.Scopes, &accessEnc, &refreshEnc, &acct.TokenExpiresAt,
-		&acct.Status, &statusMessage, &settings, &acct.Shared, &acct.CreatedAt, &acct.UpdatedAt); err != nil {
+		&acct.Status, &statusMessage, &settings, &acct.Shared, &agentAccess, &acct.CreatedAt, &acct.UpdatedAt); err != nil {
 		return nil, err
+	}
+	if agentAccess.Valid && agentAccess.String != "" {
+		acct.AgentAccess = agentAccess.String
 	}
 	if statusMessage.Valid {
 		acct.StatusMessage = statusMessage.String
@@ -271,6 +275,21 @@ func (s *PGCloudAccountStore) SetShared(ctx context.Context, id string, shared b
 		`UPDATE cloud_accounts SET shared=$1, updated_at=NOW()
 		 WHERE id=$2 AND tenant_id=$3 AND user_id=$4`,
 		shared, id, store.TenantIDFromContext(ctx), store.UserIDFromContext(ctx))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return store.ErrCloudAccountNotFound
+	}
+	return nil
+}
+
+// SetAgentAccess updates the per-account agent permission level (owner-scoped).
+func (s *PGCloudAccountStore) SetAgentAccess(ctx context.Context, id string, access string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE cloud_accounts SET agent_access=$1, updated_at=NOW()
+		 WHERE id=$2 AND tenant_id=$3 AND user_id=$4`,
+		access, id, store.TenantIDFromContext(ctx), store.UserIDFromContext(ctx))
 	if err != nil {
 		return err
 	}

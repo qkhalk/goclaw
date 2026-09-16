@@ -10,7 +10,9 @@ import (
 )
 
 // ptrTime is a small helper for dated search results in tests.
-func ptrTime(t time.Time) *time.Time { return &t }
+//
+//go:fix inline
+func ptrTime(t time.Time) *time.Time { return new(t) }
 
 // searxTestServer serves canned SearXNG JSON payloads.
 type searxTestServer struct {
@@ -153,11 +155,11 @@ func TestParseSearxPublishedDate(t *testing.T) {
 		t.Error("garbage → nil expected")
 	}
 	cases := map[string]string{
-		"2024-05-01T12:00:00Z":       "2024-05-01",
-		"2024-05-01T12:00:00+02:00":  "2024-05-01",
-		"2024-05-01T09:00:00":        "2024-05-01",
-		"2024-05-01":                 "2024-05-01",
-		"  2024-05-01T12:00:00Z   ":  "2024-05-01",
+		"2024-05-01T12:00:00Z":      "2024-05-01",
+		"2024-05-01T12:00:00+02:00": "2024-05-01",
+		"2024-05-01T09:00:00":       "2024-05-01",
+		"2024-05-01":                "2024-05-01",
+		"  2024-05-01T12:00:00Z   ": "2024-05-01",
 	}
 	for in, wantDay := range cases {
 		got := parseSearxPublishedDate(in)
@@ -171,8 +173,8 @@ func TestFilterResultsByMaxAge(t *testing.T) {
 	now := time.Now()
 	day := 24 * time.Hour
 	results := []searchResult{
-		{Title: "fresh", URL: "a", PublishedDate: ptrTime(now.Add(-2 * day))},
-		{Title: "stale", URL: "b", PublishedDate: ptrTime(now.Add(-30 * day))},
+		{Title: "fresh", URL: "a", PublishedDate: new(now.Add(-2 * day))},
+		{Title: "stale", URL: "b", PublishedDate: new(now.Add(-30 * day))},
 		{Title: "undated", URL: "c"},
 	}
 	got := filterResultsByMaxAge(results, 7, now)

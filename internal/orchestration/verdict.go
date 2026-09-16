@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/contract"
 )
@@ -172,17 +173,17 @@ func firstNonEmptyID(contestants []Contestant) string {
 // joinReasons concatenates unique scoring reasons into one summary string.
 func joinReasons(reasons []string) string {
 	sep := ""
-	out := ""
+	var out strings.Builder
 	seen := make(map[string]bool, len(reasons))
 	for _, r := range reasons {
 		if r == "" || seen[r] {
 			continue
 		}
 		seen[r] = true
-		out += sep + r
+		out.WriteString(sep + r)
 		sep = "; "
 	}
-	return out
+	return out.String()
 }
 
 // roundScore snaps a score to 3 decimals to keep verdict serialization clean.

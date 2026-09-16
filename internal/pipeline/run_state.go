@@ -70,6 +70,23 @@ func (rs *RunState) Resuming() bool {
 	return rs.resuming
 }
 
+// MarkContinuation re-arms a live in-memory state for one more Pipeline.Run
+// pass after the pipeline already returned: setup stages are skipped and the
+// iteration loop resumes at the current iteration. It gives the state the same
+// shape RestoreCheckpoint produces (resuming flag set, ExitCode back to the
+// zero Continue — checkpoints don't persist ExitCode) so a re-entry behaves
+// identically to a checkpoint resume. The agent loop's completion-verifier
+// recover path uses it after gateCompletion flipped Observe.ContinueAfterFinal:
+// without it, re-running the pipeline fresh would rebuild context/history and
+// drop the continuation flag.
+func (rs *RunState) MarkContinuation() {
+	if rs == nil {
+		return
+	}
+	rs.resuming = true
+	rs.ExitCode = Continue
+}
+
 // maxCheckpointMessages caps the number of messages persisted in a checkpoint.
 // Checkpoints carry substate + conversation so a resume can continue the loop;
 // the session store remains the long-term history authority. History beyond this
@@ -82,37 +99,37 @@ const maxCheckpointMessages = 200
 // dropping Videos and Transient (runtime-only; MediaRefs carry the persistent
 // video references).
 type checkpointMessage struct {
-	Role                string                     `json:"role"`
-	Content             string                     `json:"content"`
-	Thinking            string                     `json:"thinking,omitempty"`
-	Images              []providers.ImageContent   `json:"images,omitempty"`
-	MediaRefs           []providers.MediaRef       `json:"media_refs,omitempty"`
-	ToolCalls           []providers.ToolCall       `json:"tool_calls,omitempty"`
-	ToolCallID          string                     `json:"tool_call_id,omitempty"`
-	IsError             bool                       `json:"is_error,omitempty"`
-	ToolName            string                     `json:"tool_name,omitempty"`
-	Phase               string                     `json:"phase,omitempty"`
-	RawAssistantContent json.RawMessage            `json:"raw_assistant_content,omitempty"`
-	CreatedAt           *time.Time                 `json:"created_at,omitempty"`
+	Role                string                   `json:"role"`
+	Content             string                   `json:"content"`
+	Thinking            string                   `json:"thinking,omitempty"`
+	Images              []providers.ImageContent `json:"images,omitempty"`
+	MediaRefs           []providers.MediaRef     `json:"media_refs,omitempty"`
+	ToolCalls           []providers.ToolCall     `json:"tool_calls,omitempty"`
+	ToolCallID          string                   `json:"tool_call_id,omitempty"`
+	IsError             bool                     `json:"is_error,omitempty"`
+	ToolName            string                   `json:"tool_name,omitempty"`
+	Phase               string                   `json:"phase,omitempty"`
+	RawAssistantContent json.RawMessage          `json:"raw_assistant_content,omitempty"`
+	CreatedAt           *time.Time               `json:"created_at,omitempty"`
 }
 
 // runStateCheckpoint is the on-disk shape of a durable checkpoint.
 type runStateCheckpoint struct {
-	Version   int                             `json:"version"`
-	RunID     string                          `json:"run_id"`
-	Model     string                          `json:"model,omitempty"`
-	Iteration int                             `json:"iteration"`
-	Input     *RunInput                       `json:"input,omitempty"`
-	Workspace *workspace.WorkspaceContext     `json:"workspace,omitempty"`
-	Messages  []checkpointMessage             `json:"messages,omitempty"`
-	Context   ContextState                    `json:"context,omitempty"`
-	Think     ThinkState                      `json:"think,omitempty"`
-	Prune     PruneState                      `json:"prune,omitempty"`
-	Tool      ToolState                       `json:"tool,omitempty"`
-	Observe   ObserveState                    `json:"observe,omitempty"`
-	Compact   CompactState                    `json:"compact,omitempty"`
-	Evolution EvolutionState                  `json:"evolution,omitempty"`
-	Calls     []providers.CallUsage           `json:"calls,omitempty"`
+	Version   int                         `json:"version"`
+	RunID     string                      `json:"run_id"`
+	Model     string                      `json:"model,omitempty"`
+	Iteration int                         `json:"iteration"`
+	Input     *RunInput                   `json:"input,omitempty"`
+	Workspace *workspace.WorkspaceContext `json:"workspace,omitempty"`
+	Messages  []checkpointMessage         `json:"messages,omitempty"`
+	Context   ContextState                `json:"context"`
+	Think     ThinkState                  `json:"think"`
+	Prune     PruneState                  `json:"prune"`
+	Tool      ToolState                   `json:"tool"`
+	Observe   ObserveState                `json:"observe"`
+	Compact   CompactState                `json:"compact"`
+	Evolution EvolutionState              `json:"evolution"`
+	Calls     []providers.CallUsage       `json:"calls,omitempty"`
 }
 
 const checkpointVersion = 1

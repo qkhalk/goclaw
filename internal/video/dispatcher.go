@@ -148,6 +148,16 @@ func (d *Dispatcher) submitJob(ctx context.Context, job *store.VideoRenderJob) {
 		return
 	}
 
+	// The worker can refuse at submit time (queue full, or the job fails
+	// validation synchronously) — and a refused job is never registered, so
+	// status polls would 404 forever. Fail honestly instead of "rendering".
+	if resp.Status == JobFailed || resp.Status == JobCancelled {
+		slog.Error("video.dispatcher: worker refused job at submit",
+			"job_id", job.ID, "worker_status", resp.Status)
+		d.failJob(ctx, job.ID, "worker refused job at submit (status="+string(resp.Status)+"; queue full or invalid storyboard)")
+		return
+	}
+
 	slog.Info("video.dispatcher: job submitted to worker",
 		"job_id", job.ID, "worker_status", resp.Status)
 
@@ -340,11 +350,14 @@ func copyFile(src, dst string) error {
 
 // --- VideoStack bundles everything the gateway needs for the video pipeline.
 
-// VideoStack holds the components of the video render pipeline.
+// VideoStack holds the components of the video render pipeline. Workspace is
+// the agent workspace root — completed outputs land in <workspace>/videos and
+// the HTTP handler needs it to serve downloads.
 type VideoStack struct {
 	VideoJobs  store.VideoRenderJobStore
 	Worker     *WorkerClient
 	Dispatcher *Dispatcher
+	Workspace  string
 }
 
 // newVideoStack builds the shared video pipeline components. Returns nil when

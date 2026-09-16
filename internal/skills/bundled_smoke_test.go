@@ -21,6 +21,7 @@ func TestBundledSkills_NoRegression(t *testing.T) {
 		"recon":            {"system:nmap", "system:curl"},
 		"fuzz":             {"system:ffuf", "system:curl"},
 		"dns-audit":        {"system:dig", "system:curl"},
+		"ship":             {"system:git", "system:gh"},
 		"scraping":         {"pip:scrapling[fetchers]", "pip:markdownify"},
 		"ocr":              {"system:tesseract", "pip:pytesseract", "pip:Pillow"},
 		"data-analysis":    {"pip:pandas", "pip:matplotlib", "pip:openpyxl"},
