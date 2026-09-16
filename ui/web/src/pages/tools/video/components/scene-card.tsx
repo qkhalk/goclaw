@@ -4,9 +4,6 @@ import {
   ArrowUp,
   ArrowDown,
   Volume2,
-  Image as ImageIcon,
-  Video as VideoIcon,
-  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,15 +46,6 @@ function previewTTS(text: string, voice?: string) {
   speechSynthesis.speak(utterance);
 }
 
-/** Tiny functional group label for one inspector section. */
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-      {children}
-    </p>
-  );
-}
-
 interface SceneCardProps {
   scene: Scene;
   index: number;
@@ -68,12 +56,6 @@ interface SceneCardProps {
   onMoveDown: () => void;
 }
 
-/**
- * Inspector for the selected scene, grouped into three beats — content
- * (type/source/duration), picture & motion (caption, transition, ken burns),
- * and voice-over — so the form scans top-down instead of dumping every field
- * at one visual weight.
- */
 export function SceneCard({
   scene,
   index,
@@ -84,44 +66,15 @@ export function SceneCard({
   onMoveDown,
 }: SceneCardProps) {
   const { t } = useTranslation("toolbox");
-  const typeIcon =
-    scene.type === "image" ? (
-      <ImageIcon className="h-3.5 w-3.5" />
-    ) : scene.type === "video" ? (
-      <VideoIcon className="h-3.5 w-3.5" />
-    ) : (
-      <Square className="h-3.5 w-3.5" />
-    );
-  const typeLabel = t(
-    scene.type === "image"
-      ? "video.type_image"
-      : scene.type === "video"
-        ? "video.type_video"
-        : "video.type_color",
-  );
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border bg-background">
-      {/* Header: identity + row actions */}
-      <div className="flex items-center gap-2.5 border-b bg-muted/30 px-3 py-2">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-background text-xs font-semibold tabular-nums text-muted-foreground shadow-sm">
-          {index + 1}
+    <div className="flex flex-col gap-3 rounded-md border p-3">
+      {/* Header row */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">
+          {t("video.scene_n", { n: index + 1 })}
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium">
-          {typeIcon}
-          {typeLabel}
-        </span>
-        {scene.type === "color" && scene.color && (
-          <span
-            aria-hidden
-            className="h-4 w-4 shrink-0 rounded-sm border border-border/60"
-            style={{ backgroundColor: scene.color }}
-          />
-        )}
-        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-          {Number(scene.duration_sec).toFixed(0)}s
-        </span>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="icon-sm" aria-label={t("video.move_up")} disabled={index === 0} onClick={onMoveUp}>
             <ArrowUp className="h-4 w-4" />
           </Button>
@@ -134,110 +87,63 @@ export function SceneCard({
         </div>
       </div>
 
-      {/* Beat 1: content */}
-      <section className="flex flex-col gap-3 px-3 py-3">
-        <SectionLabel>{t("video.section_content")}</SectionLabel>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">{t("video.type")}</Label>
-            <Select value={scene.type} onValueChange={(v) => onUpdate({ type: v as Scene["type"] })}>
-              <SelectTrigger className="text-base md:text-sm" aria-label={t("video.type")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="image">{t("video.type_image")}</SelectItem>
-                <SelectItem value="video">{t("video.type_video")}</SelectItem>
-                <SelectItem value="color">{t("video.type_color")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {scene.type === "color" ? (
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">{t("video.color")}</Label>
-              <div className="flex items-center gap-2">
-                <span
-                  aria-hidden
-                  className="h-9 w-9 shrink-0 rounded-md border border-border/60"
-                  style={{ backgroundColor: /^#[0-9a-fA-F]{6}$/.test(scene.color ?? "") ? scene.color : "#000000" }}
-                />
-                <Input value={scene.color ?? "#000000"} onChange={(e) => onUpdate({ color: e.target.value })} placeholder="#1D4ED8" className="font-mono text-base md:text-sm" />
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <Label className="text-xs">{t("video.source")}</Label>
-              <Input value={scene.source ?? ""} onChange={(e) => onUpdate({ source: e.target.value })} placeholder={t("video.source_hint")} className={cn("text-base md:text-sm", !scene.source?.trim() && "border-destructive/60 focus-visible:ring-destructive/30")} />
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">{t("video.scene.duration")}</Label>
-            <Input type="number" min={1} max={30} value={scene.duration_sec} onChange={(e) => onUpdate({ duration_sec: Number(e.target.value) || 1 })} className="tabular-nums text-base md:text-sm" />
-          </div>
+      {/* Type + Source + Duration */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t("video.type")}</Label>
+          <Select value={scene.type} onValueChange={(v) => onUpdate({ type: v as Scene["type"] })}>
+            <SelectTrigger className="text-base md:text-sm" aria-label={t("video.type")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="image">{t("video.type_image")}</SelectItem>
+              <SelectItem value="video">{t("video.type_video")}</SelectItem>
+              <SelectItem value="color">{t("video.type_color")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      </section>
 
-      {/* Beat 2: picture & motion */}
-      <section className="flex flex-col gap-3 border-t px-3 py-3">
-        <SectionLabel>{t("video.section_display")}</SectionLabel>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
-          <div className="flex flex-col gap-1.5 sm:col-span-3">
-            <Label className="text-xs">{t("video.caption_text")}</Label>
-            <Input value={scene.caption?.text ?? ""} onChange={(e) => onUpdate({ caption: e.target.value ? { ...(scene.caption ?? { position: "bottom" as const }), text: e.target.value } : undefined })} className="text-base md:text-sm" />
+        {scene.type === "color" ? (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">{t("video.color")}</Label>
+            <Input value={scene.color ?? "#000000"} onChange={(e) => onUpdate({ color: e.target.value })} placeholder="#1D4ED8" className="text-base md:text-sm" />
           </div>
-          <div className="flex flex-col gap-1.5 sm:col-span-1">
-            <Label className="text-xs">{t("video.caption_position")}</Label>
-            <Select value={scene.caption?.position ?? "bottom"} onValueChange={(v) => onUpdate({ caption: scene.caption ? { ...scene.caption, position: v as Caption["position"] } : undefined })}>
-              <SelectTrigger className="text-base md:text-sm" aria-label={t("video.caption_position")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="top">{t("video.pos_top")}</SelectItem>
-                <SelectItem value="center">{t("video.pos_center")}</SelectItem>
-                <SelectItem value="bottom">{t("video.pos_bottom")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        ) : (
           <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <Label className="text-xs">{t("video.transition")}</Label>
-            <Select
-              value={scene.transition ?? "none"}
-              onValueChange={(v) => onUpdate({ transition: v === "none" ? undefined : (v as Scene["transition"]) })}
-            >
-              <SelectTrigger className="text-base md:text-sm" aria-label={t("video.transition")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TRANSITION_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {t("video.transition_" + type)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-xs">{t("video.source")}</Label>
+            <Input value={scene.source ?? ""} onChange={(e) => onUpdate({ source: e.target.value })} placeholder={t("video.source_hint")} className={cn("text-base md:text-sm", !scene.source?.trim() && "border-destructive/60 focus-visible:ring-destructive/30")} />
           </div>
-        </div>
+        )}
 
-        {scene.type !== "color" && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="flex items-center gap-2">
-              <Switch id={`kb-${index}`} checked={scene.ken_burns !== undefined} onCheckedChange={(v) => onUpdate({ ken_burns: v ? { zoom_from: 1.0, zoom_to: 1.12, pan: "none" } : undefined })} />
-              <Label htmlFor={`kb-${index}`} className="text-xs">{t("video.kb_enabled")}</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch id={`mute-${index}`} checked={scene.mute ?? false} onCheckedChange={(v) => onUpdate({ mute: v })} />
-              <Label htmlFor={`mute-${index}`} className="text-xs">{t("video.mute")}</Label>
-            </div>
-            {scene.ken_burns && (
-              <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t("video.scene.duration")}</Label>
+          <Input type="number" min={1} max={30} value={scene.duration_sec} onChange={(e) => onUpdate({ duration_sec: Number(e.target.value) || 1 })} className="text-base md:text-sm" />
+        </div>
+      </div>
+
+      {/* Ken Burns + Mute toggles */}
+      {scene.type !== "color" && (
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch id={`kb-${index}`} checked={scene.ken_burns !== undefined} onCheckedChange={(v) => onUpdate({ ken_burns: v ? { zoom_from: 1.0, zoom_to: 1.12, pan: "none" } : undefined })} />
+            <Label htmlFor={`kb-${index}`} className="text-xs">{t("video.kb_enabled")}</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch id={`mute-${index}`} checked={scene.mute ?? false} onCheckedChange={(v) => onUpdate({ mute: v })} />
+            <Label htmlFor={`mute-${index}`} className="text-xs">{t("video.mute")}</Label>
+          </div>
+          {scene.ken_burns && (
+            <>
+              <div className="flex items-center gap-1.5">
                 <Label className="text-xs">{t("video.kb_zoom_from")}</Label>
-                <Input type="number" step={0.01} min={1} max={2} value={scene.ken_burns.zoom_from} onChange={(e) => onUpdate({ ken_burns: { ...scene.ken_burns!, zoom_from: Number(e.target.value) || 1 } })} className="h-8 w-16 tabular-nums text-base md:text-sm" />
+                <Input type="number" step={0.01} min={1} max={2} value={scene.ken_burns.zoom_from} onChange={(e) => onUpdate({ ken_burns: { ...scene.ken_burns!, zoom_from: Number(e.target.value) || 1 } })} className="h-8 w-20 text-base md:text-sm" />
                 <Label className="text-xs">{t("video.kb_zoom_to")}</Label>
-                <Input type="number" step={0.01} min={1} max={2} value={scene.ken_burns.zoom_to} onChange={(e) => onUpdate({ ken_burns: { ...scene.ken_burns!, zoom_to: Number(e.target.value) || 1 } })} className="h-8 w-16 tabular-nums text-base md:text-sm" />
+                <Input type="number" step={0.01} min={1} max={2} value={scene.ken_burns.zoom_to} onChange={(e) => onUpdate({ ken_burns: { ...scene.ken_burns!, zoom_to: Number(e.target.value) || 1 } })} className="h-8 w-20 text-base md:text-sm" />
+              </div>
+              <div className="flex items-center gap-1.5">
                 <Label className="text-xs">{t("video.kb_pan")}</Label>
                 <Select value={scene.ken_burns.pan} onValueChange={(v) => onUpdate({ ken_burns: { ...scene.ken_burns!, pan: v as KenBurns["pan"] } })}>
-                  <SelectTrigger className="h-8 w-28 text-base md:text-sm" aria-label={t("video.kb_pan")}>
+                  <SelectTrigger className="h-8 text-base md:text-sm" aria-label={t("video.kb_pan")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -247,27 +153,118 @@ export function SceneCard({
                   </SelectContent>
                 </Select>
               </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* Beat 3: voice-over */}
-      <section className="flex flex-col gap-3 border-t px-3 py-3">
-        <SectionLabel>{t("video.section_voice")}</SectionLabel>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label className="text-xs">{t("video.scene.narration")}</Label>
-            <Textarea value={scene.narration ?? ""} onChange={(e) => onUpdate({ narration: e.target.value || undefined })} rows={2} placeholder={t("video.narration_placeholder")} className="text-base md:text-sm" />
-          </div>
-          <div className="flex shrink-0 flex-col justify-end sm:w-36">
-            <Button variant="outline" size="sm" onClick={() => previewTTS(scene.narration || "")} disabled={!scene.narration?.trim()} className="min-h-11 w-full sm:min-h-9">
-              <Volume2 className="mr-2 h-3.5 w-3.5" />
-              {t("video.scene.preview_tts")}
-            </Button>
-          </div>
+            </>
+          )}
         </div>
-      </section>
+      )}
+
+      {/* Caption */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="flex flex-col gap-1.5 sm:col-span-3">
+          <Label className="text-xs">{t("video.caption_text")}</Label>
+          <Input value={scene.caption?.text ?? ""} onChange={(e) => onUpdate({ caption: e.target.value ? { ...(scene.caption ?? { position: "bottom" as const }), text: e.target.value } : undefined })} className="text-base md:text-sm" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t("video.caption_position")}</Label>
+          <Select value={scene.caption?.position ?? "bottom"} onValueChange={(v) => onUpdate({ caption: scene.caption ? { ...scene.caption, position: v as Caption["position"] } : undefined })}>
+            <SelectTrigger className="text-base md:text-sm" aria-label={t("video.caption_position")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="top">{t("video.pos_top")}</SelectItem>
+              <SelectItem value="center">{t("video.pos_center")}</SelectItem>
+              <SelectItem value="bottom">{t("video.pos_bottom")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* OpenCut-style transform + color grading (image/video scenes only) */}
+      {(scene.type === "image" || scene.type === "video") && (
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm font-medium">{t("video.advanced")}</summary>
+          <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+            {([
+              ["video.transform_scale", "scale", 0.3, 3, 0.05, scene.transform?.scale ?? 1],
+              ["video.transform_pos_x", "x", -50, 50, 1, scene.transform?.x ?? 0],
+              ["video.transform_pos_y", "y", -50, 50, 1, scene.transform?.y ?? 0],
+              ["video.transform_rotate", "rotate", -180, 180, 1, scene.transform?.rotate ?? 0],
+              ["video.transform_opacity", "opacity", 0, 1, 0.05, scene.transform?.opacity ?? 1],
+              ["video.filter_brightness", "brightness", 0.2, 2, 0.05, scene.filter?.brightness ?? 1],
+              ["video.filter_contrast", "contrast", 0.2, 2, 0.05, scene.filter?.contrast ?? 1],
+              ["video.filter_saturate", "saturate", 0, 2, 0.05, scene.filter?.saturate ?? 1],
+              ["video.filter_blur", "blur", 0, 20, 0.5, scene.filter?.blur ?? 0],
+            ] as const).map(([labelKey, key, min, max, step, value]) => (
+              <div key={key} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">{t(labelKey)}</Label>
+                  <span className="text-xs tabular-nums text-muted-foreground">{value}</span>
+                </div>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={value}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    if (key === "brightness" || key === "contrast" || key === "saturate" || key === "blur") {
+                      const next = { ...scene.filter };
+                      if (v === (key === "blur" ? 0 : 1)) delete next[key];
+                      else next[key] = v;
+                      const empty = Object.keys(next).length === 0;
+                      onUpdate({ filter: empty ? undefined : next });
+                    } else {
+                      const next = { ...scene.transform };
+                      if (v === (key === "opacity" ? 1 : key === "scale" ? 1 : 0)) delete next[key as "scale" | "x" | "y" | "rotate" | "opacity"];
+                      else next[key as "scale" | "x" | "y" | "rotate" | "opacity"] = v;
+                      const empty = Object.keys(next).length === 0;
+                      onUpdate({ transform: empty ? undefined : next });
+                    }
+                  }}
+                  className="w-full accent-primary"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{t("video.advanced_hint")}</p>
+        </details>
+      )}
+
+      {/* Enter transition (browser preview + client export; server cuts hard) */}
+      <div className="flex flex-col gap-1.5 sm:max-w-xs">
+        <Label className="text-xs">{t("video.transition")}</Label>
+        <Select
+          value={scene.transition ?? "none"}
+          onValueChange={(v) => onUpdate({ transition: v === "none" ? undefined : (v as Scene["transition"]) })}
+        >
+          <SelectTrigger className="text-base md:text-sm" aria-label={t("video.transition")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TRANSITION_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                {t("video.transition_" + type)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Narration (TTS) */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="flex flex-col gap-1.5 sm:col-span-3">
+          <Label className="text-xs">{t("video.scene.narration")}</Label>
+          <Textarea value={scene.narration ?? ""} onChange={(e) => onUpdate({ narration: e.target.value || undefined })} rows={2} placeholder={t("video.narration_placeholder")} className="text-base md:text-sm" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t("video.scene.voice")}</Label>
+          <Button variant="outline" size="sm" onClick={() => previewTTS(scene.narration || "")} disabled={!scene.narration?.trim()} className="min-h-11 sm:min-h-9">
+            <Volume2 className="mr-2 h-3.5 w-3.5" />
+            {t("video.scene.preview_tts")}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

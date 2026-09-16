@@ -7,7 +7,7 @@ import {
   Download,
   Loader2,
   RefreshCw,
-  Wand2,
+  Trash2,
   X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -22,22 +22,19 @@ import { useHttp } from "@/hooks/use-ws";
 import { toast } from "@/stores/use-toast-store";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
-import { useIsTablet } from "@/hooks/use-media-query";
-import { useUiStore } from "@/stores/use-ui-store";
 import {
   submitRenderJob,
   useVideoCancel,
+  useVideoDelete,
   useVideoJobs,
   type VideoRenderJob,
 } from "./hooks/use-video";
 import { useTimeline, type Scene } from "./hooks/use-timeline";
 import { useVideoExport, exportExtension } from "./hooks/use-video-export";
-import { normalizeEditorScenes } from "./lib/storyboard-wire";
 import { CanvasPlayer } from "./components/canvas-player";
 import { Timeline } from "./components/timeline";
 import { SceneCard } from "./components/scene-card";
 import { RenderPanel } from "./components/render-panel";
-import { DesignerColumn } from "./components/designer-column";
 
 // ── Storyboard (non-scene fields; scenes live in the timeline) ──
 
@@ -86,11 +83,16 @@ function statusClass(status: VideoRenderJob["status"]): string {
   }
 }
 
+function isTerminal(status: VideoRenderJob["status"]): boolean {
+  return status === "done" || status === "failed" || status === "cancelled";
+}
+
 export function VideoToolPage() {
   const { t } = useTranslation("toolbox");
   const http = useHttp();
   const { jobs, loading, refresh, progressById } = useVideoJobs(true);
   const cancel = useVideoCancel();
+  const removeJob = useVideoDelete();
 
   const [meta, setMeta] = useState<StoryboardMeta>(defaultStoryboard);
   const [showJson, setShowJson] = useState(false);
@@ -98,32 +100,8 @@ export function VideoToolPage() {
   const [jsonError, setJsonError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<VideoRenderJob | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VideoRenderJob | null>(null);
   const [jobsOpen, setJobsOpen] = useState(true);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-  // The output route requires auth (like every /v1 endpoint), so downloads go
-  // through an authorized blob fetch instead of a bare <a href> that 401s.
-  async function handleDownloadJob(job: VideoRenderJob) {
-    try {
-      setDownloadingId(job.id);
-      const blob = await http.fetchBlob(`/v1/video/jobs/${job.id}/output`);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `goclaw-video-${job.id.slice(0, 8)}.mp4`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error(t("video.download_failed"));
-    } finally {
-      setDownloadingId(null);
-    }
-  }
-
-  // Designer column (chat rail on desktop, bottom sheet on tablets/phones)
-  const isCompact = useIsTablet();
-  const designerOpen = useUiStore((s) => s.videoDesignerOpen);
-  const setDesignerOpen = useUiStore((s) => s.setVideoDesignerOpen);
 
   // Feature gate
   const { data: gate, error: gateError } = useQuery({
@@ -181,25 +159,13 @@ export function VideoToolPage() {
     }
   }
 
-  // Replace the whole editor content with a storyboard — the one Apply path
-  // shared by the JSON mode and the designer column, so undo/redo, canvas
-  // and submit payload stay consistent wherever a storyboard comes from.
-  const applyStoryboardToEditor = useCallback(
-    (next: Storyboard) => {
-      const { scenes, ...parsedMeta } = next;
-      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
-      // Designer storyboards carry wire-shaped narration objects; the editor
-      // edits plain text — flatten on the way in.
-      timeline.replaceScenes(normalizeEditorScenes(scenes ?? []));
-    },
-    [timeline],
-  );
-
   function loadJson() {
     try {
       const parsed = JSON.parse(jsonDraft) as Storyboard;
       if (!parsed || typeof parsed !== "object") throw new Error("not an object");
-      applyStoryboardToEditor(parsed);
+      const { scenes, ...parsedMeta } = parsed;
+      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
+      timeline.replaceScenes(scenes ?? []);
       setJsonError("");
       setShowJson(false);
     } catch (e) {
@@ -251,38 +217,22 @@ export function VideoToolPage() {
   }
 
   return (
-    // Fill the app scrollport exactly (h-full of <main>): the editor column
-    // scrolls internally and the designer rail always fits the viewport.
-    <div className="h-full min-h-0">
-      <div className="mx-auto flex h-full w-full items-stretch">
-      <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-6">
-        <PageHeader
-          title={t("video.title")}
-          description={t("video.description")}
-          actions={
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refresh()}
-                className="min-h-11 sm:min-h-9"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                {t("video.jobs_refresh")}
-              </Button>
-              <Button
-                variant={designerOpen ? "default" : "outline"}
-                size="sm"
-                onClick={() => setDesignerOpen(!designerOpen)}
-                className="min-h-11 sm:min-h-9"
-                title={t("video.designer.toggle")}
-              >
-                <Wand2 className="mr-2 h-4 w-4" />
-                {t("video.designer.title")}
-              </Button>
-            </>
-          }
-        />
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
+      <PageHeader
+        title={t("video.title")}
+        description={t("video.description")}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refresh()}
+            className="min-h-11 sm:min-h-9"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {t("video.jobs_refresh")}
+          </Button>
+        }
+      />
 
       {/* Jobs list (collapsible) */}
       <div className="rounded-lg border">
@@ -317,10 +267,10 @@ export function VideoToolPage() {
                 {t("video.empty_jobs")}
               </p>
             ) : (
-              <ul className="flex flex-col divide-y">
+              <ul className="flex flex-col gap-2">
                 {jobs.map((job) => (
-                  <li key={job.id} className="px-1 py-2.5 transition-colors hover:bg-muted/40">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <li key={job.id} className="rounded-md border p-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                       <Badge
                         variant="outline"
                         className={cn(
@@ -330,14 +280,14 @@ export function VideoToolPage() {
                       >
                         {t(`video.status.${job.status}`)}
                       </Badge>
-                      <span className="truncate font-mono text-xs text-muted-foreground">
+                      <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">
                         {job.id.slice(0, 8)}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs tabular-nums text-muted-foreground">
                         {new Date(job.created_at).toLocaleString()}
                       </span>
                       {job.status === "done" && job.output_size_bytes > 0 && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs tabular-nums text-muted-foreground">
                           {formatFileSize(job.output_size_bytes)}
                         </span>
                       )}
@@ -346,16 +296,16 @@ export function VideoToolPage() {
                           <Button
                             variant="outline"
                             size="sm"
+                            asChild
                             className="min-h-11 sm:min-h-9"
-                            disabled={downloadingId === job.id}
-                            onClick={() => handleDownloadJob(job)}
                           >
-                            {downloadingId === job.id ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
+                            <a
+                              href={`/v1/files/videos/${job.id}.mp4`}
+                              download
+                            >
                               <Download className="mr-2 h-4 w-4" />
-                            )}
-                            {t("video.download")}
+                              {t("video.download")}
+                            </a>
                           </Button>
                         )}
                         {(job.status === "queued" ||
@@ -368,6 +318,18 @@ export function VideoToolPage() {
                           >
                             <X className="mr-2 h-4 w-4" />
                             {t("video.cancel")}
+                          </Button>
+                        )}
+                        {isTerminal(job.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("video.delete")}
+                            title={t("video.delete")}
+                            className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-8 sm:min-w-8"
+                            onClick={() => setDeleteTarget(job)}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
@@ -455,9 +417,9 @@ export function VideoToolPage() {
             />
           )}
 
-          {/* Summary + JSON mode toggle */}
-          <div className="flex items-center justify-between px-1">
-            <span className="text-sm text-muted-foreground tabular-nums">
+          {/* JSON mode toggle */}
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <span className="text-sm text-muted-foreground">
               {t("video.total_duration", { sec: totalSec.toFixed(1) })} ·{" "}
               {t("video.scenes_count", { n: sb.scenes.length })}
             </span>
@@ -551,17 +513,27 @@ export function VideoToolPage() {
           }
         }}
       />
-      </div>
 
-      {/* Designer column: full-height chat rail on desktop; on compact screens
-          it renders itself as a portal bottom sheet, so the wrapper stays empty. */}
-      <div className={cn("h-full shrink-0", !isCompact && "min-w-0")}>
-        <DesignerColumn
-          onApplyStoryboard={applyStoryboardToEditor}
-          currentStoryboard={sb}
-        />
-      </div>
-    </div>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title={t("video.delete_confirm_title")}
+        description={t("video.delete_confirm_desc")}
+        confirmLabel={t("video.delete")}
+        variant="destructive"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            await removeJob(deleteTarget.id);
+            toast.success(t("video.deleted"));
+            await refresh();
+          } catch {
+            toast.error(t("video.delete_failed"));
+          } finally {
+            setDeleteTarget(null);
+          }
+        }}
+      />
     </div>
   );
 }

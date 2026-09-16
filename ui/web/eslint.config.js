@@ -26,7 +26,10 @@ export default tseslint.config(
       "react-refresh/only-export-components": "off",
 
       // TypeScript
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", ignoreRestSiblings: true },
+      ],
       // Disabled: pragmatic casts for external libs and dynamic data
       "@typescript-eslint/no-explicit-any": "off",
 
