@@ -109,7 +109,7 @@ func setupVideoHandler(t *testing.T) (*VideoHandler, *fakeVideoJobStore) {
 	t.Helper()
 	setupTestToken(t, "test-token")
 	fake := newFakeVideoJobStore()
-	h := NewVideoHandler(fake, nil, nil, true, "")
+	h := NewVideoHandler(fake, nil, nil, true)
 	return h, fake
 }
 
@@ -199,7 +199,7 @@ func TestVideoCreateJob_Unauthenticated_Rejected(t *testing.T) {
 
 func TestVideoCreateJob_Disabled_Rejected(t *testing.T) {
 	setupTestToken(t, "test-token")
-	h := NewVideoHandler(newFakeVideoJobStore(), nil, nil, false, "")
+	h := NewVideoHandler(newFakeVideoJobStore(), nil, nil, false)
 	rec := doVideoReq(t, h, "POST", "/v1/video/jobs", `{"storyboard":{}}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403: %s", rec.Code, rec.Body.String())
