@@ -89,23 +89,13 @@
   "routing": {
     "title": "Model routing",
     "window": "24h",
-    "noData": "No routing data yet",
-    "req": "{{count}} req",
     "moreProviders": "+{{count}} more providers",
-    "moreModels": "+{{count}} more models",
-    "byModel": "Usage by model",
-    "columns": {
-      "requests": "Requests",
-      "share": "Share"
-    },
     "surfaces": {
       "telegram": "Telegram",
       "webChat": "Web chat",
       "pptx": "PPTX",
       "videoEdit": "Video editor"
-    },
-    "surfaceIdle": "idle",
-    "surfaceOffline": "offline"
+    }
   },
   "system": {
     "title": "System",

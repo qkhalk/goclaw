@@ -402,19 +402,3 @@
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
-
-/* Routing topology: animated connection flow toward active surfaces */
-@keyframes routing-dash {
-  to {
-    stroke-dashoffset: -18;
-  }
-}
-.routing-edge-active {
-  stroke-dasharray: 5 4;
-  animation: routing-dash 1.2s linear infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .routing-edge-active {
-    animation: none;
-  }
-}
