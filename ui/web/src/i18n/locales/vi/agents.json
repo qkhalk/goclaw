@@ -947,19 +947,6 @@
       "description": "Cấu hình JSON bổ sung cho các cài đặt nâng cao không được đề cập trong các mục khác",
       "formatJson": "Định dạng JSON",
       "invalidJson": "Cú pháp JSON không hợp lệ"
-    },
-    "filePermissions": {
-      "title": "Quyền file",
-      "description": "Bật/tắt từng khả năng file của agent.",
-      "read": "Đọc file",
-      "readHint": "read_file, list_files",
-      "write": "Sửa file",
-      "writeHint": "edit — chỉnh sửa file có sẵn",
-      "create": "Tạo file",
-      "createHint": "write_file — tạo/ghi đè file",
-      "send": "Gửi file",
-      "sendHint": "send_file — gửi file ra kênh chat",
-      "footnote": "Tắt một khả năng sẽ thêm tool vào deny list của tool policy (deny luôn thắng allow)."
     }
   },
   "heartbeat": {

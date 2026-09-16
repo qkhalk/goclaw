@@ -919,19 +919,6 @@
       "description": "다른 섹션에서 다루지 않는 고급 설정을 위한 추가 JSON 설정",
       "formatJson": "JSON 포맷",
       "invalidJson": "잘못된 JSON 구문"
-    },
-    "filePermissions": {
-      "title": "파일 권한",
-      "description": "에이전트의 파일 기능을 개별적으로 켜고 끕니다.",
-      "read": "파일 읽기",
-      "readHint": "read_file, list_files",
-      "write": "파일 편집",
-      "writeHint": "edit — 기존 파일 수정",
-      "create": "파일 생성",
-      "createHint": "write_file — 생성/덮어쓰기",
-      "send": "파일 보내기",
-      "sendHint": "send_file — 채팅으로 파일 전달",
-      "footnote": "기능을 끄면 해당 도구가 도구 정책 deny 목록에 추가됩니다(deny는 allow보다 우선)."
     }
   },
   "heartbeat": {
