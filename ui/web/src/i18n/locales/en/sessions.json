@@ -8,6 +8,7 @@
   "noMatchDescription": "Try a different search term.",
   "columns": {
     "session": "Session",
+    "origin": "Origin",
     "agent": "Agent",
     "context": "Context",
     "messages": "Messages",
@@ -72,5 +73,16 @@
     "runResumed": "Run resumed",
     "runWoken": "Run woken up",
     "runActionFailed": "Run action failed"
+  },
+  "origin": {
+    "web": "Web chat",
+    "telegram": "Telegram",
+    "video": "Video Editor",
+    "pptx": "PPTX",
+    "subagent": "Subagent",
+    "cron": "Cron",
+    "team": "Team",
+    "heartbeat": "Heartbeat",
+    "channel": "{{channel}}"
   }
 }

@@ -1,27 +1,41 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ArrowDown, ArrowUp } from "lucide-react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWsEvent } from "@/hooks/use-ws-event";
+import { Events } from "@/api/protocol";
 import { ROUTES } from "@/lib/constants";
 import { formatRelativeTime, formatTokens } from "@/lib/format";
 import { useHttp } from "@/hooks/use-ws";
 import type { RecentLLMRequest } from "./types";
 
-const REFRESH_INTERVAL = 30_000;
+const REFRESH_INTERVAL = 15_000;
+const REQUEST_LIMIT = 30;
 
 /** 9router-style recent requests: compact fixed-height card, one row per LLM
- * API call — status dot | Model | In/Out (colored) | When. Scrolls internally
- * with a sticky header so it never stretches the overview grid row. */
+ * API call — status dot | Model | In/Out (colored) | When. Live: refetches on
+ * trace status changes (a request starting/finishing anywhere) with a 15s
+ * polling fallback; scrolls internally with a sticky header through up to 30
+ * rows so it never stretches the overview grid row. */
 export function RecentRequestsCard() {
   const { t } = useTranslation("overview");
   const http = useHttp();
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["usage", "recent-requests"],
     refetchInterval: REFRESH_INTERVAL,
-    queryFn: () => http.get<{ requests: RecentLLMRequest[] }>("/v1/usage/recent-requests", { limit: "10" }),
+    queryFn: () => http.get<{ requests: RecentLLMRequest[] }>("/v1/usage/recent-requests", { limit: String(REQUEST_LIMIT) }),
   });
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["usage", "recent-requests"] });
+  // trace.status fires on every span status write — request started/completed;
+  // trace.updated covers the final row payload.
+  useWsEvent(Events.TRACE_STATUS, invalidate);
+  useWsEvent(Events.TRACE_UPDATED, invalidate);
+
   const requests = data?.requests ?? [];
 
   return (

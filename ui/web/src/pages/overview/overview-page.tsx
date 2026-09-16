@@ -19,7 +19,6 @@ import type {
   HealthPayload,
   StatusPayload,
   QuotaUsageResult,
-  CronListPayload,
   ChannelStatusPayload,
 } from "./types";
 import { useLiveUptime } from "./hooks/use-live-uptime";
@@ -27,7 +26,6 @@ import { StatCard } from "./stat-card";
 import { useOverviewSparklines } from "./hooks/use-overview-sparklines";
 import { SystemHealthCard } from "./system-health-card";
 import { ConnectedClientsCard } from "./connected-clients-card";
-import { CronJobsCard } from "./cron-jobs-card";
 import { RecentRequestsCard } from "./recent-requests-card";
 import { RoutingGraphCard } from "./routing-graph-card";
 import { QuotaUsageCard } from "./quota-usage-card";
@@ -57,8 +55,6 @@ export function OverviewPage() {
   const { call: fetchQuota, data: quota } =
     useWsCall<QuotaUsageResult>(Methods.QUOTA_USAGE);
   const sparklines = useOverviewSparklines();
-  const { call: fetchCron, data: cronData } =
-    useWsCall<CronListPayload>(Methods.CRON_LIST);
   const { call: fetchChannels, data: channelStatusData } =
     useWsCall<ChannelStatusPayload>(Methods.CHANNELS_STATUS);
   const { providers, loading: providersLoading } = useProviders();
@@ -79,9 +75,8 @@ export function OverviewPage() {
     fetchStatus();
     // Server counts "today" from the user's local midnight, not UTC
     fetchQuota({ tz: resolveTimezone(timezone) });
-    fetchCron({ includeDisabled: true });
     fetchChannels();
-  }, [fetchHealth, fetchStatus, fetchQuota, fetchCron, fetchChannels, timezone]);
+  }, [fetchHealth, fetchStatus, fetchQuota, fetchChannels, timezone]);
 
   useEffect(() => {
     if (!connected) return;
@@ -258,8 +253,17 @@ export function OverviewPage() {
             />
           </div>
 
-          {/* System (host CPU / memory / disk) */}
-          <SystemCard />
+          {/* Surface topology (9router-style) + live Recent Requests */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <RoutingGraphCard
+                channelEntries={channelEntries}
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <RecentRequestsCard />
+            </div>
+          </div>
 
           {/* System Health */}
           <SystemHealthCard
@@ -272,25 +276,13 @@ export function OverviewPage() {
             runtimeEntries={runtimes?.runtimes}
           />
 
-          {/* Connected Clients + Cron Jobs */}
+          {/* Host system (CPU/mem/disk) + Connected Clients */}
           <div className="grid gap-4 lg:grid-cols-2">
+            <SystemCard />
             <ConnectedClientsCard
               clients={clientList}
               currentId={health?.currentId}
             />
-            <CronJobsCard jobs={cronData?.jobs ?? []} />
-          </div>
-
-          {/* Surface topology (9router-style) + compact Recent Requests */}
-          <div className="grid gap-4 lg:grid-cols-5">
-            <div className="lg:col-span-3">
-              <RoutingGraphCard
-                channelEntries={channelEntries}
-              />
-            </div>
-            <div className="lg:col-span-2">
-              <RecentRequestsCard />
-            </div>
           </div>
 
           {/* Quota Usage */}

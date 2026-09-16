@@ -55,12 +55,6 @@
     },
     "you": "나"
   },
-  "cronJobs": {
-    "title": "Cron 작업",
-    "manage": "관리",
-    "noJobs": "설정된 Cron 작업 없음",
-    "disabled": "비활성화됨"
-  },
   "recentRequests": {
     "title": "최근 요청",
     "viewAll": "전체 보기",
