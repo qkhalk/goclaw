@@ -1,4 +1,4 @@
-import type { Scene } from "../hooks/use-timeline";
+import type { Layer, Scene } from "../hooks/use-timeline";
 import type { Storyboard } from "../video-tool-page";
 
 /**
@@ -88,6 +88,47 @@ function sceneError(scene: unknown, index: number): string | null {
   }
   if (sc.type === "color" && !(typeof sc.color === "string" && HEX_RE.test(sc.color))) {
     return `scene ${index + 1}: color scenes need #RRGGBB`;
+  }
+  if (sc.layers !== undefined) {
+    if (!Array.isArray(sc.layers)) {
+      return `scene ${index + 1}: layers must be an array`;
+    }
+    if (sc.layers.length > 8) {
+      return `scene ${index + 1}: at most 8 layers`;
+    }
+    for (let j = 0; j < sc.layers.length; j++) {
+      const err = layerError(sc.layers[j], index, j, sc.duration_sec);
+      if (err) return err;
+    }
+  }
+  return null;
+}
+
+const LAYER_KINDS = new Set(["text", "shape", "image"]);
+
+function layerError(layer: unknown, sceneIdx: number, layerIdx: number, sceneSec: number): string | null {
+  if (!layer || typeof layer !== "object") {
+    return `scene ${sceneIdx + 1} layer ${layerIdx + 1}: not an object`;
+  }
+  const l = layer as Partial<Layer>;
+  if (!l.kind || !LAYER_KINDS.has(l.kind)) {
+    return `scene ${sceneIdx + 1} layer ${layerIdx + 1}: unknown kind ${String(l.kind)}`;
+  }
+  if (l.kind === "text" && !String(l.text ?? "").trim()) {
+    return `scene ${sceneIdx + 1} layer ${layerIdx + 1}: text layers need text`;
+  }
+  if (l.kind === "shape" && !(typeof l.fill === "string" && HEX_RE.test(l.fill))) {
+    return `scene ${sceneIdx + 1} layer ${layerIdx + 1}: shape layers need a #RRGGBB fill`;
+  }
+  if (l.kind === "image" && !String(l.source ?? "").trim()) {
+    return `scene ${sceneIdx + 1} layer ${layerIdx + 1}: image layers need a source`;
+  }
+  const start = typeof l.start === "number" ? l.start : 0;
+  if (start < 0 || start >= sceneSec) {
+    return `scene ${sceneIdx + 1} layer ${layerIdx + 1}: start must be within the scene`;
+  }
+  if (l.duration !== undefined && l.duration < 0) {
+    return `scene ${sceneIdx + 1} layer ${layerIdx + 1}: duration must be positive`;
   }
   return null;
 }

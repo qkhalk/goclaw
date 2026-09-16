@@ -1,31 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SceneTransition } from "../components/scene-transition";
+import type { Scene } from "../hooks/use-timeline";
 import { drawStoryboardFrame } from "../components/render-shared";
 
-// ── Types ──
+// ── Types (Scene is the canonical model from use-timeline) ──
 
-interface KenBurns {
-  zoom_from: number;
-  zoom_to: number;
-  pan: "none" | "left" | "right" | "up" | "down";
-}
-interface Caption {
-  text: string;
-  position?: "top" | "center" | "bottom";
-  font_size?: number;
-}
-interface Scene {
-  type: "image" | "video" | "color";
-  source?: string;
-  color?: string;
-  duration_sec: number;
-  fit?: "cover" | "contain";
-  mute?: boolean;
-  ken_burns?: KenBurns;
-  caption?: Caption;
-  narration?: string;
-  transition?: SceneTransition;
-}
 interface Storyboard {
   version: number;
   canvas: { width: number; height: number; fps: number };
@@ -104,26 +82,32 @@ export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
   const scratchARef = useRef<HTMLCanvasElement | null>(null);
   const scratchBRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Preload images
+  // Preload images (scene sources + image-layer sources)
   useEffect(() => {
+    const wanted = new Set<string>();
     for (const scene of storyboard.scenes) {
       if ((scene.type === "image" || scene.type === "video") && scene.source) {
-        if (!imageCacheRef.current.has(scene.source) && !loadingImagesRef.current.has(scene.source)) {
-          loadingImagesRef.current.add(scene.source);
-          loadImage(scene.source)
-            .then((img) => {
-              imageCacheRef.current.set(scene.source!, img);
-              loadingImagesRef.current.delete(scene.source!);
-              // Force re-render after image loads
-              if (!isPlayingRef.current) {
-                renderCurrentFrame();
-              }
-            })
-            .catch(() => {
-              loadingImagesRef.current.delete(scene.source!);
-            });
-        }
+        wanted.add(scene.source);
       }
+      for (const layer of scene.layers ?? []) {
+        if (layer.kind === "image" && layer.source) wanted.add(layer.source);
+      }
+    }
+    for (const src of wanted) {
+      if (imageCacheRef.current.has(src) || loadingImagesRef.current.has(src)) continue;
+      loadingImagesRef.current.add(src);
+      loadImage(src)
+        .then((img) => {
+          imageCacheRef.current.set(src, img);
+          loadingImagesRef.current.delete(src);
+          // Force re-render after image loads
+          if (!isPlayingRef.current) {
+            renderCurrentFrame();
+          }
+        })
+        .catch(() => {
+          loadingImagesRef.current.delete(src);
+        });
     }
   }, [storyboard.scenes]);
 

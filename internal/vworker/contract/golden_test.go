@@ -84,6 +84,26 @@ var goldenFixtures = []struct {
 		}`,
 	},
 	{
+		// Timed overlay layers must survive both parsers identically —
+		// geometry, timing and style defaults resolve the same on both sides.
+		name: "layers",
+		json: `{
+			"version": 1,
+			"canvas": { "width": 1080, "height": 1920, "fps": 30 },
+			"scenes": [
+				{
+					"type": "color", "color": "#0f172a", "duration_sec": 6,
+					"caption": { "text": "Bottom caption" },
+					"layers": [
+						{ "kind": "text", "text": "Sale 50%", "y": 0.2, "font_size": 72, "fill": "#FACC15" },
+						{ "kind": "shape", "shape": "rect", "x": 0.1, "y": 0.15, "w": 0.8, "h": 0.18, "fill": "#000000", "opacity": 0.55, "start": 0.5, "duration": 3 },
+						{ "kind": "image", "source": "media/logo.png", "x": 0.4, "y": 0.6, "w": 0.2, "h": 0.2, "start": 1, "duration": 2, "align": "left" }
+					]
+				}
+			]
+		}`,
+	},
+	{
 		// Scene enter transitions must survive both parsers so server renders
 		// can xfade exactly what the browser preview shows.
 		name: "scene_transitions",

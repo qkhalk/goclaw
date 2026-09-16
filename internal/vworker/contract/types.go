@@ -50,6 +50,89 @@ type Scene struct {
 	// Transition is the scene's enter transition (applied at the junction
 	// with the previous scene): none|fade|crossfade|slide_left|slide_up.
 	Transition string `json:"transition,omitempty"`
+	// Layers are timed overlays drawn on top of the base visual (and under
+	// the caption), in array order. Optional.
+	Layers []Layer `json:"layers,omitempty"`
+}
+
+// LayerKind enumerates the overlay layer kinds.
+type LayerKind string
+
+const (
+	LayerText  LayerKind = "text"
+	LayerShape LayerKind = "shape"
+	LayerImage LayerKind = "image"
+)
+
+// Layer is one timed overlay inside a scene — copy-shape mirror of
+// internal/video.Layer (drift-guarded by the golden fixture "layers").
+type Layer struct {
+	Kind     LayerKind `json:"kind"`
+	Text     string    `json:"text,omitempty"`
+	Source   string    `json:"source,omitempty"`
+	Shape    string    `json:"shape,omitempty"`
+	Start    float64   `json:"start,omitempty"`
+	Duration float64   `json:"duration,omitempty"`
+	X        float64   `json:"x,omitempty"`
+	Y        float64   `json:"y,omitempty"`
+	W        float64   `json:"w,omitempty"`
+	H        float64   `json:"h,omitempty"`
+	Fill     string    `json:"fill,omitempty"`
+	Opacity  float64   `json:"opacity,omitempty"`
+	FontSize int       `json:"font_size,omitempty"`
+	Align    string    `json:"align,omitempty"`
+}
+
+// EffectiveStart resolves the layer's start (0 default) — mirror of
+// internal/video.
+func (l *Layer) EffectiveStart() float64 { return l.Start }
+
+// EffectiveDuration resolves duration 0 = until the scene ends.
+func (l *Layer) EffectiveDuration(sceneSec float64) float64 {
+	if l.Duration > 0 {
+		return l.Duration
+	}
+	return sceneSec - l.Start
+}
+
+// EffectiveStyle resolves the style defaults (fill white, opacity 1,
+// font_size 48, align center).
+func (l *Layer) EffectiveStyle() (fill string, opacity float64, fontSize int, align string) {
+	fill = l.Fill
+	if fill == "" {
+		fill = "#FFFFFF"
+	}
+	opacity = l.Opacity
+	if opacity == 0 {
+		opacity = 1
+	}
+	fontSize = l.FontSize
+	if fontSize == 0 {
+		fontSize = 48
+	}
+	align = l.Align
+	if align == "" {
+		align = "center"
+	}
+	return fill, opacity, fontSize, align
+}
+
+// EffectiveBox resolves the geometry defaults (x/y 0.1, w 0.8, h 0.3).
+func (l *Layer) EffectiveBox() (x, y, w, h float64) {
+	x, y, w, h = l.X, l.Y, l.W, l.H
+	if x == 0 {
+		x = 0.1
+	}
+	if y == 0 {
+		y = 0.1
+	}
+	if w == 0 {
+		w = 0.8
+	}
+	if h == 0 && l.Kind == LayerShape {
+		h = 0.3
+	}
+	return x, y, w, h
 }
 
 // KenBurns animates a slow zoom/pan on image scenes.

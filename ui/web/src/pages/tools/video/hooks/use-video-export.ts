@@ -1,33 +1,11 @@
 import { useCallback, useRef, useState } from "react";
 import { useHttp } from "@/hooks/use-ws";
 import { submitRenderJob, type VideoRenderJob } from "./use-video";
-import type { SceneTransition } from "../components/scene-transition";
+import type { Scene } from "./use-timeline";
 import { drawStoryboardFrame } from "../components/render-shared";
 
-// ── Types ──
+// ── Types (Scene is the canonical model from use-timeline) ──
 
-interface KenBurns {
-  zoom_from: number;
-  zoom_to: number;
-  pan: "none" | "left" | "right" | "up" | "down";
-}
-interface Caption {
-  text: string;
-  position?: "top" | "center" | "bottom";
-  font_size?: number;
-}
-interface Scene {
-  type: "image" | "video" | "color";
-  source?: string;
-  color?: string;
-  duration_sec: number;
-  fit?: "cover" | "contain";
-  mute?: boolean;
-  ken_burns?: KenBurns;
-  caption?: Caption;
-  narration?: string;
-  transition?: SceneTransition;
-}
 export interface Storyboard {
   version: number;
   canvas: { width: number; height: number; fps: number };
@@ -152,18 +130,24 @@ async function exportWithMediaRecorder(
   scratchB.height = height;
 
   // Preload all images (video scenes fall back to the dark placeholder —
-  // same as the preview player).
+  // same as the preview player). Image-layer sources preload too.
   const imageCache = new Map<string, HTMLImageElement>();
+  const wanted = new Set<string>();
   for (const scene of storyboard.scenes) {
     if ((scene.type === "image" || scene.type === "video") && scene.source) {
-      if (!imageCache.has(scene.source)) {
-        try {
-          const img = await loadImage(scene.source);
-          imageCache.set(scene.source, img);
-        } catch {
-          // Skip failed images
-        }
-      }
+      wanted.add(scene.source);
+    }
+    for (const layer of scene.layers ?? []) {
+      if (layer.kind === "image" && layer.source) wanted.add(layer.source);
+    }
+  }
+  for (const src of wanted) {
+    if (imageCache.has(src)) continue;
+    try {
+      const img = await loadImage(src);
+      imageCache.set(src, img);
+    } catch {
+      // Skip failed images
     }
   }
 
