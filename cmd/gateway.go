@@ -914,6 +914,13 @@ func runGateway() {
 	// S3 backup integration — admin + owner only.
 	server.SetBackupS3Handler(httpapi.NewBackupS3Handler(cfg, cfg.Database.PostgresDSN, Version, pgStores.ConfigSecrets, permPE.IsOwner))
 
+	// Scheduled cloud/S3 backups — ticker loop + owner-only config API.
+	backupSchedStop, backupSched := startBackupSchedule(cfg, pgStores, cloudMgr, cloudStorage)
+	if backupSched != nil {
+		defer backupSchedStop()
+		server.SetBackupScheduleHandler(httpapi.NewBackupScheduleHandler(backupSched, permPE.IsOwner))
+	}
+
 	// Tenant-scoped backup/restore — owner or tenant admin.
 	if pgStores.Tenants != nil {
 		server.SetTenantBackupHandler(httpapi.NewTenantBackupHandler(pgStores.DB, cfg, pgStores.Tenants, Version, permPE.IsOwner))
