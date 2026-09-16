@@ -25,13 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SettingsModal } from "./settings-modal";
 import { CLOUD_PROVIDERS } from "./drive/drive-rail";
 import { StarredView } from "./drive/starred-view";
@@ -821,9 +814,45 @@ function PasteBackPanel({
 }
 
 /** Agent access levels for one account (admin-set; gates the cloud/mail
- * agent tools only — the web UI is unaffected). */
-const AGENT_ACCESS_LEVELS = ["none", "read", "write", "full"] as const;
-type AgentAccessLevel = (typeof AGENT_ACCESS_LEVELS)[number];
+ * agent tools only — the web UI is unaffected). The ladder is none <
+ * read < write < full; the card exposes it as three capability switches
+ * (read / write / manage) that compile back down to the level. */
+type AgentAccessLevel = "none" | "read" | "write" | "full";
+
+const ACCESS_RANK: Record<AgentAccessLevel, number> = { none: 0, read: 1, write: 2, full: 3 };
+
+/** Per-capability view of the access ladder (monotonic: write implies
+ * read, manage implies write). */
+function accessCapabilities(access: AgentAccessLevel) {
+  return {
+    read: ACCESS_RANK[access] >= ACCESS_RANK.read,
+    write: ACCESS_RANK[access] >= ACCESS_RANK.write,
+    manage: ACCESS_RANK[access] >= ACCESS_RANK.full,
+  };
+}
+
+/** One capability switch row of the agent-access group. */
+function CapabilitySwitch({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5">
+      <span className="min-w-0">
+        <span className="block text-xs font-medium leading-tight text-foreground">{label}</span>
+        <span className="block truncate text-[11px] leading-tight text-muted-foreground">{hint}</span>
+      </span>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </label>
+  );
+}
 
 /** Clickable drive card for one account (provider views). */
 function AccountCard({
@@ -906,23 +935,29 @@ function AccountCard({
             <span>{t("share.toggle")}</span>
             <Switch checked={account.shared} onCheckedChange={onSharedChange} />
           </label>
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5">
+          <div className="space-y-1 rounded-md border p-2.5">
+            <p className="flex items-center gap-1.5">
               <ShieldCheck className="h-3.5 w-3.5" />
               {t("agent_access.title")}
-            </span>
-            <Select value={access} onValueChange={(v) => onAgentAccess(v as AgentAccessLevel)}>
-              <SelectTrigger className="h-7 w-36 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AGENT_ACCESS_LEVELS.map((level) => (
-                  <SelectItem key={level} value={level} className="text-xs">
-                    {t(`agent_access.${level}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            </p>
+            <CapabilitySwitch
+              label={t("agent_access.cap_read")}
+              hint={t("agent_access.cap_read_hint")}
+              checked={accessCapabilities(access).read}
+              onChange={(v) => onAgentAccess(v ? (access === "none" ? "read" : access) : "none")}
+            />
+            <CapabilitySwitch
+              label={t("agent_access.cap_write")}
+              hint={t("agent_access.cap_write_hint")}
+              checked={accessCapabilities(access).write}
+              onChange={(v) => onAgentAccess(v ? (ACCESS_RANK[access] >= ACCESS_RANK.write ? access : "write") : "read")}
+            />
+            <CapabilitySwitch
+              label={t("agent_access.cap_manage")}
+              hint={t("agent_access.cap_manage_hint")}
+              checked={accessCapabilities(access).manage}
+              onChange={(v) => onAgentAccess(v ? "full" : accessCapabilities(access).write ? "write" : "read")}
+            />
           </div>
         </div>
       )}
