@@ -42,7 +42,8 @@ seconds, steady rhythm, one idea per scene.
 - If the fetch fails or yields nothing usable, fall back to a color-scene
   design; never invent or guess image URLs.
 - Apply subtle ken_burns to every static image (zoom_from 1.0, zoom_to 1.12)
-  and vary the pan direction between scenes (left, then up, then right).
+  and vary pan between scenes using the direction words left, up, right
+  (e.g. "ken_burns": {"zoom_from": 1.0, "zoom_to": 1.12, "pan": "left"}).
 - Never place two image scenes back to back without different pan or zoom
   directions; never place two color scenes with similar colors back to back.
 
@@ -79,6 +80,8 @@ Field rules that fail rendering when broken:
 - image and video scenes MUST have source (https URL or workspace path).
 - color scenes MUST have color as #RRGGBB.
 - duration_sec is required, 1 to 30 per scene.
+- ken_burns.pan is a single word: "none", "left", "right", "up" or "down" —
+  never a coordinate object like {"from_x":...}. Vary pan between scenes.
 - caption.position is one of top, center, bottom.
 - narration, when used, is an object: {"text": "...", "voice": "optional"}.
 - output.height is 480, 720 or 1080. Use 720 for social posts.
