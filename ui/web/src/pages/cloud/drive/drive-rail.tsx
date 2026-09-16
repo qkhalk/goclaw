@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Building2, ChevronDown, Clock, Cloud, HardDrive, Inbox, LayoutDashboard, Loader2, Search, Star } from "lucide-react";
+import { DropboxIcon } from "@/components/icons/dropbox-icon";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
@@ -22,9 +23,14 @@ const RAIL_ROW =
   "flex min-h-11 min-w-0 items-center gap-2 rounded-md py-1.5 text-left text-sm transition-colors hover:bg-muted/60";
 
 /** Connectable providers (backend mirror: cloud.SupportedProviders). */
-export const CLOUD_PROVIDERS: { id: CloudProvider; name: string; icon: typeof Cloud }[] = [
+export const CLOUD_PROVIDERS: {
+  id: CloudProvider;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { id: "google", name: "Google Drive", icon: Cloud },
   { id: "onedrive", name: "Microsoft OneDrive", icon: HardDrive },
+  { id: "dropbox", name: "Dropbox", icon: DropboxIcon },
 ];
 
 /** rclone quota for one account (GET /v1/cloud/accounts/{id}/about). */

@@ -5,7 +5,8 @@
   "connect": {
     "google": "Подключить аккаунт Google",
     "onedrive": "Подключить аккаунт OneDrive",
-    "another": "Подключить другой аккаунт"
+    "another": "Подключить другой аккаунт",
+    "dropbox": "Подключить аккаунт Dropbox"
   },
   "disconnect": "Отключить",
   "readonly_badge": "Только чтение",
@@ -67,7 +68,14 @@
     "advanced": "Использовать свой OAuth-клиент (расширенно)",
     "embedded_note": "Быстрое подключение использует общий OAuth-клиент rclone — настройка не нужна, но действуют общие лимиты. Общий клиент теперь выдаёт полный доступ к Drive. Инструментам Gmail по-прежнему нужен собственный OAuth-клиент (см. настройки облаков).",
     "expand": "Настроить сейчас",
-    "configured": "OAuth-клиент сохранён"
+    "configured": "OAuth-клиент сохранён",
+    "title_dropbox": "Dropbox ещё не настроен",
+    "dropbox_client_id": "Dropbox App key",
+    "dropbox_step1": "Создайте приложение на dropbox.com/developers/apps (scopes: files.metadata.read/write, files.content.read/write, sharing.write).",
+    "dropbox_step2": "Добавьте в приложение redirect URI <base>/v1/cloud/oauth/callback.",
+    "dropbox_step3": "Скопируйте App key и App secret.",
+    "dropbox_step4": "Вставьте App key + secret и сохраните.",
+    "dropbox_note": "Dropbox требует собственное приложение (общего клиента нет) — регистрация бесплатна."
   },
   "disconnect_confirm": {
     "title": "Отключить аккаунт?",

@@ -5,7 +5,8 @@
   "connect": {
     "google": "Google 계정 연결",
     "onedrive": "OneDrive 계정 연결",
-    "another": "다른 계정 연결"
+    "another": "다른 계정 연결",
+    "dropbox": "Dropbox 계정 연결"
   },
   "disconnect": "연결 해제",
   "readonly_badge": "읽기 전용",
@@ -67,7 +68,14 @@
     "advanced": "자체 OAuth 클라이언트 사용 (고급)",
     "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. 공유 클라이언트는 이제 전체 Drive 권한을 부여합니다. Gmail 도구에는 여전히 자체 OAuth 클라이언트가 필요합니다(클라우드 설정 참조).",
     "expand": "지금 설정",
-    "configured": "OAuth 클라이언트 저장됨"
+    "configured": "OAuth 클라이언트 저장됨",
+    "title_dropbox": "Dropbox가 아직 구성되지 않았습니다",
+    "dropbox_client_id": "Dropbox App key",
+    "dropbox_step1": "dropbox.com/developers/apps에서 앱을 만드세요(scopes: files.metadata.read/write, files.content.read/write, sharing.write).",
+    "dropbox_step2": "앱에 리디렉션 URI <base>/v1/cloud/oauth/callback를 추가하세요.",
+    "dropbox_step3": "App key와 App secret을 복사하세요.",
+    "dropbox_step4": "App key + secret을 붙여넣고 저장하세요.",
+    "dropbox_note": "Dropbox는 자체 앱이 필요합니다(공유 클라이언트 없음) — 등록은 무료입니다."
   },
   "disconnect_confirm": {
     "title": "계정 연결을 해제하시겠습니까?",

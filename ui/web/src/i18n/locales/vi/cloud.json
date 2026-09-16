@@ -5,7 +5,8 @@
   "connect": {
     "google": "Kết nối tài khoản Google",
     "onedrive": "Kết nối tài khoản OneDrive",
-    "another": "Kết nối tài khoản khác"
+    "another": "Kết nối tài khoản khác",
+    "dropbox": "Kết nối tài khoản Dropbox"
   },
   "disconnect": "Ngắt kết nối",
   "readonly_badge": "Chỉ đọc",
@@ -67,7 +68,14 @@
     "advanced": "Dùng OAuth client riêng (nâng cao)",
     "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Client dùng chung nay cấp quyền Drive đầy đủ. Công cụ Gmail vẫn cần OAuth client riêng của bạn (xem Cài đặt đám mây).",
     "expand": "Cấu hình ngay",
-    "configured": "OAuth client đã lưu"
+    "configured": "OAuth client đã lưu",
+    "title_dropbox": "Dropbox chưa được cấu hình",
+    "dropbox_client_id": "Dropbox App key",
+    "dropbox_step1": "Tạo ứng dụng tại dropbox.com/developers/apps (scopes: files.metadata.read/write, files.content.read/write, sharing.write).",
+    "dropbox_step2": "Thêm redirect URI <base>/v1/cloud/oauth/callback vào ứng dụng.",
+    "dropbox_step3": "Sao chép App key và App secret.",
+    "dropbox_step4": "Dán App key + secret rồi lưu.",
+    "dropbox_note": "Dropbox cần ứng dụng riêng của bạn (không có client dùng chung) — đăng ký miễn phí."
   },
   "disconnect_confirm": {
     "title": "Ngắt kết nối tài khoản?",

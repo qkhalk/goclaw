@@ -5,7 +5,8 @@
   "connect": {
     "google": "Connect Google account",
     "onedrive": "Connect OneDrive account",
-    "another": "Connect another account"
+    "another": "Connect another account",
+    "dropbox": "Connect Dropbox account"
   },
   "disconnect": "Disconnect",
   "readonly_badge": "Read-only",
@@ -67,7 +68,14 @@
     "advanced": "Use your own OAuth client (advanced)",
     "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (see Cloud settings).",
     "expand": "Set up now",
-    "configured": "OAuth client saved"
+    "configured": "OAuth client saved",
+    "title_dropbox": "Dropbox is not configured yet",
+    "dropbox_client_id": "Dropbox App key",
+    "dropbox_step1": "Create an app at dropbox.com/developers/apps (scopes: files.metadata.read/write, files.content.read/write, sharing.write).",
+    "dropbox_step2": "Add the redirect URI <base>/v1/cloud/oauth/callback to the app.",
+    "dropbox_step3": "Copy the App key and App secret.",
+    "dropbox_step4": "Paste the App key + secret and save.",
+    "dropbox_note": "Dropbox requires your own app (no shared client) — registration is free."
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",

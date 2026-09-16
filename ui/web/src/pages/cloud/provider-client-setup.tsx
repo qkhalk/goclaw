@@ -29,7 +29,13 @@ export function ProviderClientSetup({ provider }: { provider: CloudProvider }) {
 
   const redirectUri = settings?.redirect_uri ?? "";
   const configuredOnce = settings?.secret_set ?? false;
-  const title = t(provider === "google" ? "setup.title_google" : "setup.title_onedrive");
+  const title = t(
+    provider === "google"
+      ? "setup.title_google"
+      : provider === "onedrive"
+        ? "setup.title_onedrive"
+        : "setup.title_dropbox",
+  );
 
   // Configured: slim emerald status row — the banner never comes back.
   if (configuredOnce && !editing) {
