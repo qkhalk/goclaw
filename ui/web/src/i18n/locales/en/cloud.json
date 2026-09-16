@@ -330,6 +330,12 @@
   },
   "agent_access": {
     "title": "Agent access",
+    "cap_read": "Read files",
+    "cap_read_hint": "Browse, download files, read mail",
+    "cap_write": "Create & update files",
+    "cap_write_hint": "Upload, write and edit on the drive",
+    "cap_manage": "Manage",
+    "cap_manage_hint": "Delete, move, create share links",
     "none": "No access",
     "read": "Read only",
     "write": "Read + write",

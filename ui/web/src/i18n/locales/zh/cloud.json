@@ -330,6 +330,12 @@
   },
   "agent_access": {
     "title": "Agent 权限",
+    "cap_read": "读取文件",
+    "cap_read_hint": "浏览、下载文件、阅读邮件",
+    "cap_write": "创建和更新文件",
+    "cap_write_hint": "在云端上传、写入和编辑文件",
+    "cap_manage": "管理",
+    "cap_manage_hint": "删除、移动、创建分享链接",
     "none": "禁止访问",
     "read": "只读",
     "write": "读写",
