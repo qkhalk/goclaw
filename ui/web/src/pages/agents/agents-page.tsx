@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useContactResolver } from "@/hooks/use-contact-resolver";
+import { isSystemAgent } from "@/lib/system-agents";
 import { useAgents } from "./hooks/use-agents";
 import { AgentCard } from "./agent-card";
 import { AgentListRow } from "./agent-list-row";
@@ -47,6 +48,9 @@ export function AgentsPage() {
   const { resolve } = useContactResolver(ownerIDs);
 
   const filtered = useMemo(() => agents.filter((a) => {
+    // Seeded studio workers (video/pptx designers) power dedicated tool
+    // pages and are not managed from this list.
+    if (isSystemAgent(a.agent_key)) return false;
     if (ownerFilter && a.owner_id !== ownerFilter) return false;
     if (typeFilter && a.agent_type !== typeFilter) return false;
     const q = search.toLowerCase();
