@@ -130,7 +130,7 @@ export function DriveFileArea({
       .filter((e) => !q || e.name.toLowerCase().includes(q));
     list.sort((a, b) => {
       if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
-      let cmp = 0;
+      let cmp: number;
       switch (sort.key) {
         case "size":
           cmp = a.size - b.size;
