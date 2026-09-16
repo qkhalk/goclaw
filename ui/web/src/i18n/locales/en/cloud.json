@@ -6,7 +6,24 @@
     "google": "Connect Google account",
     "onedrive": "Connect OneDrive account",
     "another": "Connect another account",
-    "dropbox": "Connect Dropbox account"
+    "dropbox": "Connect Dropbox account",
+    "s3": "Connect S3-compatible storage"
+  },
+  "s3": {
+    "title": "Connect S3-compatible storage",
+    "description": "Works with AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO and DO Spaces. Keys are validated against the endpoint before being saved.",
+    "label": "Label (optional)",
+    "label_placeholder": "Team archive",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "Leave empty for AWS S3. Path-style addressing is used automatically.",
+    "region": "Region (optional)",
+    "bucket": "Bucket",
+    "access_key": "Access key ID",
+    "secret_key": "Secret access key",
+    "secret_hint": "Stored encrypted at rest; it is never returned by the API after saving.",
+    "cancel": "Cancel",
+    "connect": "Connect",
+    "connecting": "Validating…"
   },
   "disconnect": "Disconnect",
   "readonly_badge": "Read-only",
@@ -37,7 +54,8 @@
     "coming_soon": "Coming soon",
     "google_desc": "Google Drive via your own GCP OAuth client. Gmail tools included.",
     "onedrive_desc": "Microsoft OneDrive (personal or work/school) via your own Azure app.",
-    "more_via_rclone": "More storages (Dropbox, S3, WebDAV, …) planned on the same rclone engine"
+    "more_via_rclone": "More storages (WebDAV, …) planned on the same native engine",
+    "s3_desc": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces — connect with access keys."
   },
   "provider": {
     "back": "All providers",
