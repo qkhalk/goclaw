@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Bot } from "lucide-react";
+import { Clapperboard, MessagesSquare, Presentation, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatTokens } from "@/lib/format";
 import { useHttp } from "@/hooks/use-ws";
-import type { RecentLLMRequest, RoutingEdge } from "./types";
+import { useAgents } from "@/pages/agents/hooks/use-agents";
+import type { ChannelStatusEntry, RoutingEdge } from "./types";
 
 interface NodeAgg {
   name: string;
@@ -14,13 +15,21 @@ interface NodeAgg {
   tokens: number;
 }
 
-const MAX_PROVIDERS = 8;
+/** One entry surface around the gateway hub. */
+interface Surface {
+  key: "telegram" | "web" | "pptx" | "video";
+  label: string;
+  status: "active" | "idle" | "offline";
+  calls24h: number;
+}
+
 const MAX_TABLE_MODELS = 8;
 const ROW_H = 46;
 const NODE_W = 168;
 const CENTER_W = 116;
 const GRAPH_MIN_WIDTH = 620;
 const REFRESH_INTERVAL = 30_000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const DOT_COLORS = [
   "bg-blue-500",
@@ -75,41 +84,106 @@ function aggregate(
   return [...map.values()].sort((a, b) => b.calls - a.calls).slice(0, max);
 }
 
-/** 9router-style routing card: providers orbit the gateway on an ellipse
- * (edge color = status: red errors / green active / gray idle, ping dot on
- * active), plus a per-model usage table with share bars underneath. Falls
- * back to a compact edge list on narrow screens. */
-export function RoutingGraphCard() {
+const SURFACE_ICONS = {
+  telegram: Send,
+  web: MessagesSquare,
+  pptx: Presentation,
+  video: Clapperboard,
+} as const;
+
+const EDGE_STROKE = {
+  active: "text-emerald-500/80 routing-edge-active",
+  idle: "text-muted-foreground/30",
+  offline: "text-muted-foreground/20",
+} as const;
+
+const NODE_BORDER = {
+  active: "border-emerald-500/60",
+  idle: "border-border",
+  offline: "border-border opacity-60",
+} as const;
+
+/** 9router-style surface topology: the entry surfaces an operator actually
+ * uses (Telegram, web chat, PPTX, video editor) orbit the GoClaw hub — the
+ * hub carries the claw logo, and an active surface gets an animated dashed
+ * edge flowing into it plus a ping dot. The per-model usage table underneath
+ * keeps the real model routing data. Falls back to a compact edge list on
+ * narrow screens. */
+export function RoutingGraphCard({
+  channelEntries = [],
+  clientCount = 0,
+}: {
+  channelEntries?: [string, ChannelStatusEntry][];
+  clientCount?: number;
+}) {
   const { t } = useTranslation("overview");
   const http = useHttp();
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  const { agents } = useAgents();
 
   const { data } = useQuery({
     queryKey: ["usage", "routing"],
     refetchInterval: REFRESH_INTERVAL,
     queryFn: () => http.get<{ window_hours: number; edges: RoutingEdge[] }>("/v1/usage/routing", { hours: "24", limit: "24" }),
   });
-  // Providers seen in the newest LLM calls count as "active" (green + ping).
-  const { data: recent } = useQuery({
-    queryKey: ["usage", "recent-requests", "routing-active"],
-    refetchInterval: REFRESH_INTERVAL,
-    queryFn: () => http.get<{ requests: RecentLLMRequest[] }>("/v1/usage/recent-requests", { limit: "20" }),
-  });
   const edges = data?.edges ?? [];
 
-  const providers = useMemo(
-    () => aggregate(edges, "provider", MAX_PROVIDERS),
-    [edges],
-  );
-  const models = useMemo(
-    () => aggregate(edges, "model", MAX_TABLE_MODELS),
-    [edges],
-  );
-  const activeProviders = useMemo(
-    () => new Set((recent?.requests ?? []).map((r) => r.provider)),
-    [recent],
-  );
+  // Per-surface activity, 24h: agent requests grouped by agent UUID, mapped
+  // to agent keys, plus live video jobs as a strong editor signal.
+  const { data: agentBreakdown } = useQuery({
+    queryKey: ["usage", "breakdown", "agent", "24h", "routing-active"],
+    refetchInterval: REFRESH_INTERVAL,
+    queryFn: () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - DAY_MS);
+      return http.get<{ rows: { key: string; request_count: number }[] }>("/v1/usage/breakdown", {
+        group_by: "agent",
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+    },
+  });
+  const { data: videoJobs } = useQuery({
+    queryKey: ["video", "jobs", "routing-active"],
+    refetchInterval: REFRESH_INTERVAL,
+    queryFn: () => http.get<{ jobs: { status: string; updated_at: string }[] }>("/v1/video/jobs", { limit: "10" }),
+  });
+
+  const agentCalls24h = useMemo(() => {
+    const idToKey = new Map((agents ?? []).map((a) => [a.id, a.agent_key] as const));
+    const byKey = new Map<string, number>();
+    for (const row of agentBreakdown?.rows ?? []) {
+      const key = idToKey.get(row.key) ?? row.key;
+      byKey.set(key, (byKey.get(key) ?? 0) + row.request_count);
+    }
+    return byKey;
+  }, [agents, agentBreakdown]);
+
+  const surfaces = useMemo<Surface[]>(() => {
+    const telegram = channelEntries.find(([name]) => name.toLowerCase().includes("telegram"));
+    const telegramRunning = telegram?.[1]?.running ?? false;
+    const now = Date.now();
+    const videoBusy = (videoJobs?.jobs ?? []).some((j) => {
+      if (j.status === "queued" || j.status === "rendering") return true;
+      const updated = new Date(j.updated_at).getTime();
+      return Number.isFinite(updated) && now - updated < DAY_MS;
+    });
+    const surface = (key: Surface["key"], active: boolean, calls24h: number, offline = false): Surface => ({
+      key,
+      label: t(`routing.surfaces.${key}`),
+      status: offline ? "offline" : active ? "active" : "idle",
+      calls24h,
+    });
+    return [
+      surface("telegram", telegramRunning, agentCalls24h.get("telegram") ?? 0, telegram !== undefined && !telegramRunning),
+      surface("web", clientCount > 0, 0),
+      surface("pptx", (agentCalls24h.get("pptx-designer") ?? 0) > 0, agentCalls24h.get("pptx-designer") ?? 0),
+      surface("video", videoBusy || (agentCalls24h.get("video-designer") ?? 0) > 0, agentCalls24h.get("video-designer") ?? 0),
+    ];
+  }, [t, channelEntries, clientCount, agentCalls24h, videoJobs]);
+
+  const models = useMemo(() => aggregate(edges, "model", MAX_TABLE_MODELS), [edges]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -123,22 +197,8 @@ export function RoutingGraphCard() {
 
   const totalCalls = edges.reduce((s, e) => s + e.calls, 0);
   const req = (n: number) => t("routing.req", { count: compactCount(n) });
-  const providersFolded = new Set(edges.map((e) => e.provider)).size - providers.length;
   const modelsFolded = new Set(edges.map((e) => e.model)).size - models.length;
-  const moreLabel =
-    providersFolded > 0 || modelsFolded > 0
-      ? [
-          providersFolded > 0 ? t("routing.moreProviders", { count: providersFolded }) : "",
-          modelsFolded > 0 ? t("routing.moreModels", { count: modelsFolded }) : "",
-        ]
-            .filter(Boolean)
-            .join(" · ")
-      : "";
-
-  const statusOf = useMemo(
-    () => statusOfFactory(edges, activeProviders),
-    [edges, activeProviders],
-  );
+  const moreLabel = modelsFolded > 0 ? t("routing.moreModels", { count: modelsFolded }) : "";
 
   // The measured wrapper renders in EVERY branch (narrow list, wide graph,
   // noData) so the ResizeObserver attached once at mount always has a node;
@@ -158,11 +218,9 @@ export function RoutingGraphCard() {
         <WideGraph
           width={width}
           edges={edges}
-          providers={providers}
           models={models}
+          surfaces={surfaces}
           totalCalls={totalCalls}
-          activeProviders={activeProviders}
-          statusOf={statusOf}
           req={req}
           moreLabel={moreLabel}
           title={t("routing.title")}
@@ -173,20 +231,12 @@ export function RoutingGraphCard() {
           colInOut={t("recentRequests.columns.inOut")}
           colRequests={t("routing.columns.requests")}
           colShare={t("routing.columns.share")}
+          idleLabel={t("routing.surfaceIdle")}
+          offlineLabel={t("routing.surfaceOffline")}
         />
       )}
     </div>
   );
-}
-
-type Status = "error" | "active" | "idle";
-
-function statusOfFactory(edges: RoutingEdge[], activeProviders: Set<string>) {
-  return (name: string): Status => {
-    if (edges.some((e) => e.provider === name && e.errors > 0)) return "error";
-    if (activeProviders.has(name)) return "active";
-    return "idle";
-  };
 }
 
 function NarrowList({
@@ -238,25 +288,12 @@ function NarrowList({
   );
 }
 
-const EDGE_STROKE: Record<Status, string> = {
-  error: "text-red-500/70",
-  active: "text-emerald-500/70",
-  idle: "text-muted-foreground/30",
-};
-const NODE_BORDER: Record<Status, string> = {
-  error: "border-red-500/60",
-  active: "border-emerald-500/60",
-  idle: "border-border",
-};
-
 function WideGraph(props: {
   width: number;
   edges: RoutingEdge[];
-  providers: NodeAgg[];
   models: NodeAgg[];
+  surfaces: Surface[];
   totalCalls: number;
-  activeProviders: Set<string>;
-  statusOf: (name: string) => Status;
   req: (n: number) => string;
   moreLabel: string;
   title: string;
@@ -267,14 +304,17 @@ function WideGraph(props: {
   colInOut: string;
   colRequests: string;
   colShare: string;
+  idleLabel: string;
+  offlineLabel: string;
 }) {
   const {
-    width, edges, providers, models, totalCalls, statusOf, req, moreLabel,
+    width, edges, models, surfaces, totalCalls, req, moreLabel,
     title, window: windowLabel, noData, byModel, colModel, colInOut, colRequests, colShare,
+    idleLabel, offlineLabel,
   } = props;
 
-  // --- Ellipse layout (9router ProviderTopology formula, scaled to card) ---
-  const n = providers.length;
+  // --- Ellipse layout: 4 surfaces at the compass points around the hub ---
+  const n = Math.max(surfaces.length, 1);
   const cx = width / 2;
   const rx = Math.max(
     170,
@@ -282,16 +322,15 @@ function WideGraph(props: {
   );
   const ry = Math.max(110, Math.min(rx * 0.55, 170));
   const height = 2 * ry + ROW_H;
-  const providerPos = providers.map((p, i) => {
+  const surfacePos = surfaces.map((s, i) => {
     const angle = -Math.PI / 2 + (2 * Math.PI * i) / n;
     return {
-      p,
+      s,
       x: cx + rx * Math.cos(angle) - NODE_W / 2,
       y: height / 2 + ry * Math.sin(angle) - ROW_H / 2,
     };
   });
 
-  const centerCalls = providers.reduce((s, p) => s + p.calls, 0);
   const inOutByModel = new Map(models.map((m) => {
     let inTok = 0;
     let outTok = 0;
@@ -308,85 +347,88 @@ function WideGraph(props: {
     <Card>
       <GraphHeader title={title} window={windowLabel} />
       <CardContent>
-        {edges.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">{noData}</p>
-        ) : (
-          <>
-            <div className="relative w-full" style={{ height }}>
-              {width > 0 && (
-                <>
-                  <svg className="absolute inset-0" width={width} height={height} aria-hidden>
-                    {providerPos.map(({ p, x, y }) => {
-                      const st = statusOf(p.name);
-                      const x0 = x + NODE_W / 2;
-                      const y0 = y + ROW_H / 2;
-                      const x1 = cx;
-                      const y1 = height / 2;
-                      const mid = (x0 + x1) / 2;
-                      return (
-                        <path
-                          key={`edge-${p.name}`}
-                          d={`M ${x0} ${y0} C ${mid} ${y0}, ${mid} ${y1}, ${x1} ${y1}`}
-                          fill="none"
-                          stroke="currentColor"
-                          className={EDGE_STROKE[st]}
-                          strokeWidth={1.5}
-                        />
-                      );
-                    })}
-                  </svg>
+        {/* Hub topology always renders; only the model table needs data. */}
+        <div className="relative w-full" style={{ height }}>
+          {width > 0 && (
+            <>
+              <svg className="absolute inset-0" width={width} height={height} aria-hidden>
+                {surfacePos.map(({ s, x, y }) => {
+                  const x0 = x + NODE_W / 2;
+                  const y0 = y + ROW_H / 2;
+                  const x1 = cx;
+                  const y1 = height / 2;
+                  const mid = (x0 + x1) / 2;
+                  return (
+                    <path
+                      key={`edge-${s.key}`}
+                      d={`M ${x0} ${y0} C ${mid} ${y0}, ${mid} ${y1}, ${x1} ${y1}`}
+                      fill="none"
+                      stroke="currentColor"
+                      className={EDGE_STROKE[s.status]}
+                      strokeWidth={1.5}
+                    />
+                  );
+                })}
+              </svg>
 
-                  {providerPos.map(({ p, x, y }) => {
-                    const st = statusOf(p.name);
-                    return (
-                      <div
-                        key={p.name}
-                        className={`absolute flex items-center gap-2 rounded-lg border-2 bg-card px-2.5 shadow-sm ${NODE_BORDER[st]}`}
-                        style={{ left: x, top: y, width: NODE_W, height: ROW_H }}
-                      >
-                        <span
-                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-semibold uppercase ${avatarTint(p.name)}`}
-                        >
-                          {p.name.charAt(0)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium" title={p.name}>
-                            {p.name}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground tabular-nums">
-                            {req(p.calls)}
-                          </p>
-                        </div>
-                        {st === "active" && (
-                          <span className="relative flex h-2 w-2 shrink-0">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:hidden" />
-                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-
+              {surfacePos.map(({ s, x, y }) => {
+                const Icon = SURFACE_ICONS[s.key];
+                const sub =
+                  s.status === "active" && s.calls24h > 0
+                    ? req(s.calls24h)
+                    : s.status === "offline"
+                      ? offlineLabel
+                      : idleLabel;
+                return (
                   <div
-                    className="absolute flex flex-col items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 px-2 shadow-sm"
-                    style={{ left: cx - CENTER_W / 2, top: height / 2 - ROW_H / 2, width: CENTER_W, height: ROW_H }}
+                    key={s.key}
+                    className={`absolute flex items-center gap-2 rounded-lg border-2 bg-card px-2.5 shadow-sm ${NODE_BORDER[s.status]}`}
+                    style={{ left: x, top: y, width: NODE_W, height: ROW_H }}
                   >
-                    <Bot className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-semibold leading-tight">GoClaw</p>
-                    <p className="text-[10px] text-muted-foreground tabular-nums">
-                      {req(centerCalls)}
-                    </p>
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${avatarTint(s.key)}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium" title={s.label}>
+                        {s.label}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground tabular-nums">{sub}</p>
+                    </div>
+                    {s.status === "active" && (
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:hidden" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                      </span>
+                    )}
                   </div>
-                </>
-              )}
-            </div>
-            {moreLabel && <p className="mt-2 text-[11px] text-muted-foreground">{moreLabel}</p>}
+                );
+              })}
 
-            {/* Usage by model (9router UsageTable style, compact) */}
-            <div className="mt-4 border-t pt-3">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                {byModel}
-              </p>
+              {/* GoClaw hub: claw logo + wordmark (brand lockup) */}
+              <div
+                className="absolute flex flex-col items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10 px-2 shadow-sm"
+                style={{ left: cx - CENTER_W / 2, top: height / 2 - ROW_H / 2, width: CENTER_W, height: ROW_H }}
+              >
+                <img src="/goclaw-icon.svg" alt="" className="h-5 w-5" />
+                <p className="text-xs font-bold leading-tight text-primary">GoClaw</p>
+                <p className="text-[10px] text-muted-foreground tabular-nums">
+                  {req(totalCalls)}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+        {/* Usage by model (9router UsageTable style, compact) */}
+        <div className="mt-4 border-t pt-3">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            {byModel}
+          </p>
+          {edges.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">{noData}</p>
+          ) : (
+            <>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] text-sm">
                   <thead>
@@ -436,12 +478,13 @@ function WideGraph(props: {
                   </tbody>
                 </table>
               </div>
-            </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              {req(totalCalls)} · {windowLabel}
-            </p>
-          </>
-        )}
+              {moreLabel && <p className="mt-2 text-[11px] text-muted-foreground">{moreLabel}</p>}
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                {req(totalCalls)} · {windowLabel}
+              </p>
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

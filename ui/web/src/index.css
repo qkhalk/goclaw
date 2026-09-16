@@ -196,6 +196,25 @@
   animation: wobble 1s ease-in-out infinite;
 }
 
+/* PPTX Studio settle animations — state-conveying entrances (panel opens,
+   slide switches, deck card lands). Gated behind prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes pptx-fade-up {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pptx-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .pptx-enter {
+    animation: pptx-fade-up 0.28s cubic-bezier(0.25, 1, 0.5, 1) both;
+  }
+  .pptx-enter-soft {
+    animation: pptx-fade 0.22s cubic-bezier(0.25, 1, 0.5, 1) both;
+  }
+}
+
 /* highlight.js: transparent bg, container handles it */
 .hljs { background: transparent !important; }
 
@@ -382,4 +401,20 @@
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Routing topology: animated connection flow toward active surfaces */
+@keyframes routing-dash {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+.routing-edge-active {
+  stroke-dasharray: 5 4;
+  animation: routing-dash 1.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .routing-edge-active {
+    animation: none;
+  }
 }
