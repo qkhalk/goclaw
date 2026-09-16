@@ -275,6 +275,21 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		// Update scene source to the materialized local path
 		sb.Scenes[i].Source = scenePath
 
+		// Materialize image-layer sources the same way (runner rewrites in
+		// place; the ffmpeg builders consume l.Source as a local path).
+		for j := range sb.Scenes[i].Layers {
+			l := &sb.Scenes[i].Layers[j]
+			if l.Kind != contract.LayerImage {
+				continue
+			}
+			lp, err := Materialize(ctx, r.cfg.WorkDir, l.Source, "")
+			if err != nil {
+				r.failJob(js, fmt.Sprintf("scene %d layer %d materialize: %v", i, j, err))
+				return
+			}
+			l.Source = lp
+		}
+
 		// Build and run ffmpeg
 		outPath := sceneOutputPath(tempDir, i)
 		err = r.renderScene(ctx, ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath, tempDir, i)
