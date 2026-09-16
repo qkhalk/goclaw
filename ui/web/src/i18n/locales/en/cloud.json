@@ -63,7 +63,9 @@
     "cancel": "Cancel",
     "update": "Update credentials",
     "advanced": "Use your own OAuth client (advanced)",
-    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (see Cloud settings)."
+    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (see Cloud settings).",
+    "expand": "Set up now",
+    "configured": "OAuth client saved"
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",
