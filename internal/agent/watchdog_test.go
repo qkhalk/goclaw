@@ -47,7 +47,7 @@ func TestWatchdogVerdictStalledAfterSilence(t *testing.T) {
 func TestWatchdogVerdictLoopingOnRepeatedTool(t *testing.T) {
 	w := newTestWatchdog()
 	now := time.Now()
-	for i := 0; i < DefaultWatchdogSameToolRepeat; i++ {
+	for i := range DefaultWatchdogSameToolRepeat {
 		w.ObserveToolCall("run-3", "sess-1", "exec", "same-args-hash", now.Add(time.Duration(i)*time.Second))
 	}
 	if got := w.Classify("run-3", now); got != VerdictLooping {
@@ -64,7 +64,7 @@ func TestWatchdogVerdictLoopingOnRepeatedTool(t *testing.T) {
 func TestWatchdogVerdictLoopingOnRepeatedOutput(t *testing.T) {
 	w := newTestWatchdog()
 	now := time.Now()
-	for i := 0; i < DefaultWatchdogSameOutputRepeat; i++ {
+	for range DefaultWatchdogSameOutputRepeat {
 		w.ObserveAssistantOutput("run-4", "sess-1", "I will help you with that.", now)
 	}
 	if got := w.Classify("run-4", now); got != VerdictLooping {
@@ -77,7 +77,7 @@ func TestWatchdogVerdictRecoveringStuckNoArtifact(t *testing.T) {
 	now := time.Now()
 
 	// Tokens grow, but nothing deliverable ever lands.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		w.ObserveUsage("run-5", "sess-1", 1000*(i+1), now.Add(time.Duration(i)*time.Second))
 		// Keep liveness alive so the stall detector does not win.
 		w.Observe(AgentEvent{Type: protocol.AgentEventActivity, RunID: "run-5"}, now.Add(time.Duration(i)*time.Second))
@@ -97,7 +97,7 @@ func TestWatchdogVerdictSlowLongRunning(t *testing.T) {
 	// observation lands at the evaluation instant so the stall detector
 	// (which wins on recency) stays quiet and the duration rule decides.
 	last := start.Add(DefaultWatchdogSlowAfter)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		at := start.Add(time.Duration(i) * (DefaultWatchdogSlowAfter / 10))
 		if at.After(last) {
 			at = last

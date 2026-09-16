@@ -122,10 +122,7 @@ func (c *Contract) Consensus(matchFraction float64) (bool, Verdict) {
 	// votes needs 2). The epsilon guards floating-point representation error
 	// (e.g. 2.0/3.0*3 = 1.9999999999999998) without flipping exact integers.
 	ratio := float64(len(c.Verdicts)) * f
-	required := int(math.Ceil(ratio - 1e-9))
-	if required < 1 {
-		required = 1
-	}
+	required := max(int(math.Ceil(ratio-1e-9)), 1)
 	counts := make(map[string]*verdictAccum, 4)
 	for _, v := range c.Verdicts {
 		key := v.ContenderID + "\x00" + v.Decision

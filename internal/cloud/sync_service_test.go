@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -31,10 +32,8 @@ func (f *fakePairStore) add(tenantID string, p *store.CloudSyncPair) {
 
 func (f *fakePairStore) tenantOf(pairID string) string {
 	for t, ids := range f.byTenant {
-		for _, id := range ids {
-			if id == pairID {
-				return t
-			}
+		if slices.Contains(ids, pairID) {
+			return t
 		}
 	}
 	return ""

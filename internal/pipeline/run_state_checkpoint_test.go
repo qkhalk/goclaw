@@ -118,7 +118,7 @@ func TestRunStateCheckpointMessageCapTrimsHistory(t *testing.T) {
 	// real run), not in history — mirror that here.
 	state.Messages.SetSystem(providers.Message{Role: "system", Content: "sys"})
 	msgs := make([]providers.Message, 0, maxCheckpointMessages+10)
-	for i := 0; i < maxCheckpointMessages+5; i++ {
+	for range maxCheckpointMessages + 5 {
 		msgs = append(msgs, providers.Message{Role: "user", Content: "m"})
 	}
 	state.Messages.SetHistory(msgs)

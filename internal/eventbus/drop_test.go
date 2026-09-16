@@ -33,7 +33,7 @@ func TestDroppedTotalCountsFullQueueOverrun(t *testing.T) {
 	time.Sleep(50 * time.Millisecond) // let the worker pick it up and block
 
 	// Overrun the 2-slot queue: 2 land in the buffer, the rest must drop.
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		bus.Publish(DomainEvent{Type: EventRunCompleted, SourceID: "burst"})
 	}
 	// Allow the publishes to be observed (non-blocking select in Publish).

@@ -210,10 +210,7 @@ func (s *Scheduler) ReapIdleSessions(idleFor time.Duration) int {
 // runSessionJanitor periodically evicts idle session queues. It runs until
 // Stop closes stopJanitor.
 func (s *Scheduler) runSessionJanitor(idleFor time.Duration) {
-	interval := idleFor / 4
-	if interval < 30*time.Second {
-		interval = 30 * time.Second
-	}
+	interval := max(idleFor/4, 30*time.Second)
 	if interval > 10*time.Minute {
 		interval = 10 * time.Minute
 	}

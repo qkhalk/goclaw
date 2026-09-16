@@ -71,12 +71,10 @@ func (c *Channel) sendAskQuestion(ctx context.Context, chatID int64, localKey, q
 
 	msgID := 0
 	if pID, ok := c.placeholders.LoadAndDelete(localKey); ok {
-		msgID = pID.(int)
-		if msgID < 0 {
+		msgID = max(pID.(int),
 			// Stream sentinel: a stream message landed but its ID is unknown —
 			// send the question fresh instead of editing a ghost.
-			msgID = 0
-		}
+			0)
 		if msgID > 0 {
 			if _, err := c.bot.EditMessageText(ctx, &telego.EditMessageTextParams{
 				ChatID:      tu.ID(chatID),
