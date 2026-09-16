@@ -280,8 +280,10 @@ export function ChatPage() {
         </>
       )}
 
-      {/* Main chat area */}
-      <div className="flex min-w-0 flex-1 min-h-0 flex-col">
+      {/* Main chat area. Hard floor at MIN_CHAT_COLUMN_PX (never wider than
+          the viewport on small screens) so widening the side pane can only
+          clip the pane, never crush the thread into an unreadable sliver. */}
+      <div className="flex min-w-[min(360px,100vw)] flex-1 min-h-0 flex-col">
         {isMobile && (
           <div className="flex shrink-0 items-center border-b px-3 py-2 landscape-compact">
             <button

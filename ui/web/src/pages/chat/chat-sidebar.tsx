@@ -36,8 +36,8 @@ export const ChatSidebar = memo(function ChatSidebar({
   const { t } = useTranslation("chat");
   return (
     <div
-      className="flex h-full w-72 max-w-[85vw] flex-col border-r bg-background"
-      style={width !== undefined ? { width, maxWidth: undefined } : undefined}
+      className="flex h-full w-72 max-w-[85vw] shrink-0 flex-col border-r bg-background"
+      style={width !== undefined ? { width, maxWidth: "none" } : undefined}
     >
       {/* Agent selector */}
       <div className="border-b p-3">
