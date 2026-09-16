@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -142,9 +143,9 @@ Valid output heights: 480, 720, 1080. Keep total duration under 60s unless
 asked otherwise. Emit ONLY the JSON inside the fence, no comments.
 `
 
-// designerIdentity is the IDENTITY.md persona (English, LLM consumption).
-// Contract mirrors internal/video/types.go Storyboard.Validate.
-const designerIdentity = `# Identity
+// designerIdentityV3 is the pre-layers persona (2026-09-16), preserved
+// byte-for-byte as a boot-migration source.
+const designerIdentityV3 = `# Identity
 
 Name: Video Designer
 Emoji: 🎨
@@ -197,6 +198,40 @@ Valid output heights: 480, 720, 1080. Keep total duration under 60s unless
 asked otherwise. Emit ONLY the JSON inside the fence, no comments.
 `
 
+// designerLayerBullet + designerLayerRules are the v4 persona additions
+// (timed overlay layers). Composing keeps designerIdentityV3 byte-identical
+// to the previously shipped persona.
+const designerLayerBullet = "- Overlays: highlight key moments with timed \"layers\" (max 8 per scene):\n" +
+	"  a text layer for a price or keyword, a translucent rect behind text for\n" +
+	"  contrast, a logo image pinned to a corner. Geometry is normalized 0..1\n" +
+	"  (x, y, w; shapes also take h); timing is scene-relative seconds via start\n" +
+	"  and duration (duration 0 = the whole scene). Keep text layers under 12\n" +
+	"  words.\n" +
+	"- Load your design skills (use_skill) for detailed guidance before your\n" +
+	"  first design of a session.\n"
+
+const designerLayerRules = "Optional per-scene \"layers\" is an array of " +
+	"{\"kind\": \"text\"|\"shape\"|\"image\", ...}: text layers need text (plus optional " +
+	"fill \"#RRGGBB\", font_size 8..300, align left|center|right); shape layers are " +
+	"kind \"shape\" with shape \"rect\" and a fill; image layers need a source. All " +
+	"layers accept start, duration (seconds, scene-relative), x, y, w (0..1), " +
+	"h (shapes), opacity 0..1. "
+
+// designerIdentity is the IDENTITY.md persona (English, LLM consumption).
+// Contract mirrors internal/video/types.go Storyboard.Validate.
+var designerIdentity = func() string {
+	s := designerIdentityV3
+	bullet := "- Load your design skills (use_skill) for detailed guidance before your\n  first design of a session.\n"
+	s = strings.Replace(s, bullet, designerLayerBullet, 1)
+	rules := "narration, when used, is an object {\"text\": \"...\", \"voice\": \"optional\"}."
+	s = strings.Replace(s, rules, rules+" "+designerLayerRules, 1)
+	s = strings.Replace(s,
+		"\"transition\":\"fade\"}]}",
+		"\"transition\":\"fade\",\"layers\":[{\"kind\":\"text\",\"text\":\"SALE 50%\",\"y\":0.3,\"font_size\":72,\"fill\":\"#FACC15\",\"start\":0.5,\"duration\":2}]}]",
+		1)
+	return s
+}()
+
 // designerIdentityHistory lists every system-authored persona version, oldest
 // first. A boot-time migration upgrades an existing agent's IDENTITY.md only
 // when its content still matches one of these byte-for-byte — a persona an
@@ -206,6 +241,7 @@ var designerIdentityHistory = []string{
 	designerIdentityV1,
 	// v2 (2026-09-15): narration guidance + object wire contract.
 	designerIdentityV2,
+	designerIdentityV3,
 }
 
 // EnsureDesignerAgent creates the video-designer predefined agent when the

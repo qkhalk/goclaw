@@ -10,30 +10,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCanvasPlayer } from "../hooks/use-canvas-player";
+import type { Scene } from "../hooks/use-timeline";
 
-// ── Types ──
+// ── Types (Scene is the canonical model from use-timeline) ──
 
-interface KenBurns {
-  zoom_from: number;
-  zoom_to: number;
-  pan: "none" | "left" | "right" | "up" | "down";
-}
-interface Caption {
-  text: string;
-  position?: "top" | "center" | "bottom";
-  font_size?: number;
-}
-interface Scene {
-  type: "image" | "video" | "color";
-  source?: string;
-  color?: string;
-  duration_sec: number;
-  fit?: "cover" | "contain";
-  mute?: boolean;
-  ken_burns?: KenBurns;
-  caption?: Caption;
-  narration?: string;
-}
 interface Storyboard {
   version: number;
   canvas: { width: number; height: number; fps: number };

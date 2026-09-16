@@ -1,4 +1,5 @@
 import type { Scene } from "../hooks/use-timeline";
+import { layerWindow } from "../hooks/use-timeline";
 import { renderSceneWithTransition, type SceneTransition } from "./scene-transition";
 
 // ── Shared storyboard frame renderer ──
@@ -50,6 +51,7 @@ export function renderSceneBase(
   if (scene.type === "color") {
     ctx.fillStyle = scene.color || "#000000";
     ctx.fillRect(0, 0, width, height);
+    drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
     drawCaption(ctx, width, height, scene);
     return;
   }
@@ -58,6 +60,7 @@ export function renderSceneBase(
   if (!img) {
     ctx.fillStyle = "#1a1a2e";
     ctx.fillRect(0, 0, width, height);
+    drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
     drawCaption(ctx, width, height, scene);
     return;
   }
@@ -129,7 +132,65 @@ export function renderSceneBase(
   }
   ctx.restore();
 
+  drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
   drawCaption(ctx, width, height, scene);
+}
+
+/** Paint the scene's timed overlay layers (under the caption), in array
+ * order — mirrors the worker's ffmpeg layer filters (drawtext/drawbox/
+ * overlay) so preview matches the server render. */
+export function drawSceneLayers(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  scene: Scene,
+  localTime: number,
+  imageCache: Map<string, HTMLImageElement>,
+) {
+  if (!scene.layers?.length) return;
+  for (const layer of scene.layers) {
+    const { start, end } = layerWindow(layer, scene.duration_sec);
+    if (localTime < start || localTime >= end) continue;
+    const x = (layer.x ?? 0.1) * width;
+    const y = (layer.y ?? 0.1) * height;
+    const w = (layer.w ?? 0.8) * width;
+    const opacity = Math.max(0, Math.min(1, layer.opacity ?? 1));
+    if (layer.kind === "text") {
+      const fontSize = layer.font_size || 48;
+      const align = layer.align || "center";
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.fillStyle = layer.fill || "#FFFFFF";
+      ctx.textBaseline = "top";
+      ctx.textAlign = align === "left" ? "left" : align === "right" ? "right" : "center";
+      ctx.shadowColor = "rgba(0,0,0,0.7)";
+      ctx.shadowBlur = fontSize * 0.25;
+      const tx = align === "left" ? x : align === "right" ? x + w : x + w / 2;
+      const lines = wrapText(ctx, layer.text ?? "", w);
+      const lineHeight = fontSize * 1.3;
+      lines.forEach((line, li) => ctx.fillText(line, tx, y + li * lineHeight));
+      ctx.restore();
+    } else if (layer.kind === "shape") {
+      const h = (layer.h ?? 0.3) * height;
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.fillStyle = layer.fill || "#FFFFFF";
+      ctx.fillRect(x, y, w, h);
+      ctx.restore();
+    } else if (layer.kind === "image") {
+      const img = layer.source ? imageCache.get(layer.source) : undefined;
+      if (!img) continue;
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      // Width-fitted, centered horizontally at the box's top — same as the
+      // worker's scale=w:-1 + centered overlay.
+      const drawW = w;
+      const drawH = (drawW * img.naturalHeight) / Math.max(1, img.naturalWidth);
+      ctx.drawImage(img, x + (w - drawW) / 2, y, drawW, drawH);
+      ctx.restore();
+    }
+  }
 }
 
 function drawCaption(ctx: CanvasRenderingContext2D, width: number, height: number, scene: Scene) {
