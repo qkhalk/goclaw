@@ -144,7 +144,9 @@
     "filter_brightness": "Brightness",
     "filter_contrast": "Contrast",
     "filter_saturate": "Saturation",
-    "filter_blur": "Blur (px)"
+    "filter_blur": "Blur (px)",
+    "narration_fit_hint": "Narration needs ~{{est}}s but the scene is {{dur}}s — audio will be cut off.",
+    "narration_fit_apply": "Set {{est}}s"
   },
   "watermark": {
     "title": "Watermark Remover",

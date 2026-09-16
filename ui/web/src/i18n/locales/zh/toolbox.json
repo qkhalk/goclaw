@@ -144,7 +144,9 @@
     "filter_brightness": "亮度",
     "filter_contrast": "对比度",
     "filter_saturate": "饱和度",
-    "filter_blur": "模糊 (px)"
+    "filter_blur": "模糊 (px)",
+    "narration_fit_hint": "旁白需要约 {{est}}s，但场景只有 {{dur}}s — 音频会被截断。",
+    "narration_fit_apply": "设为 {{est}}s"
   },
   "watermark": {
     "title": "水印移除",

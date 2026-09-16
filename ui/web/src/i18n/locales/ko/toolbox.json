@@ -144,7 +144,9 @@
     "filter_brightness": "밝기",
     "filter_contrast": "대비",
     "filter_saturate": "채도",
-    "filter_blur": "흐림 (px)"
+    "filter_blur": "흐림 (px)",
+    "narration_fit_hint": "내레이션에 ~{{est}}s 필요하지만 장면은 {{dur}}s입니다 — 오디오가 잘립니다.",
+    "narration_fit_apply": "{{est}}s로 설정"
   },
   "watermark": {
     "title": "워터마크 제거",
