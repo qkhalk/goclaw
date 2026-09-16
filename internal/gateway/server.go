@@ -678,6 +678,12 @@ func (s *Server) SetBrowseRelayHandler(h *httpapi.BrowseRelayHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
+// SetSystemStatsHandler sets the host/process metrics endpoint
+// (GET /v1/system/stats) for the dashboard System card.
+func (s *Server) SetSystemStatsHandler(h *httpapi.SystemStatsHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetAgentsHandler sets the agent CRUD handler.
 func (s *Server) SetAgentsHandler(h *httpapi.AgentsHandler) { s.handlers = append(s.handlers, h) }
 
