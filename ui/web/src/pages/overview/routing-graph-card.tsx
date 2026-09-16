@@ -25,9 +25,11 @@ interface Surface {
 
 const MAX_TABLE_MODELS = 8;
 const ROW_H = 46;
-const NODE_W = 168;
+const NODE_W = 140;
 const CENTER_W = 116;
-const GRAPH_MIN_WIDTH = 620;
+// Below this the ellipse would clip: hub topology needs
+// 2*(rx floor 140 + NODE_W/2) + card padding ~ 500px.
+const GRAPH_MIN_WIDTH = 500;
 const REFRESH_INTERVAL = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -317,7 +319,7 @@ function WideGraph(props: {
   const n = Math.max(surfaces.length, 1);
   const cx = width / 2;
   const rx = Math.max(
-    170,
+    140,
     Math.min(((NODE_W + 20) * n) / (2 * Math.PI), width / 2 - NODE_W / 2 - 8),
   );
   const ry = Math.max(110, Math.min(rx * 0.55, 170));
