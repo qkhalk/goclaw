@@ -962,6 +962,19 @@
       "description": "Additional JSON config for advanced settings not covered by other sections",
       "formatJson": "Format JSON",
       "invalidJson": "Invalid JSON syntax"
+    },
+    "filePermissions": {
+      "title": "File permissions",
+      "description": "Toggle each file capability of the agent.",
+      "read": "Read files",
+      "readHint": "read_file, list_files",
+      "write": "Edit files",
+      "writeHint": "edit — modify existing files",
+      "create": "Create files",
+      "createHint": "write_file — create/overwrite files",
+      "send": "Send files",
+      "sendHint": "send_file — deliver files to chat",
+      "footnote": "Turning a capability off adds the tools to the tool policy deny list (deny always wins over allow)."
     }
   },
   "heartbeat": {

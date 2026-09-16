@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "All providers",
-    "accounts_title": "Connected accounts"
+    "accounts_title": "Connected accounts",
+    "section_personal": "Personal",
+    "section_company": "Company (shared)"
   },
   "setup": {
     "title_google": "Google is not configured yet",

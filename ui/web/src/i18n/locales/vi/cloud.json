@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "Tất cả nhà cung cấp",
-    "accounts_title": "Tài khoản đã kết nối"
+    "accounts_title": "Tài khoản đã kết nối",
+    "section_personal": "Cá nhân",
+    "section_company": "Doanh nghiệp (chia sẻ)"
   },
   "setup": {
     "title_google": "Google chưa được cấu hình",

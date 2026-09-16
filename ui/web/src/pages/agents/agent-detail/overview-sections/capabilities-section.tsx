@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { SubagentsConfig, ToolPolicyConfig } from "@/types/agent";
-import { SubagentsSection, ToolPolicySection } from "../config-sections";
+import { FilePermissionsSection, SubagentsSection, ToolPolicySection } from "../config-sections";
 import { ConfigGroupHeader } from "@/components/shared/config-group-header";
 
 interface CapabilitiesSectionProps {
@@ -28,6 +28,12 @@ export function CapabilitiesSection({
         description={t("configGroups.capabilitiesDesc")}
       />
       <div className="space-y-4">
+        <FilePermissionsSection
+          enabled={toolsEnabled}
+          value={tools}
+          onToggle={onToolsToggle}
+          onChange={onToolsChange}
+        />
         <SubagentsSection
           enabled={subEnabled}
           value={sub}

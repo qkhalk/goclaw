@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "所有提供商",
-    "accounts_title": "已连接账户"
+    "accounts_title": "已连接账户",
+    "section_personal": "个人",
+    "section_company": "企业（共享）"
   },
   "setup": {
     "title_google": "Google 尚未配置",
