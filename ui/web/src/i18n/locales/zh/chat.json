@@ -119,7 +119,8 @@
     "empty": "尚未打开页面。让助手帮你打开一个网页吧。",
     "switchToLive": "实时预览（运行 JavaScript）",
     "switchToStatic": "静态视图（助手可操作）",
-    "liveNote": "实时预览 — 真实页面在此运行 JavaScript。此模式下助手无法读取或点击；需要时请切回静态视图。"
+    "liveNote": "实时预览 — 真实页面在此运行 JavaScript。此模式下助手无法读取或点击；需要时请切回静态视图。",
+    "thinStaticNote": "此页面需要 JavaScript 渲染，因此静态视图几乎为空。请切换到实时预览（闪电图标）或在新标签页打开。"
   },
   "taskTree": {
     "empty": "暂无任务",

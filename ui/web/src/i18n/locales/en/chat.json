@@ -119,7 +119,8 @@
     "empty": "No page open. Ask the agent to browse something.",
     "switchToLive": "Live preview (runs JavaScript)",
     "switchToStatic": "Static view (agent-operable)",
-    "liveNote": "Live preview — the real page runs JavaScript here. The agent cannot read or click in this mode; switch back to static for that."
+    "liveNote": "Live preview — the real page runs JavaScript here. The agent cannot read or click in this mode; switch back to static for that.",
+    "thinStaticNote": "This page needs JavaScript to render, so the static view is nearly empty. Switch to the live preview (bolt icon) or open it in a new tab."
   },
   "taskTree": {
     "empty": "No tasks yet",
