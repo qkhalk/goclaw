@@ -30,6 +30,7 @@ import { CronJobsCard } from "./cron-jobs-card";
 import { RecentRequestsCard } from "./recent-requests-card";
 import { RoutingGraphCard } from "./routing-graph-card";
 import { QuotaUsageCard } from "./quota-usage-card";
+import { SystemCard } from "./system-card";
 import { useRuntimes } from "@/pages/skills/hooks/use-runtimes";
 import {
   getChannelAttentionPriority,
@@ -274,12 +275,12 @@ export function OverviewPage() {
             <CronJobsCard jobs={cronData?.jobs ?? []} />
           </div>
 
-          {/* Routing graph + Recent Requests (9router-style dashboard) */}
+          {/* Routing graph (9router-style ellipse) + compact Recent Requests */}
           <div className="grid gap-4 lg:grid-cols-5">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-3">
               <RoutingGraphCard />
             </div>
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-2">
               <RecentRequestsCard />
             </div>
           </div>
@@ -288,6 +289,9 @@ export function OverviewPage() {
           {quota?.enabled && quota.entries.length > 0 && (
             <QuotaUsageCard quota={quota} />
           )}
+
+          {/* System (host CPU / memory / disk) */}
+          <SystemCard />
         </TabsContent>
 
         <TabsContent value="usage">
