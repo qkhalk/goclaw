@@ -77,7 +77,7 @@ func TestSuiteReportScore(t *testing.T) {
 func TestWordWrap(t *testing.T) {
 	in := strings.Repeat("word ", 30)
 	got := wordWrap(strings.TrimSpace(in), 40, "  ")
-	for _, line := range strings.Split(got, "\n") {
+	for line := range strings.SplitSeq(got, "\n") {
 		// Continuation lines carry the 2-space indent; nothing exceeds 42.
 		if len(line) > 42 {
 			t.Fatalf("wrapped line too long: %q", line)

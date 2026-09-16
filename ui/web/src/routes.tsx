@@ -69,6 +69,9 @@ const VideoToolPage = lazyWithRetry(() =>
 const WatermarkToolPage = lazyWithRetry(() =>
   import("@/pages/tools/watermark/watermark-tool-page").then((m) => ({ default: m.WatermarkToolPage })),
 );
+const PptxToolPage = lazyWithRetry(() =>
+  import("@/pages/tools/pptx/pptx-tool-page").then((m) => ({ default: m.PptxToolPage })),
+);
 const ProvidersPage = lazyWithRetry(() =>
   import("@/pages/providers/providers-page").then((m) => ({ default: m.ProvidersPage })),
 );
@@ -210,6 +213,7 @@ export function AppRoutes() {
           <Route path={ROUTES.TOOLS} element={<Navigate to={ROUTES.TOOLS_VIDEO} replace />} />
           <Route path={ROUTES.TOOLS_VIDEO} element={<VideoToolPage />} />
           <Route path={ROUTES.TOOLS_WATERMARK} element={<WatermarkToolPage />} />
+          <Route path={ROUTES.TOOLS_PPTX} element={<PptxToolPage />} />
           <Route path={ROUTES.WEBHOOKS} element={<RequireAdmin><WebhooksPage /></RequireAdmin>} />
           <Route path={ROUTES.NODES} element={<RequireAdmin><NodesPage /></RequireAdmin>} />
           <Route path={ROUTES.WORKSTATIONS} element={<RequireAdmin><WorkstationsPage /></RequireAdmin>} />

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -699,6 +700,10 @@ func (c *Channel) dispatchResolvedMessage(ctx context.Context, rctx resolvedMess
 			ids = append(ids, fmt.Sprintf("%d", m.MessageID))
 		}
 		metadata["merged_message_ids"] = strings.Join(ids, ",")
+		// How many consecutive platform messages this inbound merges — lets
+		// downstream (prompt context, logs) tell a client-split long paste
+		// from several quick separate commands.
+		metadata["coalesced_message_count"] = fmt.Sprintf("%d", len(members))
 	}
 	if rep.Chat.Title != "" {
 		metadata[tools.MetaChatTitle] = rep.Chat.Title
@@ -819,10 +824,8 @@ func telegramToolAllowWithManager(toolAllow []string, permissions []string) []st
 	if len(toolAllow) == 0 || len(permissions) == 0 {
 		return toolAllow
 	}
-	for _, name := range toolAllow {
-		if name == "telegram_manager" {
-			return toolAllow
-		}
+	if slices.Contains(toolAllow, "telegram_manager") {
+		return toolAllow
 	}
 	merged := append([]string{}, toolAllow...)
 	return append(merged, "telegram_manager")

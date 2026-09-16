@@ -3063,6 +3063,7 @@ CREATE TABLE IF NOT EXISTS cloud_accounts (
     status_message   TEXT NOT NULL DEFAULT '',
     settings         TEXT NOT NULL DEFAULT '{}',
     shared           INTEGER NOT NULL DEFAULT 0,
+    agent_access     TEXT NOT NULL DEFAULT 'read',
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

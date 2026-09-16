@@ -29,7 +29,7 @@ func TestWatchdog_ThinkingDeltas_NoFalseStall(t *testing.T) {
 
 	// Reasoning deltas every ~200ms for ~3s, then the answer and a terminator.
 	frames := make([]sseFrame, 0, 16)
-	for i := 0; i < 14; i++ {
+	for i := range 14 {
 		frames = append(frames, server.openAIReasoningDelta("step "+string(rune('a'+i))))
 	}
 	frames = append(frames, server.openAITextDelta("final answer"))

@@ -1,4 +1,7 @@
 {
+  "pane": {
+    "resize": "Kéo để đổi độ rộng — nhấp đúp để về mặc định"
+  },
   "actions": "Thao tác",
   "active": "Hoạt động",
   "add": "Thêm",
@@ -91,7 +94,7 @@
   "status": "Trạng thái",
   "stopGeneration": "Dừng tạo",
   "stopped": "Đã dừng",
-  "thinking": "Đang suy nghĩ",
+  "thinking": "Đã suy nghĩ",
   "thinkingStreaming": "Đang suy nghĩ...",
   "toolArguments": "Tham số",
   "toolDone": "Hoàn thành",
@@ -137,6 +140,10 @@
     "successCount": "{{success}} trong {{total}} tệp đã tải lên",
     "uploading": "Đang tải lên...",
     "uploadCount": "Tải lên {{count}} tệp"
+  },
+  "planCard": {
+    "title": "Kế hoạch công việc",
+    "progress": "{{done}}/{{total}} hoàn thành"
   },
   "errors": {
     "serverError": "Đã xảy ra lỗi. Vui lòng thử lại sau."

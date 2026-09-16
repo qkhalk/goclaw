@@ -40,7 +40,9 @@
   },
   "provider": {
     "back": "All providers",
-    "accounts_title": "Connected accounts"
+    "accounts_title": "Connected accounts",
+    "section_personal": "Personal",
+    "section_company": "Company (shared)"
   },
   "setup": {
     "title_google": "Google is not configured yet",
@@ -63,7 +65,9 @@
     "cancel": "Cancel",
     "update": "Update credentials",
     "advanced": "Use your own OAuth client (advanced)",
-    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (see Cloud settings)."
+    "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (see Cloud settings).",
+    "expand": "Set up now",
+    "configured": "OAuth client saved"
   },
   "disconnect_confirm": {
     "title": "Disconnect account?",
@@ -104,6 +108,7 @@
     "title": "Usage scopes",
     "description": "Pick which account the agent uses here: explicit request wins, then group, then user, then the organization default, then personal accounts.",
     "tenant_default": "Organization default",
+    "tenant_default_hint": "When an agent or action doesn't name an account, the system uses this organization-wide default account.",
     "none": "None",
     "group": "Group",
     "user": "User",
@@ -132,12 +137,12 @@
     "used_of": "Used {{used}} of {{total}}",
     "root": "Root",
     "loading_files": "Loading files…",
-    "files_unavailable": "Could not list files (is rclone installed on the server?)",
+    "files_unavailable": "Could not list files (check the account connection and refresh)",
     "no_files": "This folder is empty",
     "col_name": "Name",
     "col_size": "Size",
     "col_modified": "Modified",
-    "readonly_note": "Read-only view via rclone ({{provider}}). Ask the agent to fetch or organize files.",
+    "readonly_note": "Read-only view ({{provider}}). Ask your agent to fetch or organize files for you.",
     "mailbox": "Mailbox",
     "loading_mail": "Loading mailbox…",
     "mail_unavailable": "Could not read the mailbox",
@@ -148,6 +153,7 @@
   "drive": {
     "my_drives": "My drives",
     "my_drive": "My Drive",
+    "dashboard": "Dashboard",
     "providers": "Providers",
     "accounts": "Accounts",
     "shared_tag": "Shared",
@@ -170,7 +176,9 @@
     "not_found": "Account not found or no longer accessible",
     "back_home": "Back to Clouds",
     "toggle_accounts": "Toggle accounts",
-    "quick_views": "Quick views"
+    "quick_views": "Quick views",
+    "search_accounts": "Search accounts…",
+    "no_accounts_match": "No matching accounts"
   },
   "files": {
     "upload": "Upload",
@@ -291,7 +299,15 @@
     "download": "Download",
     "download_started": "Download started",
     "prev": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "close": "Close"
+  },
+  "agent_access": {
+    "title": "Agent access",
+    "none": "No access",
+    "read": "Read only",
+    "write": "Read + write",
+    "full": "Full access"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",

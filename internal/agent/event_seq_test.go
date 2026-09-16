@@ -13,7 +13,7 @@ func TestEmitStampsPerRunSeq(t *testing.T) {
 	col := &eventCollector{}
 	loop := &Loop{id: "test-agent", onEvent: col.onEvent}
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		loop.emit(AgentEvent{Type: protocol.ChatEventChunk, AgentID: "test-agent", RunID: "run-1"})
 	}
 
@@ -77,14 +77,12 @@ func TestEmitConcurrentSeqUnique(t *testing.T) {
 	const goroutines = 8
 	const perGoroutine = 200
 	var wg sync.WaitGroup
-	for g := 0; g < goroutines; g++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < perGoroutine; i++ {
+	for range goroutines {
+		wg.Go(func() {
+			for range perGoroutine {
 				loop.emit(AgentEvent{Type: protocol.ChatEventChunk, AgentID: "test-agent", RunID: "run-race"})
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

@@ -7,6 +7,8 @@ export const queryKeys = {
     files: (accountId: string, path: string) => ["cloud", "files", accountId, path] as const,
     /** Prefix key matching every path of one account (bulk invalidation). */
     allFiles: (accountId: string) => ["cloud", "files", accountId] as const,
+    /** Signed download URL for one path (short-lived; thumbnails/preview). */
+    thumb: (accountId: string, path: string) => ["cloud", "thumb", accountId, path] as const,
     mail: (accountId: string) => ["cloud", "mail", accountId] as const,
     bindings: ["cloud", "bindings"] as const,
     settings: (provider: string) => ["cloud", "settings", provider] as const,

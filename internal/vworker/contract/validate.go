@@ -70,6 +70,13 @@ func (sc *Scene) validate() error {
 	if sc.DurationSec < 1 || sc.DurationSec > maxSceneSec {
 		return fmt.Errorf("duration_sec %.1f out of range 1..%.0f", sc.DurationSec, maxSceneSec)
 	}
+	if sc.Transition != "" && sc.Transition != "none" {
+		switch sc.Transition {
+		case "fade", "crossfade", "slide_left", "slide_up":
+		default:
+			return fmt.Errorf("transition %q not supported (none, fade, crossfade, slide_left, slide_up)", sc.Transition)
+		}
+	}
 	return nil
 }
 

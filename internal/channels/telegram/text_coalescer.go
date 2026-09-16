@@ -25,8 +25,14 @@ import (
 
 const (
 	textCoalesceDefaultMs = 1000
-	textCoalesceMaxMsgs   = 10
-	textCoalesceMaxRunes  = 32_000
+	textCoalesceMaxMsgs   = 30
+	textCoalesceMaxRunes  = 120_000
+	// Telegram splits a paste at ~4096 chars per message. A part at/over this
+	// threshold is almost certainly a split continuation with more fragments
+	// in flight (slow mobile networks can straggle past the base window), so
+	// the silence window is multiplied to keep buffering.
+	textCoalesceSplitHintRunes = 3800
+	textCoalesceSplitWindowMul = 4
 )
 
 // textCoalesceWindow resolves the silence window from config:
@@ -125,6 +131,13 @@ func (t *textCoalescer) push(rctx resolvedMessageContext, m *telego.Message) {
 		buf.timer.Stop()
 	}
 	window := t.window
+	// Likely-split continuation: the newest part filled a whole Telegram
+	// message (~4096 chars), so more fragments are probably still in flight.
+	// Extend the silence window so a slow network cannot flush a partial
+	// buffer between fragments — the agent must see the whole paste as one.
+	if n := len([]rune(content)); n >= textCoalesceSplitHintRunes {
+		window *= textCoalesceSplitWindowMul
+	}
 	// Timer flushes must participate in handlerWg so Stop()'s
 	// handlerWg.Wait() cannot return while a flush dispatch is still
 	// running — same invariant the album aggregator's flushFn documents.

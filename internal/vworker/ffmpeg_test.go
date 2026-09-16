@@ -1,6 +1,9 @@
 package vworker
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -37,7 +40,11 @@ func TestBuildImageSceneArgs_KenBurnsCaption(t *testing.T) {
 		Caption:     &contract.Caption{Text: "Xin chào!", Position: "bottom", FontSize: 48},
 	}
 
-	args := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_001.mp4")
+	tmp := t.TempDir()
+	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_001.mp4", tmp, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Check that input is specified
 	if !containsArg(args, "-loop") {
@@ -47,10 +54,11 @@ func TestBuildImageSceneArgs_KenBurnsCaption(t *testing.T) {
 		t.Error("expected source file in args")
 	}
 
-	// Check zoompan in filtergraph
-	vfIdx := indexOfArg(args, "-vf")
+	// Check zoompan in filtergraph (image scenes composite blur backdrop +
+	// contain-fit photo, so they use -filter_complex, not -vf)
+	vfIdx := indexOfArg(args, "-filter_complex")
 	if vfIdx < 0 {
-		t.Fatal("no -vf flag found")
+		t.Fatal("no -filter_complex flag found")
 	}
 	vf := args[vfIdx+1]
 	if !strings.Contains(vf, "zoompan") {
@@ -59,13 +67,17 @@ func TestBuildImageSceneArgs_KenBurnsCaption(t *testing.T) {
 	if !strings.Contains(vf, "drawtext") {
 		t.Errorf("expected drawtext in filtergraph, got: %s", vf)
 	}
-	// Check font file is included
 	if !strings.Contains(vf, "fontfile=") {
 		t.Errorf("expected fontfile in filtergraph, got: %s", vf)
 	}
-	// Check text is escaped
-	if !strings.Contains(vf, "Xin chào!") {
-		t.Errorf("expected caption text in filtergraph, got: %s", vf)
+	// Caption text goes through a textfile (arbitrary text survives ffmpeg
+	// filtergraph escaping) — the filtergraph references it, the file holds it.
+	if !strings.Contains(vf, "textfile=") {
+		t.Errorf("expected textfile in filtergraph, got: %s", vf)
+	}
+	capPath := filepath.Join(tmp, "caption_001.txt")
+	if _, err := os.Stat(capPath); err != nil {
+		t.Errorf("expected caption file at %s: %v", capPath, err)
 	}
 
 	// Check output file
@@ -83,11 +95,14 @@ func TestBuildImageSceneArgs_NoCaptionNoFont(t *testing.T) {
 		DurationSec: 3,
 	}
 
-	args := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4")
+	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	vfIdx := indexOfArg(args, "-vf")
+	vfIdx := indexOfArg(args, "-filter_complex")
 	if vfIdx < 0 {
-		t.Fatal("no -vf flag found")
+		t.Fatal("no -filter_complex flag found")
 	}
 	vf := args[vfIdx+1]
 	if strings.Contains(vf, "drawtext") {
@@ -155,7 +170,10 @@ func TestBuildColorSceneArgs_WithCaption(t *testing.T) {
 		Caption:     &contract.Caption{Text: "Ket thuc", Position: "center", FontSize: 32},
 	}
 
-	args := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_003.mp4")
+	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_003.mp4", t.TempDir(), 3, true)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Should use lavfi color source
 	if !containsArg(args, "-f") {
@@ -166,8 +184,8 @@ func TestBuildColorSceneArgs_WithCaption(t *testing.T) {
 		t.Fatal("no -i flag")
 	}
 	lavfi := args[lavfiIdx+1]
-	if !strings.Contains(lavfi, "color=c=0x101820") {
-		t.Errorf("expected color=0x101820 in lavfi, got: %s", lavfi)
+	if !strings.Contains(lavfi, "0x101820") {
+		t.Errorf("expected color 0x101820 in lavfi, got: %s", lavfi)
 	}
 
 	// Check drawtext in filtergraph
@@ -193,7 +211,10 @@ func TestBuildColorSceneArgs_NoCaption(t *testing.T) {
 		DurationSec: 1,
 	}
 
-	args := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4")
+	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0, true)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	vfIdx := indexOfArg(args, "-vf")
 	if vfIdx < 0 {
@@ -275,17 +296,106 @@ func TestBuildMixArgs_NarrationOnly(t *testing.T) {
 	}
 }
 
-func TestPanExprNone(t *testing.T) {
-	expr := buildPanExpr("none")
-	if !strings.Contains(expr, "iw/2-(iw/zoom/2)") {
-		t.Errorf("unexpected pan expr for 'none': %s", expr)
+func TestPanExprsNone(t *testing.T) {
+	x, y := buildPanExprs("none", 120)
+	if x != "(iw-iw/zoom)/2" || y != "(ih-ih/zoom)/2" {
+		t.Errorf("unexpected centered pan exprs: x=%s y=%s", x, y)
 	}
 }
 
-func TestPanExprLeft(t *testing.T) {
-	expr := buildPanExpr("left")
-	if !strings.Contains(expr, "on*1") {
-		t.Errorf("expected animation in left pan expr: %s", expr)
+func TestPanExprsLeftEased(t *testing.T) {
+	x, y := buildPanExprs("left", 120)
+	if !strings.Contains(x, "(iw-iw/zoom)*0.45") {
+		t.Errorf("expected margin-scaled travel in left pan x: %s", x)
+	}
+	if !strings.Contains(x, "(3-2*on/120)") {
+		t.Errorf("expected smoothstep ease in left pan x: %s", x)
+	}
+	if y != "(ih-ih/zoom)/2" {
+		t.Errorf("left pan must not move y: %s", y)
+	}
+}
+
+func TestPanExprsUpMovesY(t *testing.T) {
+	x, y := buildPanExprs("up", 90)
+	if x != "(iw-iw/zoom)/2" {
+		t.Errorf("up pan must not move x: %s", x)
+	}
+	if !strings.Contains(y, "(ih-ih/zoom)*0.45") {
+		t.Errorf("expected vertical travel in up pan y: %s", y)
+	}
+}
+
+func TestXfadeTransitionMapping(t *testing.T) {
+	cases := map[string]string{
+		"fade":       "fadeblack",
+		"crossfade":  "fade",
+		"slide_left": "slideleft",
+		"slide_up":   "slideup",
+		"":           "fade",
+		"none":       "fade",
+	}
+	for in, want := range cases {
+		if got := xfadeTransition(in); got != want {
+			t.Errorf("xfadeTransition(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestBuildXfadeArgs(t *testing.T) {
+	files := []string{"/tmp/s0.mp4", "/tmp/s1.mp4", "/tmp/s2.mp4"}
+	trans := []string{"", "crossfade", "slide_up"}
+	offsets := []float64{4.0, 8.5}
+	args := buildXfadeArgs(FFmpegConfig{}, files, trans, offsets, 30, "/tmp/out.mp4")
+
+	joined := strings.Join(args, " ")
+	for _, want := range []string{
+		"-i /tmp/s0.mp4", "-i /tmp/s1.mp4", "-i /tmp/s2.mp4",
+		"xfade=transition=fade:duration=0.50:offset=4.000",
+		"xfade=transition=slideup:duration=0.50:offset=8.500",
+		"-map [v2]",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("xfade args missing %q in: %s", want, joined)
+		}
+	}
+}
+
+func TestDarkerHex(t *testing.T) {
+	if got := darkerHex("ff8800"); got != "7f4400" {
+		t.Errorf("darkerHex(ff8800) = %s, want 7f4400", got)
+	}
+}
+
+func TestImageSceneBlurBackdrop(t *testing.T) {
+	sc := contract.Scene{Type: contract.SceneImage, Source: "media/a.jpg", DurationSec: 4}
+	args, err := buildImageSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/out.mp4", t.TempDir(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, " ")
+	for _, want := range []string{"split=2", "overlay=0:0", "eq=brightness=-0.12", "zoompan", "-map [vout]"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("image scene args missing %q", want)
+		}
+	}
+}
+
+func TestColorSceneGradientVsFlat(t *testing.T) {
+	sc := contract.Scene{Type: contract.SceneColor, Color: "#0f172a", DurationSec: 3}
+	gradArgs, err := buildColorSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/g.mp4", t.TempDir(), 0, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(gradArgs, " "), "gradients=s=1080x1920") {
+		t.Error("animated color scene should use gradients source")
+	}
+	flatArgs, err := buildColorSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/f.mp4", t.TempDir(), 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(flatArgs, " "), "color=c=0x0f172a") {
+		t.Error("flat color scene should use color source")
 	}
 }
 
@@ -303,12 +413,7 @@ func TestSceneOutputPath(t *testing.T) {
 // --- helpers ---
 
 func containsArg(args []string, val string) bool {
-	for _, a := range args {
-		if a == val {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, val)
 }
 
 func indexOfArg(args []string, val string) int {

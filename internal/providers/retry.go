@@ -274,10 +274,7 @@ func computeDelay(cfg RetryConfig, attempt int, err error) time.Duration {
 	// against the odds or fails fast and surfaces the error.
 	var httpErr *HTTPError
 	if errors.As(err, &httpErr) && httpErr.RetryAfter > 0 {
-		delay := httpErr.RetryAfter
-		if delay > cfg.MaxDelay {
-			delay = cfg.MaxDelay
-		}
+		delay := min(httpErr.RetryAfter, cfg.MaxDelay)
 		return delay
 	}
 

@@ -251,7 +251,7 @@ func TestRepairLRUCache_CapacityEviction(t *testing.T) {
 	cache.keys = nil
 	cache.attrs = make(map[string]repairEntry)
 	// Fill past capacity.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		l.repairAttemptAllowed(repairKey{toolName: "t", schemaHash: string(rune('a' + i))}, i)
 	}
 	if len(cache.attrs) > 3 {

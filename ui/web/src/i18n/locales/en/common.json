@@ -1,4 +1,7 @@
 {
+  "pane": {
+    "resize": "Drag to resize — double-click to reset"
+  },
   "refresh": "Refresh",
   "cancel": "Cancel",
   "confirm": "Confirm",
@@ -84,7 +87,7 @@
   "recordVoice": "Record voice message",
   "stopRecording": "Stop recording",
   "cancelRecording": "Cancel recording",
-  "thinking": "Thinking",
+  "thinking": "Thought",
   "thinkingStreaming": "Thinking...",
   "toolArguments": "Arguments",
   "toolResult": "Result",
@@ -137,6 +140,10 @@
     "successCount": "{{success}} of {{total}} files uploaded",
     "uploading": "Uploading...",
     "uploadCount": "Upload {{count}} file(s)"
+  },
+  "planCard": {
+    "title": "Task plan",
+    "progress": "{{done}}/{{total}} done"
   },
   "errors": {
     "serverError": "Something went wrong. Please try again later."

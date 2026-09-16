@@ -156,7 +156,20 @@
     "create": "Создать",
     "creating": "Создание...",
     "checkAndCreate": "Проверить и создать",
-    "failedToCreate": "Не удалось создать агента"
+    "failedToCreate": "Не удалось создать агента",
+    "subagent": {
+      "title": "Конфигурация субагента",
+      "toolCount": "{{count}} инструментов",
+      "allTools": "Все инструменты",
+      "allowedTools": "Разрешённые инструменты",
+      "allowedToolsHint": "Выберите инструменты субагента. Пусто = все инструменты.",
+      "allowedToolsPlaceholder": "Выберите инструменты (пусто = все)",
+      "systemPrompt": "Системный промпт",
+      "systemPromptHint": "Заменяет IDENTITY.md — собственный промпт субагента.",
+      "systemPromptPlaceholder": "Ты субагент, специализирующийся на...",
+      "injectAgents": "Внедрить AGENTS.md",
+      "injectAgentsHint": "Включить инструкции рабочей области AGENTS.md в контекст агента."
+    }
   },
   "detail": {
     "tabs": {
@@ -947,6 +960,19 @@
       "description": "Дополнительная JSON-конфигурация для расширенных настроек, не охваченных другими разделами",
       "formatJson": "Форматировать JSON",
       "invalidJson": "Неверный синтаксис JSON"
+    },
+    "filePermissions": {
+      "title": "Права на файлы",
+      "description": "Включайте/отключайте отдельные файловые возможности агента.",
+      "read": "Чтение файлов",
+      "readHint": "read_file, list_files",
+      "write": "Изменение файлов",
+      "writeHint": "edit — правка существующих файлов",
+      "create": "Создание файлов",
+      "createHint": "write_file — создание/перезапись",
+      "send": "Отправка файлов",
+      "sendHint": "send_file — отправка файлов в чат",
+      "footnote": "Выключение возможности добавляет инструменты в deny-список политики (deny всегда сильнее allow)."
     }
   },
   "heartbeat": {

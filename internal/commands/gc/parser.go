@@ -11,6 +11,7 @@
 package gc
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -83,12 +84,7 @@ func (k CommandKind) String() string {
 
 // Valid reports whether k is one of the recognized command kinds.
 func (k CommandKind) Valid() bool {
-	for _, known := range knownKinds {
-		if k == known {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(knownKinds, k)
 }
 
 // Parse parses message as a /gc:<kind> command. Returns (cmd, true) when the

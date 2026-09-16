@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"encoding/json"
+	"maps"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -28,7 +29,7 @@ const (
 	// RedirectLocalhostURL). The browser lands on the user's own machine
 	// where nothing is listening — the UI asks the user to paste the
 	// address-bar URL back (rclone's well-known copy/paste flow).
-	LoopbackRedirectGoogle   = "http://127.0.0.1:53682/"
+	LoopbackRedirectGoogle    = "http://127.0.0.1:53682/"
 	LoopbackRedirectMicrosoft = "http://localhost:53682/"
 )
 
@@ -140,9 +141,7 @@ func stampSettings(base string, kv map[string]string) string {
 	if m == nil {
 		m = map[string]string{}
 	}
-	for k, v := range kv {
-		m[k] = v
-	}
+	maps.Copy(m, kv)
 	out, _ := json.Marshal(m)
 	return string(out)
 }

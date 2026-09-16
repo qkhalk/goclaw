@@ -135,8 +135,8 @@ func ParseGateSpec(entry string) (GateSpec, error) {
 	}
 
 	name, typ := head, head
-	if i := strings.IndexByte(head, ':'); i >= 0 {
-		name, typ = strings.TrimSpace(head[:i]), strings.TrimSpace(head[i+1:])
+	if before, after, ok := strings.Cut(head, ":"); ok {
+		name, typ = strings.TrimSpace(before), strings.TrimSpace(after)
 	}
 	if typ == "" || name == "" {
 		return GateSpec{}, fmt.Errorf("qualitygate: missing name/type in gate spec %q", raw)
@@ -294,7 +294,7 @@ func paramPathList(params map[string]any) []string {
 	}
 	switch v := params["paths"].(type) {
 	case string:
-		for _, p := range strings.Split(v, ",") {
+		for p := range strings.SplitSeq(v, ",") {
 			appendPath(p)
 		}
 	case []string:

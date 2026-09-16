@@ -252,7 +252,7 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	// the sent message so button presses / replies route the answer back into
 	// the session (metadata convention, see tools.MetaAskOptions).
 	if raw := msg.Metadata[tools.MetaAskOptions]; raw != "" {
-		return c.sendAskQuestion(ctx, chatID, localKey, msg.Content, raw, replyToMsgID, threadID)
+		return c.sendAskQuestion(ctx, chatID, localKey, msg.Content, raw, msg.Metadata[tools.MetaAskOptionsRecommended], replyToMsgID, threadID)
 	}
 
 	// Handle media attachments if present

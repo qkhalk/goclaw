@@ -218,10 +218,7 @@ func (c *Channel) handleSkillsCallback(ctx context.Context, query *telego.Callba
 			return
 		}
 		pages := skillPickerPages(len(spc.infos))
-		spc.page = n
-		if spc.page < 0 {
-			spc.page = 0
-		}
+		spc.page = max(n, 0)
 		if spc.page > pages-1 {
 			spc.page = pages - 1
 		}

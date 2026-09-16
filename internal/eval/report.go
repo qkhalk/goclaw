@@ -27,15 +27,15 @@ func WriteReport(w io.Writer, reports []SuiteReport, onlyFailures bool) bool {
 			if !res.Passed {
 				totalCaseLines++
 				indent := strings.Repeat(" ", 11)
-			if res.Err != "" {
-				fmt.Fprintf(w, "%s%s\n", indent, wordWrap(res.Err, 100, indent))
-			}
-			if res.Detail != "" {
-				fmt.Fprintf(w, "%sretrieved:\n", indent)
-				for _, line := range strings.Split(res.Detail, "\n") {
-					fmt.Fprintf(w, "%s  %s\n", indent, line)
+				if res.Err != "" {
+					fmt.Fprintf(w, "%s%s\n", indent, wordWrap(res.Err, 100, indent))
 				}
-			}
+				if res.Detail != "" {
+					fmt.Fprintf(w, "%sretrieved:\n", indent)
+					for line := range strings.SplitSeq(res.Detail, "\n") {
+						fmt.Fprintf(w, "%s  %s\n", indent, line)
+					}
+				}
 			}
 		}
 	}
@@ -73,8 +73,8 @@ func SummaryLine(reports []SuiteReport) string {
 }
 
 func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i] + " …"
+	if before, _, ok := strings.Cut(s, "\n"); ok {
+		return before + " …"
 	}
 	return s
 }

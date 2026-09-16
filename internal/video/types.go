@@ -7,7 +7,9 @@
 package video
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -19,8 +21,8 @@ type Storyboard struct {
 	Canvas  Canvas   `json:"canvas"`
 	Engine  string   `json:"engine,omitempty"` // default "ffmpeg"
 	Scenes  []Scene  `json:"scenes"`
-	Audio   AudioMix `json:"audio,omitempty"`
-	Output  Output   `json:"output,omitempty"`
+	Audio   AudioMix `json:"audio"`
+	Output  Output   `json:"output"`
 }
 
 // Canvas is the render frame. Defaults: 1080x1920 (9:16) @30fps; capped at
@@ -47,6 +49,7 @@ type Scene struct {
 	Color       string     `json:"color,omitempty"`  // "#RRGGBB" for color scenes
 	DurationSec float64    `json:"duration_sec"`
 	Fit         string     `json:"fit,omitempty"` // cover|contain (default cover)
+	Transition  string     `json:"transition,omitempty"` // enter transition: none|fade|crossfade|slide_left|slide_up
 	Mute        bool       `json:"mute,omitempty"`
 	KenBurns    *KenBurns  `json:"ken_burns,omitempty"`
 	Caption     *Caption   `json:"caption,omitempty"`
@@ -58,6 +61,91 @@ type KenBurns struct {
 	ZoomFrom float64 `json:"zoom_from,omitempty"` // default 1.0
 	ZoomTo   float64 `json:"zoom_to,omitempty"`   // default 1.0 (no zoom)
 	Pan      string  `json:"pan,omitempty"`       // none|left|right|up|down
+}
+
+// UnmarshalJSON accepts the documented direction string ("left", …) and also
+// the coordinate object {from_x, from_y, to_x, to_y} that LLM-authored
+// storyboards sometimes emit — the object is reduced to its dominant axis so
+// a near-miss storyboard still renders instead of failing validation.
+// Keep in sync with internal/vworker/contract (drift-guarded by the golden
+// fixture "kenburns_pan_object").
+func (k *KenBurns) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		ZoomFrom *float64        `json:"zoom_from"`
+		ZoomTo   *float64        `json:"zoom_to"`
+		Pan      json.RawMessage `json:"pan"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.ZoomFrom != nil {
+		k.ZoomFrom = *raw.ZoomFrom
+	}
+	if raw.ZoomTo != nil {
+		k.ZoomTo = *raw.ZoomTo
+	}
+	if len(raw.Pan) == 0 || string(raw.Pan) == "null" {
+		return nil
+	}
+	var dir string
+	if err := json.Unmarshal(raw.Pan, &dir); err == nil {
+		k.Pan = dir
+		return nil
+	}
+	var box struct {
+		FromX *float64 `json:"from_x"`
+		FromY *float64 `json:"from_y"`
+		ToX   *float64 `json:"to_x"`
+		ToY   *float64 `json:"to_y"`
+	}
+	if err := json.Unmarshal(raw.Pan, &box); err != nil {
+		return fmt.Errorf(`ken_burns.pan: want a direction string or a {from_x,from_y,to_x,to_y} object: %s`, truncateJSON(raw.Pan))
+	}
+	k.Pan = panFromBox(box.FromX, box.FromY, box.ToX, box.ToY)
+	return nil
+}
+
+// panFromBox reduces a pan box to the dominant movement direction. Sub-0.2%
+// offsets count as no pan; ties favor the horizontal axis. Mirrored by
+// internal/vworker/contract.
+func panFromBox(fromX, fromY, toX, toY *float64) string {
+	var from, to [2]float64
+	if fromX != nil {
+		from[0] = *fromX
+	}
+	if fromY != nil {
+		from[1] = *fromY
+	}
+	if toX != nil {
+		to[0] = *toX
+	}
+	if toY != nil {
+		to[1] = *toY
+	}
+	dx := to[0] - from[0]
+	dy := to[1] - from[1]
+	ax, ay := math.Abs(dx), math.Abs(dy)
+	if ax < 0.002 && ay < 0.002 {
+		return "none"
+	}
+	if ax >= ay {
+		if dx < 0 {
+			return "left"
+		}
+		return "right"
+	}
+	if dy < 0 {
+		return "up"
+	}
+	return "down"
+}
+
+func truncateJSON(b json.RawMessage) string {
+	s := string(b)
+	if len(s) > 80 {
+		s = s[:80] + "…"
+	}
+	return s
 }
 
 // Caption draws text over the scene via drawtext (needs a font file on the
@@ -78,8 +166,8 @@ type Narration struct {
 
 // AudioMix configures the final audio graph.
 type AudioMix struct {
-	BGMPath         string  `json:"bgm_path,omitempty"` // workspace-relative or URL
-	BGMVolume       float64 `json:"bgm_volume,omitempty"`    // default 0.2
+	BGMPath         string  `json:"bgm_path,omitempty"`         // workspace-relative or URL
+	BGMVolume       float64 `json:"bgm_volume,omitempty"`       // default 0.2
 	NarrationVolume float64 `json:"narration_volume,omitempty"` // default 1.0
 }
 
@@ -116,13 +204,13 @@ func DimensionsFor(aspect string, height int) (w, h int, ok bool) {
 }
 
 const (
-	maxScenes       = 60
-	maxSceneSec     = 30.0
-	maxTotalSec     = 600.0
-	maxCanvasEdge   = 1920
-	defaultFPS      = 30
-	defaultHeight   = 720
-	allowedHeights  = "480, 720 or 1080"
+	maxScenes      = 60
+	maxSceneSec    = 30.0
+	maxTotalSec    = 600.0
+	maxCanvasEdge  = 1920
+	defaultFPS     = 30
+	defaultHeight  = 720
+	allowedHeights = "480, 720 or 1080"
 )
 
 // Validate checks the storyboard against the v1 constraints. It is shared by
@@ -180,6 +268,13 @@ func (sc *Scene) validate() error {
 	}
 	if sc.DurationSec < 1 || sc.DurationSec > maxSceneSec {
 		return fmt.Errorf("duration_sec %.1f out of range 1..%.0f", sc.DurationSec, maxSceneSec)
+	}
+	if sc.Transition != "" && sc.Transition != "none" {
+		switch sc.Transition {
+		case "fade", "crossfade", "slide_left", "slide_up":
+		default:
+			return fmt.Errorf("transition %q not supported (none, fade, crossfade, slide_left, slide_up)", sc.Transition)
+		}
 	}
 	return nil
 }
