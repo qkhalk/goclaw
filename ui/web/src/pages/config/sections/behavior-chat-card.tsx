@@ -168,7 +168,7 @@ export function BehaviorChatCard({ value, onChange }: Props) {
               providerPlaceholder={t("behavior.providerPlaceholder")}
               modelPlaceholder={t("behavior.modelPlaceholder")}
             />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <NumberField label={t("behavior.timeoutMs")} value={value.quick_ack?.timeout_ms ?? 2500} disabled={!value.enabled} onChange={(timeout_ms) => patchAck({ timeout_ms })} />
               <NumberField label={t("behavior.maxTokens")} value={value.quick_ack?.max_tokens ?? 40} disabled={!value.enabled} onChange={(max_tokens) => patchAck({ max_tokens })} />
               <NumberField label={t("behavior.maxChars")} value={value.quick_ack?.max_chars ?? 120} disabled={!value.enabled} onChange={(max_chars) => patchAck({ max_chars })} />
@@ -229,7 +229,7 @@ export function BehaviorChatCard({ value, onChange }: Props) {
               providerPlaceholder={t("behavior.providerPlaceholder")}
               modelPlaceholder={t("behavior.modelPlaceholder")}
             />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <NumberField label={t("behavior.timeoutMs")} value={value.intermediate_replies?.timeout_ms ?? 2500} disabled={!value.enabled} onChange={(timeout_ms) => patchIntermediate({ timeout_ms })} />
               <NumberField label={t("behavior.maxTokens")} value={value.intermediate_replies?.max_tokens ?? 60} disabled={!value.enabled} onChange={(max_tokens) => patchIntermediate({ max_tokens })} />
               <NumberField label={t("behavior.maxChars")} value={value.intermediate_replies?.max_chars ?? 180} disabled={!value.enabled} onChange={(max_chars) => patchIntermediate({ max_chars })} />

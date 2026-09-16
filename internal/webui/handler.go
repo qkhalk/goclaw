@@ -62,6 +62,11 @@ func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		} else {
 			setIndexCacheHeaders(w)
+			if path == "manifest.webmanifest" {
+				// http.FileServer sniffs .webmanifest as text/plain on some
+				// builds; browsers want an explicit manifest media type.
+				w.Header().Set("Content-Type", "application/manifest+json")
+			}
 		}
 		if path == "index.html" {
 			h.serveIndex(w, r)

@@ -50,3 +50,13 @@ ric(() => {
     }
   }, delay);
 });
+
+// PWA: register the service worker so the app is installable on a phone home
+// screen and opens offline (app-shell cache). Production only — dev servers
+// have no stable sw.js and hot reload would fight the cache. Failures are
+// non-fatal (unsupported browser / disabled storage): the app works without.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
