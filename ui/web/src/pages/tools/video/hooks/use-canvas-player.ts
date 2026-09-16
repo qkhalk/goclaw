@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { renderSceneWithTransition, type SceneTransition } from "../components/scene-transition";
 
 // ── Types ──
@@ -306,13 +306,20 @@ export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
       scratchBRef.current,
     );
 
-    setState((prev) => ({
-      ...prev,
-      currentTime: time,
-      currentSceneIndex: index,
-      fps: storyboard.canvas.fps,
-      totalDuration: totalDuration(storyboard.scenes),
-    }));
+    // Bail out when nothing visible changed: resize-driven redraws (fresh
+    // handleResize each render via the player object) must not feed back into
+    // a render → effect → render loop ("Maximum update depth exceeded"
+    // froze the whole SPA whenever this page re-rendered).
+    const total = totalDuration(storyboard.scenes);
+    const fps = storyboard.canvas.fps;
+    setState((prev) =>
+      prev.currentTime === time &&
+      prev.currentSceneIndex === index &&
+      prev.fps === fps &&
+      prev.totalDuration === total
+        ? prev
+        : { ...prev, currentTime: time, currentSceneIndex: index, fps, totalDuration: total },
+    );
   }, [storyboard]);
 
   const frameLoop = useCallback(
@@ -377,6 +384,9 @@ export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
     (width: number, height: number) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
+      // Assigning canvas.width clears the canvas even when the value is
+      // unchanged — skip identical sizes to avoid pointless redraws.
+      if (canvas.width === width && canvas.height === height) return;
       canvas.width = width;
       canvas.height = height;
       renderCurrentFrame();
@@ -399,13 +409,18 @@ export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
     };
   }, []);
 
-  return {
-    state,
-    canvasRef,
-    play,
-    pause,
-    seek,
-    stepFrame,
-    resize,
-  };
+  // Stable identity across renders: a fresh object here cascades into
+  // CanvasPlayer's handleResize → resize effect re-running every render.
+  return useMemo(
+    () => ({
+      state,
+      canvasRef,
+      play,
+      pause,
+      seek,
+      stepFrame,
+      resize,
+    }),
+    [state, play, pause, seek, stepFrame, resize],
+  );
 }

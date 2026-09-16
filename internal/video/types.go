@@ -49,6 +49,7 @@ type Scene struct {
 	Color       string     `json:"color,omitempty"`  // "#RRGGBB" for color scenes
 	DurationSec float64    `json:"duration_sec"`
 	Fit         string     `json:"fit,omitempty"` // cover|contain (default cover)
+	Transition  string     `json:"transition,omitempty"` // enter transition: none|fade|crossfade|slide_left|slide_up
 	Mute        bool       `json:"mute,omitempty"`
 	KenBurns    *KenBurns  `json:"ken_burns,omitempty"`
 	Caption     *Caption   `json:"caption,omitempty"`
@@ -267,6 +268,13 @@ func (sc *Scene) validate() error {
 	}
 	if sc.DurationSec < 1 || sc.DurationSec > maxSceneSec {
 		return fmt.Errorf("duration_sec %.1f out of range 1..%.0f", sc.DurationSec, maxSceneSec)
+	}
+	if sc.Transition != "" && sc.Transition != "none" {
+		switch sc.Transition {
+		case "fade", "crossfade", "slide_left", "slide_up":
+		default:
+			return fmt.Errorf("transition %q not supported (none, fade, crossfade, slide_left, slide_up)", sc.Transition)
+		}
 	}
 	return nil
 }
