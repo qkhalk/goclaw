@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -64,12 +65,12 @@ func (nilRunner) RunAgent(context.Context, string, string) (string, error) {
 }
 
 func joinIDs(ids []string) string {
-	out := ""
+	var out strings.Builder
 	for i, id := range ids {
 		if i > 0 {
-			out += ", "
+			out.WriteString(", ")
 		}
-		out += id
+		out.WriteString(id)
 	}
-	return out
+	return out.String()
 }

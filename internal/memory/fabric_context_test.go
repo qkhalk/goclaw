@@ -83,7 +83,7 @@ func TestBuildFabricContextEmptyAndErrors(t *testing.T) {
 
 func TestBuildFabricContextTokenBudget(t *testing.T) {
 	var results []store.ScoredMemory
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		results = append(results, store.ScoredMemory{
 			Memory: mem(string(rune('a'+i%26))+"-"+string(rune('a'+i/26)), "very long fact number that takes tokens "+string(rune('a'+i%26))+string(rune('a'+i%26))+string(rune('a'+i%26))),
 		})
@@ -100,7 +100,7 @@ func TestBuildFabricContextTokenBudget(t *testing.T) {
 
 func TestFilterContradictedMemories(t *testing.T) {
 	a := mem("a", "favorite editor is Vim")
-	b := &store.Memory{ID: "b", Content: "favorite editor is VS Code", Scope: store.MemoryScopeUser, Kind: store.MemoryKindFact, ContradictsID: strPtr("a")}
+	b := &store.Memory{ID: "b", Content: "favorite editor is VS Code", Scope: store.MemoryScopeUser, Kind: store.MemoryKindFact, ContradictsID: new("a")}
 	c := mem("c", "unrelated fact")
 
 	got := store.FilterContradictedMemories([]store.ScoredMemory{
@@ -116,7 +116,7 @@ func TestFilterContradictedMemories(t *testing.T) {
 	}
 
 	// Contradiction pointing outside the result set drops nothing.
-	dangling := &store.Memory{ID: "b", Content: "x", ContradictsID: strPtr("missing")}
+	dangling := &store.Memory{ID: "b", Content: "x", ContradictsID: new("missing")}
 	got = store.FilterContradictedMemories([]store.ScoredMemory{{Memory: mem("z", "kept")}, {Memory: dangling}})
 	if len(got) != 2 {
 		t.Fatalf("dangling contradiction must not drop rows, got %d", len(got))
@@ -129,4 +129,5 @@ func TestFilterContradictedMemories(t *testing.T) {
 	}
 }
 
-func strPtr(s string) *string { return &s }
+//go:fix inline
+func strPtr(s string) *string { return new(s) }

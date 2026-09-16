@@ -39,11 +39,27 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
   const showIframe = frameSrc !== "" && state.status !== "error";
   const displayTitle = state.title || state.finalUrl || t("browserPanel.title");
   // Sandbox flips with the mode: the relay needs allow-same-origin so the
-  // dashboard can read/operate its DOM; the live preview runs the real page's
-  // scripts but WITHOUT allow-same-origin — opaque origin, isolated from the
-  // dashboard. Changing sandbox only takes effect on a fresh frame, so the
-  // key includes the mode (and src) to force a remount.
-  const sandbox = live ? "allow-scripts allow-forms" : "allow-same-origin";
+  // dashboard can read/operate its DOM. The live preview runs the real page's
+  // scripts; EXTERNAL live pages also get allow-same-origin — without it the
+  // frame is an opaque origin and any localStorage/sessionStorage access
+  // throws a SecurityError, white-screening most SPAs at boot. The flag is
+  // only safe when the frame keeps the SITE's origin (never ours): for URLs
+  // sharing the dashboard origin it is dropped, so allow-scripts can never
+  // pair with our own origin. Changing sandbox only takes effect on a fresh
+  // frame, so the key includes the mode (and src) to force a remount.
+  let liveAllowsSameOrigin = false;
+  if (live && state.finalUrl) {
+    try {
+      liveAllowsSameOrigin = new URL(state.finalUrl).origin !== window.location.origin;
+    } catch {
+      liveAllowsSameOrigin = false;
+    }
+  }
+  const sandbox = live
+    ? liveAllowsSameOrigin
+      ? "allow-scripts allow-forms allow-same-origin"
+      : "allow-scripts allow-forms"
+    : "allow-same-origin";
 
   const submitURL = () => {
     const trimmed = urlDraft.trim();
@@ -167,15 +183,17 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
       <div className="shrink-0 border-t px-3 py-1.5 text-xs text-muted-foreground safe-bottom">
         {state.note
           ? state.note
-          : state.status === "loading"
-            ? t("browserPanel.loading")
-            : state.status === "error"
-              ? t("browserPanel.errorHint")
-              : state.status === "ready"
-                ? live
-                  ? t("browserPanel.liveNote")
-                  : t("browserPanel.staticNote")
-                : t("browserPanel.empty")}
+          : state.thinStatic
+            ? t("browserPanel.thinStaticNote")
+            : state.status === "loading"
+              ? t("browserPanel.loading")
+              : state.status === "error"
+                ? t("browserPanel.errorHint")
+                : state.status === "ready"
+                  ? live
+                    ? t("browserPanel.liveNote")
+                    : t("browserPanel.staticNote")
+                  : t("browserPanel.empty")}
       </div>
     </div>
   );
