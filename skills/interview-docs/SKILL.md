@@ -56,7 +56,7 @@ unresolved questions. Every captured decision includes its rationale and date.
 ## Routing
 - Docs need ongoing maintenance structure → `docs`.
 - Single decisions deserve their own record → `decision-log`.
-- The roadmap becomes executable work → `plan`.
+- The roadmap becomes executable work → `goclaw-kit`.
 
 ## Guardrails
 - Ask before assuming: an invented rationale is worse than a marked gap.

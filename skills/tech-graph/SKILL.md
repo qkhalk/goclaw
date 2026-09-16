@@ -40,7 +40,7 @@ Author professional technical diagrams directly as SVG via `write_file` — arch
 One .svg file: well-formed, `viewBox` set, readable at 100% zoom, consistent style, title and legend, saved under `docs/` or `diagrams/`, referenced from the related document.
 
 ## Routing
-- The diagram supports a plan or design doc -> produce alongside `plan` or `docs`
+- The diagram supports a plan or design doc -> produce alongside `goclaw-kit` or `docs`
 - Code structure discovery first -> `scout`
 - Raster art or screenshots -> `create_image` or `web_browse`
 - Sequence logic from code tracing -> trace as in `debug`, then draw

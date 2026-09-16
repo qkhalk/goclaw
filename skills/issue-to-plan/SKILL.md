@@ -13,7 +13,7 @@ version: 1
 
 # Issue To Plan
 
-Convert a GitHub issue (or any bug report) into an implementation-ready brief: extract testable acceptance criteria, bound the scope, surface risks, and enumerate file-level changes — then hand the brief to `plan`.
+Convert a GitHub issue (or any bug report) into an implementation-ready brief: extract testable acceptance criteria, bound the scope, surface risks, and enumerate file-level changes — then hand the brief to `goclaw-kit`.
 
 ## When to use
 - An issue has been triaged and approved for development
@@ -34,13 +34,13 @@ Convert a GitHub issue (or any bug report) into an implementation-ready brief: e
 6. List risks and unknowns, each with a mitigation: a spike, a question for the reporter, or a feature flag.
 7. Draft the change list: file by file (path -> change summary -> verification), ordered by dependency.
 8. Estimate size (S/M/L) and note whether it splits into parallel streams (making it `team` material).
-9. Hand off: invoke `plan` with this brief as input to produce the full plan document; link the issue in the plan header.
+9. Hand off: invoke `goclaw-kit` with this brief as input to produce the full plan document; link the issue in the plan header.
 
 ## Output
 An issue brief: source link, restated problem, testable acceptance criteria, scope in/out, file-level change list, risks with mitigations, and a size estimate — ready to become a plan document.
 
 ## Routing
-- Full plan document production -> `plan` (this brief is its input)
+- Full plan document production -> `goclaw-kit` (this brief is its input)
 - Implementation after planning -> `cook`; verification -> `test`; delivery -> `ship`
 - A bug needs reproduction before scoping -> `debug`
 - Contract/API changes detected -> flag `go-claw-engineer` and the repo's parity rules

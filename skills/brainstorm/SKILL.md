@@ -48,7 +48,7 @@ A one-page shortlist: ranked table (idea, scores, total), rationale per idea,
 the constraints used, and a single clear recommendation.
 
 ## Routing
-- The chosen idea needs an implementation plan → `plan` or `architect`.
+- The chosen idea needs an implementation plan → `goclaw-kit` or `architect`.
 - The decision itself should be recorded → `decision-log`.
 - The user only wants a recommendation between fixed options → `advise`.
 

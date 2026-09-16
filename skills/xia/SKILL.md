@@ -42,7 +42,7 @@ A native implementation with tests in the target repo, plus a port note: upstrea
 ## Routing
 - Upstream repo is huge — pack the relevant slice first with `repomix`
 - Target repo is this Go gateway -> implementation guidance via `go-claw-engineer`
-- Large ports need phasing -> `plan` first, `cook` to implement, `test` to verify
+- Large ports need phasing -> `goclaw-kit` first, `cook` to implement, `test` to verify
 - The port adds schema changes -> `databases`
 
 ## Guardrails

@@ -26,7 +26,7 @@ Keep long-horizon goals alive across sessions with a durable registry and unambi
 ## Workflow
 1. **Register:** keep a `goals.md` (or `goals/` directory) at the workspace root — one section per goal with statement, why, done-definition, milestones M1..Mn, and status. Done-definitions are checkable facts ("integration tests green", "user confirms in writing"), never vibes ("basically working"). Draft it and confirm with one `ask` question if the user's goal is vague.
 2. **Milestonize:** split into 2-6 milestones, each independently verifiable and sized for 1-3 sessions; link each to its plan file in `plans/` for phase detail.
-3. **Work:** execute the current milestone through the appropriate chain (usually `plan` → `cook` → `test`).
+3. **Work:** execute the current milestone through the appropriate chain (usually `goclaw-kit` → `cook` → `test`).
 4. **Checkpoint:** at each milestone boundary, update `goals.md` status and write a short progress note — what changed, evidence, next step — so any future session can resume cold.
 5. **Resume:** at session start with an unfinished goal, read `goals.md` first, then the current milestone's plan file and last progress note. Rebuild state from files, never from memory.
 6. **Close:** when the done-definition is fully satisfied, mark done with evidence links and propose archiving.

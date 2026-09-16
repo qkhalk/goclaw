@@ -54,7 +54,7 @@ carries a source link.
 ## Routing
 - Drafting the assignment before this loop → `research-prompt`.
 - The decision needs formal recording → `decision-log`.
-- Implementation plan follows the decision → `plan` or `architect`.
+- Implementation plan follows the decision → `goclaw-kit` or `architect`.
 
 ## Guardrails
 - Never state a claim without a source or an explicit "unverified" label.
