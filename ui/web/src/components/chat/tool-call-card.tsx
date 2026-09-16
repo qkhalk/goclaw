@@ -32,7 +32,13 @@ export function ToolCallCard({ entry, compact }: ToolCallCardProps) {
   // the hooks above so the card can switch rendering modes safely.
   const askArgs = isAskOptionsTool(entry.name) ? parseAskOptionsArgs(entry.arguments) : null;
   if (askArgs) {
-    return <AskOptionsCard question={askArgs.question} options={askArgs.options} />;
+    return (
+      <AskOptionsCard
+        question={askArgs.question}
+        options={askArgs.options}
+        recommended={askArgs.recommended}
+      />
+    );
   }
   // plan renders as a read-only checklist card from the tool's canonical
   // result state; errored calls and unparseable payloads fall through to the

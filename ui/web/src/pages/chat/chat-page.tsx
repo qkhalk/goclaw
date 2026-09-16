@@ -13,6 +13,8 @@ import { ChatTopBar } from "@/components/chat/chat-top-bar";
 import { DropZone } from "@/components/shared/drop-zone";
 import { TeamTasksPill } from "@/components/chat/team-tasks-pill";
 import { useChatSessions } from "./hooks/use-chat-sessions";
+import { useWs } from "@/hooks/use-ws";
+import { Methods } from "@/api/protocol";
 import { useChatMessages } from "./hooks/use-chat-messages";
 import { useChatSend } from "./hooks/use-chat-send";
 import { isOwnSession, parseSessionKey } from "@/lib/session-key";
@@ -61,6 +63,26 @@ export function ChatPage() {
     buildNewSessionKey,
     deleteSession,
   } = useChatSessions(agentId);
+  const ws = useWs();
+
+  // Dev mode: same per-session pref (chat_mode=dev) the Telegram /dev command
+  // writes — the gateway applies the dev-mode prompt section to web runs too.
+  const devMode = sessions.find((s) => s.key === sessionKey)?.metadata?.chat_mode === "dev";
+  const onDevModeChange = useCallback(
+    async (on: boolean) => {
+      if (!sessionKey) return;
+      try {
+        await ws.call(Methods.SESSIONS_PATCH, {
+          key: sessionKey,
+          metadata: { chat_mode: on ? "dev" : "" },
+        });
+        await refreshSessions();
+      } catch {
+        // patch failures leave the pref unchanged; next open of the session re-reads it
+      }
+    },
+    [sessionKey, ws, refreshSessions],
+  );
 
   const {
     messages,
@@ -305,6 +327,8 @@ export function ChatPage() {
             onTogglePane={togglePane}
             workspaceId={workspaceId}
             onWorkspaceChange={setWorkspaceId}
+            devMode={devMode}
+            onDevModeChange={onDevModeChange}
           />
         </div>
 

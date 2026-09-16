@@ -201,6 +201,12 @@
     "readOnly": "只读视图 — 打开聊天以回答",
     "other": "其他…",
     "otherPlaceholder": "输入你自己的回答…",
-    "send": "发送回答"
+    "send": "发送回答",
+    "recommended": "推荐"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev 模式已开启 — 点击关闭",
+    "off": "Dev 模式已关闭 — 点击开启（先规划、自动用技能、不确定时询问）"
   }
 }

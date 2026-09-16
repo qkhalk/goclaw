@@ -201,6 +201,12 @@
     "readOnly": "Chế độ chỉ đọc — mở mục Trò chuyện để trả lời",
     "other": "Khác…",
     "otherPlaceholder": "Nhập câu trả lời của bạn…",
-    "send": "Gửi câu trả lời"
+    "send": "Gửi câu trả lời",
+    "recommended": "Gợi ý"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev mode đang BẬT — click để tắt",
+    "off": "Dev mode đang TẮT — click để bật (lập kế hoạch, tự dùng skill, hỏi khi chưa rõ)"
   }
 }
