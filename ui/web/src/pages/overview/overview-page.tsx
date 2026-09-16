@@ -255,6 +255,9 @@ export function OverviewPage() {
             />
           </div>
 
+          {/* System (host CPU / memory / disk) */}
+          <SystemCard />
+
           {/* System Health */}
           <SystemHealthCard
             health={health}
@@ -275,10 +278,13 @@ export function OverviewPage() {
             <CronJobsCard jobs={cronData?.jobs ?? []} />
           </div>
 
-          {/* Routing graph (9router-style ellipse) + compact Recent Requests */}
+          {/* Surface topology (9router-style) + compact Recent Requests */}
           <div className="grid gap-4 lg:grid-cols-5">
             <div className="lg:col-span-3">
-              <RoutingGraphCard />
+              <RoutingGraphCard
+                channelEntries={channelEntries}
+                clientCount={clientList.length}
+              />
             </div>
             <div className="lg:col-span-2">
               <RecentRequestsCard />
@@ -289,9 +295,6 @@ export function OverviewPage() {
           {quota?.enabled && quota.entries.length > 0 && (
             <QuotaUsageCard quota={quota} />
           )}
-
-          {/* System (host CPU / memory / disk) */}
-          <SystemCard />
         </TabsContent>
 
         <TabsContent value="usage">
