@@ -6,7 +6,24 @@
     "google": "连接 Google 账户",
     "onedrive": "连接 OneDrive 账户",
     "another": "连接其他账户",
-    "dropbox": "连接 Dropbox 账号"
+    "dropbox": "连接 Dropbox 账号",
+    "s3": "连接 S3 兼容存储"
+  },
+  "s3": {
+    "title": "连接 S3 兼容存储",
+    "description": "支持 AWS S3、Cloudflare R2、Backblaze B2、Wasabi、MinIO 和 DO Spaces。保存前会先对 endpoint 验证密钥。",
+    "label": "标签(可选)",
+    "label_placeholder": "团队归档",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "AWS S3 可留空。自动使用 path-style 寻址。",
+    "region": "区域(可选)",
+    "bucket": "存储桶",
+    "access_key": "Access Key ID",
+    "secret_key": "Secret Access Key",
+    "secret_hint": "保存时加密存储;API 不会再次返回密钥。",
+    "cancel": "取消",
+    "connect": "连接",
+    "connecting": "正在验证…"
   },
   "disconnect": "断开连接",
   "readonly_badge": "只读",
@@ -37,7 +54,8 @@
     "coming_soon": "即将推出",
     "google_desc": "通过您自己的 GCP OAuth 客户端访问 Google Drive，附带 Gmail 工具。",
     "onedrive_desc": "通过您自己的 Azure 应用访问 Microsoft OneDrive（个人或工作/学校账户）。",
-    "more_via_rclone": "更多存储（Dropbox、S3、WebDAV 等）将基于同一 rclone 引擎陆续推出"
+    "more_via_rclone": "更多存储(WebDAV 等)即将在同一引擎上支持",
+    "s3_desc": "AWS S3、Cloudflare R2、Backblaze B2、Wasabi、MinIO、DO Spaces — 使用访问密钥连接。"
   },
   "provider": {
     "back": "所有提供商",

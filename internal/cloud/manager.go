@@ -55,7 +55,7 @@ const (
 
 // SupportedProviders lists the storage providers the manager can connect,
 // in UI display order.
-var SupportedProviders = []string{GoogleProvider, MicrosoftProvider, DropboxProvider}
+var SupportedProviders = []string{GoogleProvider, MicrosoftProvider, DropboxProvider, S3Provider}
 
 // IsSupportedProvider reports whether the provider id can be connected.
 func IsSupportedProvider(provider string) bool {
@@ -154,6 +154,10 @@ func (m *Manager) ProviderConfigured(ctx context.Context, provider string) bool 
 		return m.MicrosoftConfigured(ctx)
 	case DropboxProvider:
 		return m.DropboxConfigured(ctx)
+	case S3Provider:
+		// Static access keys — always "configured"; validation happens at
+		// connect time (ConnectS3).
+		return true
 	default:
 		return false
 	}
@@ -243,6 +247,8 @@ func (m *Manager) BuildAuthURL(ctx context.Context, provider, baseURL, tenantID,
 		return m.buildMicrosoftAuthURL(ctx, baseURL, tenantID, userID)
 	case DropboxProvider:
 		return m.buildDropboxAuthURL(ctx, baseURL, tenantID, userID)
+	case S3Provider:
+		return "", "", "", errors.New("cloud: s3 connects with access keys, not OAuth — use the access-key connect form")
 	default:
 		return "", "", "", fmt.Errorf("cloud: unsupported provider %q", provider)
 	}
@@ -618,6 +624,8 @@ func (m *Manager) TokenSource(ctx context.Context, accountID string) (oauth2.Tok
 	case DropboxProvider:
 		creds := m.credentialsForAccount(ctx, acct)
 		cfg = NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, "")
+	case S3Provider:
+		return nil, errors.New("cloud: s3 accounts use static access keys — no token source")
 	default:
 		return nil, fmt.Errorf("cloud: unsupported provider %q", acct.Provider)
 	}

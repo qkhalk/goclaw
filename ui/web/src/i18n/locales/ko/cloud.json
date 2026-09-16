@@ -6,7 +6,24 @@
     "google": "Google 계정 연결",
     "onedrive": "OneDrive 계정 연결",
     "another": "다른 계정 연결",
-    "dropbox": "Dropbox 계정 연결"
+    "dropbox": "Dropbox 계정 연결",
+    "s3": "S3 호환 스토리지 연결"
+  },
+  "s3": {
+    "title": "S3 호환 스토리지 연결",
+    "description": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces를 지원합니다. 저장하기 전에 엔드포인트에서 키를 검증합니다.",
+    "label": "라벨(선택)",
+    "label_placeholder": "팀 아카이브",
+    "endpoint": "엔드포인트",
+    "endpoint_hint": "AWS S3는 비워 두세요. path-style 주소가 자동으로 사용됩니다.",
+    "region": "리전(선택)",
+    "bucket": "버킷",
+    "access_key": "액세스 키 ID",
+    "secret_key": "시크릿 액세스 키",
+    "secret_hint": "저장 시 암호화되며 API는 저장 후 키를 다시 반환하지 않습니다.",
+    "cancel": "취소",
+    "connect": "연결",
+    "connecting": "검증 중…"
   },
   "disconnect": "연결 해제",
   "readonly_badge": "읽기 전용",
@@ -37,7 +54,8 @@
     "coming_soon": "곧 제공",
     "google_desc": "자체 GCP OAuth 클라이언트를 통한 Google Drive. Gmail 도구 포함.",
     "onedrive_desc": "자체 Azure 앱을 통한 Microsoft OneDrive(개인 및 회사/학교 계정).",
-    "more_via_rclone": "더 많은 스토리지(Dropbox, S3, WebDAV 등)가 동일한 rclone 엔진으로 곧 제공될 예정입니다"
+    "more_via_rclone": "더 많은 스토리지(WebDAV 등)가 곧 같은 엔진에서 지원될 예정입니다",
+    "s3_desc": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces — 액세스 키로 연결합니다."
   },
   "provider": {
     "back": "모든 공급자",

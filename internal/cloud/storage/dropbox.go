@@ -185,20 +185,14 @@ func (b *DropboxBackend) About(ctx context.Context) (*AboutInfo, error) {
 	var raw struct {
 		Used       int64 `json:"used"`
 		Allocation struct {
-			Allocated    int64 `json:"allocated"`
-			SpaceType    string `json:".tag"`
-			TeamsAllocation *struct {
-				Allocated int64 `json:"allocated"`
-			} `json:"allocated"`
+			Allocated int64  `json:"allocated"`
+			SpaceType string `json:".tag"`
 		} `json:"allocation"`
 	}
 	if err := b.apiPost(ctx, "/users/get_space_usage", map[string]any{}, &raw); err != nil {
 		return nil, err
 	}
 	total := raw.Allocation.Allocated
-	if total == 0 && raw.Allocation.TeamsAllocation != nil {
-		total = raw.Allocation.TeamsAllocation.Allocated
-	}
 	return &AboutInfo{Total: total, Used: raw.Used, Free: total - raw.Used}, nil
 }
 

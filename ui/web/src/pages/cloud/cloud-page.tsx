@@ -16,7 +16,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -84,7 +92,7 @@ function statusBadge(status: CloudAccount["status"], label: string) {
   }
 }
 
-const COMING_SOON_PROVIDERS = ["Dropbox", "Amazon S3 / compatible"];
+const COMING_SOON_PROVIDERS: string[] = [];
 
 /** Clouds page — Drive-style shell. Navigation state lives in the URL:
  * /cloud (home) → /cloud/:provider → /cloud/:provider/:accountId?path=…
@@ -101,11 +109,11 @@ export function CloudPage() {
   const isAdmin = role === "admin" || role === "owner";
 
   const { data: cloudStatus, isLoading: cloudStatusLoading } = useCloudStatus();
-  const { accounts, loading, refresh, disconnect, startConnect, completeConnect, setShared, setAgentAccess } = useCloudAccounts();
+  const { accounts, loading, refresh, disconnect, startConnect, completeConnect, connectS3, setShared, setAgentAccess } = useCloudAccounts();
 
   // URL-derived view state (never duplicated into useState).
   const activeProvider: CloudProvider | null =
-    provider === "google" || provider === "onedrive" || provider === "dropbox" ? provider : null;
+    provider === "google" || provider === "onedrive" || provider === "dropbox" || provider === "s3" ? provider : null;
   const path = normalizePath(params.get("path"));
   const view: "home" | "provider" | "account" = accountId ? "account" : provider ? "provider" : "home";
   /** Cross-account pseudo-views on /cloud itself (?view=starred|recent). */
@@ -148,13 +156,15 @@ export function CloudPage() {
   const [pasteError, setPasteError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsProvider, setSettingsProvider] = useState<CloudProvider>("google");
+  const [s3Open, setS3Open] = useState(false);
 
   const account = accountId ? accounts.find((a) => a.id === accountId) : undefined;
   const providerMeta = activeProvider ? CLOUD_PROVIDERS.find((p) => p.id === activeProvider) : null;
 
   const googleConfigured = cloudStatus?.providers?.google?.configured ?? false;
   const onedriveConfigured = cloudStatus?.providers?.onedrive?.configured ?? false;
-  const isConfigured = (p: CloudProvider) => (p === "google" ? googleConfigured : onedriveConfigured);
+  // s3 is always connectable (access keys — validation happens on connect).
+  const isConfigured = (p: CloudProvider) => (p === "google" ? googleConfigured : p === "onedrive" ? onedriveConfigured : true);
   const providersReady = CLOUD_PROVIDERS.filter((p) => isConfigured(p.id)).length;
   const activeAccounts = accounts.filter((a) => a.status === "active").length;
 
@@ -169,6 +179,11 @@ export function CloudPage() {
   }
 
   async function handleConnect(p: CloudProvider) {
+    // s3 skips OAuth entirely — open the access-key connect dialog.
+    if (p === "s3") {
+      setS3Open(true);
+      return;
+    }
     setConnecting(true);
     setPasteError("");
     try {
@@ -539,6 +554,12 @@ export function CloudPage() {
         onProviderChange={setSettingsProvider}
       />
 
+      <S3ConnectDialog
+        open={s3Open}
+        onOpenChange={setS3Open}
+        onConnect={connectS3}
+      />
+
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
@@ -554,6 +575,113 @@ export function CloudPage() {
 
 function providerAccounts(accounts: CloudAccount[], provider: CloudProvider): CloudAccount[] {
   return accounts.filter((a) => a.provider === provider);
+}
+
+/** Access-key connect dialog for S3-compatible stores (AWS, R2, B2, Wasabi,
+ * MinIO, DO Spaces). The server validates the keys with one list call before
+ * persisting — a bad field fails here, not on first use. */
+function S3ConnectDialog({
+  open,
+  onOpenChange,
+  onConnect,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConnect: (input: { label?: string; endpoint?: string; region?: string; bucket: string; access_key: string; secret_key: string }) => Promise<unknown>;
+}) {
+  const { t } = useTranslation("cloud");
+  const [label, setLabel] = useState("");
+  const [endpoint, setEndpoint] = useState("");
+  const [region, setRegion] = useState("");
+  const [bucket, setBucket] = useState("");
+  const [accessKey, setAccessKey] = useState("");
+  const [secretKey, setSecretKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function close() {
+    onOpenChange(false);
+    setLabel("");
+    setEndpoint("");
+    setRegion("");
+    setBucket("");
+    setAccessKey("");
+    setSecretKey("");
+    setError("");
+  }
+
+  async function submit() {
+    if (!bucket.trim() || !accessKey.trim() || !secretKey.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onConnect({
+        label: label.trim() || undefined,
+        endpoint: endpoint.trim() || undefined,
+        region: region.trim() || undefined,
+        bucket: bucket.trim(),
+        access_key: accessKey.trim(),
+        secret_key: secretKey.trim(),
+      });
+      close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const field =
+    "w-full text-base md:text-sm";
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && close()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("s3.title")}</DialogTitle>
+          <DialogDescription>{t("s3.description")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="s3-label">{t("s3.label")}</Label>
+            <Input id="s3-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("s3.label_placeholder")} className={field} autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="s3-endpoint">{t("s3.endpoint")}</Label>
+            <Input id="s3-endpoint" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://<account>.r2.cloudflarestorage.com" className={field} autoComplete="off" />
+            <p className="text-xs text-muted-foreground">{t("s3.endpoint_hint")}</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="s3-region">{t("s3.region")}</Label>
+              <Input id="s3-region" value={region} onChange={(e) => setRegion(e.target.value)} placeholder="us-east-1" className={field} autoComplete="off" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="s3-bucket">{t("s3.bucket")}</Label>
+              <Input id="s3-bucket" value={bucket} onChange={(e) => setBucket(e.target.value)} placeholder="my-bucket" className={field} autoComplete="off" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="s3-access">{t("s3.access_key")}</Label>
+            <Input id="s3-access" value={accessKey} onChange={(e) => setAccessKey(e.target.value)} className={field} autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="s3-secret">{t("s3.secret_key")}</Label>
+            <Input id="s3-secret" type="password" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} className={field} autoComplete="new-password" />
+            <p className="text-xs text-muted-foreground">{t("s3.secret_hint")}</p>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={close} disabled={saving} className="min-h-11 sm:min-h-9">
+            {t("s3.cancel")}
+          </Button>
+          <Button size="sm" onClick={submit} disabled={saving || !bucket.trim() || !accessKey.trim() || !secretKey.trim()} className="min-h-11 sm:min-h-9">
+            {saving ? t("s3.connecting") : t("s3.connect")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 /** Provider accounts split into Personal vs Company (shared) sections —

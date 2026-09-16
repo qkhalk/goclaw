@@ -6,7 +6,24 @@
     "google": "Kết nối tài khoản Google",
     "onedrive": "Kết nối tài khoản OneDrive",
     "another": "Kết nối tài khoản khác",
-    "dropbox": "Kết nối tài khoản Dropbox"
+    "dropbox": "Kết nối tài khoản Dropbox",
+    "s3": "Kết nối lưu trữ tương thích S3"
+  },
+  "s3": {
+    "title": "Kết nối lưu trữ tương thích S3",
+    "description": "Hỗ trợ AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO và DO Spaces. Key sẽ được kiểm tra với endpoint trước khi lưu.",
+    "label": "Nhãn (tuỳ chọn)",
+    "label_placeholder": "Kho lưu trữ nhóm",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "Để trống nếu dùng AWS S3. Tự động dùng kiểu địa chỉ path-style.",
+    "region": "Region (tuỳ chọn)",
+    "bucket": "Bucket",
+    "access_key": "Access key ID",
+    "secret_key": "Secret access key",
+    "secret_hint": "Được mã hoá khi lưu; API không bao giờ trả lại key sau khi lưu.",
+    "cancel": "Huỷ",
+    "connect": "Kết nối",
+    "connecting": "Đang kiểm tra…"
   },
   "disconnect": "Ngắt kết nối",
   "readonly_badge": "Chỉ đọc",
@@ -37,7 +54,8 @@
     "coming_soon": "Sắp ra mắt",
     "google_desc": "Google Drive qua OAuth client GCP của riêng bạn. Có thêm công cụ Gmail.",
     "onedrive_desc": "Microsoft OneDrive (cá nhân hoặc công việc/trường học) qua Azure app của riêng bạn.",
-    "more_via_rclone": "Sắp có thêm nhiều lưu trữ khác (Dropbox, S3, WebDAV, …) trên cùng nền tảng rclone"
+    "more_via_rclone": "Các lưu trữ khác (WebDAV, …) sẽ sớm hỗ trợ trên cùng nền tảng",
+    "s3_desc": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces — kết nối bằng access key."
   },
   "provider": {
     "back": "Tất cả nhà cung cấp",
