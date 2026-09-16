@@ -124,6 +124,7 @@ __pycache__/
 # Local build/deploy artifacts (one-off binaries shipped to the home server)
 /goclaw-*.bin
 /goclaw-*-linux*
+/goclaw-linux*
 /videoworker*
 /dist/
 /internal/webui/dist/
