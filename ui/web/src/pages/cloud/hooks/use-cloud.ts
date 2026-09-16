@@ -44,7 +44,7 @@ export interface CloudBinding {
   priority: number;
 }
 
-export type CloudProvider = "google" | "onedrive" | "dropbox";
+export type CloudProvider = "google" | "onedrive" | "dropbox" | "s3";
 
 /** One tenant-level one-way folder sync pair (source → target, additive
  * mirror — files deleted at the source are never deleted at the target). */
@@ -90,7 +90,12 @@ export interface CloudFileEntry {
 export interface CloudStatus {
   enabled: boolean;
   edition: string;
-  providers: { google?: { configured: boolean }; onedrive?: { configured: boolean } };
+  providers: {
+    google?: { configured: boolean };
+    onedrive?: { configured: boolean };
+    dropbox?: { configured: boolean };
+    s3?: { configured: boolean };
+  };
 }
 
 export interface CloudStartResponse {
@@ -165,6 +170,17 @@ export function useCloudAccounts() {
     [http],
   );
 
+  /** S3-compatible connect (R2/B2/Wasabi/MinIO/DO/AWS): static access keys,
+   * validated server-side against the endpoint — no OAuth round trip. */
+  const connectS3 = useCallback(
+    async (input: { label?: string; endpoint?: string; region?: string; bucket: string; access_key: string; secret_key: string }) => {
+      const res = await http.post<CloudAccount>("/v1/cloud/accounts/s3", input);
+      await invalidate();
+      return res;
+    },
+    [http, invalidate],
+  );
+
   /** Finish the paste-back flow: submit the address-bar URL the browser
    * landed on after consent (loopback redirect, nothing listening). */
   const completeConnect = useCallback(
@@ -194,7 +210,7 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
-  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, setShared, setAgentAccess };
+  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, connectS3, setShared, setAgentAccess };
 }
 
 export function useCloudBindings(enabled: boolean) {

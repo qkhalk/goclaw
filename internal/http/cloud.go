@@ -103,6 +103,7 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/cloud/bindings", requireAuth("", h.handleListBindings))
 	mux.HandleFunc("PUT /v1/cloud/bindings", requireAuth("", h.handleUpsertBinding))
 	mux.HandleFunc("DELETE /v1/cloud/bindings/{id}", requireAuth("", h.handleDeleteBinding))
+	mux.HandleFunc("POST /v1/cloud/accounts/s3", requireAuth("", h.handleConnectS3))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/start", requireAuth("", h.handleStart))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/complete", requireAuth("", h.handleComplete))
 	mux.HandleFunc("GET /v1/cloud/oauth/callback", h.handleCallback)
@@ -147,8 +148,10 @@ func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 	googleConfigured := h.manager != nil && h.manager.GoogleConfigured(r.Context())
 	microsoftConfigured := h.manager != nil && h.manager.MicrosoftConfigured(r.Context())
 	dropboxConfigured := h.manager != nil && h.manager.DropboxConfigured(r.Context())
+	// s3 uses static access keys — the connect form is always available.
+	s3Configured := h.manager != nil
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled": h.enabled && (googleConfigured || microsoftConfigured || dropboxConfigured),
+		"enabled": h.enabled && (googleConfigured || microsoftConfigured || dropboxConfigured || s3Configured),
 		"edition": h.editionName(),
 		"providers": map[string]any{
 			"google": map[string]bool{
@@ -159,6 +162,9 @@ func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 			},
 			"dropbox": map[string]bool{
 				"configured": dropboxConfigured,
+			},
+			"s3": map[string]bool{
+				"configured": s3Configured,
 			},
 		},
 	})
@@ -270,9 +276,15 @@ func (h *CloudHandler) requestProvider(r *http.Request) string {
 	return provider
 }
 
-// validProvider writes a 400 unless the ?provider= value is connectable.
+// validProvider writes a 400 unless the ?provider= value has OAuth-client
+// settings (s3 authenticates with static keys — per-account, not here).
 func (h *CloudHandler) validProvider(w http.ResponseWriter, r *http.Request) bool {
-	if cloudmgr.IsSupportedProvider(h.requestProvider(r)) {
+	provider := h.requestProvider(r)
+	if provider == cloudmgr.S3Provider {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "s3 has no OAuth client settings — connect with access keys"})
+		return false
+	}
+	if cloudmgr.IsSupportedProvider(provider) {
 		return true
 	}
 	writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
@@ -1663,6 +1675,52 @@ type cloudStartResponse struct {
 	// browser lands back on the server callback) or "paste" (embedded shared
 	// client — the browser lands on a loopback URL the user pastes back).
 	Mode string `json:"mode"`
+}
+
+// --- POST /v1/cloud/accounts/s3 (access-key connect — no OAuth flow) ---
+
+type cloudS3ConnectInput struct {
+	Label     string `json:"label"`
+	Endpoint  string `json:"endpoint"`
+	Region    string `json:"region"`
+	Bucket    string `json:"bucket"`
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+}
+
+// handleConnectS3 validates and stores an S3-compatible account (R2, B2,
+// Wasabi, MinIO, DO Spaces, AWS). The keys never round-trip back to the
+// client — the response is the same account view the list endpoint returns.
+func (h *CloudHandler) handleConnectS3(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	var in cloudS3ConnectInput
+	locale := store.LocaleFromContext(r.Context())
+	if !bindJSON(w, r, locale, &in) {
+		return
+	}
+	tenantID := store.TenantIDFromContext(r.Context())
+	userID := store.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing user identity"})
+		return
+	}
+	acct, err := h.manager.ConnectS3(r.Context(), tenantID.String(), userID, cloudmgr.S3ConnectInput{
+		Label:     in.Label,
+		Endpoint:  in.Endpoint,
+		Region:    in.Region,
+		Bucket:    in.Bucket,
+		AccessKey: in.AccessKey,
+		SecretKey: in.SecretKey,
+	})
+	if err != nil {
+		slog.Warn("cloud: s3 connect failed", "error", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	slog.Info("cloud: s3 account connected", "bucket", in.Bucket)
+	writeJSON(w, http.StatusOK, cloudAccountView{CloudAccount: *acct, CanWrite: true})
 }
 
 func (h *CloudHandler) handleStart(w http.ResponseWriter, r *http.Request) {
