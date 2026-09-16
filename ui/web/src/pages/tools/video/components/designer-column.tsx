@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Braces, History, Loader2, MessageSquarePlus, Palette, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ResizeHandle } from "@/components/shared/resize-handle";
 import { MessageBubble } from "@/components/chat/message-bubble";
@@ -185,6 +184,9 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
               onHistory={toggleHistory}
               historyLabel={t("video.designer.history")}
               historyActive={historyOpen}
+              onAttach={() => setAttached((v) => !v)}
+              attachActive={attached}
+              attachLabel={t("video.designer.attach")}
               onNewChat={chat.newChat}
               onClose={() => setOpen(false)}
               newChatLabel={t("video.designer.newChat")}
@@ -219,9 +221,7 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
               chat={chat}
               onSend={handleSend}
               attached={attached}
-              onAttach={() => setAttached(true)}
               onDetach={() => setAttached(false)}
-              attachLabel={t("video.designer.attach")}
               attachedLabel={t("video.designer.attached")}
               designingLabel={t("video.designer.designing")}
               storageKey="goclaw.composer-override:video-designer"
@@ -256,6 +256,9 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
           onHistory={toggleHistory}
           historyLabel={t("video.designer.history")}
           historyActive={historyOpen}
+          onAttach={() => setAttached((v) => !v)}
+          attachActive={attached}
+          attachLabel={t("video.designer.attach")}
           onNewChat={chat.newChat}
           onClose={() => setOpen(false)}
           newChatLabel={t("video.designer.newChat")}
@@ -290,9 +293,7 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
           chat={chat}
           onSend={handleSend}
           attached={attached}
-          onAttach={() => setAttached(true)}
           onDetach={() => setAttached(false)}
-          attachLabel={t("video.designer.attach")}
           attachedLabel={t("video.designer.attached")}
           designingLabel={t("video.designer.designing")}
           storageKey="goclaw.composer-override:video-designer"
@@ -320,6 +321,9 @@ function ColumnHeader({
   onHistory,
   historyLabel,
   historyActive,
+  onAttach,
+  attachActive,
+  attachLabel,
   onNewChat,
   onClose,
   newChatLabel,
@@ -330,6 +334,9 @@ function ColumnHeader({
   onHistory: () => void;
   historyLabel: string;
   historyActive: boolean;
+  onAttach: () => void;
+  attachActive: boolean;
+  attachLabel: string;
   onNewChat: () => void;
   onClose: () => void;
   newChatLabel: string;
@@ -348,6 +355,21 @@ function ColumnHeader({
         title={isRunning ? "..." : ""}
       />
       <div className="ml-auto flex shrink-0 items-center">
+        <button
+          type="button"
+          onClick={onAttach}
+          title={attachLabel}
+          aria-label={attachLabel}
+          aria-pressed={attachActive}
+          className={cn(
+            "flex h-11 w-11 items-center justify-center rounded-lg transition-colors sm:h-8 sm:w-8",
+            attachActive
+              ? "bg-accent text-accent-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Braces className="h-4 w-4" />
+        </button>
         <button
           type="button"
           onClick={onHistory}
@@ -553,9 +575,7 @@ function ComposerRow({
   chat,
   onSend,
   attached,
-  onAttach,
   onDetach,
-  attachLabel,
   attachedLabel,
   designingLabel,
   storageKey,
@@ -565,9 +585,7 @@ function ComposerRow({
   chat: ChatView;
   onSend: (message: string, files?: AttachedFile[], overrides?: ComposerOverrides) => void;
   attached: boolean;
-  onAttach: () => void;
   onDetach: () => void;
-  attachLabel: string;
   attachedLabel: string;
   designingLabel: string;
   storageKey: string;
@@ -583,28 +601,16 @@ function ComposerRow({
       {sendError && (
         <p className="px-4 pb-1 text-xs text-destructive">{sendError}</p>
       )}
-      {attached ? (
+      {attached && (
         <button
           type="button"
           onClick={onDetach}
-          className="mx-3 mb-2 flex w-[calc(100%-1.5rem)] items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-left text-sm hover:bg-accent/60 transition-colors"
+          className="mx-3 mb-1.5 flex w-[calc(100%-1.5rem)] items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-left text-xs text-primary transition-colors hover:bg-primary/20"
         >
-          <Braces className="h-4 w-4 shrink-0 text-primary" />
+          <Braces className="h-3.5 w-3.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate">{attachedLabel}</span>
-          <X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <X className="h-3 w-3 shrink-0" />
         </button>
-      ) : (
-        <div className="mx-3 mb-2 flex">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onAttach}
-            className="min-h-11 w-full sm:min-h-8 text-muted-foreground"
-          >
-            <Braces className="mr-2 h-4 w-4" />
-            {attachLabel}
-          </Button>
-        </div>
       )}
       <ChatInput
         onSend={(message, fs, overrides) => onSend(message, fs, overrides)}
