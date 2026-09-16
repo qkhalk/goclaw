@@ -97,7 +97,15 @@
     "columns": {
       "requests": "请求数",
       "share": "占比"
-    }
+    },
+    "surfaces": {
+      "telegram": "Telegram",
+      "webChat": "网页聊天",
+      "pptx": "PPTX",
+      "videoEdit": "视频剪辑"
+    },
+    "surfaceIdle": "空闲",
+    "surfaceOffline": "离线"
   },
   "system": {
     "title": "系统",

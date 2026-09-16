@@ -97,7 +97,15 @@
     "columns": {
       "requests": "Requests",
       "share": "Share"
-    }
+    },
+    "surfaces": {
+      "telegram": "Telegram",
+      "webChat": "Web chat",
+      "pptx": "PPTX",
+      "videoEdit": "Video editor"
+    },
+    "surfaceIdle": "idle",
+    "surfaceOffline": "offline"
   },
   "system": {
     "title": "System",

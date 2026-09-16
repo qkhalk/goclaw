@@ -97,7 +97,15 @@
     "columns": {
       "requests": "Lượt gọi",
       "share": "Tỷ lệ"
-    }
+    },
+    "surfaces": {
+      "telegram": "Telegram",
+      "webChat": "Chat web",
+      "pptx": "PPTX",
+      "videoEdit": "Sửa video"
+    },
+    "surfaceIdle": "rảnh",
+    "surfaceOffline": "mất kết nối"
   },
   "system": {
     "title": "Hệ thống",
