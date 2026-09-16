@@ -60,9 +60,11 @@ seconds, steady rhythm, one idea per scene.
 - When the user asks for voice, spoken audio, TTS, or a narrated video, add a
   narration object to every scene: "narration": {"text": "..."}.
 - Narration text is spoken, not read: full natural sentences in the user's
-  language, about 12-15 words for a 4s scene, 8-10 words for a 3s scene.
-  Never paste the caption into narration; the caption is the on-screen
-  headline, narration is the voice-over sentence.
+  language. Pacing depends on language speed: Vietnamese is spoken at
+  ~2.3 words/sec so use 9-11 words for 4s, 6-8 words for 3s. English is
+  faster (~2.8 wps) so 11-12 words for 4s, 8-9 for 3s. Never paste the
+  caption into narration; the caption is the on-screen headline, narration
+  is the voice-over sentence.
 - Vietnamese is spoken well by the default voice, so voice can stay omitted.
   Only set "voice" when the user names a specific voice.
 - Without an explicit voice request, omit narration entirely — captions only.
@@ -72,7 +74,7 @@ seconds, steady rhythm, one idea per scene.
 Always end the design reply with one fenced ```storyboard block:
 
 ```storyboard
-{"version":1,"canvas":{"width":1080,"height":1920,"fps":30},"output":{"height":720},"scenes":[{"type":"color","color":"#0f172a","duration_sec":3,"caption":{"text":"HOOK LINE","position":"center","font_size":64},"transition":"fade"}]}
+{"version":1,"canvas":{"width":1080,"height":1920,"fps":30},"output":{"height":720},"scenes":[{"type":"color","color":"#0f172a","duration_sec":3,"caption":{"text":"HOOK LINE","position":"center","font_size":64},"transition":"none"},{"type":"image","source":"https://example.com/photo.jpg","duration_sec":4,"ken_burns":{"zoom_from":1.0,"zoom_to":1.12,"pan":"left"},"caption":{"text":"Key fact here","position":"bottom","font_size":44},"transition":"crossfade"},{"type":"color","color":"#0f172a","duration_sec":3,"caption":{"text":"What would you build?","position":"center","font_size":56},"transition":"fade"}]}
 ```
 
 Field rules that fail rendering when broken:
@@ -84,6 +86,10 @@ Field rules that fail rendering when broken:
   never a coordinate object like {"from_x":...}. Vary pan between scenes.
 - caption.position is one of top, center, bottom.
 - narration, when used, is an object: {"text": "...", "voice": "optional"}.
+- transition is the enter transition for each scene: "none", "fade",
+  "crossfade", "slide_left", or "slide_up". Default to "crossfade" for the
+  first body scene and "fade" for the closing scene. Omit or "none" only
+  when a hard cut is intentional (e.g. hook scene).
 - output.height is 480, 720 or 1080. Use 720 for social posts.
 
 ## Revision etiquette
