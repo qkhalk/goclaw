@@ -1,4 +1,5 @@
-import { Loader2 } from "lucide-react";
+import { FlaskConical, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { GoclawAvatar } from "@/components/chat/goclaw-avatar";
 import { useAgents } from "@/hooks/use-agents";
 import { stripLeadingEmoji } from "@/lib/agent-emoji";
@@ -19,6 +20,9 @@ interface ChatTopBarProps {
   /** Selected workspace id + change callback for the console menu. */
   workspaceId?: string | null;
   onWorkspaceChange?: (id: string | null) => void;
+  /** Dev mode (session pref chat_mode=dev): plan-first + skill autopilot. */
+  devMode?: boolean;
+  onDevModeChange?: (on: boolean) => void;
 }
 
 /**
@@ -35,9 +39,12 @@ export function ChatTopBar({
   onTogglePane,
   workspaceId,
   onWorkspaceChange,
+  devMode,
+  onDevModeChange,
 }: ChatTopBarProps) {
   const { data: agents = [] } = useAgents();
   const agent = agents.find((a) => a.agent_key === agentId);
+  const { t } = useTranslation("chat");
 
   const emoji = agent?.emoji || undefined;
   // Avatar emoji renders beside the name; drop a duplicated leading cluster.
@@ -56,6 +63,23 @@ export function ChatTopBar({
 
       <div className="flex items-center gap-2">
         {session && <ContextMeter session={session} />}
+
+        {onDevModeChange && (
+          <button
+            type="button"
+            onClick={() => onDevModeChange(!devMode)}
+            title={devMode ? t("devMode.on") : t("devMode.off")}
+            aria-pressed={devMode}
+            className={`flex h-7 items-center gap-1 rounded-md border px-2 text-xs transition-colors ${
+              devMode
+                ? "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{t("devMode.label")}</span>
+          </button>
+        )}
 
         <ConsoleMenu
           workspaceId={workspaceId ?? null}

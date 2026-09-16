@@ -6,6 +6,8 @@ import { useAskOptions } from "./ask-options-context";
 interface AskOptionsCardProps {
   question: string;
   options: string[];
+  /** Agent-suggested option — rendered highlighted with a hint badge. */
+  recommended?: string;
 }
 
 /**
@@ -16,7 +18,7 @@ interface AskOptionsCardProps {
  * buttons and shows the chosen answer. Without the send context (read-only
  * surfaces like session detail) the options render as static chips.
  */
-export function AskOptionsCard({ question, options }: AskOptionsCardProps) {
+export function AskOptionsCard({ question, options, recommended }: AskOptionsCardProps) {
   const { t } = useTranslation("chat");
   const ask = useAskOptions();
   const [picked, setPicked] = useState<string | null>(null);
@@ -58,22 +60,32 @@ export function AskOptionsCard({ question, options }: AskOptionsCardProps) {
       ) : (
         <>
           <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {options.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => pick(option)}
-                disabled={!interactive}
-                title={interactive ? undefined : t("askOptions.readOnly")}
-                className={`min-h-[36px] rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
-                  interactive
-                    ? "hover:border-primary/60 hover:bg-accent"
-                    : "pointer-events-none opacity-60"
-                }`}
-              >
-                <span className="line-clamp-2 break-words">{option}</span>
-              </button>
-            ))}
+            {options.map((option) => {
+              const isRecommended = option === recommended;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => pick(option)}
+                  disabled={!interactive}
+                  title={interactive ? undefined : t("askOptions.readOnly")}
+                  className={`relative min-h-[36px] rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
+                    isRecommended ? "border-primary/70 bg-primary/5" : ""
+                  } ${
+                    interactive
+                      ? "hover:border-primary/60 hover:bg-accent"
+                      : "pointer-events-none opacity-60"
+                  }`}
+                >
+                  {isRecommended && (
+                    <span className="absolute right-1.5 top-1.5 rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-medium text-primary">
+                      {t("askOptions.recommended")}
+                    </span>
+                  )}
+                  <span className="line-clamp-2 break-words pr-10">{option}</span>
+                </button>
+              );
+            })}
           </div>
 
           {interactive && (
@@ -126,12 +138,17 @@ export function AskOptionsCard({ question, options }: AskOptionsCardProps) {
  */
 export function parseAskOptionsArgs(
   args: Record<string, unknown> | undefined | null,
-): { question: string; options: string[] } | null {
+): { question: string; options: string[]; recommended?: string } | null {
   if (!args) return null;
   const question = typeof args.question === "string" ? args.question.trim() : "";
   const rawOptions = args.options;
   if (!question || !Array.isArray(rawOptions) || rawOptions.length === 0) return null;
   const options = rawOptions.filter((o): o is string => typeof o === "string" && o.trim().length > 0);
   if (options.length === 0) return null;
-  return { question, options };
+  const recommended = typeof args.recommended === "string" ? args.recommended.trim() : "";
+  return {
+    question,
+    options,
+    ...(recommended && options.includes(recommended) ? { recommended } : {}),
+  };
 }

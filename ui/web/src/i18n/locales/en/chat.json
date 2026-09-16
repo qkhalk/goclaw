@@ -201,6 +201,12 @@
     "readOnly": "Read-only view — open the chat to answer",
     "other": "Other…",
     "otherPlaceholder": "Type your own answer…",
-    "send": "Send answer"
+    "send": "Send answer",
+    "recommended": "Recommended"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev mode is ON — click to turn off",
+    "off": "Dev mode is OFF — click to enable (plan-first, skill autopilot, ask when unclear)"
   }
 }

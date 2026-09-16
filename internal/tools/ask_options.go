@@ -24,6 +24,11 @@ const askOptionsLabelMax = 48
 // keyboard from it (metadata convention, precedent: placeholder_update).
 const MetaAskOptions = "ask_options"
 
+// MetaAskOptionsRecommended carries the agent-recommended option label (must
+// be one of the MetaAskOptions labels). Channels mark that button; empty
+// means no recommendation.
+const MetaAskOptionsRecommended = "ask_options_recommended"
+
 // MetaOutboundLocalKey mirrors the channel-side "local_key" outbound metadata
 // key (send.go localKey lookup) — declared here to avoid importing the
 // telegram channel package.
@@ -68,6 +73,10 @@ func (t *AskOptionsTool) Parameters() map[string]any {
 				"maxItems":    askOptionsMax,
 				"description": "1-4 mutually exclusive answer options, each a short button label (<=48 chars).",
 			},
+			"recommended": map[string]any{
+				"type":        "string",
+				"description": "Optional: the option you would pick (must exactly match one of the options). Rendered as the highlighted suggested answer.",
+			},
 		},
 		"required": []string{"question", "options"},
 	}
@@ -105,6 +114,14 @@ func (t *AskOptionsTool) Execute(ctx context.Context, args map[string]any) *Resu
 		options = append(options, label)
 	}
 
+	recommended, _ := args["recommended"].(string)
+	recommended = strings.TrimSpace(recommended)
+	if recommended != "" {
+		if _, ok := seen[recommended]; !ok {
+			return ErrorResult(fmt.Sprintf("recommended must match one of the options, got %q", recommended))
+		}
+	}
+
 	channel := ToolChannelFromCtx(ctx)
 	chatID := ToolChatIDFromCtx(ctx)
 	if channel == "" || chatID == "" || channel == ChannelTeammate || channel == ChannelSystem || channel == ChannelDashboard {
@@ -121,6 +138,9 @@ func (t *AskOptionsTool) Execute(ctx context.Context, args map[string]any) *Resu
 		// With the bare chat ID the question would land in the General topic.
 		target := ToolLocalKeyFromCtx(ctx)
 		metadata := map[string]string{MetaAskOptions: string(mustJSON(options))}
+		if recommended != "" {
+			metadata[MetaAskOptionsRecommended] = recommended
+		}
 		if target != "" {
 			metadata[MetaOutboundLocalKey] = target
 			if idx := strings.Index(target, ":topic:"); idx > 0 {
@@ -145,8 +165,18 @@ func (t *AskOptionsTool) Execute(ctx context.Context, args map[string]any) *Resu
 	default:
 		return ErrorResult(fmt.Sprintf("ask_options is not supported on channel %q (telegram and web chat only)", channel))
 	}
-	return NewResult("Question sent to the user with option buttons. End your turn now and wait for their reply — " +
+	return NewResult("Question sent to the user with option buttons" +
+		boolStr(recommended != "", " (recommended option highlighted)", "") +
+		". End your turn now and wait for their reply — " +
 		"their answer (button press or typed reply) will arrive as the next user message in this session.")
+}
+
+// boolStr picks a when cond, else b — tiny helper for result text.
+func boolStr(cond bool, a, b string) string {
+	if cond {
+		return a
+	}
+	return b
 }
 
 // mustJSON marshals option labels; the inputs are validated strings so the
