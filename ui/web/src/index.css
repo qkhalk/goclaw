@@ -402,3 +402,28 @@
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* ReactFlow chrome (routing topology card) themed via app tokens; the
+   library stylesheet hardcodes light-mode whites and is injected after this
+   file, so every rule doubles up .react-flow to win on specificity. */
+.react-flow .react-flow__controls {
+  box-shadow: none;
+}
+.react-flow .react-flow__controls-button {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+.react-flow .react-flow__controls-button svg {
+  fill: var(--muted-foreground);
+}
+.react-flow .react-flow__controls-button:hover {
+  background: var(--accent);
+}
+.react-flow .react-flow__attribution {
+  background: transparent;
+}
+.react-flow .react-flow__attribution a {
+  color: var(--muted-foreground);
+  opacity: 0.6;
+}
