@@ -7,12 +7,13 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuthStore } from "@/stores/use-auth-store";
+import { useUiStore } from "@/stores/use-ui-store";
 import { useWsCall } from "@/hooks/use-ws-call";
 import { useWsEvent } from "@/hooks/use-ws-event";
 import { useProviders } from "@/pages/providers/hooks/use-providers";
 import { Methods, Events } from "@/api/protocol";
 import { ROUTES } from "@/lib/constants";
-import { formatTokens, formatApiCost } from "@/lib/format";
+import { formatTokens, formatApiCost, resolveTimezone } from "@/lib/format";
 
 import type {
   HealthPayload,
@@ -48,6 +49,7 @@ const MAX_OVERVIEW_CHANNEL_INSTANCES = 200;
 export function OverviewPage() {
   const { t } = useTranslation("overview");
   const connected = useAuthStore((s) => s.connected);
+  const timezone = useUiStore((s) => s.timezone);
   const { call: fetchHealth, data: health } =
     useWsCall<HealthPayload>(Methods.HEALTH);
   const { call: fetchStatus, data: status } =
@@ -75,10 +77,11 @@ export function OverviewPage() {
   const fetchAll = useCallback(() => {
     fetchHealth();
     fetchStatus();
-    fetchQuota();
+    // Server counts "today" from the user's local midnight, not UTC
+    fetchQuota({ tz: resolveTimezone(timezone) });
     fetchCron({ includeDisabled: true });
     fetchChannels();
-  }, [fetchHealth, fetchStatus, fetchQuota, fetchCron, fetchChannels]);
+  }, [fetchHealth, fetchStatus, fetchQuota, fetchCron, fetchChannels, timezone]);
 
   useEffect(() => {
     if (!connected) return;

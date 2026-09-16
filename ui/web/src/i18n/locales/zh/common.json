@@ -94,7 +94,7 @@
   "status": "状态",
   "stopGeneration": "停止生成",
   "stopped": "已停止",
-  "thinking": "思考中",
+  "thinking": "已思考",
   "thinkingStreaming": "思考中...",
   "toolArguments": "参数",
   "toolDone": "完成",

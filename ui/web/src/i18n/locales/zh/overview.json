@@ -88,7 +88,7 @@
   },
   "routing": {
     "title": "模型路由",
-    "window": "1 小时",
+    "window": "5 分钟",
     "moreProviders": "还有 {{count}} 个提供商",
     "surfaces": {
       "telegram": "Telegram",

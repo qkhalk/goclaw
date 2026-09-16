@@ -147,10 +147,10 @@ func handleQuotaUsage(checker *channels.QuotaChecker, db *sql.DB) mcpserver.Tool
 		if checker == nil {
 			result := channels.QuotaUsageResult{Enabled: false, Entries: []channels.QuotaUsageEntry{}}
 			if db != nil {
-				channels.QueryTodaySummary(ctx, db, &result)
+				channels.QueryTodaySummary(ctx, db, &result, "")
 			}
 			return jsonToolResult(result)
 		}
-		return jsonToolResult(checker.Usage(ctx))
+		return jsonToolResult(checker.Usage(ctx, ""))
 	}
 }
