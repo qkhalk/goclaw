@@ -7,38 +7,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ROUTES } from "@/lib/constants";
 import { formatRelativeTime, formatTokens } from "@/lib/format";
 import { useHttp } from "@/hooks/use-ws";
-
-/** One recent LLM API call, matching GET /v1/usage/recent-requests. */
-interface RecentLLMRequest {
-  span_id: string;
-  trace_id: string;
-  model: string;
-  provider: string;
-  input_tokens: number;
-  output_tokens: number;
-  status: string;
-  error?: string;
-  start_time: string;
-  duration_ms: number;
-  cost_usd?: number;
-}
+import type { RecentLLMRequest } from "./types";
 
 const REFRESH_INTERVAL = 30_000;
 
-/** 9router-style recent requests: one row per LLM API call — Model |
- * In/Out (colored) | When. */
+/** 9router-style recent requests: compact fixed-height card, one row per LLM
+ * API call — status dot | Model | In/Out (colored) | When. Scrolls internally
+ * with a sticky header so it never stretches the overview grid row. */
 export function RecentRequestsCard() {
   const { t } = useTranslation("overview");
   const http = useHttp();
   const { data, isLoading } = useQuery({
     queryKey: ["usage", "recent-requests"],
     refetchInterval: REFRESH_INTERVAL,
-    queryFn: () => http.get<{ requests: RecentLLMRequest[] }>("/v1/usage/recent-requests", { limit: "8" }),
+    queryFn: () => http.get<{ requests: RecentLLMRequest[] }>("/v1/usage/recent-requests", { limit: "10" }),
   });
   const requests = data?.requests ?? [];
 
   return (
-    <Card>
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base">{t("recentRequests.title")}</CardTitle>
         {requests.length > 0 && (
@@ -50,7 +37,7 @@ export function RecentRequestsCard() {
           </Link>
         )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3">
         {isLoading ? (
           <div className="space-y-2.5">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -62,60 +49,60 @@ export function RecentRequestsCard() {
             {t("recentRequests.noRequests")}
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 font-medium">{t("recentRequests.columns.model")}</th>
-                  <th className="pb-2 px-4 font-medium text-right">{t("recentRequests.columns.inOut")}</th>
-                  <th className="pb-2 pl-4 font-medium text-right">{t("recentRequests.columns.when")}</th>
+          // Table sits directly in the scrolling CardContent: an intermediate
+          // overflow-x wrapper would become the sticky thead's scrollport and
+          // break sticking. overflow-y-auto computes overflow-x to auto, so
+          // the min-w table still scrolls horizontally.
+          <table className="w-full min-w-[300px] text-sm">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="pb-2 font-medium">{t("recentRequests.columns.model")}</th>
+                <th className="px-3 pb-2 font-medium text-right">{t("recentRequests.columns.inOut")}</th>
+                <th className="pb-2 pl-3 font-medium text-right">{t("recentRequests.columns.when")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {requests.map((r) => (
+                <tr key={r.span_id} className="hover:bg-muted/30 transition-colors">
+                  <td className="py-2 pr-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${r.status === "error" ? "bg-red-500" : "bg-emerald-500"}`}
+                        title={r.error || r.status}
+                      />
+                      <p
+                        className="truncate font-mono text-xs font-medium"
+                        title={
+                          r.cost_usd && r.cost_usd > 0
+                            ? `${r.model} · $${r.cost_usd.toFixed(4)}`
+                            : r.model
+                        }
+                      >
+                        {r.model || "--"}
+                      </p>
+                    </div>
+                  </td>
+                  <td
+                    className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
+                    title={`${r.input_tokens.toLocaleString()} in / ${r.output_tokens.toLocaleString()} out`}
+                  >
+                    <span className="inline-flex items-center gap-1 text-rose-500 dark:text-rose-400">
+                      <ArrowUp className="h-3 w-3" />
+                      {formatTokens(r.input_tokens)}
+                    </span>
+                    <span className="mx-1.5 text-muted-foreground/60">/</span>
+                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                      <ArrowDown className="h-3 w-3" />
+                      {formatTokens(r.output_tokens)}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap py-2 pl-3 text-right text-muted-foreground">
+                    {formatRelativeTime(r.start_time)}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {requests.map((r) => (
-                  <tr key={r.span_id} className="border-b last:border-0">
-                    <td className="py-2.5 pr-4">
-                      <div className="flex min-w-0 items-center gap-2">
-                        {r.status === "error" && (
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full bg-red-500"
-                            title={r.error || r.status}
-                          />
-                        )}
-                        <div className="min-w-0">
-                          <p className="truncate font-mono text-xs font-medium" title={r.model}>
-                            {r.model || "--"}
-                          </p>
-                          {(r.cost_usd ?? 0) > 0 && (
-                            <p className="text-[11px] leading-tight text-muted-foreground">
-                              ${r.cost_usd!.toFixed(4)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td
-                      className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums"
-                      title={`${r.input_tokens.toLocaleString()} in / ${r.output_tokens.toLocaleString()} out`}
-                    >
-                      <span className="inline-flex items-center gap-1 text-rose-500 dark:text-rose-400">
-                        <ArrowUp className="h-3 w-3" />
-                        {formatTokens(r.input_tokens)}
-                      </span>
-                      <span className="mx-1.5 text-muted-foreground/60">/</span>
-                      <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                        <ArrowDown className="h-3 w-3" />
-                        {formatTokens(r.output_tokens)}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pl-4 text-right text-muted-foreground">
-                      {formatRelativeTime(r.start_time)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </CardContent>
     </Card>

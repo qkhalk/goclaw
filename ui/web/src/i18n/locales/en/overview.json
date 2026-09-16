@@ -92,6 +92,25 @@
     "noData": "No routing data yet",
     "req": "{{count}} req",
     "moreProviders": "+{{count}} more providers",
-    "moreModels": "+{{count}} more models"
+    "moreModels": "+{{count}} more models",
+    "byModel": "Usage by model",
+    "columns": {
+      "requests": "Requests",
+      "share": "Share"
+    }
+  },
+  "system": {
+    "title": "System",
+    "cpu": "CPU",
+    "memory": "Memory",
+    "disk": "Disk",
+    "cores": "{{count}} cores",
+    "hostUptime": "Host uptime",
+    "platform": "Platform",
+    "loadAvg": "Load",
+    "goroutines": "Goroutines",
+    "heap": "Heap",
+    "goVersion": "Go",
+    "swap": "Swap"
   }
 }
