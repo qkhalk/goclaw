@@ -104,6 +104,8 @@ func (s *StorageService) backendFor(ctx context.Context, acct *store.CloudAccoun
 			return nil, ErrNoDrive
 		}
 		backend = storage.NewGraphBackend(ctx, ts, settings.DriveID)
+	case DropboxProvider:
+		backend = storage.NewDropboxBackend(ctx, ts)
 	default:
 		return nil, fmt.Errorf("cloud storage: provider %q is not storage-capable", acct.Provider)
 	}
@@ -118,7 +120,7 @@ func (s *StorageService) backendFor(ctx context.Context, acct *store.CloudAccoun
 // (group → user → tenant default) and finally the caller's own accounts —
 // including tenant-shared ones (the enterprise "company drive" pattern).
 func (s *StorageService) resolveAccount(ctx context.Context, name string) (*store.CloudAccount, error) {
-	return s.manager.ResolveAccount(ctx, name, []string{GoogleProvider, MicrosoftProvider}, func(a *store.CloudAccount) bool {
+	return s.manager.ResolveAccount(ctx, name, []string{GoogleProvider, MicrosoftProvider, DropboxProvider}, func(a *store.CloudAccount) bool {
 		return isStorageProvider(a.Provider)
 	})
 }
@@ -129,7 +131,7 @@ func (s *StorageService) resolveAccount(ctx context.Context, name string) (*stor
 // that exists but is below the required level fails with the actionable
 // denied error (not a misleading "not found").
 func (s *StorageService) AgentAccount(ctx context.Context, name string, min AgentAccess) (*store.CloudAccount, error) {
-	acct, err := s.manager.ResolveAccount(ctx, name, []string{GoogleProvider, MicrosoftProvider}, func(a *store.CloudAccount) bool {
+	acct, err := s.manager.ResolveAccount(ctx, name, []string{GoogleProvider, MicrosoftProvider, DropboxProvider}, func(a *store.CloudAccount) bool {
 		return isStorageProvider(a.Provider)
 	})
 	if err != nil {

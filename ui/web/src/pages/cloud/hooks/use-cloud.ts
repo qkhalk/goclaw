@@ -44,7 +44,7 @@ export interface CloudBinding {
   priority: number;
 }
 
-export type CloudProvider = "google" | "onedrive";
+export type CloudProvider = "google" | "onedrive" | "dropbox";
 
 /** One tenant-level one-way folder sync pair (source → target, additive
  * mirror — files deleted at the source are never deleted at the target). */

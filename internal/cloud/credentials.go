@@ -45,6 +45,16 @@ var EmbeddedGoogleScopes = []string{
 	"https://www.googleapis.com/auth/drive",
 }
 
+// dropboxCredentialsAll returns BYO Dropbox credentials and reports whether
+// they exist (Dropbox has no embedded shared client, so byo == configured).
+func (m *Manager) dropboxCredentialsAll(ctx context.Context) (providerCredentials, bool) {
+	id, secret := m.dropboxCredentials(ctx)
+	if id != "" && secret != "" {
+		return providerCredentials{ClientID: id, ClientSecret: secret}, true
+	}
+	return providerCredentials{}, false
+}
+
 // providerCredentials is the resolved OAuth client for one provider plus a
 // flag telling whether it is the embedded shared client.
 type providerCredentials struct {
