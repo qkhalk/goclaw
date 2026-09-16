@@ -251,6 +251,29 @@ export function SceneCard({
         </Select>
       </div>
 
+      {/* Narration pacing fit: ~2.3 words/sec (VN-normalized). A narration
+          much longer than the scene is what makes voice/text feel mismatched
+          in renders — surface the estimate and offer one-tap fit. */}
+      {(() => {
+        const words = (scene.narration ?? "").trim().split(/\s+/).filter(Boolean).length;
+        if (words === 0) return null;
+        const est = words / 2.3;
+        const dur = Number(scene.duration_sec) || 0;
+        if (est <= dur + 0.5) return null;
+        return (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <span>{t("video.narration_fit_hint", { est: Math.ceil(est), dur })}</span>
+            <button
+              type="button"
+              onClick={() => onUpdate({ duration_sec: Math.ceil(est) })}
+              className="ml-auto rounded border border-amber-500/50 px-1.5 py-0.5 font-medium transition-colors hover:bg-amber-500/10"
+            >
+              {t("video.narration_fit_apply", { est: Math.ceil(est) })}
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Narration (TTS) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="flex flex-col gap-1.5 sm:col-span-3">

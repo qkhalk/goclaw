@@ -144,7 +144,9 @@
     "filter_brightness": "Яркость",
     "filter_contrast": "Контраст",
     "filter_saturate": "Насыщенность",
-    "filter_blur": "Размытие (px)"
+    "filter_blur": "Размытие (px)",
+    "narration_fit_hint": "Озвучке нужно ~{{est}}s, но сцена {{dur}}s — звук оборвётся.",
+    "narration_fit_apply": "Поставить {{est}}s"
   },
   "watermark": {
     "title": "Удаление водяных знаков",

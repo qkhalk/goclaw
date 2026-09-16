@@ -144,7 +144,9 @@
     "filter_brightness": "Độ sáng",
     "filter_contrast": "Tương phản",
     "filter_saturate": "Độ bão hòa",
-    "filter_blur": "Làm mờ (px)"
+    "filter_blur": "Làm mờ (px)",
+    "narration_fit_hint": "Lời thoại cần ~{{est}}s nhưng scene chỉ {{dur}}s — tiếng sẽ bị cắt.",
+    "narration_fit_apply": "Đặt {{est}}s"
   },
   "watermark": {
     "title": "Xóa watermark",
