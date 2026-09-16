@@ -120,7 +120,14 @@
     "switchToLive": "Live preview (runs JavaScript)",
     "switchToStatic": "Static view (agent-operable)",
     "liveNote": "Live preview — the real page runs JavaScript here. The agent cannot read or click in this mode; switch back to static for that.",
-    "thinStaticNote": "This page needs JavaScript to render, so the static view is nearly empty. Switch to the live preview (bolt icon) or open it in a new tab."
+    "thinStaticNote": "This page needs JavaScript to render, so the static view is nearly empty. Switch to the live preview (bolt icon) or open it in a new tab.",
+    "remote": {
+      "toggle": "Server browser (agent-controlled)",
+      "placeholder": "URL — open in the server-side headless Chrome",
+      "empty": "Enter a URL to open it in the server browser (real Chrome, JS runs — the agent shares this browser).",
+      "note": "Server browser — page rendered by the gateway; the agent can read and control even JS/iframe-blocked sites.",
+      "noCapture": "Page opened but no screenshot captured — try refresh."
+    }
   },
   "taskTree": {
     "empty": "No tasks yet",

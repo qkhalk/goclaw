@@ -334,6 +334,14 @@ const (
 	// relay one URL and gets the loadable relay URL back in the RPC response.
 	MethodBrowserPanelOpen = "browser.panel.open"
 
+	// browser.remote.* drives the SERVER-side headless browser (Rod): the
+	// panel asks the gateway to open/operate arbitrary external sites that
+	// the sanitized relay can't run (SPAs, framing-protected pages) and gets
+	// a11y snapshot + screenshot back.
+	MethodBrowserRemoteOpen = "browser.remote.open"
+	MethodBrowserRemoteAct = "browser.remote.act"
+	MethodBrowserRemoteScreenshot = "browser.remote.screenshot"
+
 	// Zalo Personal
 	MethodZaloPersonalQRStart  = "zalo.personal.qr.start"
 	MethodZaloPersonalContacts = "zalo.personal.contacts"

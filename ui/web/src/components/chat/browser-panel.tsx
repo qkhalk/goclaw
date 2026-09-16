@@ -5,7 +5,8 @@
 // and URL-bar entries navigate through the gateway's sanitized relay
 // (browser.panel.open), and agent actions operate the live page via the
 // use-browser-panel hook.
-import { ArrowLeft, ArrowRight, ExternalLink, FileText, Globe, RotateCw, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, FileText, Globe, MonitorSmartphone, RotateCw, X, Zap } from "lucide-react";
+import { RemoteBrowserView } from "./browser-remote-view";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BrowserPanelState } from "@/pages/chat/hooks/use-browser-panel";
@@ -24,6 +25,7 @@ interface BrowserPanelProps {
 
 export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onForward, onReload, onURLSubmit, onToggleMode }: BrowserPanelProps) {
   const { t } = useTranslation("chat");
+  const [remoteMode, setRemoteMode] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [urlDraft, setUrlDraft] = useState(state.url);
 
@@ -131,8 +133,20 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
         />
         <button
           type="button"
+          onClick={() => setRemoteMode((v) => !v)}
+          title={t("browserPanel.remote.toggle")}
+          className={`rounded-md p-1.5 ${
+            remoteMode
+              ? "bg-primary/10 text-primary hover:bg-primary/20"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          }`}
+        >
+          <MonitorSmartphone className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
           onClick={onToggleMode}
-          disabled={!state.finalUrl}
+          disabled={remoteMode || !state.finalUrl}
           title={live ? t("browserPanel.switchToStatic") : t("browserPanel.switchToLive")}
           className={`rounded-md p-1.5 disabled:pointer-events-none disabled:opacity-40 ${
             live
@@ -154,7 +168,9 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
 
       {/* Content */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden overscroll-contain">
-        {showIframe ? (
+        {remoteMode ? (
+          <RemoteBrowserView />
+        ) : showIframe ? (
           <iframe
             ref={iframeRef}
             key={`${state.mode}:${frameSrc}`}
