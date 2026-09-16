@@ -422,6 +422,45 @@ func buildXfadeArgs(cfg FFmpegConfig, sceneFiles []string, transitions []string,
 	return args
 }
 
+// buildXfadeChainArgs builds an xfade filter chain for N inputs where each
+// offset is relative to the previous input's start (not the global timeline).
+// This is used for batched xfade processing: each batch produces an
+// intermediate file whose internal timeline starts at 0, so the offsets
+// within the batch are relative.
+func buildXfadeChainArgs(sceneFiles []string, transitions []string, offsets []float64, fps int, outputPath string) []string {
+	args := []string{"-hide_banner", "-loglevel", "warning"}
+	for _, f := range sceneFiles {
+		args = append(args, "-i", f)
+	}
+
+	var fc strings.Builder
+	prev := "[0:v]"
+	absOffset := 0.0
+	for i := 1; i < len(sceneFiles); i++ {
+		out := fmt.Sprintf("[v%d]", i)
+		fmt.Fprintf(&fc, "%s[%d:v]xfade=transition=%s:duration=%.2f:offset=%.3f%s;",
+			prev, i, xfadeTransition(transitions[i]), transitionSec, absOffset+offsets[i-1], out)
+		// Next offset is relative to the END of the current output segment
+		absOffset += offsets[i-1]
+		prev = out
+	}
+
+	args = append(args, "-filter_complex", strings.TrimSuffix(fc.String(), ";"))
+	args = append(args, "-map", prev)
+	args = append(args, baseFlags...)
+	args = append(args, "-r", fmt.Sprint(fps))
+	args = append(args, "-pix_fmt", "yuv420p")
+	args = append(args, outputPath)
+	return args
+}
+
+// xfadeBatchSize is the maximum number of scenes processed in one ffmpeg
+// xfade invocation. Larger batches hold more frame buffers simultaneously
+// and can OOM on memory-constrained servers (e.g. 350 MB cgroup limit).
+// With batch size 3, at most 3 input file handles + 2 chained xfade filter
+// contexts are open at once — well within 350 MB at 720p.
+const xfadeBatchSize = 3
+
 // transitionSec is the xfade overlap at scene junctions (matches the browser
 // preview's TRANSITION_SEC).
 const transitionSec = 0.5

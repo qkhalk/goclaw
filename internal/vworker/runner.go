@@ -293,14 +293,16 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 
 	// Concat scenes — xfade chain when transitions are present, stream-copy
 	// concat demuxer otherwise (cheaper, byte-identical to before).
+	// When xfade is needed, scenes are processed in batches of ≤xfadeBatchSize
+	// to keep ffmpeg's file handle count and frame buffer memory bounded
+	// (the old all-at-once approach OOMed on 5+ scenes at 720p with 350 MB).
 	concatOut := filepath.Join(tempDir, "concat.mp4")
 	if hasTransitions {
 		transitions := make([]string, len(sb.Scenes))
 		for i := range sb.Scenes {
 			transitions[i] = sb.Scenes[i].Transition
 		}
-		xfadeArgs := buildXfadeArgs(ffcfg, sceneFiles, transitions, offsets, fps, concatOut)
-		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, xfadeArgs); err != nil {
+		if err := batchedXfade(ctx, r.cfg.FFmpegPath, sceneFiles, transitions, offsets, fps, tempDir, concatOut); err != nil {
 			r.failJob(js, fmt.Sprintf("xfade concat: %v", err))
 			return
 		}
@@ -484,4 +486,140 @@ func sortJobsByAge(jobs map[string]*jobState) []string {
 		ids[i] = a.id
 	}
 	return ids
+}
+
+// batchedXfade processes scene transitions in groups of ≤xfadeBatchSize to
+// keep ffmpeg's file handle count and frame buffer memory bounded. Each batch
+// produces an intermediate .mp4; batches are then concatenated with stream
+// copy (no re-encode) for the final output.
+//
+// Batch 0: scenes [0..N] → intermediate_001.mp4
+// Batch 1: [intermediate_001, scenes N..M] → intermediate_002.mp4
+// ...
+// Final:   stream-copy concat all intermediates → outputPath
+//
+// The overlap model: each batch's last scene appears as the first input of
+// the next batch. This ensures the xfade transition at the batch boundary
+// is handled by the second batch's first xfade (offset=0), which blends the
+// overlapping scene from the previous batch's output with the next scene.
+//
+// Within each batch, offsets are cumulative from the batch start (since the
+// intermediate file's internal timeline resets to 0).
+func batchedXfade(ctx context.Context, ffmpegPath string, sceneFiles []string, transitions []string, offsets []float64, fps int, tempDir, outputPath string) error {
+	n := len(sceneFiles)
+	if n == 0 {
+		return fmt.Errorf("no scenes to xfade")
+	}
+	if n == 1 {
+		// Single scene — just copy
+		return execFFmpeg(ctx, ffmpegPath, []string{
+			"-hide_banner", "-loglevel", "warning",
+			"-i", sceneFiles[0], "-c", "copy", "-y", outputPath,
+		})
+	}
+
+	// Collect intermediate files for final concat
+	var intermediates []string
+	prevXfade := "" // previous batch's output (starts empty = first scene file)
+
+	batchStart := 0
+	for batchStart < n {
+		// Determine batch end: at most xfadeBatchSize scenes, but we need
+		// an overlap scene (last of this batch = first of next) if there
+		// are more scenes after this batch.
+		batchEnd := batchStart + xfadeBatchSize
+		if batchEnd >= n {
+			batchEnd = n // include all remaining scenes
+		}
+
+		// Build batch inputs and transitions
+		batchFiles := sceneFiles[batchStart:batchEnd]
+		batchTrans := transitions[batchStart:batchEnd]
+		batchOffsets := offsets[batchStart : batchEnd-1] // transitions between batch scenes
+
+		if len(batchFiles) == 1 {
+			// Single scene in batch — no xfade needed, just copy
+			if prevXfade != "" {
+				// This scene was already processed as part of previous
+				// batch's overlap — skip.
+				batchStart = batchEnd
+				continue
+			}
+			// First batch with single scene (unlikely but safe)
+			intermediates = append(intermediates, batchFiles[0])
+			batchStart = batchEnd
+			continue
+		}
+
+		// Compute batch-internal offsets (relative to batch start)
+		// The batch offset for scene i within the batch is:
+		// sum of durations of scenes batchStart..i-1 (original, before extension)
+		// which equals offsets[i-1] - offsets[batchStart-1] (or offsets[i-1] if batchStart=0)
+		batchOffsetsRelative := make([]float64, len(batchOffsets))
+		for i := range batchOffsets {
+			abs := batchOffsets[i]
+			if batchStart > 0 {
+				abs -= offsets[batchStart-1]
+			}
+			batchOffsetsRelative[i] = abs
+		}
+
+		// If there's a previous batch output, prepend it as the first input
+		var xfadeInputs []string
+		var xfadeTransitions []string
+		var xfadeOffsets []float64
+		if prevXfade != "" {
+			xfadeInputs = append([]string{prevXfade}, batchFiles...)
+			// The first transition (prevXfade → batchFiles[0]) is the batch
+			// boundary transition. Its offset is 0 (the overlap scene starts
+			// at the end of the previous batch's output, which xfade handles).
+			xfadeTransitions = append([]string{batchTrans[0]}, batchTrans...)
+			xfadeOffsets = append([]float64{0}, batchOffsetsRelative...)
+		} else {
+			xfadeInputs = batchFiles
+			xfadeTransitions = batchTrans
+			xfadeOffsets = batchOffsetsRelative
+		}
+
+		// Build batch output path
+		batchIdx := len(intermediates)
+		batchOut := filepath.Join(tempDir, fmt.Sprintf("xfade_batch_%03d.mp4", batchIdx))
+
+		xfadeArgs := buildXfadeChainArgs(xfadeInputs, xfadeTransitions, xfadeOffsets, fps, batchOut)
+		if err := execFFmpeg(ctx, ffmpegPath, xfadeArgs); err != nil {
+			return fmt.Errorf("xfade batch %d: %w", batchIdx, err)
+		}
+
+		// Don't delete previous intermediate here — intermediates
+		// are needed for the final concat. Cleaned up below.
+		prevXfade = batchOut
+		intermediates = append(intermediates, batchOut)
+
+		batchStart = batchEnd
+	}
+
+	// If only one intermediate, just copy to output
+	if len(intermediates) == 1 {
+		return execFFmpeg(ctx, ffmpegPath, []string{
+			"-hide_banner", "-loglevel", "warning",
+			"-i", intermediates[0], "-c", "copy", "-y", outputPath,
+		})
+	}
+
+	// Concat all intermediates with stream copy (no re-encode)
+	concatPath := filepath.Join(tempDir, "xfade_concat.txt")
+	if err := writeConcatFile(concatPath, intermediates); err != nil {
+		return fmt.Errorf("write concat file: %w", err)
+	}
+	concatArgs := buildConcatArgs(FFmpegConfig{}, intermediates, concatPath, outputPath)
+	if err := execFFmpeg(ctx, ffmpegPath, concatArgs); err != nil {
+		return fmt.Errorf("xfade final concat: %w", err)
+	}
+
+	// Clean up intermediates
+	for _, f := range intermediates {
+		os.Remove(f)
+	}
+
+	return nil
 }
