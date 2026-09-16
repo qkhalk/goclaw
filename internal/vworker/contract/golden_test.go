@@ -62,6 +62,27 @@ var goldenFixtures = []struct {
 			"audio": {}
 		}`,
 	},
+	{
+		// LLM-authored storyboards sometimes emit pan as a coordinate box
+		// instead of a direction string; both parsers must reduce it the
+		// same way instead of failing the whole storyboard.
+		name: "kenburns_pan_object",
+		json: `{
+			"version": 1,
+			"scenes": [
+				{
+					"type": "image", "source": "media/a.jpg", "duration_sec": 4,
+					"ken_burns": { "zoom_from": 1, "zoom_to": 1.12,
+						"pan": { "from_x": 0, "from_y": 0, "to_x": 0.03, "to_y": 0.02 } }
+				},
+				{
+					"type": "image", "source": "media/b.jpg", "duration_sec": 4,
+					"ken_burns": { "zoom_from": 1, "zoom_to": 1.1,
+						"pan": { "from_x": 0, "from_y": 0, "to_x": -0.02, "to_y": 0.02 } }
+				}
+			]
+		}`,
+	},
 }
 
 // TestGoldenParseMatchGateway verifies that the worker contract parser
