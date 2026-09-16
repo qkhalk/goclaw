@@ -89,23 +89,13 @@
   "routing": {
     "title": "模型路由",
     "window": "24小时",
-    "noData": "暂无路由数据",
-    "req": "{{count}} 次请求",
     "moreProviders": "还有 {{count}} 个提供商",
-    "moreModels": "还有 {{count}} 个模型",
-    "byModel": "按模型用量",
-    "columns": {
-      "requests": "请求数",
-      "share": "占比"
-    },
     "surfaces": {
       "telegram": "Telegram",
       "webChat": "网页聊天",
       "pptx": "PPTX",
       "videoEdit": "视频剪辑"
-    },
-    "surfaceIdle": "空闲",
-    "surfaceOffline": "离线"
+    }
   },
   "system": {
     "title": "系统",
