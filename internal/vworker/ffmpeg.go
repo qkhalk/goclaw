@@ -64,6 +64,132 @@ func fontFileArg(fontFile string) string {
 	return fmt.Sprintf("fontfile=%s", escaped)
 }
 
+// --- timed overlay layers (storyboard layers[]) ---
+
+// hasImageLayers reports whether any layer needs its own ffmpeg input.
+func hasImageLayers(sc contract.Scene) bool {
+	for j := range sc.Layers {
+		if sc.Layers[j].Kind == contract.LayerImage {
+			return true
+		}
+	}
+	return false
+}
+
+// layerEnableExpr restricts a timeline-capable filter to the layer's visible
+// window (scene-relative seconds).
+func layerEnableExpr(l contract.Layer, sceneSec float64) string {
+	end := l.Start + l.EffectiveDuration(sceneSec)
+	return fmt.Sprintf("enable='between(t,%.3f,%.3f)'", l.Start, end)
+}
+
+// layerTextValue mirrors captionFilterValue for layer text (per-layer textfile
+// keeps quoting safe for arbitrary content).
+func layerTextValue(tempDir string, sceneIdx, layerIdx int, text string) (string, error) {
+	if tempDir == "" {
+		return "text='" + escapeDrawText(text) + "'", nil
+	}
+	p := filepath.Join(tempDir, fmt.Sprintf("layer_%03d_%02d.txt", sceneIdx, layerIdx))
+	if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
+		return "", fmt.Errorf("write layer text file: %w", err)
+	}
+	quoted := strings.ReplaceAll(p, `'`, `'''`)
+	return "textfile='" + quoted + "'", nil
+}
+
+// layerXExpr positions the text inside the layer box per its align.
+func layerXExpr(align string, x0, bw int) string {
+	switch align {
+	case "left":
+		return fmt.Sprint(x0)
+	case "right":
+		return fmt.Sprintf("%d+%d-tw", x0, bw)
+	default:
+		return fmt.Sprintf("%d+(%d-tw)/2", x0, bw)
+	}
+}
+
+// layerInlineFilter renders one text/shape layer as a plain (chainable)
+// filter — usable inside -vf and -filter_complex alike. Image layers go
+// through appendLayerSteps (dual-input overlay).
+func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int, tempDir string, sceneIdx, layerIdx int, fontFile string) (string, error) {
+	_, opacity, fontSize, align := l.EffectiveStyle()
+	x, y, w, _ := l.EffectiveBox()
+	x0 := int(math.Round(x * float64(canvasW)))
+	y0 := int(math.Round(y * float64(canvasH)))
+	bw := int(math.Round(w * float64(canvasW)))
+	en := layerEnableExpr(l, sc.DurationSec)
+	switch l.Kind {
+	case contract.LayerText:
+		if fontFile == "" {
+			return "", nil // no font on the worker — skip like captions
+		}
+		tv, err := layerTextValue(tempDir, sceneIdx, layerIdx, l.Text)
+		if err != nil {
+			return "", err
+		}
+		hex := strings.ToUpper(strings.TrimPrefix(l.Fill, "#"))
+		if hex == "" {
+			hex = "FFFFFF"
+		}
+		return fmt.Sprintf("drawtext=%s:%s:fontsize=%d:fontcolor=0x%s@%.2f:borderw=2:bordercolor=black:x=%s:y=%d:%s",
+			fontFileArg(fontFile), tv, fontSize, hex, opacity, layerXExpr(align, x0, bw), y0, en), nil
+	case contract.LayerShape:
+		hex := strings.ToUpper(strings.TrimPrefix(l.Fill, "#"))
+		_, _, _, h := l.EffectiveBox()
+		bh := int(math.Round(h * float64(canvasH)))
+		return fmt.Sprintf("drawbox=x=%d:y=%d:w=%d:h=%d:color=0x%s@%.2f:t=fill:%s",
+			x0, y0, bw, bh, hex, opacity, en), nil
+	default:
+		return "", fmt.Errorf("layer %d: kind %q has no inline filter", layerIdx, l.Kind)
+	}
+}
+
+// appendLayerSteps writes the full layer section for -filter_complex flows:
+// image layers alpha-reduce their input then overlay; text/shape layers stay
+// inline. Returns the label holding the composited frame.
+func appendLayerSteps(fc *strings.Builder, sc contract.Scene, canvasW, canvasH int, tempDir string, sceneIdx int, fontFile, cur string) string {
+	nextInput := 1 // input 0 is the scene base
+	for j := range sc.Layers {
+		l := sc.Layers[j]
+		en := layerEnableExpr(l, sc.DurationSec)
+		out := fmt.Sprintf("ly%d", j)
+		if l.Kind == contract.LayerImage {
+			_, opacity, _, _ := l.EffectiveStyle()
+			x, y, w, _ := l.EffectiveBox()
+			x0 := int(math.Round(x * float64(canvasW)))
+			y0 := int(math.Round(y * float64(canvasH)))
+			bw := int(math.Round(w * float64(canvasW)))
+			src := fmt.Sprintf("li%d", j)
+			// Width-fitted (scale=w:-1), horizontally centered in the box —
+			// mirrors the browser painter exactly.
+			fmt.Fprintf(fc, "[%d:v]format=rgba,colorchannelmixer=aa=%.2f,scale=%d:-1[%s];", nextInput, opacity, bw, src)
+			fmt.Fprintf(fc, "[%s][%s]overlay=x='%d+(%d-w)/2':y=%d:%s[%s];", cur, src, x0, bw, y0, en, out)
+			nextInput++
+			cur = out
+			continue
+		}
+		f, err := layerInlineFilter(sc, l, canvasW, canvasH, tempDir, sceneIdx, j, fontFile)
+		if err != nil || f == "" {
+			continue
+		}
+		fmt.Fprintf(fc, "[%s]%s[%s];", cur, f, out)
+		cur = out
+	}
+	return cur
+}
+
+// appendImageLayerInputs adds the -i args for image layers (in layer order —
+// must match appendLayerSteps' input numbering).
+func appendImageLayerInputs(args []string, sc contract.Scene) []string {
+	for j := range sc.Layers {
+		if sc.Layers[j].Kind == contract.LayerImage {
+			args = append(args, "-i", sc.Layers[j].Source)
+		}
+	}
+	return args
+}
+
 // buildImageSceneArgs builds ffmpeg argv for an image scene: a blurred,
 // darkened cover-fit backdrop fills the canvas behind the contain-fit photo
 // (landscape article photos keep their full frame instead of a hard center
@@ -74,6 +200,9 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 
 	// Input: still image looped for duration_sec
 	args = append(args, "-loop", "1", "-framerate", fmt.Sprint(fps), "-i", sc.Source)
+	if hasImageLayers(sc) {
+		args = appendImageLayerInputs(args, sc)
+	}
 
 	// Duration
 	dur := sc.DurationSec
@@ -118,6 +247,13 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	fc.WriteString("[bgf][fgf]overlay=0:0[comp];")
 	fmt.Fprintf(&fc, "[comp]%s[zp];", zoompanFilter)
 
+	// Timed overlay layers composite between the Ken Burns chain and the
+	// caption (caption stays the topmost text).
+	cur := "zp"
+	if len(sc.Layers) > 0 {
+		cur = appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, cfg.FontFile, "zp")
+	}
+
 	if sc.Caption != nil && sc.Caption.Text != "" && cfg.FontFile != "" {
 		tv, err := captionFilterValue(tempDir, sceneIdx, sc.Caption.Text)
 		if err != nil {
@@ -135,10 +271,10 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 		case "center":
 			pos = "(h-th)/2"
 		}
-		fmt.Fprintf(&fc, "[zp]drawtext=%s:%s:fontsize=%d:fontcolor=white:borderw=2:bordercolor=black:x=(w-tw)/2:y=%s,format=yuv420p[vout];",
-			fa, tv, fontSize, pos)
+		fmt.Fprintf(&fc, "[%s]drawtext=%s:%s:fontsize=%d:fontcolor=white:borderw=2:bordercolor=black:x=(w-tw)/2:y=%s,format=yuv420p[vout];",
+			cur, fa, tv, fontSize, pos)
 	} else {
-		fc.WriteString("[zp]format=yuv420p[vout];")
+		fmt.Fprintf(&fc, "[%s]format=yuv420p[vout];", cur)
 	}
 
 	args = append(args, "-filter_complex", strings.TrimSuffix(fc.String(), ";"))
@@ -162,16 +298,41 @@ func buildVideoSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 		dur = cfg.MaxSceneSec
 	}
 
-	// Scale + pixel format
-	// scale to fit within canvas, maintaining aspect ratio
-	scaleFilter := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p", canvasW, canvasH, canvasW, canvasH)
+	// Scale + pixel format (format=yuv420p moves to the end of the chain when
+	// layers join, so overlay inputs stay rgba-capable until composite time)
+	scalePrefix := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black", canvasW, canvasH, canvasW, canvasH)
 
 	// Apply mute if needed (no audio from source)
 	if sc.Mute {
 		args = append(args, "-an")
 	}
 
-	args = append(args, "-vf", scaleFilter)
+	if len(sc.Layers) > 0 && hasImageLayers(sc) {
+		// Dual-input overlays → filter_complex graph.
+		args = appendImageLayerInputs(args, sc)
+		var fc strings.Builder
+		fmt.Fprintf(&fc, "[0:v]%s[base];", scalePrefix)
+		cur := appendLayerSteps(&fc, sc, canvasW, canvasH, "", 0, cfg.FontFile, "base")
+		fmt.Fprintf(&fc, "[%s]format=yuv420p[vout];", cur)
+		args = append(args, "-filter_complex", strings.TrimSuffix(fc.String(), ";"))
+		args = append(args, "-map", "[vout]")
+	} else {
+		vf := scalePrefix + ",format=yuv420p"
+		layerFilters := make([]string, 0, len(sc.Layers))
+		for j := range sc.Layers {
+			f, err := layerInlineFilter(sc, sc.Layers[j], canvasW, canvasH, "", 0, j, cfg.FontFile)
+			if err != nil {
+				continue // video scenes keep rendering on a bad layer
+			}
+			if f != "" {
+				layerFilters = append(layerFilters, f)
+			}
+		}
+		if len(layerFilters) > 0 {
+			vf = scalePrefix + "," + strings.Join(layerFilters, ",") + ",format=yuv420p"
+		}
+		args = append(args, "-vf", vf)
+	}
 
 	// Trim duration
 	args = append(args, "-t", fmt.Sprintf("%.3f", dur))
@@ -207,6 +368,22 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 
 	// Caption via drawtext
 	filters := []string{}
+	if len(sc.Layers) > 0 && hasImageLayers(sc) {
+		// Image layers need dual-input overlays — rebuild as filter_complex.
+		return buildColorSceneComplex(cfg, sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, animated)
+	}
+	for j := range sc.Layers {
+		if sc.Layers[j].Kind == contract.LayerImage {
+			continue
+		}
+		f, err := layerInlineFilter(sc, sc.Layers[j], canvasW, canvasH, tempDir, sceneIdx, j, cfg.FontFile)
+		if err != nil {
+			return nil, err
+		}
+		if f != "" {
+			filters = append(filters, f)
+		}
+	}
 	if sc.Caption != nil && sc.Caption.Text != "" && cfg.FontFile != "" {
 		tv, err := captionFilterValue(tempDir, sceneIdx, sc.Caption.Text)
 		if err != nil {
@@ -231,6 +408,65 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 
 	filters = append(filters, "format=yuv420p")
 	args = append(args, "-vf", strings.Join(filters, ","))
+	args = append(args, "-frames:v", fmt.Sprint(totalFrames))
+	args = append(args, baseFlags...)
+	args = append(args, "-r", fmt.Sprint(fps))
+	args = append(args, outputPath)
+	return args, nil
+}
+
+// buildColorSceneComplex is buildColorSceneArgs for storyboards with image
+// layers: the lavfi source becomes input 0 of a -filter_complex graph so
+// dual-input overlays can composite over it.
+func buildColorSceneComplex(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int, animated bool) ([]string, error) {
+	args := []string{"-hide_banner", "-loglevel", "warning"}
+
+	dur := sc.DurationSec
+	if cfg.MaxSceneSec > 0 && dur > cfg.MaxSceneSec {
+		dur = cfg.MaxSceneSec
+	}
+	totalFrames := int(math.Ceil(float64(fps) * dur))
+
+	color := strings.TrimPrefix(sc.Color, "#")
+	if animated {
+		args = append(args, "-f", "lavfi", "-i",
+			fmt.Sprintf("gradients=s=%dx%d:c0=0x%s:c1=0x%s:speed=0.008:d=%.3f:r=%d",
+				canvasW, canvasH, color, darkerHex(color), dur, fps))
+	} else {
+		args = append(args, "-f", "lavfi", "-i",
+			fmt.Sprintf("color=c=0x%s:s=%dx%d:d=%.3f:r=%d", color, canvasW, canvasH, dur, fps))
+	}
+	if hasImageLayers(sc) {
+		args = appendImageLayerInputs(args, sc)
+	}
+
+	var fc strings.Builder
+	cur := appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, cfg.FontFile, "0:v")
+
+	if sc.Caption != nil && sc.Caption.Text != "" && cfg.FontFile != "" {
+		tv, err := captionFilterValue(tempDir, sceneIdx, sc.Caption.Text)
+		if err != nil {
+			return nil, err
+		}
+		fontSize := sc.Caption.FontSize
+		if fontSize <= 0 {
+			fontSize = 48
+		}
+		pos := "h-th-60"
+		switch sc.Caption.Position {
+		case "top":
+			pos = "60"
+		case "center":
+			pos = "(h-th)/2"
+		}
+		fmt.Fprintf(&fc, "[%s]drawtext=%s:%s:fontsize=%d:fontcolor=white:borderw=2:bordercolor=black:x=(w-tw)/2:y=%s,format=yuv420p[vout];",
+			cur, fontFileArg(cfg.FontFile), tv, fontSize, pos)
+	} else {
+		fmt.Fprintf(&fc, "[%s]format=yuv420p[vout];", cur)
+	}
+
+	args = append(args, "-filter_complex", strings.TrimSuffix(fc.String(), ";"))
+	args = append(args, "-map", "[vout]")
 	args = append(args, "-frames:v", fmt.Sprint(totalFrames))
 	args = append(args, baseFlags...)
 	args = append(args, "-r", fmt.Sprint(fps))
