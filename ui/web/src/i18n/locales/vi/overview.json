@@ -92,6 +92,25 @@
     "noData": "Chưa có dữ liệu định tuyến",
     "req": "{{count}} req",
     "moreProviders": "+{{count}} nhà cung cấp khác",
-    "moreModels": "+{{count}} mô hình khác"
+    "moreModels": "+{{count}} mô hình khác",
+    "byModel": "Sử dụng theo mô hình",
+    "columns": {
+      "requests": "Lượt gọi",
+      "share": "Tỷ lệ"
+    }
+  },
+  "system": {
+    "title": "Hệ thống",
+    "cpu": "CPU",
+    "memory": "Bộ nhớ",
+    "disk": "Ổ đĩa",
+    "cores": "{{count}} nhân",
+    "hostUptime": "Uptime máy chủ",
+    "platform": "Nền tảng",
+    "loadAvg": "Tải",
+    "goroutines": "Goroutine",
+    "heap": "Heap",
+    "goVersion": "Go",
+    "swap": "Swap"
   }
 }

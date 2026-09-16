@@ -92,6 +92,25 @@
     "noData": "暂无路由数据",
     "req": "{{count}} 次请求",
     "moreProviders": "还有 {{count}} 个提供商",
-    "moreModels": "还有 {{count}} 个模型"
+    "moreModels": "还有 {{count}} 个模型",
+    "byModel": "按模型用量",
+    "columns": {
+      "requests": "请求数",
+      "share": "占比"
+    }
+  },
+  "system": {
+    "title": "系统",
+    "cpu": "CPU",
+    "memory": "内存",
+    "disk": "磁盘",
+    "cores": "{{count}} 核",
+    "hostUptime": "主机运行时长",
+    "platform": "平台",
+    "loadAvg": "负载",
+    "goroutines": "协程数",
+    "heap": "堆内存",
+    "goVersion": "Go",
+    "swap": "交换空间"
   }
 }
