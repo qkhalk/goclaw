@@ -251,8 +251,11 @@ export function VideoToolPage() {
   }
 
   return (
-    <div className="relative mx-auto flex w-full max-w-[1600px] items-start">
-      <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 px-4 py-6">
+    // Fill the app scrollport exactly (h-full of <main>): the editor column
+    // scrolls internally and the designer rail always fits the viewport.
+    <div className="h-full min-h-0">
+      <div className="mx-auto flex h-full w-full items-stretch">
+      <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-6">
         <PageHeader
           title={t("video.title")}
           description={t("video.description")}
@@ -550,16 +553,15 @@ export function VideoToolPage() {
       />
       </div>
 
-      {/* Designer column: sticky chat rail on desktop; on compact screens it
-          renders itself as a portal bottom sheet, so the wrapper stays empty. */}
-      {/* Designer column: sticky chat rail on desktop; on compact screens it
-          renders itself as a portal bottom sheet, so the wrapper stays empty. */}
-      <div className={cn(!isCompact && "sticky top-0 h-dvh")}>
+      {/* Designer column: full-height chat rail on desktop; on compact screens
+          it renders itself as a portal bottom sheet, so the wrapper stays empty. */}
+      <div className={cn("h-full shrink-0", !isCompact && "min-w-0")}>
         <DesignerColumn
           onApplyStoryboard={applyStoryboardToEditor}
           currentStoryboard={sb}
         />
       </div>
+    </div>
     </div>
   );
 }
