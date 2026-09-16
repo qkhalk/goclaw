@@ -283,7 +283,6 @@ export function OverviewPage() {
             <div className="lg:col-span-3">
               <RoutingGraphCard
                 channelEntries={channelEntries}
-                clientCount={clientList.length}
               />
             </div>
             <div className="lg:col-span-2">

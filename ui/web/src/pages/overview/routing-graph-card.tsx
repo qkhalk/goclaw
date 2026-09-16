@@ -20,6 +20,11 @@ import { useHttp } from "@/hooks/use-ws";
 import { useAgents } from "@/pages/agents/hooks/use-agents";
 import type { ChannelStatusEntry } from "./types";
 
+/** Channel names in usage_snapshots — Telegram uses its config name (e.g.
+ *  "telegram-main"), web chat uses "ws".  We match case-insensitively. */
+const TELEGRAM_CHANNEL_RE = /telegram/i;
+const WEB_CHANNEL = "ws";
+
 type SurfaceKey = "telegram" | "web" | "pptx" | "video";
 type SurfaceStatus = "active" | "idle" | "offline";
 
@@ -183,39 +188,55 @@ const nodeTypes = { surface: SurfaceNode, hub: HubNode };
 
 /** 9router-style surface topology: Telegram / web chat / PPTX / video editor
  * orbit the GoClaw hub on a ReactFlow canvas (pan with the mouse, zoom with
- * controls/pinch). A surface only gets its animated green edge while it is
- * actually in use (right now or within the last hour); idle edges stay gray.
- * No side model table — this card is purely the topology. */
+ * controls/pinch). A surface only gets its animated green edge while it has
+ * real requests in the last hour (not just a running service or idle WS
+ * connection). Idle edges stay gray. No side model table. */
 export function RoutingGraphCard({
   channelEntries = [],
-  clientCount = 0,
 }: {
   channelEntries?: [string, ChannelStatusEntry][];
-  clientCount?: number;
 }) {
   const { t } = useTranslation("overview");
   const http = useHttp();
   const { agents } = useAgents();
 
-  // Per-surface activity over the last hour: agent requests grouped by agent
-  // UUID (mapped to agent keys), plus live video jobs as an editor signal.
+  // ── Channel breakdown: real usage per surface in the last hour ──
+  const { data: channelBreakdown } = useQuery({
+    queryKey: ["usage", "breakdown", "channel", "1h", "routing-topology"],
+    refetchInterval: REFRESH_INTERVAL,
+    queryFn: () => {
+      const to = new Date();
+      const from = new Date(to.getTime() - HOUR_MS);
+      return http.get<{ rows: { key: string; request_count: number }[] }>(
+        "/v1/usage/breakdown",
+        { group_by: "channel", from: from.toISOString(), to: to.toISOString() },
+      );
+    },
+  });
+
+  // Sum request counts per surface from channel breakdown.
+  const channelReqs = useMemo(() => {
+    let telegram = 0;
+    let web = 0;
+    for (const row of channelBreakdown?.rows ?? []) {
+      if (TELEGRAM_CHANNEL_RE.test(row.key)) telegram += row.request_count;
+      else if (row.key === WEB_CHANNEL) web += row.request_count;
+    }
+    return { telegram, web };
+  }, [channelBreakdown]);
+
+  // ── Agent breakdown: PPTX + video agent usage ──
   const { data: agentBreakdown } = useQuery({
     queryKey: ["usage", "breakdown", "agent", "1h", "routing-active"],
     refetchInterval: REFRESH_INTERVAL,
     queryFn: () => {
       const to = new Date();
       const from = new Date(to.getTime() - HOUR_MS);
-      return http.get<{ rows: { key: string; request_count: number }[] }>("/v1/usage/breakdown", {
-        group_by: "agent",
-        from: from.toISOString(),
-        to: to.toISOString(),
-      });
+      return http.get<{ rows: { key: string; request_count: number }[] }>(
+        "/v1/usage/breakdown",
+        { group_by: "agent", from: from.toISOString(), to: to.toISOString() },
+      );
     },
-  });
-  const { data: videoJobs } = useQuery({
-    queryKey: ["video", "jobs", "routing-active"],
-    refetchInterval: REFRESH_INTERVAL,
-    queryFn: () => http.get<{ jobs: { status: string; updated_at: string }[] }>("/v1/video/jobs", { limit: "10" }),
   });
 
   const agentCalls1h = useMemo(() => {
@@ -228,27 +249,39 @@ export function RoutingGraphCard({
     return byKey;
   }, [agents, agentBreakdown]);
 
+  // ── Video jobs: live editor signal ──
+  const { data: videoJobs } = useQuery({
+    queryKey: ["video", "jobs", "routing-active"],
+    refetchInterval: REFRESH_INTERVAL,
+    queryFn: () =>
+      http.get<{ jobs: { status: string; updated_at: string }[] }>("/v1/video/jobs", { limit: "10" }),
+  });
+
   const surfaces = useMemo<SurfaceData[]>(() => {
-    const telegram = channelEntries.find(([name]) => name.toLowerCase().includes("telegram"));
-    const telegramRunning = telegram?.[1]?.running ?? false;
     const now = Date.now();
     const videoBusy = (videoJobs?.jobs ?? []).some((j) => {
       if (j.status === "queued" || j.status === "rendering") return true;
       const updated = new Date(j.updated_at).getTime();
       return Number.isFinite(updated) && now - updated < HOUR_MS;
     });
+
+    // Telegram: offline if configured but not running, active if requests > 0, else idle
+    const telegramEntry = channelEntries.find(([n]) => TELEGRAM_CHANNEL_RE.test(n));
+    const telegramRunning = telegramEntry?.[1]?.running ?? false;
+    const telegramOffline = telegramEntry !== undefined && !telegramRunning;
+
     const surface = (key: SurfaceKey, active: boolean, offline = false): SurfaceData => ({
       key,
       label: t(`routing.surfaces.${key}`),
       status: offline ? "offline" : active ? "active" : "idle",
     });
     return [
-      surface("telegram", telegramRunning, telegram !== undefined && !telegramRunning),
-      surface("web", clientCount > 0),
+      surface("telegram", channelReqs.telegram > 0, telegramOffline),
+      surface("web", channelReqs.web > 0),
       surface("pptx", (agentCalls1h.get("pptx-designer") ?? 0) > 0),
       surface("video", videoBusy || (agentCalls1h.get("video-designer") ?? 0) > 0),
     ];
-  }, [t, channelEntries, clientCount, agentCalls1h, videoJobs]);
+  }, [t, channelEntries, channelReqs, agentCalls1h, videoJobs]);
 
   const { nodes, edges } = useMemo(() => buildLayout(surfaces), [surfaces]);
 
