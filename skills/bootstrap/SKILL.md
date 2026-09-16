@@ -36,7 +36,7 @@ Stand up a new project workspace with a sane skeleton, conventions, and tooling 
 A runnable, testable skeleton: directory layout, README, conventions file, tooling config, ignore rules, and a passing first test — committed cleanly.
 
 ## Routing
-- Multi-phase roadmap for the new project → `plan` and `codex-goal`.
+- Multi-phase roadmap for the new project → `goclaw-kit` and `codex-goal`.
 - Ongoing folder and file placement rules → `folder-context`.
 - First feature on top of the skeleton → `cook`.
 

@@ -42,7 +42,7 @@ A one-screen outcome contract file (goal, criteria, constraints, budget, checkpo
 ## Routing
 - Executing the contracted goal -> `vibe`, `team`, `mission`, or `loop` depending on shape
 - Iterative optimize-measure cycles -> pair with `loop`; the contract bounds the loop
-- Phased work needs a plan document -> `plan` consumes the contract
+- Phased work needs a plan document -> `goclaw-kit` consumes the contract
 - Mid-run assessment -> checkpoint journal vs this contract
 
 ## Guardrails

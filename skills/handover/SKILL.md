@@ -43,7 +43,7 @@ A handover document: technical contract (handoff format), workstreams table (tas
 - Underlying technical detail -> generated with `handoff`
 - Status snapshot for the receiver -> embed a fresh `watzup` digest
 - The receiver will run a long autonomous arc -> prepend a `goal-warmup` contract
-- Formal plan continuation -> link the relevant `plan` phase files
+- Formal plan continuation -> link the relevant `goclaw-kit` phase files
 
 ## Guardrails
 - Never include secret values; point to the secret store, not the contents

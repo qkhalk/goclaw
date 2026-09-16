@@ -65,7 +65,7 @@ likelihood, priority. Plus the list of skipped dimensions and why.
 
 ## Routing
 - Turning the matrix into real tests → `test`.
-- Scenarios expose design gaps → back to `plan` or `architect`.
+- Scenarios expose design gaps → back to `goclaw-kit` or `architect`.
 - Formal adversarial security deep-dive on a plan → `predict`.
 
 ## Guardrails

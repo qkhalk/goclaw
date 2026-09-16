@@ -45,7 +45,7 @@ A concise recon report: (1) 5-line structure map, (2) key files as absolute path
 
 ## Routing
 - Fix shape is clear -> hand the report to `fix` or `cook` for implementation
-- Task needs multi-phase planning -> hand to `plan` with the report attached
+- Task needs multi-phase planning -> hand to `goclaw-kit` with the report attached
 - Deep platform-specific work in this repo -> `go-claw-engineer`
 - Bug needing reproduction -> `debug`; packaging a whole repo instead -> `repomix`
 

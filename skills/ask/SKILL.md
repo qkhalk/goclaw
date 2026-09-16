@@ -39,7 +39,7 @@ Either a resolved decision (chosen option plus rationale) or a single well-forme
 ## Routing
 - The question arose mid-implementation → return to `cook` or the active plan once answered.
 - The decision is architectural and worth remembering → `decision-log`.
-- Scope changed materially as a result → update `plan` or `project-management` state.
+- Scope changed materially as a result → update `goclaw-kit` or `project-management` state.
 
 ## Guardrails
 - Never ask what you can look up; never decide what only the user can decide.

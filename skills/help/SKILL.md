@@ -28,7 +28,7 @@ Each indexed description answers three questions: what the skill does, when it t
 
 ## Request patterns to suggested chains
 - Bug fix flow: `debug` (reproduce and hypothesize) → `fix` (patch) → `test` (regression test) → `ship` (commit or PR).
-- Feature flow: `plan` (spec and phases) → `cook` (implement) → `test` → `review` → `ship`.
+- Feature flow: `goclaw-kit` (spec and phases) → `cook` (implement) → `test` → `review` → `ship`.
 - Doc flow: `research` or `docs-seeker` (gather facts) → `docs` (write) → `docx`/`pdf` office formats if requested.
 - Design flow: `ui-ux-pro-max` (design decisions) → `preview` (visual verification) → `review`.
 - Data flow: `databases` (query) → `data-analysis` (insight) → `xlsx`/`pptx` (deliverable).

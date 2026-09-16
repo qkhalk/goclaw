@@ -25,7 +25,7 @@ the grade into a short, ranked growth roadmap.
 ## When NOT to use
 - Reviewing one diff for correctness against its own intent → `review`.
 - Checking behavior against a spec — that is `test` territory.
-- Estimating effort or scheduling work → `plan`.
+- Estimating effort or scheduling work → `goclaw-kit`.
 
 ## Level scale
 1. Script: works on the happy path, no tests, monolithic, ad-hoc naming.

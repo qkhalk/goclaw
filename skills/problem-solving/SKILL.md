@@ -61,7 +61,7 @@ reasoning trail, and the confirming next check.
 
 ## Routing
 - Root cause found in running code → `debug` for the fix.
-- Many solution candidates now exist → `brainstorm` to compare, `plan` to
+- Many solution candidates now exist → `brainstorm` to compare, `goclaw-kit` to
   sequence the work.
 - The chosen design needs adversarial checking → `predict`.
 
