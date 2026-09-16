@@ -310,7 +310,15 @@ func TestRequestApproval_PersistsWithDigestAndSession(t *testing.T) {
 	m.Resolve(ctx, id, ApprovalDeny, nil)
 	<-resCh
 
+	// The persist runs in a background goroutine and can land slightly after
+	// RequestApproval returns (the CI failure mode: created rows = 0). Poll
+	// briefly for the row before asserting.
 	fs.mu.Lock()
+	for deadline := time.Now().Add(2 * time.Second); len(fs.created) == 0 && time.Now().Before(deadline); {
+		fs.mu.Unlock()
+		time.Sleep(2 * time.Millisecond)
+		fs.mu.Lock()
+	}
 	defer fs.mu.Unlock()
 	if len(fs.created) != 1 {
 		t.Fatalf("created rows = %d, want 1", len(fs.created))
