@@ -52,10 +52,12 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/systemmessages"
 	"github.com/nextlevelbuilder/goclaw/internal/browse"
+	"github.com/nextlevelbuilder/goclaw/internal/pptx"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
 	usagepricing "github.com/nextlevelbuilder/goclaw/internal/usage/pricing"
 	"github.com/nextlevelbuilder/goclaw/internal/vault"
+	videopkg "github.com/nextlevelbuilder/goclaw/internal/video"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 
 	// Register workstation backend factories via init().
@@ -1193,6 +1195,33 @@ func runGateway() {
 	}
 
 	go backfillTraceCostsAfterPricingSync(ctx, pgStores, snapshotWorker)
+
+	// Video designer agent: ensure the design-only chat agent exists when the
+	// video surface is on. Runs after setupSkillsSystem so the bundled design
+	// skills are already seeded and can be scoped + granted in the same pass.
+	if videoStack != nil {
+		go func() {
+			skillsManage, _ := pgStores.Skills.(store.SkillManageStore)
+			if err := videopkg.EnsureDesignerAgent(ctx, cfg, pgStores.Agents, skillsManage, workspace); err != nil {
+				slog.Warn("video: designer agent ensure failed", "error", err)
+			} else {
+				slog.Info("video: designer agent ensured", "agent_key", videopkg.DesignerAgentKey)
+			}
+		}()
+	}
+
+	// PPTX designer agent: same design-only contract for the PPTX Studio.
+	// The studio renders and exports entirely in the browser, so unlike the
+	// video designer there is no server dependency to gate on.
+	go func() {
+		skillsManage, _ := pgStores.Skills.(store.SkillManageStore)
+		if err := pptx.EnsureDesignerAgent(ctx, cfg, pgStores.Agents, skillsManage, workspace); err != nil {
+			slog.Warn("pptx: designer agent ensure failed", "error", err)
+		} else {
+			slog.Info("pptx: designer agent ensured", "agent_key", pptx.DesignerAgentKey)
+		}
+	}()
+
 	usagepricing.StartOpenRouterCatalogAutoSync(ctx, pgStores.UsageCaps, usagepricing.DefaultOpenRouterCatalogSyncInterval, func(syncCtx context.Context, _ int) {
 		backfillTraceCostsAfterPricingSync(syncCtx, pgStores, snapshotWorker)
 	})
