@@ -146,8 +146,9 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 	googleConfigured := h.manager != nil && h.manager.GoogleConfigured(r.Context())
 	microsoftConfigured := h.manager != nil && h.manager.MicrosoftConfigured(r.Context())
+	dropboxConfigured := h.manager != nil && h.manager.DropboxConfigured(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled": h.enabled && (googleConfigured || microsoftConfigured),
+		"enabled": h.enabled && (googleConfigured || microsoftConfigured || dropboxConfigured),
 		"edition": h.editionName(),
 		"providers": map[string]any{
 			"google": map[string]bool{
@@ -155,6 +156,9 @@ func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 			},
 			"onedrive": map[string]bool{
 				"configured": microsoftConfigured,
+			},
+			"dropbox": map[string]bool{
+				"configured": dropboxConfigured,
 			},
 		},
 	})
@@ -182,9 +186,12 @@ func (h *CloudHandler) handleGetSettings(w http.ResponseWriter, r *http.Request)
 	provider := h.requestProvider(r)
 	var clientID string
 	var secretSet bool
-	if provider == cloudmgr.MicrosoftProvider {
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		clientID, secretSet = h.manager.MicrosoftCredentialsStatus(r.Context())
-	} else {
+	case cloudmgr.DropboxProvider:
+		clientID, secretSet = h.manager.DropboxCredentialsStatus(r.Context())
+	default:
 		clientID, secretSet = h.manager.GoogleCredentialsStatus(r.Context())
 	}
 	writeJSON(w, http.StatusOK, cloudSettingsView{
@@ -223,9 +230,12 @@ func (h *CloudHandler) handlePutSettings(w http.ResponseWriter, r *http.Request)
 	}
 	// First-time save requires a secret; updates may omit it (keep existing).
 	alreadySet := false
-	if provider == cloudmgr.MicrosoftProvider {
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		_, alreadySet = h.manager.MicrosoftCredentialsStatus(r.Context())
-	} else {
+	case cloudmgr.DropboxProvider:
+		_, alreadySet = h.manager.DropboxCredentialsStatus(r.Context())
+	default:
 		_, alreadySet = h.manager.GoogleCredentialsStatus(r.Context())
 	}
 	if !alreadySet && in.ClientSecret == "" {
@@ -233,9 +243,12 @@ func (h *CloudHandler) handlePutSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var err error
-	if provider == cloudmgr.MicrosoftProvider {
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		err = h.manager.SaveMicrosoftCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
-	} else {
+	case cloudmgr.DropboxProvider:
+		err = h.manager.SaveDropboxCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
+	default:
 		err = h.manager.SaveGoogleCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
 	}
 	if err != nil {

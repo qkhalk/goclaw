@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,17 @@ interface SlideEditorProps {
  */
 export function SlideEditor({ slide, index, total, onChange, onLayoutChange }: SlideEditorProps) {
   const { t } = useTranslation("toolbox");
+
+  // Local image → data URL so previews and .pptx export work without hosting
+  // the file anywhere (fetchImageDataUrl passes data: URLs straight through).
+  const onImageFile = (file: File | undefined) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") onChange({ source: reader.result });
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -193,12 +204,28 @@ export function SlideEditor({ slide, index, total, onChange, onLayoutChange }: S
       {slide.layout === "image" && (
         <>
           <Field label={t("pptx.field.source")}>
-            <Input
-              value={slide.source ?? ""}
-              onChange={(e) => onChange({ source: e.target.value })}
-              placeholder="https://… / /v1/files/…"
-              className="min-h-11 text-base sm:min-h-9 sm:text-sm"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                value={slide.source?.startsWith("data:") ? t("pptx.image_embedded") : slide.source ?? ""}
+                onChange={(e) => onChange({ source: e.target.value })}
+                placeholder="https://… / /v1/files/…"
+                className="min-h-11 flex-1 text-base sm:min-h-9 sm:text-sm"
+                readOnly={slide.source?.startsWith("data:")}
+              />
+              <label className="flex h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-9">
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("pptx.image_upload")}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    onImageFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
           </Field>
           <p className="-mt-2 text-xs text-muted-foreground">{t("pptx.image_hint")}</p>
           <Field label={t("pptx.field.caption")}>

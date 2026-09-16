@@ -105,7 +105,7 @@ export function CloudPage() {
 
   // URL-derived view state (never duplicated into useState).
   const activeProvider: CloudProvider | null =
-    provider === "google" || provider === "onedrive" ? provider : null;
+    provider === "google" || provider === "onedrive" || provider === "dropbox" ? provider : null;
   const path = normalizePath(params.get("path"));
   const view: "home" | "provider" | "account" = accountId ? "account" : provider ? "provider" : "home";
   /** Cross-account pseudo-views on /cloud itself (?view=starred|recent). */

@@ -5,7 +5,8 @@
   "connect": {
     "google": "连接 Google 账户",
     "onedrive": "连接 OneDrive 账户",
-    "another": "连接其他账户"
+    "another": "连接其他账户",
+    "dropbox": "连接 Dropbox 账号"
   },
   "disconnect": "断开连接",
   "readonly_badge": "只读",
@@ -67,7 +68,14 @@
     "advanced": "使用您自己的 OAuth 客户端（高级）",
     "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。",
     "expand": "立即配置",
-    "configured": "OAuth 客户端已保存"
+    "configured": "OAuth 客户端已保存",
+    "title_dropbox": "Dropbox 尚未配置",
+    "dropbox_client_id": "Dropbox App key",
+    "dropbox_step1": "在 dropbox.com/developers/apps 创建应用（scopes: files.metadata.read/write、files.content.read/write、sharing.write）。",
+    "dropbox_step2": "在应用中添加重定向 URI <base>/v1/cloud/oauth/callback。",
+    "dropbox_step3": "复制 App key 和 App secret。",
+    "dropbox_step4": "粘贴 App key + secret 并保存。",
+    "dropbox_note": "Dropbox 需要您自己的应用（无共享客户端）— 注册免费。"
   },
   "disconnect_confirm": {
     "title": "断开账户？",

@@ -341,7 +341,9 @@ function ColumnHeader({
 }) {
   return (
     <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
-      <Palette className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-500">
+        <Palette className="h-3.5 w-3.5" />
+      </span>
       <span className="truncate text-sm font-medium">{title}</span>
       <span
         aria-hidden
@@ -550,7 +552,9 @@ function EmptyDesigner({
 }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-2 text-center">
-      <Palette className="h-6 w-6 text-muted-foreground" />
+      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+        <Palette className="h-5 w-5" />
+      </span>
       <p className="max-w-[260px] text-sm text-muted-foreground">{emptyHint}</p>
       <div className="flex flex-col items-stretch gap-2 pt-1">
         {chips.map((chip) => (
