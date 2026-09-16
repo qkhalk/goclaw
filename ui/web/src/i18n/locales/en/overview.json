@@ -88,7 +88,7 @@
   },
   "routing": {
     "title": "Model routing",
-    "window": "1h",
+    "window": "5m",
     "moreProviders": "+{{count}} more providers",
     "surfaces": {
       "telegram": "Telegram",

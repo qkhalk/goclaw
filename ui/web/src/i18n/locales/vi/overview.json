@@ -88,7 +88,7 @@
   },
   "routing": {
     "title": "Định tuyến mô hình",
-    "window": "1 giờ",
+    "window": "5 phút",
     "moreProviders": "+{{count}} nhà cung cấp khác",
     "surfaces": {
       "telegram": "Telegram",
