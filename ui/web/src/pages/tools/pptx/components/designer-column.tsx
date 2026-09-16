@@ -617,6 +617,7 @@ function ComposerRow({
         onFilesChange={setFiles}
         storageKey={storageKey}
         defaultProviderName={defaultProviderName}
+        showPermissionMode={false}
       />
     </div>
   );

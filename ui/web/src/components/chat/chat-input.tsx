@@ -30,6 +30,8 @@ interface ChatInputProps {
   /** Provider name of the target agent — feeds the model picker when no
    * provider override is selected (model-only override on agent's provider). */
   defaultProviderName?: string;
+  /** Hide the per-run permission-mode picker (designer composers). */
+  showPermissionMode?: boolean;
 }
 
 const COMPOSER_OVERRIDE_KEY = "goclaw.composer-override";
@@ -59,6 +61,7 @@ export function ChatInput({
   onFilesChange,
   storageKey = COMPOSER_OVERRIDE_KEY,
   defaultProviderName,
+  showPermissionMode = true,
 }: ChatInputProps) {
   const { t } = useTranslation("common");
   const [value, setValue] = useState("");
@@ -287,6 +290,7 @@ export function ChatInput({
             onChange={handleOverridesChange}
             disabled={disabled || voiceRecorder.isRecording}
             defaultProviderName={defaultProviderName}
+            showPermissionMode={showPermissionMode}
           />
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
