@@ -37,6 +37,8 @@ type CloudProviderConfig struct {
 	GoogleClientSecret    string
 	MicrosoftClientID     string
 	MicrosoftClientSecret string
+	DropboxClientID       string
+	DropboxClientSecret   string
 }
 
 // config_secrets keys for credentials saved from the web UI (first-run setup).
@@ -46,11 +48,14 @@ const (
 
 	SecretKeyMicrosoftClientID     = "cloud.microsoft.client_id"
 	SecretKeyMicrosoftClientSecret = "cloud.microsoft.client_secret"
+
+	SecretKeyDropboxClientID     = "cloud.dropbox.client_id"
+	SecretKeyDropboxClientSecret = "cloud.dropbox.client_secret"
 )
 
 // SupportedProviders lists the storage providers the manager can connect,
 // in UI display order.
-var SupportedProviders = []string{GoogleProvider, MicrosoftProvider}
+var SupportedProviders = []string{GoogleProvider, MicrosoftProvider, DropboxProvider}
 
 // IsSupportedProvider reports whether the provider id can be connected.
 func IsSupportedProvider(provider string) bool {
@@ -117,6 +122,29 @@ func (m *Manager) MicrosoftConfigured(ctx context.Context) bool {
 	return true // embedded shared client
 }
 
+// DropboxConfigured reports whether a Dropbox OAuth client is present.
+// BYO-only: there is no embedded shared client, so an unset client means the
+// provider stays "not configured" (the UI hides its connect affordance).
+func (m *Manager) DropboxConfigured(ctx context.Context) bool {
+	id, secret := m.dropboxCredentials(ctx)
+	return id != "" && secret != ""
+}
+
+// dropboxCredentials resolves the Dropbox OAuth client at call time
+// (web-UI saved credentials win over env/config, same as the others).
+func (m *Manager) dropboxCredentials(ctx context.Context) (clientID, clientSecret string) {
+	if m.secrets != nil {
+		sctx := store.WithTenantID(ctx, store.MasterTenantID)
+		if id, err := m.secrets.Get(sctx, SecretKeyDropboxClientID); err == nil && id != "" {
+			secret, serr := m.secrets.Get(sctx, SecretKeyDropboxClientSecret)
+			if serr == nil && secret != "" {
+				return id, secret
+			}
+		}
+	}
+	return m.cfg.DropboxClientID, m.cfg.DropboxClientSecret
+}
+
 // ProviderConfigured dispatches the per-provider OAuth client check.
 func (m *Manager) ProviderConfigured(ctx context.Context, provider string) bool {
 	switch provider {
@@ -124,6 +152,8 @@ func (m *Manager) ProviderConfigured(ctx context.Context, provider string) bool 
 		return m.GoogleConfigured(ctx)
 	case MicrosoftProvider:
 		return m.MicrosoftConfigured(ctx)
+	case DropboxProvider:
+		return m.DropboxConfigured(ctx)
 	default:
 		return false
 	}
@@ -153,6 +183,12 @@ func (m *Manager) SaveGoogleCredentials(ctx context.Context, clientID, clientSec
 	return m.saveProviderCredentials(ctx, SecretKeyGoogleClientID, SecretKeyGoogleClientSecret, clientID, clientSecret)
 }
 
+// SaveDropboxCredentials stores the Dropbox OAuth client from the web-UI
+// setup form. An empty secret keeps the one already saved.
+func (m *Manager) SaveDropboxCredentials(ctx context.Context, clientID, clientSecret string) error {
+	return m.saveProviderCredentials(ctx, SecretKeyDropboxClientID, SecretKeyDropboxClientSecret, clientID, clientSecret)
+}
+
 func (m *Manager) saveProviderCredentials(ctx context.Context, idKey, secretKey, clientID, clientSecret string) error {
 	if m.secrets == nil {
 		return errors.New("cloud: secrets store unavailable — configure via env instead")
@@ -179,6 +215,12 @@ func (m *Manager) MicrosoftCredentialsStatus(ctx context.Context) (clientID stri
 	return m.credentialsStatus(ctx, SecretKeyMicrosoftClientID, SecretKeyMicrosoftClientSecret, m.cfg.MicrosoftClientID, m.cfg.MicrosoftClientSecret)
 }
 
+// DropboxCredentialsStatus returns the configured Dropbox client ID and
+// whether a secret is set (same shape as Google/Microsoft).
+func (m *Manager) DropboxCredentialsStatus(ctx context.Context) (clientID string, secretSet bool) {
+	return m.credentialsStatus(ctx, SecretKeyDropboxClientID, SecretKeyDropboxClientSecret, m.cfg.DropboxClientID, m.cfg.DropboxClientSecret)
+}
+
 func (m *Manager) credentialsStatus(ctx context.Context, idKey, secretKey, envID, envSecret string) (clientID string, secretSet bool) {
 	if m.secrets != nil {
 		sctx := store.WithTenantID(ctx, store.MasterTenantID)
@@ -199,6 +241,8 @@ func (m *Manager) BuildAuthURL(ctx context.Context, provider, baseURL, tenantID,
 		return m.buildGoogleAuthURL(ctx, baseURL, tenantID, userID)
 	case MicrosoftProvider:
 		return m.buildMicrosoftAuthURL(ctx, baseURL, tenantID, userID)
+	case DropboxProvider:
+		return m.buildDropboxAuthURL(ctx, baseURL, tenantID, userID)
 	default:
 		return "", "", "", fmt.Errorf("cloud: unsupported provider %q", provider)
 	}
@@ -319,6 +363,75 @@ func (m *Manager) buildMicrosoftAuthURL(ctx context.Context, baseURL, tenantID, 
 	return url, redirectURI, mode, nil
 }
 
+// buildDropboxAuthURL builds the Dropbox consent URL. BYO-only: without
+// saved credentials the flow cannot start (the UI already gates connect).
+func (m *Manager) buildDropboxAuthURL(ctx context.Context, baseURL, tenantID, userID string) (authURL, redirectURI, mode string, err error) {
+	creds, byo := m.dropboxCredentialsAll(ctx)
+	if !byo {
+		return "", "", "", fmt.Errorf("cloud: dropbox is not configured — save a Dropbox app client id/secret in Cloud settings first")
+	}
+	mode = "callback"
+	redirectURI = RedirectURI(baseURL)
+	cfg := NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, redirectURI)
+
+	verifier, err := NewVerifier()
+	if err != nil {
+		return "", "", "", err
+	}
+	state, err := EncodeState(StatePayload{
+		Provider: DropboxProvider,
+		TenantID: tenantID,
+		UserID:   userID,
+		Verifier: verifier,
+		Redirect: redirectURI,
+	}, m.encKey)
+	if err != nil {
+		return "", "", "", err
+	}
+	// token_access_type=offline is mandatory — without it Dropbox issues no
+	// refresh token and the account dies with its first access token.
+	url := cfg.AuthCodeURL(state,
+		oauth2.SetAuthURLParam("code_challenge", VerifierChallenge(verifier)),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		oauth2.SetAuthURLParam("token_access_type", "offline"),
+	)
+	return url, redirectURI, mode, nil
+}
+
+// handleDropboxCallback exchanges the code and upserts the account row.
+func (m *Manager) handleDropboxCallback(ctx context.Context, code string, payload StatePayload) (*store.CloudAccount, error) {
+	creds, _ := m.dropboxCredentialsAll(ctx)
+	cfg := NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, payload.Redirect)
+	tok, err := ExchangeDropboxCode(ctx, cfg, code, payload.Verifier)
+	if err != nil {
+		return nil, fmt.Errorf("cloud: token exchange: %w", err)
+	}
+
+	profile, err := FetchDropboxProfile(ctx, tok.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("cloud: profile: %w", err)
+	}
+	if profile.Mail() == "" {
+		return nil, errors.New("cloud: dropbox profile returned no email")
+	}
+
+	scopes, _ := json.Marshal([]string{"dropbox.files.readwrite"})
+	expires := tok.Expiry
+	acct := &store.CloudAccount{
+		Provider:       DropboxProvider,
+		Email:          profile.Mail(),
+		DisplayName:    profile.DisplayName(),
+		Scopes:         string(scopes),
+		AccessToken:    tok.AccessToken,
+		RefreshToken:   tok.RefreshToken,
+		TokenExpiresAt: &expires,
+		Status:         "active",
+	}
+	// Stamp the issuing client so refreshes use the same OAuth client.
+	acct.Settings = stampSettings("", map[string]string{"client_id": creds.ClientID})
+	return acct, nil
+}
+
 // HandleCallback verifies the signed state, exchanges the code with the
 // state-named provider, fetches the provider profile and upserts the
 // encrypted account row. Returns the account for the post-connect redirect.
@@ -345,6 +458,8 @@ func (m *Manager) HandleCallback(ctx context.Context, code, state string) (*stor
 		acct, err = m.handleGoogleCallback(ctx, code, *payload)
 	case MicrosoftProvider:
 		acct, err = m.handleMicrosoftCallback(ctx, code, *payload)
+	case DropboxProvider:
+		acct, err = m.handleDropboxCallback(ctx, code, *payload)
 	default:
 		err = fmt.Errorf("cloud: unsupported provider %q", payload.Provider)
 	}
@@ -500,6 +615,9 @@ func (m *Manager) TokenSource(ctx context.Context, accountID string) (oauth2.Tok
 	case MicrosoftProvider:
 		creds := m.credentialsForAccount(ctx, acct)
 		cfg = NewMicrosoftTokenConfig(creds.ClientID, creds.ClientSecret, "")
+	case DropboxProvider:
+		creds := m.credentialsForAccount(ctx, acct)
+		cfg = NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, "")
 	default:
 		return nil, fmt.Errorf("cloud: unsupported provider %q", acct.Provider)
 	}

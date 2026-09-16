@@ -144,7 +144,9 @@
     "filter_brightness": "亮度",
     "filter_contrast": "对比度",
     "filter_saturate": "饱和度",
-    "filter_blur": "模糊 (px)"
+    "filter_blur": "模糊 (px)",
+    "narration_fit_hint": "旁白需要约 {{est}}s，但场景只有 {{dur}}s — 音频会被截断。",
+    "narration_fit_apply": "设为 {{est}}s"
   },
   "watermark": {
     "title": "水印移除",
@@ -183,5 +185,82 @@
       "drag_to_compare": "拖动比较"
     },
     "drop_title_video": "将视频拖放到此处"
+  },
+  "pptx": {
+    "title": "PPTX 工作室",
+    "description": "在浏览器中设计演示文稿，导出真正的 .pptx，或让 PPTX 设计代理起草。",
+    "client_side": "本地渲染 — 幻灯片不会离开本机。",
+    "add_slide": "添加幻灯片",
+    "duplicate": "复制",
+    "remove": "删除",
+    "move_up": "上移",
+    "move_down": "下移",
+    "export": "导出 .pptx",
+    "exporting": "导出中...",
+    "export_done": "已导出 .pptx",
+    "export_failed": "导出失败",
+    "slides_count": "{{count}} 张幻灯片",
+    "json_mode": "JSON 模式",
+    "json_load": "加载 JSON",
+    "json_invalid": "JSON 无效",
+    "json_hide": "隐藏 JSON",
+    "image_hint": "图片 URL 或本地文件（上传的图片会直接嵌入导出文件）。",
+    "image_upload": "上传图片",
+    "image_embedded": "已嵌入图片（本地）",
+    "tabs": {
+      "slides": "幻灯片",
+      "theme": "主题"
+    },
+    "theme": {
+      "preset": "主题预设"
+    },
+    "field": {
+      "layout": "版式",
+      "title": "标题",
+      "subtitle": "副标题",
+      "bullets": "要点",
+      "left": "左栏",
+      "right": "右栏",
+      "heading": "小标题",
+      "quote": "引言",
+      "author": "作者",
+      "value": "数值",
+      "label": "标签",
+      "source": "图片来源",
+      "caption": "说明",
+      "notes": "备注",
+      "add_stat": "添加数据",
+      "remove_stat": "删除数据"
+    },
+    "layout": {
+      "title": "封面",
+      "section": "章节",
+      "bullets": "要点",
+      "two_column": "两栏",
+      "quote": "引言",
+      "stats": "数据",
+      "image": "图片",
+      "end": "结尾"
+    },
+    "designer": {
+      "title": "PPTX 设计器",
+      "toggle": "显示/隐藏设计栏",
+      "attach": "附上当前演示文稿",
+      "attached": "将附上当前演示文稿",
+      "badge": "设计器",
+      "new_chat": "新对话",
+      "close": "关闭",
+      "history": "历史",
+      "history_empty": "暂无对话",
+      "history_messages": "{{n}} 条消息",
+      "empty_hint": "描述你需要的演示文稿 — 设计器会起草。",
+      "chip1": "产品介绍幻灯片",
+      "chip2": "季度数据报告",
+      "chip3": "5 页培训幻灯片",
+      "designing": "设计器起草中...",
+      "applied": "已应用",
+      "apply": "应用到编辑器",
+      "invalid": "演示文稿无效"
+    }
   }
 }

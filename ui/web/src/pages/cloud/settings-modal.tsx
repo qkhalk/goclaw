@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cloud, HardDrive, Settings2 } from "lucide-react";
+import { DropboxIcon } from "@/components/icons/dropbox-icon";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -48,9 +49,14 @@ export function getShowHiddenFiles(): boolean {
   return false;
 }
 
-const PROVIDER_OPTIONS: { id: CloudProvider; label: string; icon: typeof Cloud }[] = [
+const PROVIDER_OPTIONS: {
+  id: CloudProvider;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { id: "google", label: "Google Drive", icon: Cloud },
   { id: "onedrive", label: "Microsoft OneDrive", icon: HardDrive },
+  { id: "dropbox", label: "Dropbox", icon: DropboxIcon },
 ];
 
 /** Cloud settings modal — centered dialog in the same style as the Overview

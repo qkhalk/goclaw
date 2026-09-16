@@ -82,6 +82,10 @@ func AccountCanWrite(acct *store.CloudAccount) bool {
 		return HasGoogleWriteScopes(acct.Scopes)
 	case MicrosoftProvider:
 		return HasMicrosoftWriteScopes(acct.Scopes)
+	case DropboxProvider:
+		// Dropbox app permissions live in the app console, not the grant;
+		// the connect flow stores a fixed readwrite marker (manager.go).
+		return strings.Contains(acct.Scopes, "readwrite")
 	default:
 		return false
 	}

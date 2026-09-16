@@ -215,5 +215,9 @@
     "label": "Dev",
     "on": "Dev mode is ON — click to turn off",
     "off": "Dev mode is OFF — click to enable (plan-first, skill autopilot, ask when unclear)"
+  },
+  "daySep": {
+    "today": "Today",
+    "yesterday": "Yesterday"
   }
 }

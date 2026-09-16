@@ -215,5 +215,9 @@
     "label": "Dev",
     "on": "Dev mode đang BẬT — click để tắt",
     "off": "Dev mode đang TẮT — click để bật (lập kế hoạch, tự dùng skill, hỏi khi chưa rõ)"
+  },
+  "daySep": {
+    "today": "Hôm nay",
+    "yesterday": "Hôm qua"
   }
 }
