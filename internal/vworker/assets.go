@@ -1,6 +1,7 @@
 package vworker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -13,6 +14,19 @@ import (
 	"strings"
 	"time"
 )
+
+// looksLikeHTML reports whether a payload head is an HTML document — the
+// shape hotlink blocks and CDN error pages return instead of media.
+func looksLikeHTML(head []byte) bool {
+	t := strings.TrimSpace(string(head))
+	if t == "" {
+		return false
+	}
+	return strings.HasPrefix(t, "<!DOCTYPE") ||
+		strings.HasPrefix(t, "<html") ||
+		strings.HasPrefix(t, "<HTML") ||
+		strings.HasPrefix(strings.ToLower(t), "<!doctype html")
+}
 
 const (
 	// maxAssetSize is the maximum size for a single downloaded asset (100 MB).
@@ -100,6 +114,18 @@ func downloadAsset(ctx context.Context, assetsDir, rawURL string) (string, error
 		return "", fmt.Errorf("download %s: HTTP %d", rawURL, resp.StatusCode)
 	}
 
+	// Sniff the payload: CDN errors and hotlink blocks arrive as HTML pages
+	// that ffmpeg would choke on with a cryptic decode error. Reject them
+	// here with a message the agent can act on.
+	head := make([]byte, 512)
+	n, _ := io.ReadFull(resp.Body, head)
+	head = head[:n]
+	if looksLikeHTML(head) {
+		os.Remove(outPath)
+		return "", fmt.Errorf("download %s: got an HTML page, not a media asset (broken or hotlink-blocked URL)", rawURL)
+	}
+	respBody := io.MultiReader(bytes.NewReader(head), resp.Body)
+
 	// Size cap: use Content-Length if available
 	if resp.ContentLength > maxAssetSize {
 		return "", fmt.Errorf("asset too large: %d bytes (max %d)", resp.ContentLength, maxAssetSize)
@@ -111,7 +137,7 @@ func downloadAsset(ctx context.Context, assetsDir, rawURL string) (string, error
 	}
 	defer f.Close()
 
-	written, err := io.Copy(f, io.LimitReader(resp.Body, maxAssetSize+1))
+	written, err := io.Copy(f, io.LimitReader(respBody, maxAssetSize+1))
 	if err != nil {
 		os.Remove(outPath)
 		return "", fmt.Errorf("write asset: %w", err)

@@ -49,6 +49,13 @@ type Scene struct {
 	Color       string     `json:"color,omitempty"`  // "#RRGGBB" for color scenes
 	Color2      string     `json:"color2,omitempty"` // color scenes: second gradient stop; empty = darker shade of Color
 	Grid        bool       `json:"grid,omitempty"`   // color scenes: overlay a faint blueprint grid
+	// Visual v2 (color scenes): Glow adds one or two drifting radial glow
+	// orbs tinted with this "#RRGGBB"; Vignette darkens the frame edges;
+	// Grain adds subtle animated film grain. All optional — scenes without
+	// them render exactly as before.
+	Glow     string `json:"glow,omitempty"`
+	Vignette bool   `json:"vignette,omitempty"`
+	Grain    bool   `json:"grain,omitempty"`
 	DurationSec float64    `json:"duration_sec"`
 	Fit         string     `json:"fit,omitempty"` // cover|contain (default cover)
 	Transition  string     `json:"transition,omitempty"` // enter transition: none|fade|crossfade|slide_left|slide_up
@@ -185,12 +192,15 @@ func truncateJSON(b json.RawMessage) string {
 	return s
 }
 
-// Caption draws text over the scene via drawtext (needs a font file on the
-// worker; without one captions are skipped with a warning).
+// Caption draws text over the scene. The worker renders captions with the
+// bundled display font as PNG overlays: with narration the caption becomes a
+// karaoke reveal (words light up in sync with the voice); "chip" puts the text
+// on a rounded dark chip and "mono" uses the bundled monospace eyebrow font.
 type Caption struct {
 	Text     string `json:"text"`
 	Position string `json:"position,omitempty"` // top|center|bottom (default bottom)
 	FontSize int    `json:"font_size,omitempty"`
+	Style    string `json:"style,omitempty"` // "" plain | chip | mono
 }
 
 // Narration is the spoken text for the scene. Phase 4 wires the actual
@@ -304,8 +314,18 @@ func (sc *Scene) validate() error {
 		if sc.Color2 != "" && !hexColor(sc.Color2) {
 			return fmt.Errorf("color2 must be #RRGGBB, got %q", sc.Color2)
 		}
+		if sc.Glow != "" && !hexColor(sc.Glow) {
+			return fmt.Errorf("glow must be #RRGGBB, got %q", sc.Glow)
+		}
 	default:
 		return fmt.Errorf("unknown scene type %q", sc.Type)
+	}
+	if sc.Caption != nil {
+		switch sc.Caption.Style {
+		case "", "chip", "mono":
+		default:
+			return fmt.Errorf("caption style %q not supported (chip, mono)", sc.Caption.Style)
+		}
 	}
 	if sc.DurationSec < 1 || sc.DurationSec > maxSceneSec {
 		return fmt.Errorf("duration_sec %.1f out of range 1..%.0f", sc.DurationSec, maxSceneSec)

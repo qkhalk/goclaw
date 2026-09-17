@@ -41,7 +41,7 @@ func TestBuildImageSceneArgs_KenBurnsCaption(t *testing.T) {
 	}
 
 	tmp := t.TempDir()
-	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_001.mp4", tmp, 1)
+	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_001.mp4", tmp, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestBuildImageSceneArgs_NoCaptionNoFont(t *testing.T) {
 		DurationSec: 3,
 	}
 
-	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0)
+	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestBuildVideoSceneArgs(t *testing.T) {
 		Mute:        true,
 	}
 
-	args := buildVideoSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_002.mp4")
+	args := buildVideoSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_002.mp4", "", 0, 0)
 
 	if !containsArg(args, "-i") {
 		t.Error("expected -i flag")
@@ -155,7 +155,7 @@ func TestBuildVideoSceneArgs_NoMute(t *testing.T) {
 		Mute:        false,
 	}
 
-	args := buildVideoSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4")
+	args := buildVideoSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0, 0)
 	if containsArg(args, "-an") {
 		t.Error("should NOT have -an when mute=false")
 	}
@@ -170,7 +170,7 @@ func TestBuildColorSceneArgs_WithCaption(t *testing.T) {
 		Caption:     &contract.Caption{Text: "Ket thuc", Position: "center", FontSize: 32},
 	}
 
-	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_003.mp4", t.TempDir(), 3, true)
+	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_003.mp4", t.TempDir(), 3, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestBuildColorSceneArgs_NoCaption(t *testing.T) {
 		DurationSec: 1,
 	}
 
-	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0, true)
+	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/out.mp4", "", 0, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestDarkerHex(t *testing.T) {
 
 func TestImageSceneBlurBackdrop(t *testing.T) {
 	sc := contract.Scene{Type: contract.SceneImage, Source: "media/a.jpg", DurationSec: 4}
-	args, err := buildImageSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/out.mp4", t.TempDir(), 0)
+	args, err := buildImageSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/out.mp4", t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,14 +401,14 @@ func TestImageSceneBlurBackdrop(t *testing.T) {
 
 func TestColorSceneGradientVsFlat(t *testing.T) {
 	sc := contract.Scene{Type: contract.SceneColor, Color: "#0f172a", DurationSec: 3}
-	gradArgs, err := buildColorSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/g.mp4", t.TempDir(), 0, true)
+	gradArgs, err := buildColorSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/g.mp4", t.TempDir(), 0, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(strings.Join(gradArgs, " "), "gradients=s=1080x1920") {
 		t.Error("animated color scene should use gradients source")
 	}
-	flatArgs, err := buildColorSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/f.mp4", t.TempDir(), 0, false)
+	flatArgs, err := buildColorSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/f.mp4", t.TempDir(), 0, false, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,7 +23,7 @@ func TestBuildColorSceneArgs_LayersMixed(t *testing.T) {
 	}
 
 	tmp := t.TempDir()
-	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_0.mp4", tmp, 0, true)
+	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_0.mp4", tmp, 0, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestBuildColorSceneArgs_ImageLayerSwitchesToComplex(t *testing.T) {
 			{Kind: contract.LayerImage, Source: "/tmp/logo.png", X: 0.4, Y: 0.6, W: 0.2, Start: 1, Duration: 2},
 		},
 	}
-	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_0.mp4", t.TempDir(), 0, true)
+	args, err := buildColorSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/scene_0.mp4", t.TempDir(), 0, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestBuildImageSceneArgs_LayersUnderCaption(t *testing.T) {
 			{Kind: contract.LayerText, Text: "Top text"},
 		},
 	}
-	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/s.mp4", t.TempDir(), 0)
+	args, err := buildImageSceneArgs(cfg, sc, 1080, 1920, 30, "/tmp/s.mp4", t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestBuildVideoSceneArgs_LayersPlainVf(t *testing.T) {
 			{Kind: contract.LayerShape, Fill: "#FFFFFF", Opacity: 0.3, H: 0.1},
 		},
 	}
-	args := buildVideoSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/s.mp4")
+	args := buildVideoSceneArgs(FFmpegConfig{}, sc, 1080, 1920, 30, "/tmp/s.mp4", "", 0, 0)
 	vf := args[indexOfArg(args, "-vf")+1]
 	if !strings.Contains(vf, "drawbox=") || !strings.Contains(vf, "format=yuv420p") {
 		t.Errorf("expected drawbox in the -vf chain tail: %s", vf)
