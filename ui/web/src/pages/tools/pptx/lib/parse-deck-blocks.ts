@@ -49,6 +49,7 @@ const LAYOUTS = new Set<SlideLayout>([
   "image",
   "end",
 ]);
+const TRANSITIONS = new Set<string>(["none", "fade", "push", "wipe", "zoom"]);
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
 export function parseDeck(raw: string): ParsedDeck {
@@ -62,7 +63,7 @@ export function parseDeck(raw: string): ParsedDeck {
     return { ok: false, error: "not an object", raw };
   }
   const d = data as Partial<Deck>;
-  if (d.version !== 1) {
+  if (d.version !== 1 && d.version !== 2) {
     return { ok: false, error: `unsupported version ${String(d.version)}`, raw };
   }
   const themeErr = themeError(d.theme);
@@ -77,7 +78,7 @@ export function parseDeck(raw: string): ParsedDeck {
     const err = slideError(d.slides[i], i);
     if (err) return { ok: false, error: err, raw };
   }
-  return { ok: true, deck: { ...(d as Deck), version: 1 }, raw };
+  return { ok: true, deck: { ...(d as Deck), version: d.version }, raw };
 }
 
 function themeError(theme: unknown): string | null {
@@ -103,6 +104,23 @@ function slideError(slide: unknown, index: number): string | null {
   const s = slide as Partial<Slide>;
   if (!s.layout || !LAYOUTS.has(s.layout)) {
     return `slide ${index + 1}: unknown layout ${String(s.layout)}`;
+  }
+  if (s.transition !== undefined && !TRANSITIONS.has(s.transition)) {
+    return `slide ${index + 1}: unknown transition ${String(s.transition)}`;
+  }
+  if (s.elements !== undefined) {
+    if (!Array.isArray(s.elements)) {
+      return `slide ${index + 1}: elements must be an array`;
+    }
+    if (s.elements.length > 60) {
+      return `slide ${index + 1}: too many elements (${s.elements.length}, max 60)`;
+    }
+    for (let j = 0; j < s.elements.length; j++) {
+      const el = s.elements[j] as { kind?: unknown };
+      if (!el || typeof el !== "object" || typeof el.kind !== "string") {
+        return `slide ${index + 1} element ${j + 1}: not an element object`;
+      }
+    }
   }
   switch (s.layout) {
     case "title":

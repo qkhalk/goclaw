@@ -3,6 +3,11 @@
  * contract (internal/pptx/designer_agent.go) and the web-side validation in
  * lib/parse-deck-blocks.ts. Slides are 16:9; the studio renders them at a
  * 1280×720 stage and exports via pptxgenjs at 13.33×7.5in.
+ *
+ * v2 adds free-form editing: a slide may carry `elements` (explicit prim
+ * list, Canva-style) and a `transition`. Slides without elements stay
+ * layout-driven and compile through lib/slide-spec.ts — both surfaces render
+ * from the same primitive shapes, so v1 decks preview and export unchanged.
  */
 
 export interface DeckTheme {
@@ -34,6 +39,57 @@ export type SlideLayout =
   | "image"
   | "end";
 
+/** PowerPoint-honored slide transitions (exported via OOXML injection). */
+export type SlideTransition = "none" | "fade" | "push" | "wipe" | "zoom";
+
+export const SLIDE_TRANSITIONS: SlideTransition[] = ["none", "fade", "push", "wipe", "zoom"];
+
+/** One free-form element on the 1280×720 stage. Shape mirrors the slide-spec
+ * prims plus identity/rotation; a text element may pin an explicit font
+ * family (empty = theme heading/body mapping). */
+export type SlideElement = {
+  id: string;
+  rotate?: number;
+  locked?: boolean;
+} & (
+  | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; radius?: number }
+  | { kind: "ellipse"; x: number; y: number; w: number; h: number; fill: string }
+  | {
+      kind: "frame";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      color: string;
+      width: number;
+      radius?: number;
+      dash?: boolean;
+    }
+  | {
+      kind: "text";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      text: string;
+      font: "heading" | "body";
+      fontFamily?: string;
+      size: number;
+      bold?: boolean;
+      italic?: boolean;
+      color: string;
+      align?: "left" | "center" | "right";
+      valign?: "top" | "middle" | "bottom";
+      lineHeight?: number;
+    }
+  | { kind: "image"; x: number; y: number; w: number; h: number; source: string; alt: string }
+);
+
+/** New-element id generator (monotonic per session is enough for keys). */
+export function newElementId(): string {
+  return `el-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 interface SlideBase {
   notes?: string;
 }
@@ -50,10 +106,16 @@ export interface Slide extends SlideBase {
   stats?: StatsItem[];
   source?: string;
   caption?: string;
+  /** v2: when present, the slide renders/export THIS explicit element list
+   * (compiled layout prims are ignored). */
+  elements?: SlideElement[];
+  /** v2: transition used in the in-app presentation and injected into the
+   * exported .pptx. */
+  transition?: SlideTransition;
 }
 
 export interface Deck {
-  version: 1;
+  version: 1 | 2;
   theme: DeckTheme;
   slides: Slide[];
 }
@@ -158,7 +220,7 @@ export const THEME_PRESETS: { key: string; theme: DeckTheme }[] = [
 
 export function defaultDeck(): Deck {
   return {
-    version: 1,
+    version: 2,
     theme: { ...THEME_PRESETS[0]!.theme },
     slides: [
       { layout: "title", title: "Presentation title", subtitle: "One-line promise" },

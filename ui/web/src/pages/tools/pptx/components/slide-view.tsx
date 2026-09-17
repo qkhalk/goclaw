@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { Deck, DeckTheme, Slide } from "../types";
-import { buildSlidePrims, STAGE_H, STAGE_W, type SlidePrim } from "../lib/slide-spec";
+import type { Deck, DeckTheme, Slide, SlideElement } from "../types";
+import { cssFont } from "../types";
+import { STAGE_H, STAGE_W } from "../lib/slide-spec";
+import { elementsOf } from "../lib/elements";
 
 /**
- * HTML preview of one deck slide. The slide is authored as a flat primitive
- * list on a fixed 1280×720 stage (lib/slide-spec.ts) and scaled with a CSS
- * transform to the wrapper's width, so the preview keeps exact proportions
- * at any size (full preview and thumbnails alike) and renders exactly what
+ * HTML preview of one deck slide. The slide is either an explicit element
+ * list (v2 free-form) or compiled to a flat primitive list on the fixed
+ * 1280×720 stage (lib/slide-spec.ts) and scaled with a CSS transform to the
+ * wrapper's width, so the preview keeps exact proportions at any size (full
+ * preview and thumbnails alike) and renders exactly what
  * lib/pptx-export.ts writes into the .pptx.
  */
 
@@ -31,7 +34,7 @@ export function SlideView({ slide, theme, className }: SlideViewProps) {
     return () => ro.disconnect();
   }, []);
 
-  const prims = useMemo(() => buildSlidePrims(slide, theme), [slide, theme]);
+  const prims = useMemo(() => elementsOf(slide, theme), [slide, theme]);
 
   return (
     <div
@@ -52,17 +55,19 @@ export function SlideView({ slide, theme, className }: SlideViewProps) {
           color: theme.foreground,
         }}
       >
-        {prims.map((p, i) => (
-          <PrimView key={i} prim={p} theme={theme} />
+        {prims.map((p) => (
+          <PrimView key={p.id} prim={p} theme={theme} />
         ))}
       </div>
     </div>
   );
 }
 
-function PrimView({ prim, theme }: { prim: SlidePrim; theme: DeckTheme }) {
+export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme }) {
   const heading = cssStack(theme.font_heading);
   const body = cssStack(theme.font_body);
+
+  const rotate = prim.rotate ? { transform: `rotate(${prim.rotate}deg)` } : undefined;
 
   switch (prim.kind) {
     case "rect":
@@ -77,6 +82,7 @@ function PrimView({ prim, theme }: { prim: SlidePrim; theme: DeckTheme }) {
             height: prim.h,
             backgroundColor: prim.fill,
             borderRadius: prim.radius,
+            ...rotate,
           }}
         />
       );
@@ -93,6 +99,7 @@ function PrimView({ prim, theme }: { prim: SlidePrim; theme: DeckTheme }) {
             height: prim.h,
             backgroundColor: prim.fill,
             borderRadius: "50%",
+            ...rotate,
           }}
         />
       );
@@ -109,6 +116,7 @@ function PrimView({ prim, theme }: { prim: SlidePrim; theme: DeckTheme }) {
             height: prim.h,
             border: `${prim.width}px ${prim.dash ? "dashed" : "solid"} ${prim.color}`,
             borderRadius: prim.radius,
+            ...rotate,
           }}
         />
       );
@@ -125,7 +133,7 @@ function PrimView({ prim, theme }: { prim: SlidePrim; theme: DeckTheme }) {
             display: "flex",
             alignItems:
               prim.valign === "middle" ? "center" : prim.valign === "bottom" ? "flex-end" : "flex-start",
-            fontFamily: prim.font === "heading" ? heading : body,
+            fontFamily: prim.fontFamily ? cssFont(prim.fontFamily) : prim.font === "heading" ? heading : body,
             fontSize: prim.size,
             fontWeight: prim.bold ? 700 : 400,
             fontStyle: prim.italic ? "italic" : undefined,
@@ -133,6 +141,7 @@ function PrimView({ prim, theme }: { prim: SlidePrim; theme: DeckTheme }) {
             lineHeight: prim.lineHeight ?? 1.3,
             textAlign: prim.align ?? "left",
             overflowWrap: "break-word",
+            ...rotate,
           }}
         >
           <span style={{ width: "100%" }}>{prim.text}</span>
@@ -142,7 +151,7 @@ function PrimView({ prim, theme }: { prim: SlidePrim; theme: DeckTheme }) {
     case "image":
       return (
         <img
-          src={prim.source.startsWith("/") ? prim.source : prim.source}
+          src={prim.source}
           alt={prim.alt}
           draggable={false}
           style={{
@@ -152,31 +161,13 @@ function PrimView({ prim, theme }: { prim: SlidePrim; theme: DeckTheme }) {
             width: prim.w,
             height: prim.h,
             objectFit: "contain",
+            ...rotate,
           }}
         />
       );
   }
 }
 
-function cssStack(font: string | undefined): string {
-  switch (font) {
-    case "Arial":
-      return "Arial, 'Liberation Sans', 'Helvetica Neue', sans-serif";
-    case "Calibri":
-      return "Calibri, Carlito, 'Segoe UI', sans-serif";
-    case "Georgia":
-      return "Georgia, 'Times New Roman', serif";
-    case "Verdana":
-      return "Verdana, DejaVu Sans, sans-serif";
-    case "Tahoma":
-      return "Tahoma, Verdana, sans-serif";
-    case "Trebuchet MS":
-      return "'Trebuchet MS', 'Segoe UI', sans-serif";
-    case "Times New Roman":
-      return "'Times New Roman', Times, serif";
-    case "Courier New":
-      return "'Courier New', monospace";
-    default:
-      return "'Segoe UI', sans-serif";
-  }
+export function cssStack(font: string | undefined): string {
+  return cssFont(font);
 }
