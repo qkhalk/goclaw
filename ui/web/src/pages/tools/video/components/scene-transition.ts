@@ -4,8 +4,8 @@ import type { Scene } from "../hooks/use-timeline";
 //
 // A transition decorates the START of a scene: for the first
 // TRANSITION_SEC seconds the incoming frame blends over the tail of the
-// previous scene. Server renders ignore the field (hard cuts); the browser
-// player and client-side export honor it.
+// previous scene. Honored by the browser player, the client-side export,
+// and the server render (xfade chain).
 
 export type SceneTransition = "none" | "fade" | "crossfade" | "slide_left" | "slide_up";
 
@@ -19,10 +19,13 @@ type DrawScene = (
   scene: Scene,
   localTime: number,
   imageCache: Map<string, HTMLImageElement>,
+  narrProgress?: number,
 ) => void;
 
 /** Draw scenes[index] at localTime, applying its enter transition (blending
  * over the previous scene's final frame) when inside the transition window.
+ * narrProgress (0..1) is the narration-audio progress of scenes[index]; the
+ * outgoing scene draws with progress 1 (its narration is over).
  * scratchA/scratchB are reused offscreen buffers sized to `canvas` to avoid
  * per-frame allocations; they are resized here if the canvas changed. */
 export function renderSceneWithTransition(
@@ -35,12 +38,13 @@ export function renderSceneWithTransition(
   drawScene: DrawScene,
   scratchA: HTMLCanvasElement,
   scratchB: HTMLCanvasElement,
+  narrProgress?: number,
 ): void {
   const scene = scenes[index];
   if (!scene) return;
 
   // Incoming frame, drawn normally first.
-  drawScene(ctx, canvas, scene, localTime, imageCache);
+  drawScene(ctx, canvas, scene, localTime, imageCache, narrProgress);
 
   const type: SceneTransition = scene.transition ?? "none";
   if (index <= 0 || type === "none" || localTime >= TRANSITION_SEC) return;
@@ -59,7 +63,7 @@ export function renderSceneWithTransition(
   const aCtx = scratchA.getContext("2d");
   if (!aCtx) return;
   aCtx.clearRect(0, 0, width, height);
-  drawScene(aCtx, scratchA, prev, Math.max(0, prev.duration_sec - 1 / 60), imageCache);
+  drawScene(aCtx, scratchA, prev, Math.max(0, prev.duration_sec - 1 / 60), imageCache, 1);
 
   // Scratch B: copy of the already-drawn incoming frame.
   if (scratchB.width !== width || scratchB.height !== height) {

@@ -37,14 +37,21 @@ export interface Scene {
   type: "image" | "video" | "color";
   source?: string;
   color?: string;
+  /** Color scenes: second gradient stop — empty = darker shade of color
+   * (mirrors the server's gradients c0/c1 derivation). */
+  color2?: string;
+  /** Color scenes: faint blueprint grid overlay (server drawgrid). */
+  grid?: boolean;
   duration_sec: number;
   fit?: "cover" | "contain";
   mute?: boolean;
   ken_burns?: KenBurns;
   caption?: Caption;
   narration?: string;
-  /** How this scene ENTERS (browser preview + client export; the server
-   * render pipeline ignores it and cuts hard). */
+  /** Per-scene TTS voice override (edge-tts id); empty = storyboard default. */
+  narration_voice?: string;
+  /** How this scene ENTERS — browser preview, client export, and the server
+   * render (xfade) all honor it. */
   transition?: SceneTransition;
   /** OpenCut-style per-scene transform (image/video scenes): scale multiple
    * around the frame center, x/y offset in % of frame size, rotation in
