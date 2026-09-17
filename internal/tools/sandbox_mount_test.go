@@ -127,7 +127,7 @@ func TestExecSandboxUsesEffectiveWorkspaceMountAndContainerCwd(t *testing.T) {
 	mgr := &recordingSandboxManager{}
 	tool := NewSandboxedExecTool(globalWorkspace, true, mgr)
 
-	result := tool.executeInSandbox(WithToolWorkspace(context.Background(), tenantWorkspace), "pwd", tenantWorkspace, "session-1")
+	result := tool.executeInSandbox(WithToolWorkspace(context.Background(), tenantWorkspace), "pwd", tenantWorkspace, "session-1", 0)
 	if result.IsError {
 		t.Fatalf("executeInSandbox returned error: %s", result.ForLLM)
 	}
@@ -424,7 +424,7 @@ func TestExecSandboxFailsClosedWhenTenantWorkspaceMissing(t *testing.T) {
 	tool := NewSandboxedExecTool(globalWorkspace, true, mgr)
 	ctx := store.WithTenantID(context.Background(), uuid.New())
 
-	result := tool.executeInSandbox(ctx, "pwd", globalWorkspace, "session-1")
+	result := tool.executeInSandbox(ctx, "pwd", globalWorkspace, "session-1", 0)
 	if !result.IsError {
 		t.Fatalf("executeInSandbox succeeded, want fail-closed error")
 	}
