@@ -176,6 +176,31 @@
       "align_center": "Giữa",
       "align_right": "Phải",
       "opacity": "Độ mờ"
+    },
+    "designer": {
+      "title": "Video Designer",
+      "toggle": "Bật/tắt cột designer",
+      "attach": "Đính kèm storyboard hiện tại",
+      "attached": "Storyboard hiện tại sẽ được đính kèm",
+      "attachedPrefix": "Đã đính kèm storyboard",
+      "badge": "Designer",
+      "newChat": "Trò chuyện mới",
+      "close": "Đóng",
+      "history": "Lịch sử",
+      "historyEmpty": "Chưa có hội thoại nào",
+      "historyMessages": "{{n}} tin nhắn",
+      "emptyHint": "Mô tả video anh cần — designer sẽ dựng storyboard.",
+      "chip1": "Video ngắn tin công nghệ",
+      "chip2": "Teaser ra mắt sản phẩm",
+      "chip3": "Video giải thích 60 giây có lời dẫn",
+      "designing": "Designer đang dựng...",
+      "applied": "Đã áp dụng",
+      "apply": "Áp dụng vào editor",
+      "invalid": "Storyboard không hợp lệ",
+      "sceneCount": "{{n}} cảnh",
+      "duration": "~{{n}} giây",
+      "viewJson": "Xem JSON",
+      "hideJson": "Ẩn JSON"
     }
   },
   "watermark": {

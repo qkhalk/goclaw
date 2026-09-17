@@ -8,6 +8,7 @@ import {
   Loader2,
   RefreshCw,
   Trash2,
+  Wand2,
   X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +20,8 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useHttp } from "@/hooks/use-ws";
+import { useIsTablet } from "@/hooks/use-media-query";
+import { useUiStore } from "@/stores/use-ui-store";
 import { toast } from "@/stores/use-toast-store";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
@@ -35,6 +38,7 @@ import { CanvasPlayer } from "./components/canvas-player";
 import { Timeline } from "./components/timeline";
 import { SceneCard } from "./components/scene-card";
 import { RenderPanel } from "./components/render-panel";
+import { DesignerColumn } from "./components/designer-column";
 
 // ── Storyboard (non-scene fields; scenes live in the timeline) ──
 
@@ -90,6 +94,9 @@ function isTerminal(status: VideoRenderJob["status"]): boolean {
 export function VideoToolPage() {
   const { t } = useTranslation("toolbox");
   const http = useHttp();
+  const isCompact = useIsTablet();
+  const designerOpen = useUiStore((s) => s.videoDesignerOpen);
+  const setDesignerOpen = useUiStore((s) => s.setVideoDesignerOpen);
   const { jobs, loading, refresh, progressById } = useVideoJobs(true);
   const cancel = useVideoCancel();
   const removeJob = useVideoDelete();
@@ -125,6 +132,18 @@ export function VideoToolPage() {
   const updateMeta = useCallback((patch: Partial<StoryboardMeta>) => {
     setMeta((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  /** Apply a designer-produced storyboard: meta fields go to the form,
+   * scenes replace the timeline (one history entry, undo works). */
+  const applyStoryboard = useCallback((next: Storyboard) => {
+    setMeta({
+      version: next.version ?? 1,
+      canvas: next.canvas ?? defaultStoryboard().canvas,
+      audio: next.audio,
+      output: next.output,
+    });
+    timeline.replaceScenes(next.scenes?.length ? next.scenes : [{ type: "image", source: "", duration_sec: 5, fit: "cover" }]);
+  }, [timeline]);
 
   // Export
   const {
@@ -217,20 +236,37 @@ export function VideoToolPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
+    // Studio layout mirrors the PPTX page: the editor column scrolls
+    // internally; the designer chat rail always fits the viewport (it
+    // renders itself as a portal bottom sheet on compact screens).
+    <div className="h-full min-h-0">
+      <div className="mx-auto flex h-full w-full items-stretch">
+        <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-6">
       <PageHeader
         title={t("video.title")}
         description={t("video.description")}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refresh()}
-            className="min-h-11 sm:min-h-9"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {t("video.jobs_refresh")}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refresh()}
+              className="min-h-11 sm:min-h-9"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {t("video.jobs_refresh")}
+            </Button>
+            <Button
+              variant={designerOpen ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDesignerOpen(!designerOpen)}
+              className="min-h-11 sm:min-h-9"
+              title={t("video.designer.toggle")}
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              {t("video.designer.title")}
+            </Button>
+          </>
         }
       />
 
@@ -534,6 +570,14 @@ export function VideoToolPage() {
           }
         }}
       />
+        </div>
+
+        {/* Designer chat column: full-height rail on desktop; portal bottom
+            sheet on compact screens (the wrapper stays empty there). */}
+        <div className={cn("h-full shrink-0", !isCompact && "min-w-0")}>
+          <DesignerColumn onApplyStoryboard={applyStoryboard} currentStoryboard={sb} />
+        </div>
+      </div>
     </div>
   );
 }

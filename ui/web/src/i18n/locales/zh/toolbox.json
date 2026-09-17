@@ -176,6 +176,31 @@
       "align_center": "中",
       "align_right": "右",
       "opacity": "不透明度"
+    },
+    "designer": {
+      "title": "Video Designer",
+      "toggle": "切换设计者栏",
+      "attach": "附上当前分镜",
+      "attached": "将附上当前分镜",
+      "attachedPrefix": "已附上分镜",
+      "badge": "Designer",
+      "newChat": "新对话",
+      "close": "关闭",
+      "history": "历史",
+      "historyEmpty": "还没有会话",
+      "historyMessages": "{{n}} 条消息",
+      "emptyHint": "描述你想要的视频 — 设计者会起草分镜。",
+      "chip1": "科技资讯短视频",
+      "chip2": "产品发布预告",
+      "chip3": "60 秒带解说的讲解视频",
+      "designing": "设计者正在起草…",
+      "applied": "已应用",
+      "apply": "应用到编辑器",
+      "invalid": "无效的分镜",
+      "sceneCount": "{{n}} 个场景",
+      "duration": "约 {{n}} 秒",
+      "viewJson": "查看 JSON",
+      "hideJson": "收起 JSON"
     }
   },
   "watermark": {
