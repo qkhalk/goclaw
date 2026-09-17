@@ -222,7 +222,15 @@
     "draft_restored": "Черновик восстановлен",
     "draft_cleared": "Черновик удалён",
     "draft_clear": "Удалить черновик",
-    "draft_clear_hint": "Удалить черновик из браузера и начать заново"
+    "draft_clear_hint": "Удалить черновик из браузера и начать заново",
+    "caption_style": "Стиль подписи",
+    "caption_style_plain": "Обычный",
+    "caption_style_chip": "Плашка (скругл.)",
+    "caption_style_mono": "Моно",
+    "glow": "Свечение",
+    "glow_off": "Выкл",
+    "vignette": "Виньетка",
+    "grain": "Плёночное зерно"
   },
   "watermark": {
     "title": "Удаление водяных знаков",

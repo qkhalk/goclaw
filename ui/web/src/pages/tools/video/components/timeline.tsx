@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Plus, Undo2, Redo2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { renderSceneBase } from "./render-shared";
 import type { Scene } from "../hooks/use-timeline";
 
 // ── Types ──
@@ -22,14 +23,44 @@ interface TimelineProps {
 
 // ── Scene thumbnail ──
 
+/** True-paint thumbnail for color scenes: the same renderSceneBase the
+ * player uses (gradient + grid + glow + caption chip) on a small offscreen
+ * canvas, redrawn when the scene changes or the caption fonts finish
+ * loading. Image scenes keep the plain <img> below — the photo is the
+ * preview. */
+function ColorSceneThumb({ scene }: { scene: Scene }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  const sceneKey = JSON.stringify(scene);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const paint = () => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      renderSceneBase(ctx, canvas, scene, 0.7, new Map());
+    };
+    paint();
+    // Repaint once the bundled caption fonts arrive (canvas falls back to a
+    // system face until then).
+    document.fonts?.ready.then(paint);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneKey]);
+
+  return (
+    <canvas
+      ref={ref}
+      width={216}
+      height={384}
+      className="h-full w-full rounded object-cover"
+      aria-hidden
+    />
+  );
+}
+
 function SceneThumb({ scene, index }: { scene: Scene; index: number }) {
   if (scene.type === "color") {
-    return (
-      <div
-        className="h-full w-full rounded"
-        style={{ backgroundColor: scene.color || "#000" }}
-      />
-    );
+    return <ColorSceneThumb scene={scene} />;
   }
 
   if (scene.source) {

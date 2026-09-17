@@ -12,6 +12,8 @@ interface Caption {
   text: string;
   position?: "top" | "center" | "bottom";
   font_size?: number;
+  /** Visual style: "" plain | chip | mono — mirrored by preview + server. */
+  style?: "" | "chip" | "mono";
 }
 /** One timed overlay inside a scene — mirrors internal/video.Layer (Go).
  * Geometry is normalized 0..1 (top-left origin); a layer is visible while
@@ -42,6 +44,13 @@ export interface Scene {
   color2?: string;
   /** Color scenes: faint blueprint grid overlay (server drawgrid). */
   grid?: boolean;
+  /** Color scenes: drifting radial glow orbs tinted with this color
+   * (server overlay PNGs, visual v2). */
+  glow?: string;
+  /** Darkened frame edges (server vignette filter, visual v2). */
+  vignette?: boolean;
+  /** Subtle animated film grain — server render only, preview skips. */
+  grain?: boolean;
   duration_sec: number;
   fit?: "cover" | "contain";
   mute?: boolean;

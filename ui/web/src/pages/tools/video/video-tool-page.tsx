@@ -428,6 +428,16 @@ export function VideoToolPage() {
                         )}
                       </div>
                     </div>
+                    {job.status === "done" && (
+                      /* Watch right in the job card — no download round-trip
+                         to see what the agent produced. */
+                      <video
+                        controls
+                        preload="metadata"
+                        src={job.download_url ?? `/v1/files/videos/${job.id}.mp4`}
+                        className="mt-2 max-h-72 w-full max-w-[180px] rounded-md border bg-black"
+                      />
+                    )}
                     {(job.status === "queued" ||
                       job.status === "rendering") && (
                       <div className="mt-2">

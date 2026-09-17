@@ -222,7 +222,15 @@
     "draft_restored": "Đã khôi phục bản nháp",
     "draft_cleared": "Đã xoá bản nháp",
     "draft_clear": "Xoá bản nháp",
-    "draft_clear_hint": "Xoá bản nháp lưu trong trình duyệt và làm lại từ đầu"
+    "draft_clear_hint": "Xoá bản nháp lưu trong trình duyệt và làm lại từ đầu",
+    "caption_style": "Kiểu phụ đề",
+    "caption_style_plain": "Thường",
+    "caption_style_chip": "Chip (bo góc)",
+    "caption_style_mono": "Mono kỹ thuật",
+    "glow": "Quầng sáng",
+    "glow_off": "Tắt",
+    "vignette": "Tối viền",
+    "grain": "Hạt phim"
   },
   "watermark": {
     "title": "Xóa watermark",

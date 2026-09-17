@@ -222,7 +222,15 @@
     "draft_restored": "저장되지 않은 초안 복원됨",
     "draft_cleared": "초안 삭제됨",
     "draft_clear": "초안 삭제",
-    "draft_clear_hint": "브라우저에 저장된 초안을 삭제하고 새로 시작"
+    "draft_clear_hint": "브라우저에 저장된 초안을 삭제하고 새로 시작",
+    "caption_style": "자막 스타일",
+    "caption_style_plain": "기본",
+    "caption_style_chip": "칩 (둥근 배경)",
+    "caption_style_mono": "모노 상단",
+    "glow": "글로우",
+    "glow_off": "끄기",
+    "vignette": "비네트",
+    "grain": "필름 그레인"
   },
   "watermark": {
     "title": "워터마크 제거",
