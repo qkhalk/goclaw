@@ -204,7 +204,8 @@
     "toggle_accounts": "계정 펼치기/접기",
     "quick_views": "빠른 보기",
     "search_accounts": "계정 검색…",
-    "no_accounts_match": "일치하는 계정 없음"
+    "no_accounts_match": "일치하는 계정 없음",
+    "up": "상위 폴더로 이동"
   },
   "files": {
     "upload": "업로드",
