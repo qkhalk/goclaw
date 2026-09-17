@@ -342,6 +342,31 @@ func buildVideoSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	return args
 }
 
+// gradientStops resolves a color scene's two gradient stops: the scene color
+// and its explicit second stop, or a darker shade when Color2 is unset.
+func gradientStops(sc contract.Scene) (c0, c1 string) {
+	c0 = strings.TrimPrefix(sc.Color, "#")
+	c1 = strings.TrimPrefix(sc.Color2, "#")
+	if c1 == "" {
+		c1 = darkerHex(c0)
+	}
+	return c0, c1
+}
+
+// gridFilter overlays a faint blueprint grid over a color scene — the
+// "developer dark-mode" backdrop. ~24 cells per edge, 1px lines.
+func gridFilter(canvasW, canvasH int) string {
+	cellW := canvasW / 24
+	cellH := canvasH / 24
+	if cellW < 1 {
+		cellW = 1
+	}
+	if cellH < 1 {
+		cellH = 1
+	}
+	return fmt.Sprintf("drawgrid=w=%d:h=%d:t=1:c=0x94A3B8@0.10", cellW, cellH)
+}
+
 // buildColorSceneArgs builds ffmpeg argv for a color scene. With animated=true
 // the flat color becomes a slowly drifting two-stop gradient derived from the
 // scene color (much richer than a solid frame); the caller falls back to
@@ -356,18 +381,21 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	totalFrames := int(math.Ceil(float64(fps) * dur))
 
 	// lavfi source: animated gradient or flat color
-	color := strings.TrimPrefix(sc.Color, "#")
+	c0, c1 := gradientStops(sc)
 	if animated {
 		args = append(args, "-f", "lavfi", "-i",
 			fmt.Sprintf("gradients=s=%dx%d:c0=0x%s:c1=0x%s:speed=0.008:d=%.3f:r=%d",
-				canvasW, canvasH, color, darkerHex(color), dur, fps))
+				canvasW, canvasH, c0, c1, dur, fps))
 	} else {
 		args = append(args, "-f", "lavfi", "-i",
-			fmt.Sprintf("color=c=0x%s:s=%dx%d:d=%.3f:r=%d", color, canvasW, canvasH, dur, fps))
+			fmt.Sprintf("color=c=0x%s:s=%dx%d:d=%.3f:r=%d", c0, canvasW, canvasH, dur, fps))
 	}
 
 	// Caption via drawtext
 	filters := []string{}
+	if sc.Grid {
+		filters = append(filters, gridFilter(canvasW, canvasH))
+	}
 	if len(sc.Layers) > 0 && hasImageLayers(sc) {
 		// Image layers need dual-input overlays — rebuild as filter_complex.
 		return buildColorSceneComplex(cfg, sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, animated)
@@ -427,11 +455,11 @@ func buildColorSceneComplex(cfg FFmpegConfig, sc contract.Scene, canvasW, canvas
 	}
 	totalFrames := int(math.Ceil(float64(fps) * dur))
 
-	color := strings.TrimPrefix(sc.Color, "#")
+	color, c1 := gradientStops(sc)
 	if animated {
 		args = append(args, "-f", "lavfi", "-i",
 			fmt.Sprintf("gradients=s=%dx%d:c0=0x%s:c1=0x%s:speed=0.008:d=%.3f:r=%d",
-				canvasW, canvasH, color, darkerHex(color), dur, fps))
+				canvasW, canvasH, color, c1, dur, fps))
 	} else {
 		args = append(args, "-f", "lavfi", "-i",
 			fmt.Sprintf("color=c=0x%s:s=%dx%d:d=%.3f:r=%d", color, canvasW, canvasH, dur, fps))
@@ -441,7 +469,12 @@ func buildColorSceneComplex(cfg FFmpegConfig, sc contract.Scene, canvasW, canvas
 	}
 
 	var fc strings.Builder
-	cur := appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, cfg.FontFile, "0:v")
+	src := "0:v"
+	if sc.Grid {
+		fmt.Fprintf(&fc, "[0:v]%s[gridv];", gridFilter(canvasW, canvasH))
+		src = "gridv"
+	}
+	cur := appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, cfg.FontFile, src)
 
 	if sc.Caption != nil && sc.Caption.Text != "" && cfg.FontFile != "" {
 		tv, err := captionFilterValue(tempDir, sceneIdx, sc.Caption.Text)
@@ -484,82 +517,83 @@ func buildConcatArgs(cfg FFmpegConfig, sceneFiles []string, concatFilePath, outp
 }
 
 // buildMixArgs builds the ffmpeg command that mixes narration + BGM audio into the video.
-func buildMixArgs(cfg FFmpegConfig, videoPath, outputPath string, narrationFiles []string, bgmPath string, audioMix contract.AudioMix, fps int) []string {
+// NarrTrack pins one narration clip to its start time in the final timeline.
+// Unlike back-to-back concatenation, each clip plays exactly when its scene
+// is on screen — scenes without narration no longer shift later audio.
+type NarrTrack struct {
+	Path     string
+	StartSec float64
+}
+
+func buildMixArgs(cfg FFmpegConfig, videoPath, outputPath string, narr []NarrTrack, bgmPath string, audioMix contract.AudioMix, fps int, videoDur float64) []string {
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 
 	// Input 0: the concat video (has no audio or silent audio)
 	args = append(args, "-i", videoPath)
 
-	inputIdx := 1
+	hasNarr := len(narr) > 0
+	hasBGM := bgmPath != ""
+	if !hasNarr && !hasBGM {
+		// No audio — just copy video
+		args = append(args, "-map", "0:v")
+		args = append(args, "-c:v", "copy")
+		args = append(args, baseFlags...)
+		args = append(args, "-y", outputPath)
+		return args
+	}
 
-	// Narration inputs: concatenate them with delays
-	narrIdx := -1
-	if len(narrationFiles) > 0 {
-		for _, nf := range narrationFiles {
-			args = append(args, "-i", nf)
-			inputIdx++
-		}
-		narrIdx = 1 // first narration input index
+	// Input 1: a silence base spanning the whole video. amix duration=first
+	// then bounds the mix to the video length regardless of narration/BGM.
+	dur := videoDur
+	if dur <= 0 {
+		dur = 1
+	}
+	args = append(args, "-f", "lavfi", "-t", fmt.Sprintf("%.3f", dur), "-i", "anullsrc=r=44100:cl=stereo")
+
+	// Narration inputs
+	narrBase := 2
+	for _, nt := range narr {
+		args = append(args, "-i", nt.Path)
 	}
 
 	// BGM input
 	bgmIdx := -1
-	if bgmPath != "" {
+	if hasBGM {
 		args = append(args, "-i", bgmPath)
-		bgmIdx = inputIdx
-		inputIdx++
+		bgmIdx = narrBase + len(narr)
 	}
 
-	// Build filter complex for audio mixing
-	if narrIdx >= 0 || bgmIdx >= 0 {
-		filters := []string{}
-		audioInputs := []string{}
+	filters := []string{}
+	audioInputs := []string{"[1:a]"} // silence base first (duration anchor)
 
-		if narrIdx >= 0 {
-			// Concat all narration files into one stream
-			if len(narrationFiles) == 1 {
-				audioInputs = append(audioInputs, fmt.Sprintf("[%d:a]", narrIdx))
-			} else {
-				var concatParts strings.Builder
-				for i := range narrationFiles {
-					concatParts.WriteString(fmt.Sprintf("[%d:a]", narrIdx+i))
-				}
-				n := len(narrationFiles)
-				filters = append(filters, fmt.Sprintf("%sconcat=n=%d:v=0:a=1[narr]", concatParts.String(), n))
-				audioInputs = append(audioInputs, "[narr]")
-			}
+	// Each narration clip is delayed to its scene's start on the timeline.
+	for k, nt := range narr {
+		delayMs := int(math.Round(nt.StartSec * 1000))
+		if delayMs < 0 {
+			delayMs = 0
 		}
-
-		if bgmIdx >= 0 {
-			vol := audioMix.BGMVolume
-			if vol <= 0 {
-				vol = 0.2
-			}
-			filters = append(filters, fmt.Sprintf("[%d:a]volume=%.2f[bgm]", bgmIdx, vol))
-			audioInputs = append(audioInputs, "[bgm]")
-		}
-
-		// Mix all audio streams
-		if len(audioInputs) > 1 {
-			mixInputs := strings.Join(audioInputs, "")
-			narVol := audioMix.NarrationVolume
-			if narVol <= 0 {
-				narVol = 1.0
-			}
-			filters = append(filters, fmt.Sprintf("%samix=inputs=%d:duration=first:dropout_transition=2,volume=%.2f[aout]",
-				mixInputs, len(audioInputs), narVol))
-		} else if len(audioInputs) == 1 {
-			// Single audio source, just copy
-			filters = append(filters, fmt.Sprintf("%sacopy[aout]", audioInputs[0]))
-		}
-
-		args = append(args, "-filter_complex", strings.Join(filters, ";"))
-		args = append(args, "-map", "0:v", "-map", "[aout]")
-	} else {
-		// No audio — just copy video
-		args = append(args, "-map", "0:v")
+		filters = append(filters, fmt.Sprintf("[%d:a]adelay=%d:all=1[an%d]", narrBase+k, delayMs, k))
+		audioInputs = append(audioInputs, fmt.Sprintf("[an%d]", k))
 	}
 
+	if bgmIdx >= 0 {
+		vol := audioMix.BGMVolume
+		if vol <= 0 {
+			vol = 0.2
+		}
+		filters = append(filters, fmt.Sprintf("[%d:a]volume=%.2f[bgm]", bgmIdx, vol))
+		audioInputs = append(audioInputs, "[bgm]")
+	}
+
+	narVol := audioMix.NarrationVolume
+	if narVol <= 0 {
+		narVol = 1.0
+	}
+	filters = append(filters, fmt.Sprintf("%samix=inputs=%d:duration=first:dropout_transition=2,volume=%.2f[aout]",
+		strings.Join(audioInputs, ""), len(audioInputs), narVol))
+
+	args = append(args, "-filter_complex", strings.Join(filters, ";"))
+	args = append(args, "-map", "0:v", "-map", "[aout]")
 	args = append(args, "-c:v", "copy")
 	args = append(args, "-c:a", "aac", "-b:a", "128k")
 	args = append(args, baseFlags...)

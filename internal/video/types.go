@@ -47,6 +47,8 @@ type Scene struct {
 	Type        SceneKind  `json:"type"`
 	Source      string     `json:"source,omitempty"` // workspace-relative path or http(s) URL; empty for color
 	Color       string     `json:"color,omitempty"`  // "#RRGGBB" for color scenes
+	Color2      string     `json:"color2,omitempty"` // color scenes: second gradient stop; empty = darker shade of Color
+	Grid        bool       `json:"grid,omitempty"`   // color scenes: overlay a faint blueprint grid
 	DurationSec float64    `json:"duration_sec"`
 	Fit         string     `json:"fit,omitempty"` // cover|contain (default cover)
 	Transition  string     `json:"transition,omitempty"` // enter transition: none|fade|crossfade|slide_left|slide_up
@@ -298,6 +300,9 @@ func (sc *Scene) validate() error {
 	case SceneColor:
 		if !hexColor(sc.Color) {
 			return fmt.Errorf("color scenes need a #RRGGBB color, got %q", sc.Color)
+		}
+		if sc.Color2 != "" && !hexColor(sc.Color2) {
+			return fmt.Errorf("color2 must be #RRGGBB, got %q", sc.Color2)
 		}
 	default:
 		return fmt.Errorf("unknown scene type %q", sc.Type)
