@@ -267,7 +267,12 @@
       "theme": "Тема"
     },
     "theme": {
-      "preset": "Пресет темы"
+      "preset": "Пресет темы",
+      "preset_deep-blue": "Глубокий синий",
+      "preset_paper": "Бумага",
+      "preset_forest": "Лес",
+      "preset_plum": "Слива",
+      "preset_ink-teal": "Чернила и бирюза"
     },
     "field": {
       "layout": "Макет",
@@ -315,7 +320,15 @@
       "designing": "Дизайнер готовит...",
       "applied": "Применено",
       "apply": "Применить в редакторе",
-      "invalid": "Недопустимая презентация"
+      "invalid": "Недопустимая презентация",
+      "attachedPrefix": "Презентация прикреплена",
+      "emptyHint": "Опишите нужную презентацию — дизайнер подготовит слайды.",
+      "historyEmpty": "Пока нет диалогов",
+      "historyMessages": "{{n}} сообщений",
+      "newChat": "Новый чат",
+      "slideCount": "{{n}} слайдов",
+      "viewJson": "Показать JSON",
+      "hideJson": "Скрыть JSON"
     }
   }
 }

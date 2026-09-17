@@ -267,7 +267,12 @@
       "theme": "Theme"
     },
     "theme": {
-      "preset": "Theme preset"
+      "preset": "Theme preset",
+      "preset_deep-blue": "Deep blue",
+      "preset_paper": "Paper",
+      "preset_forest": "Forest",
+      "preset_plum": "Plum",
+      "preset_ink-teal": "Ink & teal"
     },
     "field": {
       "layout": "Layout",
@@ -315,7 +320,15 @@
       "designing": "Designer is drafting...",
       "applied": "Applied",
       "apply": "Apply to editor",
-      "invalid": "Invalid deck"
+      "invalid": "Invalid deck",
+      "attachedPrefix": "Deck attached",
+      "emptyHint": "Describe the deck you need — the designer drafts the slides.",
+      "historyEmpty": "No conversations yet",
+      "historyMessages": "{{n}} messages",
+      "newChat": "New chat",
+      "slideCount": "{{n}} slides",
+      "viewJson": "View JSON",
+      "hideJson": "Hide JSON"
     }
   }
 }

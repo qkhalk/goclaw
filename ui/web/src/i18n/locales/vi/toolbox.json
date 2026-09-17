@@ -267,7 +267,12 @@
       "theme": "Chủ đề"
     },
     "theme": {
-      "preset": "Mẫu chủ đề"
+      "preset": "Mẫu chủ đề",
+      "preset_deep-blue": "Xanh navy đậm",
+      "preset_paper": "Giấy kem",
+      "preset_forest": "Rừng xanh",
+      "preset_plum": "Mận tím",
+      "preset_ink-teal": "Mực & ngọc lam"
     },
     "field": {
       "layout": "Bố cục",
@@ -315,7 +320,15 @@
       "designing": "Designer đang soạn...",
       "applied": "Đã áp dụng",
       "apply": "Áp dụng vào editor",
-      "invalid": "Deck không hợp lệ"
+      "invalid": "Deck không hợp lệ",
+      "attachedPrefix": "Đã đính kèm deck",
+      "emptyHint": "Mô tả deck anh cần — designer sẽ soạn slide.",
+      "historyEmpty": "Chưa có hội thoại nào",
+      "historyMessages": "{{n}} tin nhắn",
+      "newChat": "Trò chuyện mới",
+      "slideCount": "{{n}} slide",
+      "viewJson": "Xem JSON",
+      "hideJson": "Ẩn JSON"
     }
   }
 }

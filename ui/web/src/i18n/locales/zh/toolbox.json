@@ -267,7 +267,12 @@
       "theme": "主题"
     },
     "theme": {
-      "preset": "主题预设"
+      "preset": "主题预设",
+      "preset_deep-blue": "深蓝",
+      "preset_paper": "纸白",
+      "preset_forest": "森林",
+      "preset_plum": "紫李",
+      "preset_ink-teal": "墨青"
     },
     "field": {
       "layout": "版式",
@@ -315,7 +320,15 @@
       "designing": "设计器起草中...",
       "applied": "已应用",
       "apply": "应用到编辑器",
-      "invalid": "演示文稿无效"
+      "invalid": "演示文稿无效",
+      "attachedPrefix": "已附上演示稿",
+      "emptyHint": "描述你需要的演示稿 — 设计者会起草幻灯片。",
+      "historyEmpty": "还没有会话",
+      "historyMessages": "{{n}} 条消息",
+      "newChat": "新对话",
+      "slideCount": "{{n}} 张幻灯片",
+      "viewJson": "查看 JSON",
+      "hideJson": "收起 JSON"
     }
   }
 }

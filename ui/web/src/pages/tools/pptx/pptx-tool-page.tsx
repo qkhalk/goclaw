@@ -244,7 +244,7 @@ export function PptxToolPage() {
               <div className="border-t px-3 pb-3 pt-2">
                 <div className="flex items-center gap-2 pb-2">
                   <span className="text-sm font-medium tabular-nums">
-                    {t("pptx.slides_count", { n: deck.slides.length })}
+                    {t("pptx.slides_count", { count: deck.slides.length })}
                   </span>
                   {current && (
                     <span className="text-xs text-muted-foreground tabular-nums">
@@ -427,7 +427,7 @@ export function PptxToolPage() {
             <div className="flex flex-col gap-2 rounded-lg border p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  {t("pptx.slides_count", { n: deck.slides.length })}
+                  {t("pptx.slides_count", { count: deck.slides.length })}
                 </span>
                 <Button
                   variant="ghost"
