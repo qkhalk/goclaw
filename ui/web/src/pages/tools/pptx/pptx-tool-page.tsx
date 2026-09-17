@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
   ArrowUp,
   Copy,
   Download,
+  Eraser,
   Loader2,
+  MonitorPlay,
   Plus,
-  Presentation,
+  Presentation as PresentationIcon,
   Trash2,
   Wand2,
 } from "lucide-react";
@@ -31,6 +33,7 @@ import { useIsTablet } from "@/hooks/use-media-query";
 import { useUiStore } from "@/stores/use-ui-store";
 import {
   SAFE_FONTS,
+  SLIDE_TRANSITIONS,
   THEME_PRESETS,
   blankSlide,
   defaultDeck,
@@ -38,11 +41,15 @@ import {
   type DeckTheme,
   type Slide,
   type SlideLayout,
+  type SlideTransition,
 } from "./types";
 import { exportDeckPptx } from "./lib/pptx-export";
 import { parseDeck } from "./lib/parse-deck-blocks";
+import { isFreeForm } from "./lib/elements";
 import { SlideView } from "./components/slide-view";
 import { SlideEditor } from "./components/slide-editor";
+import { InteractiveStage } from "./components/interactive-stage";
+import { Presentation } from "./components/presentation";
 import { DesignerColumn } from "./components/designer-column";
 
 function slugifyTitle(deck: Deck): string {
@@ -59,6 +66,9 @@ function slugifyTitle(deck: Deck): string {
   return slug || "presentation";
 }
 
+/** localStorage draft key — the deck survives tab/app reloads. */
+const DRAFT_KEY = "goclaw:pptx-draft:v1";
+
 export function PptxToolPage() {
   const { t } = useTranslation("toolbox");
 
@@ -68,11 +78,48 @@ export function PptxToolPage() {
   const [showJson, setShowJson] = useState(false);
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState("");
+  const [presenting, setPresenting] = useState(false);
 
   // Designer column (chat rail on desktop, bottom sheet on tablets/phones)
   const isCompact = useIsTablet();
   const designerOpen = useUiStore((s) => s.pptxDesignerOpen);
   const setDesignerOpen = useUiStore((s) => s.setPptxDesignerOpen);
+
+  // Draft persistence: restore once on mount, save debounced on every edit.
+  const draftRestoredRef = useRef(false);
+  useEffect(() => {
+    if (draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const parsed = parseDeck(raw);
+      if (!parsed.ok) return;
+      setDeck(parsed.deck);
+      toast.success(t("pptx.draft_restored"));
+    } catch {
+      // Corrupted draft — start fresh rather than blocking the page.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(deck));
+      } catch {
+        // Storage full/unavailable — drafts are best-effort.
+      }
+    }, 800);
+    return () => clearTimeout(id);
+  }, [deck]);
+
+  function clearDraft() {
+    localStorage.removeItem(DRAFT_KEY);
+    setDeck(defaultDeck());
+    setSelected(0);
+    toast.success(t("pptx.draft_cleared"));
+  }
 
   const current = deck.slides[selected];
   const firstSlide = deck.slides[0];
@@ -144,9 +191,10 @@ export function PptxToolPage() {
   };
 
   // The one Apply path shared by the JSON mode and the designer column, so
-  // the preview, rail and export payload stay consistent.
+  // the preview, rail and export payload stay consistent. Designer fences
+  // stay v1 (layout-driven); JSON mode may carry v2 (elements/transition).
   const applyDeck = (next: Deck) => {
-    setDeck({ ...next, version: 1 });
+    setDeck({ ...next, version: next.version === 2 ? 2 : 1 });
     setSelected(0);
   };
 
@@ -191,6 +239,16 @@ export function PptxToolPage() {
           actions={
             <>
               <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearDraft}
+                title={t("pptx.draft_clear_hint")}
+                className="min-h-11 sm:min-h-9"
+              >
+                <Eraser className="mr-2 h-4 w-4" />
+                {t("pptx.draft_clear")}
+              </Button>
+              <Button
                 onClick={handleExport}
                 disabled={exporting || deck.slides.length === 0}
                 className="min-h-11 sm:min-h-9"
@@ -227,17 +285,67 @@ export function PptxToolPage() {
             <TabsTrigger value="theme">{t("pptx.tabs.theme")}</TabsTrigger>
           </TabsList>
 
-          {/* ── Slides tab: one stage surface (preview + rail), editor below ── */}
+          {/* ── Slides tab: interactive stage (preview + rail), editor below ── */}
           <TabsContent value="slides" className="flex flex-col gap-4">
-            {/* Stage: preview on top, hairline divider, thumbnails below — a
-                single surface so the deck reads as one object, not stacked boxes */}
+            {/* Stage: direct-manipulation preview on top, hairline divider,
+                thumbnails below — a single surface so the deck reads as one
+                object, not stacked boxes */}
             <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
               {current && (
                 <div className="p-2 sm:p-3">
                   {/* key={selected}: soft crossfade when the slide changes */}
                   <div key={selected} className="pptx-enter-soft overflow-hidden rounded-md">
-                    <SlideView slide={current} theme={deck.theme} />
+                    <InteractiveStage
+                      slide={current}
+                      theme={deck.theme}
+                      onChange={(next) =>
+                        setDeck((d) => ({
+                          ...d,
+                          slides: d.slides.map((s, i) => (i === selected ? next : s)),
+                        }))
+                      }
+                    />
                   </div>
+                  {/* Per-slide transition + presentation */}
+                  <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
+                    <Label className="text-xs text-muted-foreground">{t("pptx.transition")}</Label>
+                    <Select
+                      value={current.transition ?? "none"}
+                      onValueChange={(v) =>
+                        setDeck((d) => ({
+                          ...d,
+                          slides: d.slides.map((s, i) =>
+                            i === selected
+                              ? { ...s, transition: v === "none" ? undefined : (v as SlideTransition) }
+                              : s,
+                          ),
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-auto min-w-36 text-base md:text-sm" aria-label={t("pptx.transition")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SLIDE_TRANSITIONS.map((tr) => (
+                          <SelectItem key={tr} value={tr}>
+                            {t(`pptx.transition_${tr}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-auto min-h-11 sm:min-h-9"
+                      onClick={() => setPresenting(true)}
+                    >
+                      <MonitorPlay className="mr-2 h-4 w-4" />
+                      {t("pptx.present")}
+                    </Button>
+                  </div>
+                  {isFreeForm(current) && (
+                    <p className="mt-1 px-1 text-xs text-muted-foreground">{t("pptx.freeform_hint")}</p>
+                  )}
                 </div>
               )}
 
@@ -466,7 +574,7 @@ export function PptxToolPage() {
 
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="shrink-0 text-muted-foreground">
-            <Presentation className="mr-1 h-3 w-3" />
+            <PresentationIcon className="mr-1 h-3 w-3" />
             {t("pptx.client_side")}
           </Badge>
         </div>
@@ -477,6 +585,16 @@ export function PptxToolPage() {
       <div className={cn("h-full shrink-0", !isCompact && "min-w-0")}>
         <DesignerColumn onApplyDeck={applyDeck} currentDeck={deck} />
       </div>
+
+      {/* Fullscreen presentation overlay */}
+      {presenting && (
+        <Presentation
+          deck={deck}
+          index={selected}
+          onIndexChange={setSelected}
+          onExit={() => setPresenting(false)}
+        />
+      )}
     </div>
     </div>
   );
