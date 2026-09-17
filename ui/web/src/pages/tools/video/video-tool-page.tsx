@@ -336,7 +336,7 @@ export function VideoToolPage() {
                             className="min-h-11 sm:min-h-9"
                           >
                             <a
-                              href={`/v1/files/videos/${job.id}.mp4`}
+                              href={job.download_url ?? `/v1/files/videos/${job.id}.mp4`}
                               download
                             >
                               <Download className="mr-2 h-4 w-4" />

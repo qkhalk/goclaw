@@ -16,6 +16,9 @@ export interface VideoRenderJob {
   storyboard_json: string;
   output_path: string;
   output_size_bytes: number;
+  /** Signed /v1/files URL minted by the server at delivery time — a plain
+   * path href cannot carry the Bearer token, so browser downloads would 401. */
+  download_url?: string;
   error: string;
   created_at: string;
   updated_at: string;

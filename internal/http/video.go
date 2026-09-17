@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,6 +50,19 @@ func (h *VideoHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/video/jobs", requireAuth("", h.handleListJobs))
 	mux.HandleFunc("GET /v1/video/jobs/{id}", requireAuth("", h.handleGetJob))
 	mux.HandleFunc("DELETE /v1/video/jobs/{id}", requireAuth("", h.handleCancelJob))
+}
+
+// signJobDownload fills job.DownloadURL with a short-lived signed /v1/files
+// URL for the rendered output (same delivery-time signing pattern as chat
+// media and team attachments). The plain href the UI used before could not
+// carry the Bearer token, so browser downloads 401'd.
+func signJobDownload(job *store.VideoRenderJob) {
+	if job == nil || job.Status != string(videopkg.JobDone) || job.OutputPath == "" {
+		return
+	}
+	urlPath := "/v1/files/" + strings.TrimPrefix(filepath.ToSlash(filepath.Clean(job.OutputPath)), "/")
+	ft := SignFileToken(urlPath, FileSigningKey(), FileTokenTTL)
+	job.DownloadURL = urlPath + "?ft=" + ft
 }
 
 // --- POST /v1/video/jobs ---
@@ -148,6 +162,9 @@ func (h *VideoHandler) handleListJobs(w http.ResponseWriter, r *http.Request) {
 	if jobs == nil {
 		jobs = []store.VideoRenderJob{}
 	}
+	for i := range jobs {
+		signJobDownload(&jobs[i])
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs})
 }
 
@@ -173,6 +190,7 @@ func (h *VideoHandler) handleGetJob(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get job"})
 		return
 	}
+	signJobDownload(job)
 	writeJSON(w, http.StatusOK, job)
 }
 
