@@ -59,6 +59,11 @@ func wireVideo(
 	toolsReg.Register(renderTool)
 	slog.Info("video: render_video tool registered")
 
+	// Keyless stock-photo search so the designer agent can source real
+	// imagery instead of falling back to color-only storyboards.
+	toolsReg.Register(tools.NewImageSearchTool())
+	slog.Info("video: image_search tool registered")
+
 	// Wire the HTTP handler for /v1/video/* endpoints.
 	// The handler is registered unconditionally so the API surface is
 	// discoverable; it returns 403 when disabled.

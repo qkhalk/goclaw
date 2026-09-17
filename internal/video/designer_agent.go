@@ -30,17 +30,20 @@ var designerSkillSlugs = []string{
 }
 
 // designerAllowTools is the complete tool surface of the designer agent:
-// knowledge lookup plus read-only web access for sourcing real imagery.
-// No exec, no write_file, no render_video, no delegate, no cron — the
-// enforcement is the fail-closed execution gate that intersects the
-// registry with this allowlist.
-const designerAllowTools = `{"profile":"minimal","allow":["skill_search","use_skill","session_status","web_fetch"]}`
+// knowledge lookup, read-only web access and keyless stock-photo search for
+// sourcing real imagery. No exec, no write_file, no render_video, no
+// delegate, no cron — the enforcement is the fail-closed execution gate that
+// intersects the registry with this allowlist.
+const designerAllowTools = `{"profile":"minimal","allow":["skill_search","use_skill","session_status","web_fetch","image_search"]}`
 
 // designerAllowToolsV1 is the pre-web_fetch surface. Kept verbatim so
 // upgradeDesignerTools can recognize agents seeded by earlier builds and
 // bring them to the current surface (admin-customized configs are left
 // alone, mirroring the identity migration rule).
 const designerAllowToolsV1 = `{"profile":"minimal","allow":["skill_search","use_skill","session_status"]}`
+
+// designerAllowToolsV2 is the web_fetch-era surface (pre-image_search).
+const designerAllowToolsV2 = `{"profile":"minimal","allow":["skill_search","use_skill","session_status","web_fetch"]}`
 
 // DesignerToolPolicy returns the parsed tool policy of the designer agent.
 // Single source of truth for the designer's tool surface: the loop's
@@ -217,9 +220,10 @@ const designerLayerRules = "Optional per-scene \"layers\" is an array of " +
 	"layers accept start, duration (seconds, scene-relative), x, y, w (0..1), " +
 	"h (shapes), opacity 0..1. "
 
-// designerIdentity is the IDENTITY.md persona (English, LLM consumption).
-// Contract mirrors internal/video/types.go Storyboard.Validate.
-var designerIdentity = func() string {
+// designerIdentityLayers is the layers-era persona (2026-09-16), preserved
+// byte-for-byte as a boot-migration source. It is V3 plus the overlay-layer
+// guidance composed by the same replaces the seeder used at the time.
+var designerIdentityLayers = func() string {
 	s := designerIdentityV3
 	bullet := "- Load your design skills (use_skill) for detailed guidance before your\n  first design of a session.\n"
 	s = strings.Replace(s, bullet, designerLayerBullet, 1)
@@ -228,6 +232,73 @@ var designerIdentity = func() string {
 	s = strings.Replace(s,
 		"\"transition\":\"fade\"}]}",
 		"\"transition\":\"fade\",\"layers\":[{\"kind\":\"text\",\"text\":\"SALE 50%\",\"y\":0.3,\"font_size\":72,\"fill\":\"#FACC15\",\"start\":0.5,\"duration\":2}]}]",
+		1)
+	return s
+}()
+
+// designerVisualsBullet through designerVisualsRules are the visuals-v2
+// persona additions (image_search default, caption styles, glow/vignette).
+const designerImageBullet = `- Real imagery is the default, not the fallback. When the user gives no
+  photos: run image_search with 2-4 English keywords per visual beat (e.g.
+  "halong bay sunset") and pick direct image URLs for image scenes — aim
+  for images in half to two-thirds of the scenes. When the request
+  references an article or page, also use web_fetch to mine its og:image,
+  hero and inline <img> URLs. Skip logos, icons and tracking pixels; only
+  go all-color when the user asks for text-only or nothing usable comes
+  back. Never invent URLs — only URLs from image_search, web_fetch, or the
+  user.
+`
+
+const designerCaptionBullet = `- Captions: short and punchy, at most 8 words, written in the user's
+  language. One idea per scene. Style per beat: "chip" for hooks, prices
+  and stat lines; "mono" for eyebrow labels (e.g. // PART 1); plain for
+  the rest.
+`
+
+const designerColorBullet = `- Color scenes: dark, rich backgrounds with high-contrast text; vary hues
+  across scenes, never two identical colors back to back. Add
+  "vignette": true and a "glow": "#RRGGBB" accent from the same palette on
+  dark scenes — soft orbs drift behind the text. "grid": true fits
+  tech/developer topics.
+`
+
+const designerVisualsRules = `Captions accept "style": "chip"|"mono" (default plain). Color scenes also accept "glow" "#RRGGBB", "vignette" and "grain" booleans. `
+
+// designerIdentity is the IDENTITY.md persona (English, LLM consumption).
+// Contract mirrors internal/video/types.go Storyboard.Validate.
+var designerIdentity = func() string {
+	s := designerIdentityLayers
+
+	// v3 imagery bullet → image_search-first sourcing.
+	s = strings.Replace(s,
+		"- Real imagery makes the video. When the request references an article, page\n"+
+			"  or topic, use web_fetch (read-only) to pull it and mine real photo URLs —\n"+
+			"  the og:image meta, hero image, and inline <img> srcs. Image scenes want\n"+
+			"  direct image URLs (jpg/png/webp); skip logos, icons and tracking pixels.\n"+
+			"  If nothing usable is found, fall back to color scenes; never invent URLs.\n",
+		designerImageBullet, 1)
+
+	// Captions bullet → styled captions.
+	s = strings.Replace(s,
+		"- Captions: short and punchy, at most 8 words, written in the user's\n"+
+			"  language. One idea per scene.\n",
+		designerCaptionBullet, 1)
+
+	// Color bullet → glow/vignette guidance.
+	s = strings.Replace(s,
+		"- Color scenes: harmonious hex palettes (dark, rich backgrounds with high\n"+
+			"  contrast white text work best); vary hues across scenes, never two\n"+
+			"  identical colors back to back.\n",
+		designerColorBullet, 1)
+
+	// Contract rules: visuals-v2 fields.
+	rules := "narration, when used, is an object {\"text\": \"...\", \"voice\": \"optional\"}."
+	s = strings.Replace(s, rules, rules+" "+designerVisualsRules, 1)
+
+	// Example scene: chip caption + glow/vignette so the shape is obvious.
+	s = strings.Replace(s,
+		"{\"type\":\"color\",\"color\":\"#0f172a\",\"duration_sec\":3,\"caption\":{\"text\":\"HOOK LINE\",\"position\":\"center\",\"font_size\":64},\"transition\":\"fade\",",
+		"{\"type\":\"color\",\"color\":\"#0D1117\",\"color2\":\"#1E293B\",\"glow\":\"#38BDF8\",\"vignette\":true,\"duration_sec\":3,\"caption\":{\"text\":\"HOOK LINE\",\"position\":\"center\",\"font_size\":64,\"style\":\"chip\"},\"transition\":\"fade\",",
 		1)
 	return s
 }()
@@ -242,6 +313,8 @@ var designerIdentityHistory = []string{
 	// v2 (2026-09-15): narration guidance + object wire contract.
 	designerIdentityV2,
 	designerIdentityV3,
+	// layers era (2026-09-16): timed overlay layers.
+	designerIdentityLayers,
 }
 
 // EnsureDesignerAgent creates the video-designer predefined agent when the
@@ -354,13 +427,14 @@ func upgradeDesignerTools(ctx context.Context, agentStore store.AgentStore, exis
 	if equal(string(existing.ToolsConfig), designerAllowTools) {
 		return nil // already current
 	}
-	if equal(string(existing.ToolsConfig), designerAllowToolsV1) {
+	if equal(string(existing.ToolsConfig), designerAllowToolsV1) ||
+		equal(string(existing.ToolsConfig), designerAllowToolsV2) {
 		if err := agentStore.Update(ctx, existing.ID, map[string]any{"tools_config": json.RawMessage(designerAllowTools)}); err != nil {
 			return fmt.Errorf("write tools_config: %w", err)
 		}
-		slog.Info("video: designer agent tools_config upgraded (web_fetch granted)", "agent_id", existing.ID)
+		slog.Info("video: designer agent tools_config upgraded (image_search granted)", "agent_id", existing.ID)
 	}
-	return nil // custom config — leave it alone
+	return nil
 }
 
 // grantDesignerSkills scopes the bundled design skills to the designer agent

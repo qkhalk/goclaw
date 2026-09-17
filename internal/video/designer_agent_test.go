@@ -145,7 +145,7 @@ func TestEnsureDesignerAgentCreatesWithLockedToolSurface(t *testing.T) {
 	if spec.Profile != "minimal" {
 		t.Errorf("policy profile = %q, want minimal", spec.Profile)
 	}
-	want := []string{"skill_search", "use_skill", "session_status", "web_fetch"}
+	want := []string{"skill_search", "use_skill", "session_status", "web_fetch", "image_search"}
 	if !reflect.DeepEqual(spec.Allow, want) {
 		t.Errorf("allow = %v, want exactly %v", spec.Allow, want)
 	}
