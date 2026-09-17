@@ -106,6 +106,11 @@ type Server struct {
 	logTee   *LogTee                 // optional; auto-unsubscribes clients on disconnect
 	postTurn tools.PostTurnProcessor // optional; for team task dispatch in HTTP API paths
 
+	// browserBridge correlates browser.panel invokes with the web client they
+	// targeted (client-side browsing). Lazily created; see BrowserPanelBridge.
+	browserBridge     *BrowserPanelBridge
+	browserBridgeOnce sync.Once
+
 	httpServer *http.Server
 	mux        *http.ServeMux
 
@@ -667,6 +672,18 @@ func (s *Server) SetTenantPolicies(ps store.AgentPolicies) { s.tenantPolicies = 
 // SetPairingService sets the pairing service for channel authentication.
 func (s *Server) SetPairingService(ps store.PairingStore) { s.pairingService = ps }
 
+// SetBrowseRelayHandler sets the sanitized-document relay endpoint
+// (GET /v1/browse/{id}) for client-side browsing.
+func (s *Server) SetBrowseRelayHandler(h *httpapi.BrowseRelayHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
+// SetSystemStatsHandler sets the host/process metrics endpoint
+// (GET /v1/system/stats) for the dashboard System card.
+func (s *Server) SetSystemStatsHandler(h *httpapi.SystemStatsHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetAgentsHandler sets the agent CRUD handler.
 func (s *Server) SetAgentsHandler(h *httpapi.AgentsHandler) { s.handlers = append(s.handlers, h) }
 
@@ -891,6 +908,9 @@ func (s *Server) SetRestoreHandler(h *httpapi.RestoreHandler) { s.handlers = app
 
 // SetBackupS3Handler sets the S3 backup integration handler.
 func (s *Server) SetBackupS3Handler(h *httpapi.BackupS3Handler) { s.handlers = append(s.handlers, h) }
+
+// SetBackupScheduleHandler sets the scheduled-backup handler.
+func (s *Server) SetBackupScheduleHandler(h *httpapi.BackupScheduleHandler) { s.handlers = append(s.handlers, h) }
 
 // SetTenantBackupHandler sets the tenant-scoped backup/restore handler.
 func (s *Server) SetTenantBackupHandler(h *httpapi.TenantBackupHandler) {

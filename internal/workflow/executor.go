@@ -108,11 +108,8 @@ func (d *DAG) Run(ctx context.Context) error {
 		wg    sync.WaitGroup
 	)
 	for _, id := range order {
-		id := id
 		s := d.steps[id]
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			// Dependency waits happen WITHOUT holding the serialization lock,
 			// so a sequential step can never block a step it depends on
 			// (deadlock-free). Dependencies always precede dependents in topo
@@ -133,7 +130,7 @@ func (d *DAG) Run(ctx context.Context) error {
 			seqMu.Lock()
 			defer seqMu.Unlock()
 			runStepBody(id)
-		}()
+		})
 	}
 	wg.Wait()
 

@@ -623,6 +623,23 @@ func isReadMethod(method string) bool {
 		// Mission Mode read-only (single mission + list).
 		protocol.MethodMissionGet,
 		protocol.MethodMissionList,
+
+		// Browser panel result post (client-side browsing) — resolves a
+		// waiter the gateway itself created for THIS connection (bridge binds
+		// browseId to clientID+tenant+user, spoof-checked like nodes.result),
+		// so any authenticated role may answer its own invoke.
+		protocol.MethodBrowserPanelResult,
+		// browser.panel.open navigates the caller's OWN panel: the URL goes
+		// through the same SSRF/domain-policy pipeline as the web_browse tool
+		// and the relayed document is only readable by the requesting client.
+		protocol.MethodBrowserPanelOpen,
+		// browser.remote.* drives the SERVER-side headless browser on behalf
+		// of the caller's own panel (same SSRF/domain policy; tabs are
+		// namespaced per session and screenshots relay only to the requesting
+		// client) — browsing actions, not gateway mutations.
+		protocol.MethodBrowserRemoteOpen,
+		protocol.MethodBrowserRemoteAct,
+		protocol.MethodBrowserRemoteScreenshot,
 	}
 	return slices.Contains(readMethods, method)
 }

@@ -2444,8 +2444,8 @@ func TestCheckpointStage_WritesDurableAtInterval(t *testing.T) {
 	var checkpointCalls []int
 	deps := &PipelineDeps{
 		Config: PipelineConfig{
-			CheckpointInterval:          5,
-			DurableCheckpointInterval:   3,
+			CheckpointInterval:        5,
+			DurableCheckpointInterval: 3,
 		},
 		FlushMessages: func(_ context.Context, _ string, _ []providers.Message) error { return nil },
 		WriteCheckpoint: func(_ context.Context, state *RunState) error {
@@ -2481,7 +2481,7 @@ func TestCheckpointStage_DurableDisabledByDefault(t *testing.T) {
 	t.Parallel()
 	called := false
 	deps := &PipelineDeps{
-		Config: PipelineConfig{CheckpointInterval: 5}, // DurableCheckpointInterval=0
+		Config:        PipelineConfig{CheckpointInterval: 5}, // DurableCheckpointInterval=0
 		FlushMessages: func(_ context.Context, _ string, _ []providers.Message) error { return nil },
 		WriteCheckpoint: func(_ context.Context, _ *RunState) error {
 			called = true
@@ -2506,7 +2506,7 @@ func TestCheckpointStage_DurableErrorNonFatal(t *testing.T) {
 			CheckpointInterval:        5,
 			DurableCheckpointInterval: 5,
 		},
-		FlushMessages:  func(_ context.Context, _ string, _ []providers.Message) error { return nil },
+		FlushMessages: func(_ context.Context, _ string, _ []providers.Message) error { return nil },
 		WriteCheckpoint: func(_ context.Context, _ *RunState) error {
 			return errors.New("db unavailable")
 		},
@@ -3450,7 +3450,7 @@ func TestToolStage_Sequential_DefersNonToolMessages(t *testing.T) {
 		t.Fatalf("pending len = %d, want 4", len(pending))
 	}
 	// First 3 must be tool role
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if pending[i].Role != "tool" {
 			t.Errorf("pending[%d].Role = %q, want tool", i, pending[i].Role)
 		}
@@ -3503,7 +3503,7 @@ func TestToolStage_Parallel_DefersNonToolMessages(t *testing.T) {
 	if len(pending) != 4 {
 		t.Fatalf("pending len = %d, want 4", len(pending))
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if pending[i].Role != "tool" {
 			t.Errorf("pending[%d].Role = %q, want tool", i, pending[i].Role)
 		}

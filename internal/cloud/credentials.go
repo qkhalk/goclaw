@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"encoding/json"
+	"maps"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -28,7 +29,7 @@ const (
 	// RedirectLocalhostURL). The browser lands on the user's own machine
 	// where nothing is listening — the UI asks the user to paste the
 	// address-bar URL back (rclone's well-known copy/paste flow).
-	LoopbackRedirectGoogle   = "http://127.0.0.1:53682/"
+	LoopbackRedirectGoogle    = "http://127.0.0.1:53682/"
 	LoopbackRedirectMicrosoft = "http://localhost:53682/"
 )
 
@@ -42,6 +43,16 @@ var EmbeddedGoogleScopes = []string{
 	"https://www.googleapis.com/auth/userinfo.email",
 	"https://www.googleapis.com/auth/userinfo.profile",
 	"https://www.googleapis.com/auth/drive",
+}
+
+// dropboxCredentialsAll returns BYO Dropbox credentials and reports whether
+// they exist (Dropbox has no embedded shared client, so byo == configured).
+func (m *Manager) dropboxCredentialsAll(ctx context.Context) (providerCredentials, bool) {
+	id, secret := m.dropboxCredentials(ctx)
+	if id != "" && secret != "" {
+		return providerCredentials{ClientID: id, ClientSecret: secret}, true
+	}
+	return providerCredentials{}, false
 }
 
 // providerCredentials is the resolved OAuth client for one provider plus a
@@ -140,9 +151,7 @@ func stampSettings(base string, kv map[string]string) string {
 	if m == nil {
 		m = map[string]string{}
 	}
-	for k, v := range kv {
-		m[k] = v
-	}
+	maps.Copy(m, kv)
 	out, _ := json.Marshal(m)
 	return string(out)
 }

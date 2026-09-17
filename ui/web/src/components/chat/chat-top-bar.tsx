@@ -1,9 +1,12 @@
-import { Loader2, Bot } from "lucide-react";
+import { FlaskConical, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { GoclawAvatar } from "@/components/chat/goclaw-avatar";
 import { useAgents } from "@/hooks/use-agents";
 import { stripLeadingEmoji } from "@/lib/agent-emoji";
 import type { SessionInfo } from "@/types/session";
 import { ConsoleMenu } from "@/components/chat/console-menu";
 import { ContextMeter } from "@/components/chat/context-meter";
+import type { ChatPaneId } from "@/components/chat/chat-side-pane";
 
 interface ChatTopBarProps {
   agentId: string;
@@ -11,16 +14,15 @@ interface ChatTopBarProps {
   /** Current session — when provided, the bar renders the context meter. */
   session?: SessionInfo | null;
   /** Paseo Phase 3 console panels: workspace-scoped tools on the right. */
-  onToggleFiles?: () => void;
-  filesPanelOpen?: boolean;
-  onToggleJobsTasks?: () => void;
-  jobsTasksPanelOpen?: boolean;
-  /** Paseo Phase 4 (§25): web terminal panel toggle. */
-  onToggleTerminal?: () => void;
-  termPanelOpen?: boolean;
+  /** ZCode-style single tabbed pane: active tab + open/toggle request. */
+  activePane?: ChatPaneId | null;
+  onTogglePane?: (id: ChatPaneId) => void;
   /** Selected workspace id + change callback for the console menu. */
   workspaceId?: string | null;
   onWorkspaceChange?: (id: string | null) => void;
+  /** Dev mode (session pref chat_mode=dev): plan-first + skill autopilot. */
+  devMode?: boolean;
+  onDevModeChange?: (on: boolean) => void;
 }
 
 /**
@@ -33,17 +35,16 @@ export function ChatTopBar({
   agentId,
   isRunning,
   session,
-  onToggleFiles,
-  filesPanelOpen,
-  onToggleJobsTasks,
-  jobsTasksPanelOpen,
-  onToggleTerminal,
-  termPanelOpen,
+  activePane,
+  onTogglePane,
   workspaceId,
   onWorkspaceChange,
+  devMode,
+  onDevModeChange,
 }: ChatTopBarProps) {
   const { data: agents = [] } = useAgents();
   const agent = agents.find((a) => a.agent_key === agentId);
+  const { t } = useTranslation("chat");
 
   const emoji = agent?.emoji || undefined;
   // Avatar emoji renders beside the name; drop a duplicated leading cluster.
@@ -55,7 +56,7 @@ export function ChatTopBar({
         {emoji ? (
           <span className="text-base">{emoji}</span>
         ) : (
-          <Bot className="h-4 w-4 text-muted-foreground" />
+          <GoclawAvatar />
         )}
         <span className="text-sm font-semibold">{displayName}</span>
       </div>
@@ -63,15 +64,28 @@ export function ChatTopBar({
       <div className="flex items-center gap-2">
         {session && <ContextMeter session={session} />}
 
+        {onDevModeChange && (
+          <button
+            type="button"
+            onClick={() => onDevModeChange(!devMode)}
+            title={devMode ? t("devMode.on") : t("devMode.off")}
+            aria-pressed={devMode}
+            className={`flex h-7 items-center gap-1 rounded-md border px-2 text-xs transition-colors ${
+              devMode
+                ? "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{t("devMode.label")}</span>
+          </button>
+        )}
+
         <ConsoleMenu
           workspaceId={workspaceId ?? null}
           onWorkspaceChange={(id) => onWorkspaceChange?.(id)}
-          filesPanelOpen={!!filesPanelOpen}
-          jobsPanelOpen={!!jobsTasksPanelOpen}
-          termPanelOpen={!!termPanelOpen}
-          onToggleFiles={() => onToggleFiles?.()}
-          onToggleJobsTasks={() => onToggleJobsTasks?.()}
-          onToggleTerminal={() => onToggleTerminal?.()}
+          activePane={activePane ?? null}
+          onTogglePane={(id) => onTogglePane?.(id)}
         />
 
         {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}

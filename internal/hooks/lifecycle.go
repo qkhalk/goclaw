@@ -5,6 +5,8 @@ package hooks
 // These extend the core events in types.go to cover agent-run, LLM, checkpoint,
 // completion, error, and rate-limit lifecycle points defined in Phase 15.
 
+import "slices"
+
 const (
 	// EventBeforeRun fires before an agent run starts. BLOCKING.
 	EventBeforeRun HookEvent = "before_run"
@@ -123,18 +125,11 @@ func IsToolAllowedByHook(p *HookPermissions, tool string) bool {
 	if p == nil {
 		return true
 	}
-	for _, d := range p.DeniedTools {
-		if d == tool {
-			return false
-		}
+	if slices.Contains(p.DeniedTools, tool) {
+		return false
 	}
 	if len(p.AllowedTools) == 0 {
 		return true
 	}
-	for _, a := range p.AllowedTools {
-		if a == tool {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(p.AllowedTools, tool)
 }

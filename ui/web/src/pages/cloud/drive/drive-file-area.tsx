@@ -22,7 +22,7 @@ import {
   type CloudProvider,
 } from "../hooks/use-cloud";
 import { DriveShell } from "./drive-shell";
-import { PreviewSheet, type PreviewFile } from "./preview-sheet";
+import { PreviewModal, type PreviewFile } from "./preview-modal";
 import { ShareLinkDialog } from "./share-link-dialog";
 import { ShortcutsDialog } from "./shortcuts-dialog";
 import { useDriveShortcuts } from "./use-drive-shortcuts";
@@ -130,7 +130,7 @@ export function DriveFileArea({
       .filter((e) => !q || e.name.toLowerCase().includes(q));
     list.sort((a, b) => {
       if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
-      let cmp = 0;
+      let cmp: number;
       switch (sort.key) {
         case "size":
           cmp = a.size - b.size;
@@ -675,7 +675,7 @@ export function DriveFileArea({
       />
 
       {previewIndex !== null && previewFiles.length > 0 && (
-        <PreviewSheet
+        <PreviewModal
           accountId={account.id}
           files={previewFiles}
           index={Math.min(previewIndex, previewFiles.length - 1)}

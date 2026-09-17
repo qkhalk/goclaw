@@ -5,236 +5,174 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
+	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/cloud/storage"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// ErrRCloneMissing is returned when the rclone binary is not installed.
-// Storage tools surface it verbatim; mail tools are unaffected.
-var ErrRCloneMissing = errors.New("rclone is not installed on the server — install it (see docs/30-cloud-accounts.md) or set cloud.rclone_path")
-
 // ErrFileTooLarge is returned when a file exceeds the download/upload size
 // cap (FetchSizeCapMB). Handlers map it to 413; other storage errors stay 502.
 var ErrFileTooLarge = errors.New("cloud: file exceeds the size cap")
 
-// StorageService bridges connected accounts to rclone remotes:
-// on demand it (re)injects the account's token into the rcd config so tools
-// can address the account as `goclaw-<id8>:` remote paths.
+// ErrNoDrive is returned when a OneDrive account lacks the drive_id stamped
+// at connect time.
+var ErrNoDrive = errors.New("cloud storage: onedrive account has no drive_id — reconnect the account")
+
+// Re-exports of the native backend sentinel errors for handler mapping.
+var (
+	ErrNotFound    = storage.ErrNotFound
+	ErrDirNotEmpty = storage.ErrDirNotEmpty
+	ErrNotDir      = storage.ErrNotDir
+)
+
+// StorageService bridges connected accounts to NATIVE provider backends
+// (Google Drive v3 / Microsoft Graph — no external binary). Backends are
+// cached per account and rebuilt when the account row changes (re-grant,
+// reconnect), so authorization always follows the DB tokens.
 type StorageService struct {
 	manager    *Manager
-	supervisor *storage.Supervisor
-	transfers  *transferRegistry // async cross-account transfer jobs (in-memory)
+	transfers  *transferRegistry // async folder copy jobs (in-memory, this process)
+	configDir  string            // unused (legacy rclone.conf dir); kept for call-site compat
+	backendsMu sync.Mutex
+	backends   map[string]*backendEntry
+}
+
+type backendEntry struct {
+	updatedAt time.Time // account row generation the backend was built from
+	backend   storage.Backend
 }
 
 // NewStorageService creates the storage service.
-// configDir persists rclone.conf (rclone refreshes tokens there at runtime —
-// the DB row is the bootstrap, the conf is the runtime truth; reconnecting
-// via the Cloud page re-injects a fresh token).
+// configDir is retained for call-site compatibility (the former rclone.conf
+// location); native backends keep no credentials on disk.
 func NewStorageService(manager *Manager, configDir string) *StorageService {
 	return &StorageService{
-		manager:    manager,
-		supervisor: storage.NewSupervisor("", configDir),
-		transfers:  newTransferRegistry(),
+		manager:   manager,
+		transfers: newTransferRegistry(),
+		configDir: configDir,
+		backends:  map[string]*backendEntry{},
 	}
 }
 
-// Shutdown stops the rcd child (gateway close).
-func (s *StorageService) Shutdown() { s.supervisor.Shutdown() }
+// Shutdown cancels every running async copy job (gateway close). Native
+// backends hold no child processes — nothing else to stop.
+func (s *StorageService) Shutdown() {
+	if s.transfers != nil {
+		s.transfers.shutdownAll()
+	}
+}
 
-// RemoveRemote deletes the account's rclone remote (disconnect path). Best
-// effort: when rcd is not running there is no conf to clean. Called from
-// Manager.Delete so tokens never linger on disk after a disconnect.
-func (s *StorageService) RemoveRemote(ctx context.Context, accountID string) {
-	rc, err := s.supervisor.RC(ctx)
-	if err != nil {
-		return // rcd never started → nothing persisted in any rclone.conf
+// RemoveRemote kept for call-site compatibility (Manager disconnect/re-grant
+// paths): the former rclone remotes persisted tokens in a shared config file,
+// native backends do not — nothing to clean up.
+func (s *StorageService) RemoveRemote(_ context.Context, _ string) {}
+
+// backendFor returns the cached native backend for the account, rebuilding it
+// whenever the account row changed (re-grant stamps a new token + updated_at).
+func (s *StorageService) backendFor(ctx context.Context, acct *store.CloudAccount) (storage.Backend, error) {
+	s.backendsMu.Lock()
+	if e, ok := s.backends[acct.ID]; ok && e.updatedAt.Equal(acct.UpdatedAt) {
+		s.backendsMu.Unlock()
+		return e.backend, nil
 	}
-	if err := rc.ConfigDelete(ctx, storage.RemoteName(accountID)); err != nil {
-		// The row is already gone from the DB; a stale remote degrades to
-		// "tool errors until reconnect", never a security regression.
-		slog.Warn("cloud storage: remove remote failed", "error", err)
+	s.backendsMu.Unlock()
+
+	var backend storage.Backend
+	switch acct.Provider {
+	case S3Provider:
+		// Static keys — no OAuth token source; creds live in the encrypted
+		// token columns + plaintext settings (s3.go).
+		creds, err := s3AccountCreds(acct)
+		if err != nil {
+			return nil, err
+		}
+		backend = storage.NewS3Backend(ctx, creds)
+	default:
+		ts, err := s.manager.TokenSource(ctx, acct.ID)
+		if err != nil {
+			return nil, err
+		}
+		switch acct.Provider {
+		case GoogleProvider:
+			backend = storage.NewDriveBackend(ctx, ts)
+		case MicrosoftProvider:
+			var settings struct {
+				DriveID string `json:"drive_id"`
+			}
+			if acct.Settings != "" {
+				if err := json.Unmarshal([]byte(acct.Settings), &settings); err != nil {
+					return nil, fmt.Errorf("cloud storage: account settings: %w", err)
+				}
+			}
+			if settings.DriveID == "" {
+				return nil, ErrNoDrive
+			}
+			backend = storage.NewGraphBackend(ctx, ts, settings.DriveID)
+		case DropboxProvider:
+			backend = storage.NewDropboxBackend(ctx, ts)
+		default:
+			return nil, fmt.Errorf("cloud storage: provider %q is not storage-capable", acct.Provider)
+		}
 	}
+
+	s.backendsMu.Lock()
+	s.backends[acct.ID] = &backendEntry{updatedAt: acct.UpdatedAt, backend: backend}
+	s.backendsMu.Unlock()
+	return backend, nil
 }
 
 // resolveAccount picks by email/ID when given, else per-scope bindings
 // (group → user → tenant default) and finally the caller's own accounts —
 // including tenant-shared ones (the enterprise "company drive" pattern).
 func (s *StorageService) resolveAccount(ctx context.Context, name string) (*store.CloudAccount, error) {
-	return s.manager.ResolveAccount(ctx, name, []string{GoogleProvider, MicrosoftProvider}, func(a *store.CloudAccount) bool {
+	return s.manager.ResolveAccount(ctx, name, storageCapableProviders(), func(a *store.CloudAccount) bool {
 		return isStorageProvider(a.Provider)
 	})
 }
 
-// isStorageProvider gates which connected accounts the rclone layer may use.
+// AgentAccount resolves the account for an AGENT tool call, additionally
+// enforcing the per-account agent access level (admin-configured). The web UI
+// is unaffected — this only gates what agents may touch. An explicit account
+// that exists but is below the required level fails with the actionable
+// denied error (not a misleading "not found").
+func (s *StorageService) AgentAccount(ctx context.Context, name string, min AgentAccess) (*store.CloudAccount, error) {
+	acct, err := s.manager.ResolveAccount(ctx, name, storageCapableProviders(), func(a *store.CloudAccount) bool {
+		return isStorageProvider(a.Provider)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if level := AgentAccessOf(acct); !level.allows(min) {
+		return nil, errAgentAccessDenied(level, acct.Email)
+	}
+	return acct, nil
+}
+
+// isStorageProvider gates which connected accounts the storage layer may use.
 func isStorageProvider(provider string) bool {
 	switch provider {
-	case GoogleProvider, MicrosoftProvider:
+	case GoogleProvider, MicrosoftProvider, S3Provider:
 		return true
 	default:
 		return false
 	}
 }
 
-// IsStorageProvider reports whether the provider is usable by the rclone
-// storage tools. Exported for the agent-facing cloud_accounts tool.
+// storageCapableProviders is the resolution candidate list for the storage
+// surface (must stay in sync with isStorageProvider).
+func storageCapableProviders() []string {
+	return []string{GoogleProvider, MicrosoftProvider, DropboxProvider, S3Provider}
+}
+
+// IsStorageProvider reports whether the provider is usable by the storage
+// tools. Exported for the agent-facing cloud_accounts tool.
 func IsStorageProvider(provider string) bool { return isStorageProvider(provider) }
-
-// ensureRemote makes sure the rcd process is running and the account's remote
-// exists in its config with a non-stale bootstrap token.
-func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAccount) (string, error) {
-	rc, err := s.supervisor.RC(ctx)
-	if err != nil {
-		if strings.Contains(err.Error(), "executable file not found") ||
-			strings.Contains(err.Error(), "start rcd") {
-			return "", ErrRCloneMissing
-		}
-		return "", err
-	}
-	remote := storage.RemoteName(acct.ID)
-
-	remotes, err := rc.ConfigListRemotes(ctx)
-	if err != nil {
-		return "", fmt.Errorf("cloud storage: list remotes: %w", err)
-	}
-	if slices.Contains(remotes, remote) {
-		return remote, nil // rclone owns token refresh from here
-	}
-	// Inject (bootstrap) the remote from a live token: the TokenSource
-	// auto-refreshes (this also proves the grant works for this account's
-	// pinned OAuth client). Falls back to the stored token if refresh fails.
-	accessToken, refreshToken := acct.AccessToken, acct.RefreshToken
-	expiry := time.Now().Add(time.Hour).UTC()
-	if ts, terr := s.manager.TokenSource(ctx, acct.ID); terr == nil {
-		if tok, terr := ts.Token(); terr == nil && tok.AccessToken != "" {
-			accessToken = tok.AccessToken
-			if tok.RefreshToken != "" {
-				refreshToken = tok.RefreshToken
-			}
-			if !tok.Expiry.IsZero() {
-				expiry = tok.Expiry
-			}
-		}
-	} else {
-		slog.Warn("cloud storage: live token refresh failed, using stored token", "account", acct.ID, "error", terr)
-	}
-	token := map[string]any{
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
-		"token_type":    "Bearer",
-		// A real expiry makes rclone refresh proactively — with the pinned
-		// scopes below — instead of discovering expiry via a Graph 401.
-		"expiry": expiry.Format(time.RFC3339),
-	}
-	tokenJSON, _ := json.Marshal(token)
-	params := map[string]any{"token": string(tokenJSON)}
-	remoteType := "drive"
-	if acct.Provider == MicrosoftProvider {
-		// The onedrive backend refuses to auto-pick a drive non-interactively:
-		// drive_id (resolved at connect time via Graph /me/drives) is required.
-		remoteType = "onedrive"
-		var settings struct {
-			DriveID   string `json:"drive_id"`
-			DriveType string `json:"drive_type"`
-		}
-		if acct.Settings != "" {
-			if err := json.Unmarshal([]byte(acct.Settings), &settings); err != nil {
-				return "", fmt.Errorf("cloud storage: account settings: %w", err)
-			}
-		}
-		if settings.DriveID == "" {
-			return "", errors.New("cloud storage: onedrive account has no drive_id — reconnect the account")
-		}
-		params["drive_id"] = settings.DriveID
-		if settings.DriveType != "" {
-			params["drive_type"] = settings.DriveType
-		}
-		// MSA refresh MUST repeat the original grant scopes, otherwise
-		// Microsoft returns a compact (non-JWT) token Graph rejects with
-		// IDX14100. The onedrive backend reads the `access_scopes` option
-		// (comma-separated) — plain `scope` is silently ignored, which made
-		// rclone refresh with ITS defaults and poison the persisted config.
-		// Pin the account's STORED grant (not the current constants): after a
-		// re-grant with wider scopes the stored grant is authoritative, and a
-		// pre-write-upgrade grant keeps repeating its original read-only
-		// scopes until the owner re-grants.
-		params["access_scopes"] = strings.Join(accountMicrosoftScopes(acct), ",")
-	}
-	// Refresh tokens are bound to the issuing OAuth client: pin the client the
-	// account consented to, or rclone refreshes with ITS own defaults and
-	// Google/Microsoft reject the grant once the access token expires.
-	if creds := s.manager.credentialsForAccount(ctx, acct); creds.ClientID != "" {
-		params["client_id"] = creds.ClientID
-		if creds.ClientSecret != "" {
-			params["client_secret"] = creds.ClientSecret
-		}
-	}
-	if err := rc.ConfigCreate(ctx, remote, remoteType, params); err != nil {
-		return "", fmt.Errorf("cloud storage: create remote: %w", err)
-	}
-	return remote, nil
-}
-
-// authPoisoned reports whether an rc error means rclone's persisted token is
-// unusable (e.g. a compact MSA token from a wrong-scope refresh): the remote
-// must be rebuilt from a live DB token before the operation can succeed.
-func authPoisoned(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "InvalidAuthentication") ||
-		strings.Contains(msg, "JWT is not well formed")
-}
-
-// rebuildRemote drops the account's remote so ensureRemote re-bootstraps it
-// from a fresh TokenSource token — the DB row is the token source of truth.
-func (s *StorageService) rebuildRemote(ctx context.Context, acct *store.CloudAccount) {
-	rc, err := s.supervisor.RC(ctx)
-	if err != nil {
-		return
-	}
-	if derr := rc.ConfigDelete(ctx, storage.RemoteName(acct.ID)); derr != nil {
-		slog.Warn("cloud storage: rebuild: delete remote failed", "error", derr)
-	}
-	if _, berr := s.ensureRemote(ctx, acct); berr != nil {
-		slog.Warn("cloud storage: rebuild: re-bootstrap failed", "account", acct.ID, "error", berr)
-	}
-}
-
-// runWithRemote resolves nothing: it ensures acct's remote, runs op, and on a
-// poisoned-token error rebuilds the remote from the DB and retries once.
-func (s *StorageService) runWithRemote(ctx context.Context, acct *store.CloudAccount, op func(fs string) error) error {
-	fs, err := s.ensureRemote(ctx, acct)
-	if err != nil {
-		return err
-	}
-	if err = op(fs); err != nil && authPoisoned(err) {
-		slog.Warn("cloud storage: rclone token poisoned — rebuilding remote", "account", acct.ID)
-		s.rebuildRemote(ctx, acct)
-		fs, err = s.ensureRemote(ctx, acct)
-		if err != nil {
-			return err
-		}
-		err = op(fs)
-	}
-	return err
-}
-
-// FS returns the rclone filesystem spec ("goclaw-xxxx:") for the account.
-func (s *StorageService) FS(ctx context.Context, account string) (string, error) {
-	acct, err := s.resolveAccount(ctx, account)
-	if err != nil {
-		return "", err
-	}
-	return s.ensureRemote(ctx, acct)
-}
 
 // List lists remote path entries (non-recursive).
 func (s *StorageService) List(ctx context.Context, account, path string, max int) ([]storage.ListEntry, error) {
@@ -251,19 +189,19 @@ func (s *StorageService) Stat(ctx context.Context, account, path string) (*stora
 	if err != nil {
 		return nil, err
 	}
-	rc, rerr := s.supervisor.RC(ctx)
-	if rerr != nil {
-		return nil, rerr
+	return s.StatAccount(ctx, acct, path)
+}
+
+// StatAccount stats one path on a pre-authorized account.
+func (s *StorageService) StatAccount(ctx context.Context, acct *store.CloudAccount, path string) (*storage.StatInfo, error) {
+	backend, err := s.backendFor(ctx, acct)
+	if err != nil {
+		return nil, err
 	}
-	var info *storage.StatInfo
-	err = s.runWithRemote(ctx, acct, func(fs string) error {
-		got, opErr := rc.OperationsStat(ctx, fs, path)
-		if opErr == nil {
-			info = got
-		}
-		return opErr
-	})
-	return info, err
+	if path, err = CleanRemotePath(path); err != nil {
+		return nil, err
+	}
+	return backend.Stat(ctx, path)
 }
 
 // About returns quota info for the account's Drive.
@@ -276,19 +214,11 @@ func (s *StorageService) About(ctx context.Context, account string) (*storage.Ab
 }
 
 func (s *StorageService) aboutFor(ctx context.Context, acct *store.CloudAccount) (*storage.AboutInfo, error) {
-	rc, err := s.supervisor.RC(ctx)
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return nil, err
 	}
-	var info *storage.AboutInfo
-	err = s.runWithRemote(ctx, acct, func(fs string) error {
-		got, opErr := rc.OperationsAbout(ctx, fs)
-		if opErr == nil {
-			info = got
-		}
-		return opErr
-	})
-	return info, err
+	return backend.About(ctx)
 }
 
 // AboutAccount returns quota info for a specific connected account (no
@@ -298,92 +228,52 @@ func (s *StorageService) AboutAccount(ctx context.Context, acct *store.CloudAcco
 }
 
 // ListAccount lists one account's remote path (caller proved accessibility).
+// CleanRemoteDir (not CleanRemotePath): the drive root "/" is a valid listing
+// target and normalizes to "".
 func (s *StorageService) ListAccount(ctx context.Context, acct *store.CloudAccount, path string, max int) ([]storage.ListEntry, error) {
-	rc, err := s.supervisor.RC(ctx)
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return nil, err
 	}
-	var out []storage.ListEntry
-	err = s.runWithRemote(ctx, acct, func(fs string) error {
-		entries, opErr := rc.OperationsList(ctx, fs, path, max)
-		if opErr == nil {
-			out = entries
-		}
-		return opErr
-	})
-	return out, err
+	if path, err = CleanRemoteDir(path); err != nil {
+		return nil, err
+	}
+	return backend.List(ctx, path, max)
 }
 
-// runWithTwoRemotes is runWithRemote across two accounts (cross-account
-// transfer): ensures both remotes, runs op, and on a poisoned-token error
-// rebuilds BOTH remotes from the DB and retries once (an rc error does not
-// say which side's token went bad).
-func (s *StorageService) runWithTwoRemotes(ctx context.Context, src, dst *store.CloudAccount, op func(srcFS, dstFS string) error) error {
-	srcFS, err := s.ensureRemote(ctx, src)
-	if err != nil {
-		return err
-	}
-	dstFS, err := s.ensureRemote(ctx, dst)
-	if err != nil {
-		return err
-	}
-	if err = op(srcFS, dstFS); err != nil && authPoisoned(err) {
-		slog.Warn("cloud storage: rclone token poisoned during transfer — rebuilding remotes", "source", src.ID, "target", dst.ID)
-		s.rebuildRemote(ctx, src)
-		s.rebuildRemote(ctx, dst)
-		if srcFS, err = s.ensureRemote(ctx, src); err != nil {
-			return err
-		}
-		if dstFS, err = s.ensureRemote(ctx, dst); err != nil {
-			return err
-		}
-		err = op(srcFS, dstFS)
-	}
-	return err
-}
-
-// --- file operations (Phase 4): every method takes a pre-authorized account
-// (caller proved accessibility) and self-heals via runWithRemote. Paths are
-// re-validated here as defense in depth — handlers validate for 400s first.
+// --- file operations: every method takes a pre-authorized account (caller
+// proved accessibility). Paths are re-validated here as defense in depth —
+// handlers validate for 400s first.
 
 // MkdirAccount creates a directory in the account's remote.
 func (s *StorageService) MkdirAccount(ctx context.Context, acct *store.CloudAccount, dir string) error {
-	rc, err := s.supervisor.RC(ctx)
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return err
 	}
 	if dir, err = CleanRemotePath(dir); err != nil {
 		return err
 	}
-	return s.runWithRemote(ctx, acct, func(fs string) error {
-		return rc.OperationsMkdir(ctx, fs, dir)
-	})
+	return backend.Mkdir(ctx, dir)
 }
 
-// DeleteAccount removes one file (isDir=false → deletefile) or one EMPTY
-// directory (isDir=true → rmdir; rclone refuses non-empty dirs, so wiping a
-// populated tree is deliberately not exposed via rc). Deletion is PERMANENT
-// on Drive — no trash.
+// DeleteAccount removes one file (isDir=false) or one EMPTY directory
+// (isDir=true — providers refuse non-empty dirs, so wiping a populated tree
+// is deliberately not exposed). Deletion is PERMANENT on Drive — no trash.
 func (s *StorageService) DeleteAccount(ctx context.Context, acct *store.CloudAccount, path string, isDir bool) error {
-	rc, err := s.supervisor.RC(ctx)
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return err
 	}
 	if path, err = CleanRemotePath(path); err != nil {
 		return err
 	}
-	return s.runWithRemote(ctx, acct, func(fs string) error {
-		if isDir {
-			return rc.OperationsRmdir(ctx, fs, path)
-		}
-		return rc.OperationsDeleteFile(ctx, fs, path)
-	})
+	return backend.Delete(ctx, path, isDir)
 }
 
-// MoveAccount renames/moves one file within the account's remote (both paths
-// on the same fs — rclone movefile covers rename and cross-folder moves).
+// MoveAccount renames/moves one file within the account's remote.
 func (s *StorageService) MoveAccount(ctx context.Context, acct *store.CloudAccount, from, to string) error {
-	rc, err := s.supervisor.RC(ctx)
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return err
 	}
@@ -393,14 +283,13 @@ func (s *StorageService) MoveAccount(ctx context.Context, acct *store.CloudAccou
 	if to, err = CleanRemotePath(to); err != nil {
 		return err
 	}
-	return s.runWithRemote(ctx, acct, func(fs string) error {
-		return rc.OperationsMoveFile(ctx, fs+":", from, fs+":", to)
-	})
+	return backend.Move(ctx, from, to)
 }
 
-// CopyAccount copies one file to another path within the account's remote.
+// CopyAccount copies one file to another path within the account's remote
+// (server-side on both providers).
 func (s *StorageService) CopyAccount(ctx context.Context, acct *store.CloudAccount, from, to string) error {
-	rc, err := s.supervisor.RC(ctx)
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return err
 	}
@@ -410,117 +299,102 @@ func (s *StorageService) CopyAccount(ctx context.Context, acct *store.CloudAccou
 	if to, err = CleanRemotePath(to); err != nil {
 		return err
 	}
-	return s.runWithRemote(ctx, acct, func(fs string) error {
-		return rc.OperationsCopyFile(ctx, fs+":", from, fs+":", to)
-	})
+	return backend.Copy(ctx, from, to)
 }
 
-// CopyURLAccount uploads-by-URL: rclone fetches url (server side) into the
-// file at path (full destination path incl. name).
-func (s *StorageService) CopyURLAccount(ctx context.Context, acct *store.CloudAccount, url, path string) error {
-	rc, err := s.supervisor.RC(ctx)
+// CopyURLAccount uploads-by-URL: the server fetches url into the file at path
+// (full destination path incl. name).
+func (s *StorageService) CopyURLAccount(ctx context.Context, acct *store.CloudAccount, rawURL, path string) error {
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return err
 	}
 	if path, err = CleanRemotePath(path); err != nil {
 		return err
 	}
-	return s.runWithRemote(ctx, acct, func(fs string) error {
-		return rc.OperationsCopyURL(ctx, url, fs, path)
-	})
+	return backend.CopyURL(ctx, rawURL, path)
 }
 
 // PublicLinkAccount creates/retrieves the public share link for one path.
 func (s *StorageService) PublicLinkAccount(ctx context.Context, acct *store.CloudAccount, path string) (*storage.PublicLinkInfo, error) {
-	rc, err := s.supervisor.RC(ctx)
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return nil, err
 	}
 	if path, err = CleanRemotePath(path); err != nil {
 		return nil, err
 	}
-	var out *storage.PublicLinkInfo
-	err = s.runWithRemote(ctx, acct, func(fs string) error {
-		link, opErr := rc.OperationsPublicLink(ctx, fs, path)
-		if opErr == nil {
-			out = link
-		}
-		return opErr
-	})
-	return out, err
+	return backend.PublicLink(ctx, path)
 }
 
-// DownloadedFile is a remote file copied to a local temp path, ready to be
-// streamed to the client. The caller owns Dir and must remove it after
-// serving.
-type DownloadedFile struct {
-	Dir  string             // temp dir — caller removes it
-	Name string             // file name inside Dir
-	Stat *storage.StatInfo  // remote stat (size, mime) captured before the copy
-}
-
-// DownloadAccount copies one remote file into a fresh temp dir (after stat +
-// size-cap checks) so the handler can stream it and delete it afterwards.
-func (s *StorageService) DownloadAccount(ctx context.Context, acct *store.CloudAccount, remotePath string, sizeCapMB int64) (*DownloadedFile, error) {
-	rc, err := s.supervisor.RC(ctx)
+// WriteAccount creates/overwrites the file at remotePath with content (the
+// agent-facing write tool path).
+func (s *StorageService) WriteAccount(ctx context.Context, acct *store.CloudAccount, remotePath, content string) error {
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if remotePath, err = CleanRemotePath(remotePath); err != nil {
-		return nil, err
+		return err
 	}
-	var out *DownloadedFile
-	err = s.runWithRemote(ctx, acct, func(fs string) error {
-		dl, opErr := s.downloadVia(ctx, rc, fs, remotePath, sizeCapMB)
-		if opErr == nil {
-			out = dl
-		}
-		return opErr
-	})
-	return out, err
+	return backend.Upload(ctx, remotePath, strings.NewReader(content), int64(len(content)), "text/plain; charset=utf-8", time.Time{})
 }
 
-func (s *StorageService) downloadVia(ctx context.Context, rc *storage.RCClient, fs, remotePath string, sizeCapMB int64) (*DownloadedFile, error) {
-	info, err := rc.OperationsStat(ctx, fs, remotePath)
+// OpenAccount streams one remote file body, relaying rangeHeader ("Range: …")
+// when set so HTTP byte-range requests (video previews, seeking) never copy
+// the whole file. The size cap is enforced via Stat BEFORE opening — the
+// caller maps ErrFileTooLarge to 413.
+func (s *StorageService) OpenAccount(ctx context.Context, acct *store.CloudAccount, remotePath string, rangeHeader string, sizeCapMB int64) (*storage.Content, *storage.StatInfo, error) {
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if remotePath, err = CleanRemotePath(remotePath); err != nil {
+		return nil, nil, err
+	}
+	info, err := backend.Stat(ctx, remotePath)
+	if err != nil {
+		return nil, nil, err
 	}
 	if info.IsDir {
-		return nil, errors.New("cloud_download: path is a directory")
+		return nil, nil, errors.New("cloud_download: path is a directory")
 	}
 	capBytes := sizeCapMB << 20
 	if info.Size > capBytes {
-		return nil, fmt.Errorf("%w: %s is %d MB (cap %d MB)", ErrFileTooLarge, info.Name, info.Size>>20, sizeCapMB)
+		return nil, nil, fmt.Errorf("%w: %s is %d MB (cap %d MB)", ErrFileTooLarge, info.Name, info.Size>>20, sizeCapMB)
 	}
-	name := filepath.Base(remotePath)
-	if name == "" || name == "." || name == "/" {
-		return nil, errors.New("cloud_download: cannot determine file name")
-	}
-	dir, err := os.MkdirTemp("", "goclaw-cloud-dl-")
+	content, err := backend.Open(ctx, remotePath, storage.RangeHeader(rangeHeader))
 	if err != nil {
-		return nil, fmt.Errorf("cloud_download: temp dir: %w", err)
+		return nil, nil, err
 	}
-	if err := rc.OperationsCopyFile(ctx, fs+":", remotePath, dir, name); err != nil {
-		os.RemoveAll(dir)
-		return nil, fmt.Errorf("cloud_download: copy: %w", err)
-	}
-	return &DownloadedFile{Dir: dir, Name: name, Stat: info}, nil
+	return content, info, nil
 }
 
 // UploadAccount copies a local file (localDir/localName — e.g. a multipart
 // temp file) into the account's remote at remotePath (full destination path
 // incl. name). The caller owns the temp file lifecycle.
 func (s *StorageService) UploadAccount(ctx context.Context, acct *store.CloudAccount, localDir, localName, remotePath string) error {
-	rc, err := s.supervisor.RC(ctx)
+	backend, err := s.backendFor(ctx, acct)
 	if err != nil {
 		return err
 	}
 	if remotePath, err = CleanRemotePath(remotePath); err != nil {
 		return err
 	}
-	return s.runWithRemote(ctx, acct, func(fs string) error {
-		return rc.OperationsCopyFile(ctx, localDir, localName, fs+":", remotePath)
-	})
+	f, err := os.Open(filepath.Join(localDir, localName))
+	if err != nil {
+		return fmt.Errorf("cloud storage: staged upload missing: %w", err)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	contentType := ""
+	if n := localName; n != "" {
+		contentType = mimeByExt(n)
+	}
+	return backend.Upload(ctx, remotePath, f, info.Size(), contentType, info.ModTime())
 }
 
 // Fetch copies a remote file into the workspace (workspace/cloud/<name>),
@@ -531,35 +405,22 @@ func (s *StorageService) Fetch(ctx context.Context, account, remotePath, workspa
 	if err != nil {
 		return "", err
 	}
-	rc, rerr := s.supervisor.RC(ctx)
-	if rerr != nil {
-		return "", rerr
-	}
-	var out string
-	err = s.runWithRemote(ctx, acct, func(fs string) error {
-		p, opErr := s.fetchVia(ctx, rc, fs, remotePath, workspaceDir, sizeCapMB)
-		if opErr == nil {
-			out = p
-		}
-		return opErr
-	})
-	return out, err
+	return s.FetchAccount(ctx, acct, remotePath, workspaceDir, sizeCapMB)
 }
 
-func (s *StorageService) fetchVia(ctx context.Context, rc *storage.RCClient, fs, remotePath, workspaceDir string, sizeCapMB int64) (string, error) {
-	info, err := rc.OperationsStat(ctx, fs, remotePath)
+// FetchAccount is Fetch for a pre-authorized account (agent tools resolve +
+// permission-check once, then call this).
+func (s *StorageService) FetchAccount(ctx context.Context, acct *store.CloudAccount, remotePath, workspaceDir string, sizeCapMB int64) (string, error) {
+	content, info, err := s.OpenAccount(ctx, acct, remotePath, "", sizeCapMB)
 	if err != nil {
 		return "", err
 	}
-	if info.IsDir {
-		return "", errors.New("cloud_fetch: path is a directory — fetch files one by one")
-	}
-	capBytes := sizeCapMB << 20
-	if info.Size > capBytes {
-		return "", fmt.Errorf("cloud_fetch: file is %d MB (cap %d MB)", info.Size>>20, sizeCapMB)
-	}
+	defer content.Close()
 
-	name := filepath.Base(strings.TrimSuffix(remotePath, "/"))
+	name := info.Name
+	if name == "" {
+		name = filepath.Base(strings.TrimSuffix(remotePath, "/"))
+	}
 	if name == "" || name == "." || name == "/" {
 		return "", errors.New("cloud_fetch: cannot determine file name")
 	}
@@ -567,10 +428,16 @@ func (s *StorageService) fetchVia(ctx context.Context, rc *storage.RCClient, fs,
 	if err := ensureDir(dstDir); err != nil {
 		return "", err
 	}
-	srcFs := fs + ":"
-	srcRemote := strings.Trim(remotePath, "/")
-	if err := rc.OperationsCopyFile(ctx, srcFs, srcRemote, dstDir, name); err != nil {
+	dst, err := os.Create(filepath.Join(dstDir, name))
+	if err != nil {
+		return "", fmt.Errorf("cloud_fetch: create: %w", err)
+	}
+	if _, err := io.Copy(dst, content); err != nil {
+		dst.Close()
 		return "", fmt.Errorf("cloud_fetch: copy: %w", err)
+	}
+	if err := dst.Close(); err != nil {
+		return "", err
 	}
 	return filepath.Join("cloud", name), nil
 }
@@ -580,4 +447,47 @@ func ensureDir(dir string) error {
 		return fmt.Errorf("cloud storage: mkdir %s: %w", dir, err)
 	}
 	return nil
+}
+
+// mimeByExt returns a conservative content type for upload streaming (the
+// providers store it as file metadata; previews derive types client-side).
+func mimeByExt(name string) string {
+	i := strings.LastIndex(name, ".")
+	if i < 0 {
+		return ""
+	}
+	switch strings.ToLower(name[i+1:]) {
+	case "txt", "md", "log":
+		return "text/plain; charset=utf-8"
+	case "json":
+		return "application/json"
+	case "csv":
+		return "text/csv"
+	case "html":
+		return "text/html"
+	case "png":
+		return "image/png"
+	case "jpg", "jpeg":
+		return "image/jpeg"
+	case "gif":
+		return "image/gif"
+	case "webp":
+		return "image/webp"
+	case "svg":
+		return "image/svg+xml"
+	case "pdf":
+		return "application/pdf"
+	case "mp4":
+		return "video/mp4"
+	case "webm":
+		return "video/webm"
+	case "mp3":
+		return "audio/mpeg"
+	case "wav":
+		return "audio/wav"
+	case "zip":
+		return "application/zip"
+	default:
+		return ""
+	}
 }

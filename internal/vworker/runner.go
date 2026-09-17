@@ -67,8 +67,19 @@ func NewRunner(cfg WorkerConfig) *Runner {
 
 // Submit adds a job to the queue. Returns immediately.
 func (r *Runner) Submit(ctx context.Context, job contract.SubmitJob) contract.SubmitJobResponse {
+	// Capacity counts queued+rendering jobs only. Terminal jobs stay in the
+	// map for status queries, so len(r.jobs) would permanently consume queue
+	// slots (with max-queue 1, one finished job blocks all future submits).
 	r.mu.Lock()
-	if len(r.jobs) >= r.cfg.MaxQueue {
+	active := 0
+	for _, js := range r.jobs {
+		js.mu.Lock()
+		if js.Status == contract.JobQueued || js.Status == contract.JobRendering {
+			active++
+		}
+		js.mu.Unlock()
+	}
+	if active >= r.cfg.MaxQueue {
 		r.mu.Unlock()
 		return contract.SubmitJobResponse{
 			JobID:  job.JobID,
@@ -177,7 +188,6 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		FontFile:    r.cfg.FontFile,
 		MaxSceneSec: r.cfg.MaxSceneSec,
 	}
-
 	// Determine canvas dimensions
 	canvasW, canvasH, fps := effectiveCanvas(sb)
 
@@ -193,6 +203,34 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 	narrMap := make(map[int]string)
 	for _, na := range job.Narration {
 		narrMap[na.SceneIndex] = na.AudioPath
+	}
+
+	// Transition timeline math: xfade overlaps scene tails by transitionSec,
+	// so every scene except the last renders transitionSec longer — the
+	// output start of scene i then still equals the sum of the original
+	// durations, keeping narration alignment exact.
+	hasTransitions := false
+	for i := 1; i < len(sb.Scenes); i++ {
+		if tr := sb.Scenes[i].Transition; tr != "" && tr != "none" {
+			hasTransitions = true
+			break
+		}
+	}
+	offsets := make([]float64, 0, len(sb.Scenes)-1) // absolute start of scene i (i>=1)
+	if hasTransitions {
+		// Scene renders grow by transitionSec; let the safety cap follow so
+		// the builder never trims the overlap away (that would desync xfade).
+		if ffcfg.MaxSceneSec > 0 {
+			ffcfg.MaxSceneSec += transitionSec
+		}
+		cum := 0.0
+		for i := 0; i < len(sb.Scenes); i++ {
+			cum += sb.Scenes[i].DurationSec
+			if i < len(sb.Scenes)-1 {
+				offsets = append(offsets, cum)
+				sb.Scenes[i].DurationSec += transitionSec
+			}
+		}
 	}
 
 	// Per-scene: narrate + render
@@ -237,11 +275,25 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		// Update scene source to the materialized local path
 		sb.Scenes[i].Source = scenePath
 
+		// Materialize image-layer sources the same way (runner rewrites in
+		// place; the ffmpeg builders consume l.Source as a local path).
+		for j := range sb.Scenes[i].Layers {
+			l := &sb.Scenes[i].Layers[j]
+			if l.Kind != contract.LayerImage {
+				continue
+			}
+			lp, err := Materialize(ctx, r.cfg.WorkDir, l.Source, "")
+			if err != nil {
+				r.failJob(js, fmt.Sprintf("scene %d layer %d materialize: %v", i, j, err))
+				return
+			}
+			l.Source = lp
+		}
+
 		// Build and run ffmpeg
 		outPath := sceneOutputPath(tempDir, i)
-		args := r.buildSceneArgs(ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath)
-
-		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, args); err != nil {
+		err = r.renderScene(ctx, ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath, tempDir, i)
+		if err != nil {
 			r.failJob(js, fmt.Sprintf("scene %d render: %v", i, err))
 			return
 		}
@@ -254,17 +306,32 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		js.mu.Unlock()
 	}
 
-	// Concat scenes
-	concatPath := filepath.Join(tempDir, "concat.txt")
-	if err := writeConcatFile(concatPath, sceneFiles); err != nil {
-		r.failJob(js, fmt.Sprintf("write concat file: %v", err))
-		return
-	}
+	// Concat scenes — xfade chain when transitions are present, stream-copy
+	// concat demuxer otherwise (cheaper, byte-identical to before).
+	// When xfade is needed, scenes are processed in batches of ≤xfadeBatchSize
+	// to keep ffmpeg's file handle count and frame buffer memory bounded
+	// (the old all-at-once approach OOMed on 5+ scenes at 720p with 350 MB).
 	concatOut := filepath.Join(tempDir, "concat.mp4")
-	concatArgs := buildConcatArgs(ffcfg, sceneFiles, concatPath, concatOut)
-	if err := execFFmpeg(ctx, r.cfg.FFmpegPath, concatArgs); err != nil {
-		r.failJob(js, fmt.Sprintf("concat: %v", err))
-		return
+	if hasTransitions {
+		transitions := make([]string, len(sb.Scenes))
+		for i := range sb.Scenes {
+			transitions[i] = sb.Scenes[i].Transition
+		}
+		if err := batchedXfade(ctx, r.cfg.FFmpegPath, sceneFiles, transitions, offsets, fps, tempDir, concatOut); err != nil {
+			r.failJob(js, fmt.Sprintf("xfade concat: %v", err))
+			return
+		}
+	} else {
+		concatPath := filepath.Join(tempDir, "concat.txt")
+		if err := writeConcatFile(concatPath, sceneFiles); err != nil {
+			r.failJob(js, fmt.Sprintf("write concat file: %v", err))
+			return
+		}
+		concatArgs := buildConcatArgs(ffcfg, sceneFiles, concatPath, concatOut)
+		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, concatArgs); err != nil {
+			r.failJob(js, fmt.Sprintf("concat: %v", err))
+			return
+		}
 	}
 
 	js.mu.Lock()
@@ -321,17 +388,36 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		"size", info.Size(), "duration", elapsed)
 }
 
-// buildSceneArgs dispatches to the appropriate scene builder.
-func (r *Runner) buildSceneArgs(cfg FFmpegConfig, sc *contract.Scene, canvasW, canvasH, fps int, outputPath string) []string {
+// renderScene dispatches to the appropriate scene builder and runs ffmpeg.
+// Color scenes try the animated gradient first and fall back to the flat
+// color source when the local ffmpeg lacks `gradients` (pre-4.4 builds).
+func (r *Runner) renderScene(ctx context.Context, cfg FFmpegConfig, sc *contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int) error {
 	switch sc.Type {
 	case contract.SceneImage:
-		return buildImageSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath)
+		args, err := buildImageSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx)
+		if err != nil {
+			return err
+		}
+		return execFFmpeg(ctx, r.cfg.FFmpegPath, args)
 	case contract.SceneVideo:
-		return buildVideoSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath)
+		return execFFmpeg(ctx, r.cfg.FFmpegPath,
+			buildVideoSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath))
 	case contract.SceneColor:
-		return buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath)
-	default:
+		args, err := buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, true)
+		if err != nil {
+			return err
+		}
+		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, args); err != nil {
+			slog.Warn("gradient color scene failed, retrying flat color", "scene", sceneIdx)
+			flatArgs, ferr := buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, false)
+			if ferr != nil {
+				return ferr
+			}
+			return execFFmpeg(ctx, r.cfg.FFmpegPath, flatArgs)
+		}
 		return nil
+	default:
+		return fmt.Errorf("unknown scene type %q", sc.Type)
 	}
 }
 
@@ -415,4 +501,140 @@ func sortJobsByAge(jobs map[string]*jobState) []string {
 		ids[i] = a.id
 	}
 	return ids
+}
+
+// batchedXfade processes scene transitions in groups of ≤xfadeBatchSize to
+// keep ffmpeg's file handle count and frame buffer memory bounded. Each batch
+// produces an intermediate .mp4; batches are then concatenated with stream
+// copy (no re-encode) for the final output.
+//
+// Batch 0: scenes [0..N] → intermediate_001.mp4
+// Batch 1: [intermediate_001, scenes N..M] → intermediate_002.mp4
+// ...
+// Final:   stream-copy concat all intermediates → outputPath
+//
+// The overlap model: each batch's last scene appears as the first input of
+// the next batch. This ensures the xfade transition at the batch boundary
+// is handled by the second batch's first xfade (offset=0), which blends the
+// overlapping scene from the previous batch's output with the next scene.
+//
+// Within each batch, offsets are cumulative from the batch start (since the
+// intermediate file's internal timeline resets to 0).
+func batchedXfade(ctx context.Context, ffmpegPath string, sceneFiles []string, transitions []string, offsets []float64, fps int, tempDir, outputPath string) error {
+	n := len(sceneFiles)
+	if n == 0 {
+		return fmt.Errorf("no scenes to xfade")
+	}
+	if n == 1 {
+		// Single scene — just copy
+		return execFFmpeg(ctx, ffmpegPath, []string{
+			"-hide_banner", "-loglevel", "warning",
+			"-i", sceneFiles[0], "-c", "copy", "-y", outputPath,
+		})
+	}
+
+	// Collect intermediate files for final concat
+	var intermediates []string
+	prevXfade := "" // previous batch's output (starts empty = first scene file)
+
+	batchStart := 0
+	for batchStart < n {
+		// Determine batch end: at most xfadeBatchSize scenes, but we need
+		// an overlap scene (last of this batch = first of next) if there
+		// are more scenes after this batch.
+		batchEnd := batchStart + xfadeBatchSize
+		if batchEnd >= n {
+			batchEnd = n // include all remaining scenes
+		}
+
+		// Build batch inputs and transitions
+		batchFiles := sceneFiles[batchStart:batchEnd]
+		batchTrans := transitions[batchStart:batchEnd]
+		batchOffsets := offsets[batchStart : batchEnd-1] // transitions between batch scenes
+
+		if len(batchFiles) == 1 {
+			// Single scene in batch — no xfade needed, just copy
+			if prevXfade != "" {
+				// This scene was already processed as part of previous
+				// batch's overlap — skip.
+				batchStart = batchEnd
+				continue
+			}
+			// First batch with single scene (unlikely but safe)
+			intermediates = append(intermediates, batchFiles[0])
+			batchStart = batchEnd
+			continue
+		}
+
+		// Compute batch-internal offsets (relative to batch start)
+		// The batch offset for scene i within the batch is:
+		// sum of durations of scenes batchStart..i-1 (original, before extension)
+		// which equals offsets[i-1] - offsets[batchStart-1] (or offsets[i-1] if batchStart=0)
+		batchOffsetsRelative := make([]float64, len(batchOffsets))
+		for i := range batchOffsets {
+			abs := batchOffsets[i]
+			if batchStart > 0 {
+				abs -= offsets[batchStart-1]
+			}
+			batchOffsetsRelative[i] = abs
+		}
+
+		// If there's a previous batch output, prepend it as the first input
+		var xfadeInputs []string
+		var xfadeTransitions []string
+		var xfadeOffsets []float64
+		if prevXfade != "" {
+			xfadeInputs = append([]string{prevXfade}, batchFiles...)
+			// The first transition (prevXfade → batchFiles[0]) is the batch
+			// boundary transition. Its offset is 0 (the overlap scene starts
+			// at the end of the previous batch's output, which xfade handles).
+			xfadeTransitions = append([]string{batchTrans[0]}, batchTrans...)
+			xfadeOffsets = append([]float64{0}, batchOffsetsRelative...)
+		} else {
+			xfadeInputs = batchFiles
+			xfadeTransitions = batchTrans
+			xfadeOffsets = batchOffsetsRelative
+		}
+
+		// Build batch output path
+		batchIdx := len(intermediates)
+		batchOut := filepath.Join(tempDir, fmt.Sprintf("xfade_batch_%03d.mp4", batchIdx))
+
+		xfadeArgs := buildXfadeChainArgs(xfadeInputs, xfadeTransitions, xfadeOffsets, fps, batchOut)
+		if err := execFFmpeg(ctx, ffmpegPath, xfadeArgs); err != nil {
+			return fmt.Errorf("xfade batch %d: %w", batchIdx, err)
+		}
+
+		// Don't delete previous intermediate here — intermediates
+		// are needed for the final concat. Cleaned up below.
+		prevXfade = batchOut
+		intermediates = append(intermediates, batchOut)
+
+		batchStart = batchEnd
+	}
+
+	// If only one intermediate, just copy to output
+	if len(intermediates) == 1 {
+		return execFFmpeg(ctx, ffmpegPath, []string{
+			"-hide_banner", "-loglevel", "warning",
+			"-i", intermediates[0], "-c", "copy", "-y", outputPath,
+		})
+	}
+
+	// Concat all intermediates with stream copy (no re-encode)
+	concatPath := filepath.Join(tempDir, "xfade_concat.txt")
+	if err := writeConcatFile(concatPath, intermediates); err != nil {
+		return fmt.Errorf("write concat file: %w", err)
+	}
+	concatArgs := buildConcatArgs(FFmpegConfig{}, intermediates, concatPath, outputPath)
+	if err := execFFmpeg(ctx, ffmpegPath, concatArgs); err != nil {
+		return fmt.Errorf("xfade final concat: %w", err)
+	}
+
+	// Clean up intermediates
+	for _, f := range intermediates {
+		os.Remove(f)
+	}
+
+	return nil
 }

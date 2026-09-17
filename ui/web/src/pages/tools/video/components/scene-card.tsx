@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Trash2,
   ArrowUp,
   ArrowDown,
   Volume2,
+  Type,
+  Square,
+  ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TRANSITION_TYPES } from "./scene-transition";
+import { LayerTimeline } from "./layer-timeline";
 import { cn } from "@/lib/utils";
-import type { Scene } from "../hooks/use-timeline";
+import type { Layer, Scene } from "../hooks/use-timeline";
 
 interface KenBurns {
   zoom_from: number;
@@ -66,6 +71,31 @@ export function SceneCard({
   onMoveDown,
 }: SceneCardProps) {
   const { t } = useTranslation("toolbox");
+  const [selLayer, setSelLayer] = useState(0);
+
+  // Layer editing rides updateScene's undo history — every change goes
+  // through onUpdate({ layers: [...] }).
+  const layers = scene.layers ?? [];
+  const setLayers = (next: Layer[]) => onUpdate({ layers: next.length > 0 ? next : undefined });
+  const activeIdx = Math.min(selLayer, Math.max(0, layers.length - 1));
+  const activeLayer = layers.length > 0 ? layers[activeIdx] : undefined;
+
+  function addLayer(kind: Layer["kind"]) {
+    const layer: Layer = { kind };
+    if (kind === "text") Object.assign(layer, { text: t("video.layer.new_text"), y: 0.2, font_size: 64 });
+    if (kind === "shape") Object.assign(layer, { y: 0.15, h: 0.18, fill: "#000000", opacity: 0.5 });
+    if (kind === "image") Object.assign(layer, { y: 0.55, w: 0.3 });
+    setLayers([...layers, layer]);
+    setSelLayer(layers.length);
+  }
+
+  const patchLayer = (patch: Partial<Layer>) =>
+    setLayers(layers.map((l, j) => (j === activeIdx ? { ...l, ...patch } : l)));
+
+  const patchLayerAt = (i: number, patch: Partial<Layer>) =>
+    setLayers(layers.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+
+  const num = (v: string, fallback: number) => (v === "" ? fallback : Number(v) || fallback);
 
   return (
     <div className="flex flex-col gap-3 rounded-md border p-3">
@@ -250,6 +280,193 @@ export function SceneCard({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Timed overlay layers — drawn by the browser preview AND the server
+          renderer (drawtext/drawbox/overlay with enable windows). */}
+      <details className="rounded-md border p-3" open={layers.length > 0}>
+        <summary className="cursor-pointer text-sm font-medium">
+          {t("video.layers_title")}
+          {layers.length > 0 && (
+            <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">({layers.length})</span>
+          )}
+        </summary>
+        <div className="mt-3 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("text")} disabled={layers.length >= 8}>
+              <Type className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_text")}
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("shape")} disabled={layers.length >= 8}>
+              <Square className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_shape")}
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("image")} disabled={layers.length >= 8}>
+              <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_image")}
+            </Button>
+          </div>
+
+          <LayerTimeline
+            layers={layers}
+            sceneSec={scene.duration_sec}
+            selected={activeIdx}
+            onSelect={setSelLayer}
+            onChange={(i, timing) => patchLayerAt(i, timing)}
+          />
+
+          {activeLayer && (
+            <div className="flex flex-col gap-3 rounded-md border bg-muted/20 p-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t(`video.layer.kind_${activeLayer.kind}`)}
+                </span>
+                <div className="ml-auto flex items-center gap-0.5">
+                  <Button variant="ghost" size="icon-sm" aria-label={t("video.layer_move_up")} disabled={activeIdx === 0} onClick={() => {
+                    const to = activeIdx - 1;
+                    const next = [...layers];
+                    const [m] = next.splice(activeIdx, 1);
+                    if (!m) return;
+                    next.splice(to, 0, m);
+                    setLayers(next);
+                    setSelLayer(to);
+                  }}>
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" aria-label={t("video.layer_move_down")} disabled={activeIdx === layers.length - 1} onClick={() => {
+                    const to = activeIdx + 1;
+                    const next = [...layers];
+                    const [m] = next.splice(activeIdx, 1);
+                    if (!m) return;
+                    next.splice(to, 0, m);
+                    setLayers(next);
+                    setSelLayer(to);
+                  }}>
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" aria-label={t("video.layer_delete")} onClick={() => {
+                    setLayers(layers.filter((_, j) => j !== activeIdx));
+                    setSelLayer(0);
+                  }} className="text-destructive hover:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+
+              {activeLayer.kind === "text" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">{t("video.layer.text")}</Label>
+                  <Textarea rows={2} value={activeLayer.text ?? ""} onChange={(e) => patchLayer({ text: e.target.value })} className="text-base md:text-sm" />
+                </div>
+              )}
+              {activeLayer.kind === "image" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">{t("video.layer.source")}</Label>
+                  <Input value={activeLayer.source ?? ""} onChange={(e) => patchLayer({ source: e.target.value })} placeholder="media/logo.png | https://..." className="text-base md:text-sm" />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                {([
+                  ["video.layer.start", "start", activeLayer.start ?? 0],
+                  ["video.layer.duration", "duration", activeLayer.duration ?? 0],
+                  ["video.layer.x", "x", activeLayer.x ?? 0.1],
+                  ["video.layer.y", "y", activeLayer.y ?? 0.1],
+                  ...(activeLayer.kind === "shape" ? [["video.layer.w", "w", activeLayer.w ?? 0.8], ["video.layer.h", "h", activeLayer.h ?? 0.3]] : []),
+                ] as [string, "start" | "duration" | "x" | "y" | "w" | "h", number][]).map(([labelKey, key, value]) => (
+                  <div key={key} className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t(labelKey)}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={value}
+                      onChange={(e) => patchLayer({ [key]: num(e.target.value, value) } as Partial<Layer>)}
+                      className="h-8 text-base md:text-sm"
+                    />
+                  </div>
+                ))}
+                {activeLayer.kind !== "image" && (
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.fill")}</Label>
+                    <Input value={activeLayer.fill ?? "#FFFFFF"} onChange={(e) => patchLayer({ fill: e.target.value })} placeholder="#FFFFFF" className="h-8 text-base md:text-sm" />
+                  </div>
+                )}
+                {activeLayer.kind === "text" && (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="w-16 shrink-0 text-xs">{t("video.layer.font_size")}</Label>
+                      <Input type="number" min={8} max={300} value={activeLayer.font_size ?? 48} onChange={(e) => patchLayer({ font_size: Number(e.target.value) || 48 })} className="h-8 text-base md:text-sm" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="w-16 shrink-0 text-xs">{t("video.layer.align")}</Label>
+                      <Select value={activeLayer.align ?? "center"} onValueChange={(v) => patchLayer({ align: v as Layer["align"] })}>
+                        <SelectTrigger className="h-8 text-base md:text-sm" aria-label={t("video.layer.align")}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">{t("video.layer.align_left")}</SelectItem>
+                          <SelectItem value="center">{t("video.layer.align_center")}</SelectItem>
+                          <SelectItem value="right">{t("video.layer.align_right")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <Label className="w-16 shrink-0 text-xs">{t("video.layer.opacity")}</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={activeLayer.opacity ?? 1}
+                    onChange={(e) => patchLayer({ opacity: Math.max(0, Math.min(1, Number(e.target.value))) })}
+                    className="h-8 text-base md:text-sm"
+                  />
+                </div>
+              </div>
+              {activeLayer.kind === "text" && (
+                <div className="flex items-center gap-1.5">
+                  <Label className="w-16 shrink-0 text-xs">{t("video.layer.w")}</Label>
+                  <Input
+                    type="number"
+                    min={0.01}
+                    max={1}
+                    step={0.01}
+                    value={activeLayer.w ?? 0.8}
+                    onChange={(e) => patchLayer({ w: num(e.target.value, 0.8) })}
+                    className="h-8 w-24 text-base md:text-sm"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">{t("video.layers_hint")}</p>
+        </div>
+      </details>
+
+      {/* Narration pacing fit: ~2.3 words/sec (VN-normalized). A narration
+          much longer than the scene is what makes voice/text feel mismatched
+          in renders — surface the estimate and offer one-tap fit. */}
+      {(() => {
+        const words = (scene.narration ?? "").trim().split(/\s+/).filter(Boolean).length;
+        if (words === 0) return null;
+        const est = words / 2.3;
+        const dur = Number(scene.duration_sec) || 0;
+        if (est <= dur + 0.5) return null;
+        return (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <span>{t("video.narration_fit_hint", { est: Math.ceil(est), dur })}</span>
+            <button
+              type="button"
+              onClick={() => onUpdate({ duration_sec: Math.ceil(est) })}
+              className="ml-auto rounded border border-amber-500/50 px-1.5 py-0.5 font-medium transition-colors hover:bg-amber-500/10"
+            >
+              {t("video.narration_fit_apply", { est: Math.ceil(est) })}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Narration (TTS) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">

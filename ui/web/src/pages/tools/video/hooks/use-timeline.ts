@@ -13,6 +13,26 @@ interface Caption {
   position?: "top" | "center" | "bottom";
   font_size?: number;
 }
+/** One timed overlay inside a scene — mirrors internal/video.Layer (Go).
+ * Geometry is normalized 0..1 (top-left origin); a layer is visible while
+ * start <= t < start+duration (duration 0 = until the scene ends). */
+export interface Layer {
+  kind: "text" | "shape" | "image";
+  text?: string;
+  source?: string;
+  shape?: string; // "rect"
+  start?: number;
+  duration?: number;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  fill?: string;
+  opacity?: number;
+  font_size?: number;
+  align?: "left" | "center" | "right";
+}
+
 export interface Scene {
   type: "image" | "video" | "color";
   source?: string;
@@ -43,6 +63,16 @@ export interface Scene {
     saturate?: number;
     blur?: number;
   };
+  /** Timed overlays drawn on the base visual (and under the caption), in
+   * array order. Rendered by the browser preview AND the server worker. */
+  layers?: Layer[];
+}
+
+/** Resolve a layer's visible window within its scene (duration 0 = to end). */
+export function layerWindow(l: Layer, sceneSec: number): { start: number; end: number } {
+  const start = Math.max(0, l.start ?? 0);
+  const end = start + (l.duration && l.duration > 0 ? l.duration : sceneSec - start);
+  return { start, end };
 }
 
 const MAX_HISTORY = 50;
@@ -63,6 +93,10 @@ export interface UseTimelineReturn {
   removeScene: (index: number) => void;
   moveScene: (from: number, to: number) => void;
   updateScene: (index: number, patch: Partial<Scene>) => void;
+  addLayer: (sceneIndex: number, layer: Layer) => void;
+  updateLayer: (sceneIndex: number, layerIndex: number, patch: Partial<Layer>) => void;
+  removeLayer: (sceneIndex: number, layerIndex: number) => void;
+  moveLayer: (sceneIndex: number, layerIndex: number, dir: -1 | 1) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -139,6 +173,64 @@ export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
     [scenes, pushHistory],
   );
 
+  // ── Layer ops (edits ride updateScene's history snapshots) ──
+
+  const addLayer = useCallback(
+    (sceneIndex: number, layer: Layer) => {
+      const target = scenes[sceneIndex];
+      if (!target || (target.layers?.length ?? 0) >= 8) return;
+      const next = scenes.map((s, i) =>
+        i === sceneIndex ? { ...s, layers: [...(s.layers ?? []), layer] } : s,
+      );
+      setScenes(next);
+      pushHistory(next);
+    },
+    [scenes, pushHistory],
+  );
+
+  const updateLayer = useCallback(
+    (sceneIndex: number, layerIndex: number, patch: Partial<Layer>) => {
+      const next = scenes.map((s, i) => {
+        if (i !== sceneIndex) return s;
+        return {
+          ...s,
+          layers: (s.layers ?? []).map((l, j) => (j === layerIndex ? { ...l, ...patch } : l)),
+        };
+      });
+      setScenes(next);
+      pushHistory(next);
+    },
+    [scenes, pushHistory],
+  );
+
+  const removeLayer = useCallback(
+    (sceneIndex: number, layerIndex: number) => {
+      const next = scenes.map((s, i) =>
+        i === sceneIndex ? { ...s, layers: (s.layers ?? []).filter((_, j) => j !== layerIndex) } : s,
+      );
+      setScenes(next);
+      pushHistory(next);
+    },
+    [scenes, pushHistory],
+  );
+
+  const moveLayer = useCallback(
+    (sceneIndex: number, layerIndex: number, dir: -1 | 1) => {
+      const target = scenes[sceneIndex];
+      if (!target?.layers) return;
+      const to = layerIndex + dir;
+      if (to < 0 || to >= target.layers.length) return;
+      const layers = [...target.layers];
+      const [moved] = layers.splice(layerIndex, 1);
+      if (!moved) return;
+      layers.splice(to, 0, moved);
+      const next = scenes.map((s, i) => (i === sceneIndex ? { ...s, layers } : s));
+      setScenes(next);
+      pushHistory(next);
+    },
+    [scenes, pushHistory],
+  );
+
   const undo = useCallback(() => {
     if (historyIndex <= 0) return;
     const prevIndex = historyIndex - 1;
@@ -178,6 +270,10 @@ export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
     removeScene,
     moveScene,
     updateScene,
+    addLayer,
+    updateLayer,
+    removeLayer,
+    moveLayer,
     undo,
     redo,
     canUndo: historyIndex > 0,

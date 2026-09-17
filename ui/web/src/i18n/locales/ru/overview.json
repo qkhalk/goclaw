@@ -55,12 +55,6 @@
     },
     "you": "вы"
   },
-  "cronJobs": {
-    "title": "Задачи Cron",
-    "manage": "Управление",
-    "noJobs": "Задачи cron не настроены",
-    "disabled": "отключено"
-  },
   "recentRequests": {
     "title": "Недавние запросы",
     "viewAll": "Показать все",

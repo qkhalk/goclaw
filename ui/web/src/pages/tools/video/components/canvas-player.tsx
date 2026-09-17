@@ -10,30 +10,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCanvasPlayer } from "../hooks/use-canvas-player";
+import type { Scene } from "../hooks/use-timeline";
 
-// ── Types ──
+// ── Types (Scene is the canonical model from use-timeline) ──
 
-interface KenBurns {
-  zoom_from: number;
-  zoom_to: number;
-  pan: "none" | "left" | "right" | "up" | "down";
-}
-interface Caption {
-  text: string;
-  position?: "top" | "center" | "bottom";
-  font_size?: number;
-}
-interface Scene {
-  type: "image" | "video" | "color";
-  source?: string;
-  color?: string;
-  duration_sec: number;
-  fit?: "cover" | "contain";
-  mute?: boolean;
-  ken_burns?: KenBurns;
-  caption?: Caption;
-  narration?: string;
-}
 interface Storyboard {
   version: number;
   canvas: { width: number; height: number; fps: number };
@@ -60,6 +40,11 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
   const { t } = useTranslation("toolbox");
   const player = useCanvasPlayer(storyboard);
   const containerRef = useRef<HTMLDivElement>(null);
+  // The resize effect must not depend on the player's identity: player.state
+  // changes every frame during playback, which would tear down and rebuild
+  // the ResizeObserver per frame.
+  const playerRef = useRef(player);
+  playerRef.current = player;
 
   // Auto-resize canvas to container (16px = the container's p-2 padding)
   const handleResize = useCallback(() => {
@@ -75,8 +60,8 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
     const displayW = Math.round(sbW * scale);
     const displayH = Math.round(sbH * scale);
 
-    player.resize(displayW, displayH);
-  }, [storyboard.canvas, player]);
+    playerRef.current.resize(displayW, displayH);
+  }, [storyboard.canvas]);
 
   useEffect(() => {
     handleResize();
@@ -94,7 +79,8 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
       switch (e.key) {
         case " ":
           e.preventDefault();
-          player.state.isPlaying ? player.pause() : player.play();
+          if (player.state.isPlaying) player.pause();
+          else player.play();
           break;
         case "ArrowLeft":
           e.preventDefault();

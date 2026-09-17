@@ -25,10 +25,7 @@ func (s *exportFakeStore) List(_ context.Context, opts store.ActivityListOpts) (
 	if opts.Offset >= len(s.rows) {
 		return nil, nil
 	}
-	end := opts.Offset + opts.Limit
-	if end > len(s.rows) {
-		end = len(s.rows)
-	}
+	end := min(opts.Offset+opts.Limit, len(s.rows))
 	return s.rows[opts.Offset:end], nil
 }
 func (s *exportFakeStore) Count(context.Context, store.ActivityListOpts) (int, error) {

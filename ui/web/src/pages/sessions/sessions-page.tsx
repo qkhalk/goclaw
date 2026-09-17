@@ -1,7 +1,19 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { History, RefreshCw } from "lucide-react";
+import {
+  Clapperboard,
+  Clock,
+  Globe,
+  HeartPulse,
+  History,
+  MessageSquare,
+  Presentation,
+  RefreshCw,
+  Send,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
@@ -13,6 +25,7 @@ import { useUiStore } from "@/stores/use-ui-store";
 import { useSessions } from "./hooks/use-sessions";
 import { SessionDetailPage } from "./session-detail-page";
 import { parseSessionKey } from "@/lib/session-key";
+import { sessionOrigin, type SessionOrigin } from "@/lib/session-origin";
 import { formatRelativeTime, formatTokens } from "@/lib/format";
 import type { SessionInfo } from "@/types/session";
 
@@ -96,10 +109,11 @@ export function SessionsPage() {
           />
         ) : (
           <div className="rounded-md border overflow-x-auto">
-            <table className="w-full min-w-[750px]">
+            <table className="w-full min-w-[850px]">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.session")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.origin")}</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.agent")}</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.context")}</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">{t("columns.messages")}</th>
@@ -152,10 +166,10 @@ function SessionRow({
         </div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {session.metadata?.username ? `@${session.metadata.username}` : session.key}
-          {session.channel && session.channel !== "ws" && (
-            <Badge variant="secondary" className="text-2xs px-1 py-0">{session.channel}</Badge>
-          )}
         </div>
+      </td>
+      <td className="px-4 py-3">
+        <OriginBadge session={session} />
       </td>
       <td className="px-4 py-3">
         <Badge variant="outline">{session.agentName || parsed.agentId}</Badge>
@@ -173,6 +187,36 @@ function SessionRow({
         {formatRelativeTime(session.updated)}
       </td>
     </tr>
+  );
+}
+
+/** Where this session lives: studio surface, web chat, channel, or runner. */
+function OriginBadge({ session }: { session: SessionInfo }) {
+  const { t } = useTranslation("sessions");
+  const origin = sessionOrigin(session.key, session.channel);
+
+  const config: Record<SessionOrigin, { icon: React.ElementType; label: string; className: string }> = {
+    web: { icon: Globe, label: t("origin.web"), className: "text-sky-600 dark:text-sky-400" },
+    telegram: { icon: Send, label: t("origin.telegram"), className: "text-blue-500" },
+    video: { icon: Clapperboard, label: t("origin.video"), className: "text-rose-500" },
+    pptx: { icon: Presentation, label: t("origin.pptx"), className: "text-amber-500" },
+    subagent: { icon: Workflow, label: t("origin.subagent"), className: "text-violet-500" },
+    cron: { icon: Clock, label: t("origin.cron"), className: "text-muted-foreground" },
+    team: { icon: Users, label: t("origin.team"), className: "text-teal-500" },
+    heartbeat: { icon: HeartPulse, label: t("origin.heartbeat"), className: "text-red-400" },
+    channel: {
+      icon: MessageSquare,
+      label: session.channel ? t("origin.channel", { channel: session.channel }) : t("origin.web"),
+      className: "text-muted-foreground",
+    },
+  };
+  const { icon: Icon, label, className } = config[origin];
+
+  return (
+    <Badge variant="secondary" className={`gap-1 px-1.5 ${className}`} title={session.key}>
+      <Icon className="h-3 w-3" />
+      {label}
+    </Badge>
   );
 }
 

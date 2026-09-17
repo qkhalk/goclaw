@@ -102,6 +102,33 @@
     "connecting": "Connecting…",
     "failed": "Terminal failed: {{message}}"
   },
+  "browserPanel": {
+    "title": "Browser",
+    "loading": "Loading page…",
+    "ready": "Ready",
+    "error": "Page could not be displayed",
+    "errorHint": "The site may block embedding — use \"Open in new tab\".",
+    "openNewTab": "Open in new tab",
+    "reload": "Reload",
+    "close": "Close panel",
+    "urlBar": "Page URL",
+    "urlPlaceholder": "Search or type a URL",
+    "back": "Back",
+    "forward": "Forward",
+    "staticNote": "Static page — scripts disabled; links and typing still work.",
+    "empty": "No page open. Ask the agent to browse something.",
+    "switchToLive": "Live preview (runs JavaScript)",
+    "switchToStatic": "Static view (agent-operable)",
+    "liveNote": "Live preview — the real page runs JavaScript here. The agent cannot read or click in this mode; switch back to static for that.",
+    "thinStaticNote": "This page needs JavaScript to render, so the static view is nearly empty. Switch to the live preview (bolt icon) or open it in a new tab.",
+    "remote": {
+      "toggle": "Server browser (agent-controlled)",
+      "placeholder": "URL — open in the server-side headless Chrome",
+      "empty": "Enter a URL to open it in the server browser (real Chrome, JS runs — the agent shares this browser).",
+      "note": "Server browser — page rendered by the gateway; the agent can read and control even JS/iframe-blocked sites.",
+      "noCapture": "Page opened but no screenshot captured — try refresh."
+    }
+  },
   "taskTree": {
     "empty": "No tasks yet",
     "priority": "Priority",
@@ -181,6 +208,18 @@
     "readOnly": "Read-only view — open the chat to answer",
     "other": "Other…",
     "otherPlaceholder": "Type your own answer…",
-    "send": "Send answer"
+    "send": "Send answer",
+    "confirm": "✔ Confirm",
+    "back": "◀ Back",
+    "recommended": "Recommended"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev mode is ON — click to turn off",
+    "off": "Dev mode is OFF — click to enable (plan-first, skill autopilot, ask when unclear)"
+  },
+  "daySep": {
+    "today": "Today",
+    "yesterday": "Yesterday"
   }
 }

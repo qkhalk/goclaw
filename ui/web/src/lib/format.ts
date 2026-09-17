@@ -113,3 +113,39 @@ export function computeDurationMs(startTime?: string, endTime?: string): number 
   if (isNaN(start) || isNaN(end)) return null;
   return end - start;
 }
+
+/** Calendar-day key (local time) used to group chat messages by day. */
+export function dayKey(d: string | number | Date): string {
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+/** Day-separator label: Today / Yesterday / locale date. */
+export function formatDayLabel(d: string | number | Date, t: (k: string) => string): string {
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (diffDays === 0) return t("daySep.today");
+  if (diffDays === 1) return t("daySep.yesterday");
+  return new Intl.DateTimeFormat([], { day: "numeric", month: "short", year: diffDays > 364 ? "numeric" : undefined }).format(date);
+}
+
+/** Bubble timestamp: today = time only; yesterday = "Yesterday HH:mm";
+ * older = date + time — so a 3-day-old reply never reads as "just now". */
+export function formatChatTimestamp(d: string | number | Date, t: (k: string) => string): string {
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  const time = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }).format(date);
+  if (diffDays === 0) return time;
+  if (diffDays === 1) return `${t("daySep.yesterday")} ${time}`;
+  const datePart = new Intl.DateTimeFormat([], { day: "numeric", month: "short" }).format(date);
+  return `${datePart}, ${time}`;
+}

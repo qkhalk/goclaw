@@ -142,9 +142,10 @@ func extractReplyInfo(msg *telego.Message, botUsername string) *ReplyInfo {
 		info.Body = reply.Caption
 	}
 
-	// Truncate long reply bodies
-	if len(info.Body) > 500 {
-		info.Body = info.Body[:500] + "..."
+	// Truncate long reply bodies (rune-safe: byte slicing could split a
+	// multi-byte character and garble Vietnamese/CJK text)
+	if r := []rune(info.Body); len(r) > 1500 {
+		info.Body = string(r[:1500]) + "..."
 	}
 
 	// Hint for bot replies: the full response is already in session history,

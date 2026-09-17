@@ -16,11 +16,14 @@ import (
 )
 
 // runViaPipeline delegates a run to the v3 pipeline. resume, when non-nil, is a
-// checkpoint-restored RunState: the pipeline skips its setup stages and resumes
-// the iteration loop from the checkpoint's iteration. checkpoint, when non-nil,
-// is wired into PipelineDeps.WriteCheckpoint so CheckpointStage can persist a
-// durable checkpoint to agent_runs.checkpoint at the configured cadence.
-func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipeline.RunState, checkpoint func(ctx context.Context, state *pipeline.RunState) error) (*RunResult, error) {
+// checkpoint-restored (or MarkContinuation re-armed) RunState: the pipeline
+// skips its setup stages and resumes the iteration loop from the state's
+// iteration. checkpoint, when non-nil, is wired into PipelineDeps.WriteCheckpoint
+// so CheckpointStage can persist a durable checkpoint to agent_runs.checkpoint
+// at the configured cadence. The used state is returned alongside the result so
+// the completion-verifier terminal gate (loop_run.go) can flip
+// Observe.ContinueAfterFinal on it and re-enter the pipeline for a recover pass.
+func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipeline.RunState, checkpoint func(ctx context.Context, state *pipeline.RunState) error) (*RunResult, *pipeline.RunState, error) {
 	input := convertRunInput(&req)
 	// Bridge runState shares loop detection state between pipeline and agent.
 	bridgeRS := &runState{supervisor: NewRunSupervisor(l.supervisorLimits, time.Now())}
@@ -62,7 +65,7 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipel
 		// provider failure) would otherwise leave the user's input unrecorded —
 		// later turns then behave as if the message never arrived.
 		l.persistFailedTurnInput(ctx, &req, resume, cb.userMsgPersisted)
-		return nil, err
+		return nil, nil, err
 	}
 	result := convertRunResult(pResult)
 	// Completion verification: inspect the finished run state for L0
@@ -73,7 +76,7 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest, resume *pipel
 	// terminal path so advisory mode stays byte-identical to record-only dev.
 	completion := verifyCompletion(result, state)
 	result.completion = &completion
-	return redactDelegationRunResult(&req, result), nil
+	return redactDelegationRunResult(&req, result), state, nil
 }
 
 // buildPipelineDeps maps Loop fields + methods to PipelineDeps callbacks, and

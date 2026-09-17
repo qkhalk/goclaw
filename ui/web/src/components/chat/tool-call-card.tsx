@@ -3,9 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Wrench, AlertTriangle, ChevronRight, Zap } from "lucide-react";
 import type { ToolStreamEntry } from "@/types/chat";
 import { AskOptionsCard, parseAskOptionsArgs } from "./ask-options-card";
+import { PlanCard, parsePlanEntry } from "./plan-card";
 
 const isSkillTool = (name: string) => name === "use_skill";
 const isAskOptionsTool = (name: string) => name === "ask_options";
+const isPlanTool = (name: string) => name === "plan";
 
 /** Build a short summary string from tool arguments for inline display. */
 function buildToolSummary(entry: ToolStreamEntry): string | null {
@@ -30,7 +32,20 @@ export function ToolCallCard({ entry, compact }: ToolCallCardProps) {
   // the hooks above so the card can switch rendering modes safely.
   const askArgs = isAskOptionsTool(entry.name) ? parseAskOptionsArgs(entry.arguments) : null;
   if (askArgs) {
-    return <AskOptionsCard question={askArgs.question} options={askArgs.options} />;
+    return (
+      <AskOptionsCard
+        question={askArgs.question}
+        options={askArgs.options}
+        recommended={askArgs.recommended}
+      />
+    );
+  }
+  // plan renders as a read-only checklist card from the tool's canonical
+  // result state; errored calls and unparseable payloads fall through to the
+  // generic card (a failed "set" must not show a checklist that never saved).
+  const planView = isPlanTool(entry.name) && entry.phase !== "error" ? parsePlanEntry(entry) : null;
+  if (planView) {
+    return <PlanCard view={planView} />;
   }
   const hasDetails = entry.arguments || entry.result || !!entry.output;
   const hasError = entry.phase === "error" && !!entry.errorContent;

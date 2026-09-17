@@ -5,7 +5,25 @@
   "connect": {
     "google": "Подключить аккаунт Google",
     "onedrive": "Подключить аккаунт OneDrive",
-    "another": "Подключить другой аккаунт"
+    "another": "Подключить другой аккаунт",
+    "dropbox": "Подключить аккаунт Dropbox",
+    "s3": "Подключить S3-совместимое хранилище"
+  },
+  "s3": {
+    "title": "Подключить S3-совместимое хранилище",
+    "description": "Поддерживаются AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO и DO Spaces. Ключи проверяются на endpoint перед сохранением.",
+    "label": "Название (необязательно)",
+    "label_placeholder": "Архив команды",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "Для AWS S3 оставьте пустым. Автоматически используется path-style.",
+    "region": "Регион (необязательно)",
+    "bucket": "Бакет",
+    "access_key": "Access Key ID",
+    "secret_key": "Secret Access Key",
+    "secret_hint": "Хранится в зашифрованном виде; API не возвращает ключ после сохранения.",
+    "cancel": "Отмена",
+    "connect": "Подключить",
+    "connecting": "Проверка…"
   },
   "disconnect": "Отключить",
   "readonly_badge": "Только чтение",
@@ -36,11 +54,14 @@
     "coming_soon": "Скоро",
     "google_desc": "Google Drive через ваш собственный OAuth-клиент GCP. Включая инструменты Gmail.",
     "onedrive_desc": "Microsoft OneDrive (личный или рабочий/учебный) через ваше собственное приложение Azure.",
-    "more_via_rclone": "Больше хранилищ (Dropbox, S3, WebDAV, …) планируется на том же движке rclone"
+    "more_via_rclone": "Другие хранилища (WebDAV, …) появятся на том же движке",
+    "s3_desc": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces — подключение по ключам доступа."
   },
   "provider": {
     "back": "Все провайдеры",
-    "accounts_title": "Подключённые аккаунты"
+    "accounts_title": "Подключённые аккаунты",
+    "section_personal": "Личные",
+    "section_company": "Корпоративные (общие)"
   },
   "setup": {
     "title_google": "Google ещё не настроен",
@@ -63,7 +84,16 @@
     "cancel": "Отмена",
     "update": "Обновить данные",
     "advanced": "Использовать свой OAuth-клиент (расширенно)",
-    "embedded_note": "Быстрое подключение использует общий OAuth-клиент rclone — настройка не нужна, но действуют общие лимиты. Общий клиент теперь выдаёт полный доступ к Drive. Инструментам Gmail по-прежнему нужен собственный OAuth-клиент (см. настройки облаков)."
+    "embedded_note": "Быстрое подключение использует общий OAuth-клиент rclone — настройка не нужна, но действуют общие лимиты. Общий клиент теперь выдаёт полный доступ к Drive. Инструментам Gmail по-прежнему нужен собственный OAuth-клиент (см. настройки облаков).",
+    "expand": "Настроить сейчас",
+    "configured": "OAuth-клиент сохранён",
+    "title_dropbox": "Dropbox ещё не настроен",
+    "dropbox_client_id": "Dropbox App key",
+    "dropbox_step1": "Создайте приложение на dropbox.com/developers/apps (scopes: files.metadata.read/write, files.content.read/write, sharing.write).",
+    "dropbox_step2": "Добавьте в приложение redirect URI <base>/v1/cloud/oauth/callback.",
+    "dropbox_step3": "Скопируйте App key и App secret.",
+    "dropbox_step4": "Вставьте App key + secret и сохраните.",
+    "dropbox_note": "Dropbox требует собственное приложение (общего клиента нет) — регистрация бесплатна."
   },
   "disconnect_confirm": {
     "title": "Отключить аккаунт?",
@@ -104,6 +134,7 @@
     "title": "Области использования",
     "description": "Выберите, какой аккаунт использует агент: явный запрос главнее, затем группа, затем пользователь, затем настройка по умолчанию для организации и, наконец, личные аккаунты.",
     "tenant_default": "По умолчанию для организации",
+    "tenant_default_hint": "Если агент или действие не указывают аккаунт, используется этот общий аккаунт организации.",
     "none": "Нет",
     "group": "Группа",
     "user": "Пользователь",
@@ -132,12 +163,12 @@
     "used_of": "Использовано {{used}} из {{total}}",
     "root": "Корень",
     "loading_files": "Загрузка файлов…",
-    "files_unavailable": "Не удалось получить список файлов (rclone установлен на сервере?)",
+    "files_unavailable": "Не удалось получить список файлов (проверьте подключение аккаунта и обновите)",
     "no_files": "Эта папка пуста",
     "col_name": "Имя",
     "col_size": "Размер",
     "col_modified": "Изменён",
-    "readonly_note": "Просмотр только для чтения через rclone ({{provider}}). Попросите агента скачать или упорядочить файлы.",
+    "readonly_note": "Просмотр только для чтения ({{provider}}). Попросите агента скачать или упорядочить файлы.",
     "mailbox": "Почтовый ящик",
     "loading_mail": "Загрузка почты…",
     "mail_unavailable": "Не удалось прочитать почту",
@@ -148,6 +179,7 @@
   "drive": {
     "my_drives": "Мои диски",
     "my_drive": "Мой диск",
+    "dashboard": "Панель",
     "providers": "Провайдеры",
     "accounts": "Аккаунты",
     "shared_tag": "Общий",
@@ -170,7 +202,9 @@
     "not_found": "Аккаунт не найден или больше недоступен",
     "back_home": "Вернуться к облакам",
     "toggle_accounts": "Показать/скрыть аккаунты",
-    "quick_views": "Быстрый доступ"
+    "quick_views": "Быстрый доступ",
+    "search_accounts": "Поиск аккаунтов…",
+    "no_accounts_match": "Нет подходящих аккаунтов"
   },
   "files": {
     "upload": "Загрузить",
@@ -291,7 +325,21 @@
     "download": "Скачать",
     "download_started": "Загрузка началась",
     "prev": "Назад",
-    "next": "Далее"
+    "next": "Далее",
+    "close": "Закрыть"
+  },
+  "agent_access": {
+    "title": "Доступ агентов",
+    "cap_read": "Чтение файлов",
+    "cap_read_hint": "Просмотр, скачивание файлов, чтение почты",
+    "cap_write": "Создание и изменение файлов",
+    "cap_write_hint": "Загрузка, запись и правка файлов на диске",
+    "cap_manage": "Управление",
+    "cap_manage_hint": "Удаление, перемещение, ссылки доступа",
+    "none": "Запрещено",
+    "read": "Только чтение",
+    "write": "Чтение и запись",
+    "full": "Полный доступ"
   },
   "shortcuts": {
     "title": "Горячие клавиши",

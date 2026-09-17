@@ -24,7 +24,7 @@ func TestGenerateKeyFormat(t *testing.T) {
 
 func TestGenerateKeyUnique(t *testing.T) {
 	seen := make(map[string]bool, 100)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		key, err := GenerateKey()
 		if err != nil {
 			t.Fatalf("GenerateKey: %v", err)

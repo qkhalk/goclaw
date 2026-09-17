@@ -425,6 +425,8 @@ func init() {
 		"telegram.ask.other": "其他",
 		"telegram.ask.otherhint": "✏️ 回复此消息给出你的答案。",
 		"telegram.ask.answered": "✓ 已回答：%s → %s",
+		"telegram.ask.confirm": "✔ 确认",
+		"telegram.ask.back": "◀ 返回",
 		"telegram.language.unavailable": "语言偏好不可用（未配置会话存储）。",
 		"telegram.language.title": "🌐 本聊天的语言 — 请选择：",
 		"telegram.language.current": "🌐 语言：%s",

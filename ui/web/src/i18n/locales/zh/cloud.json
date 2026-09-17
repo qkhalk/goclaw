@@ -5,7 +5,25 @@
   "connect": {
     "google": "连接 Google 账户",
     "onedrive": "连接 OneDrive 账户",
-    "another": "连接其他账户"
+    "another": "连接其他账户",
+    "dropbox": "连接 Dropbox 账号",
+    "s3": "连接 S3 兼容存储"
+  },
+  "s3": {
+    "title": "连接 S3 兼容存储",
+    "description": "支持 AWS S3、Cloudflare R2、Backblaze B2、Wasabi、MinIO 和 DO Spaces。保存前会先对 endpoint 验证密钥。",
+    "label": "标签(可选)",
+    "label_placeholder": "团队归档",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "AWS S3 可留空。自动使用 path-style 寻址。",
+    "region": "区域(可选)",
+    "bucket": "存储桶",
+    "access_key": "Access Key ID",
+    "secret_key": "Secret Access Key",
+    "secret_hint": "保存时加密存储;API 不会再次返回密钥。",
+    "cancel": "取消",
+    "connect": "连接",
+    "connecting": "正在验证…"
   },
   "disconnect": "断开连接",
   "readonly_badge": "只读",
@@ -36,11 +54,14 @@
     "coming_soon": "即将推出",
     "google_desc": "通过您自己的 GCP OAuth 客户端访问 Google Drive，附带 Gmail 工具。",
     "onedrive_desc": "通过您自己的 Azure 应用访问 Microsoft OneDrive（个人或工作/学校账户）。",
-    "more_via_rclone": "更多存储（Dropbox、S3、WebDAV 等）将基于同一 rclone 引擎陆续推出"
+    "more_via_rclone": "更多存储(WebDAV 等)即将在同一引擎上支持",
+    "s3_desc": "AWS S3、Cloudflare R2、Backblaze B2、Wasabi、MinIO、DO Spaces — 使用访问密钥连接。"
   },
   "provider": {
     "back": "所有提供商",
-    "accounts_title": "已连接账户"
+    "accounts_title": "已连接账户",
+    "section_personal": "个人",
+    "section_company": "企业（共享）"
   },
   "setup": {
     "title_google": "Google 尚未配置",
@@ -63,7 +84,16 @@
     "cancel": "取消",
     "update": "更新凭据",
     "advanced": "使用您自己的 OAuth 客户端（高级）",
-    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。"
+    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。",
+    "expand": "立即配置",
+    "configured": "OAuth 客户端已保存",
+    "title_dropbox": "Dropbox 尚未配置",
+    "dropbox_client_id": "Dropbox App key",
+    "dropbox_step1": "在 dropbox.com/developers/apps 创建应用（scopes: files.metadata.read/write、files.content.read/write、sharing.write）。",
+    "dropbox_step2": "在应用中添加重定向 URI <base>/v1/cloud/oauth/callback。",
+    "dropbox_step3": "复制 App key 和 App secret。",
+    "dropbox_step4": "粘贴 App key + secret 并保存。",
+    "dropbox_note": "Dropbox 需要您自己的应用（无共享客户端）— 注册免费。"
   },
   "disconnect_confirm": {
     "title": "断开账户？",
@@ -104,6 +134,7 @@
     "title": "使用范围",
     "description": "选择智能体在此使用的账户：显式指定优先，其次群组，再按用户，然后是组织默认，最后是个人账户。",
     "tenant_default": "组织默认",
+    "tenant_default_hint": "当 agent 或操作未指定账户时，系统将使用此组织级默认账户。",
     "none": "无",
     "group": "群组",
     "user": "用户",
@@ -132,12 +163,12 @@
     "used_of": "已用 {{used}} / {{total}}",
     "root": "根目录",
     "loading_files": "正在加载文件…",
-    "files_unavailable": "无法列出文件（服务器装了 rclone 吗？）",
+    "files_unavailable": "无法列出文件（请检查账户连接后重试）",
     "no_files": "此文件夹为空",
     "col_name": "名称",
     "col_size": "大小",
     "col_modified": "修改时间",
-    "readonly_note": "通过 rclone 只读浏览（{{provider}}）。让智能体帮您获取或整理文件。",
+    "readonly_note": "只读视图（{{provider}}）。可让 agent 帮您下载或整理文件。",
     "mailbox": "邮箱",
     "loading_mail": "正在加载邮箱…",
     "mail_unavailable": "无法读取邮箱",
@@ -148,6 +179,7 @@
   "drive": {
     "my_drives": "我的云盘",
     "my_drive": "我的云盘",
+    "dashboard": "仪表板",
     "providers": "提供商",
     "accounts": "账户",
     "shared_tag": "共享",
@@ -170,7 +202,9 @@
     "not_found": "账户不存在或已无法访问",
     "back_home": "返回云盘页",
     "toggle_accounts": "展开/收起账户",
-    "quick_views": "快速访问"
+    "quick_views": "快速访问",
+    "search_accounts": "搜索账户…",
+    "no_accounts_match": "没有匹配的账户"
   },
   "files": {
     "upload": "上传",
@@ -291,7 +325,21 @@
     "download": "下载",
     "download_started": "已开始下载",
     "prev": "上一个",
-    "next": "下一个"
+    "next": "下一个",
+    "close": "关闭"
+  },
+  "agent_access": {
+    "title": "Agent 权限",
+    "cap_read": "读取文件",
+    "cap_read_hint": "浏览、下载文件、阅读邮件",
+    "cap_write": "创建和更新文件",
+    "cap_write_hint": "在云端上传、写入和编辑文件",
+    "cap_manage": "管理",
+    "cap_manage_hint": "删除、移动、创建分享链接",
+    "none": "禁止访问",
+    "read": "只读",
+    "write": "读写",
+    "full": "完全控制"
   },
   "shortcuts": {
     "title": "键盘快捷键",

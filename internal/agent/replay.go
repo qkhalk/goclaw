@@ -144,7 +144,7 @@ func (l *Loop) ResumeRunFrom(ctx context.Context, runID string, checkpoint json.
 			return nil
 		}
 	}
-	result, err := l.runViaPipeline(ctx, req, state, checkpointWriter)
+	result, _, err := l.runViaPipeline(ctx, req, state, checkpointWriter)
 	if err != nil {
 		if checkpointWritten {
 			slog.Warn("replayed run compacted, resumable", "run_id", runID, "error", err)

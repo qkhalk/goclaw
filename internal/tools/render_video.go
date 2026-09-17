@@ -88,12 +88,20 @@ func (t *RenderVideoTool) Execute(ctx context.Context, args map[string]any) *Res
 		return ErrorResult(fmt.Sprintf("storyboard validation failed: %v", err))
 	}
 
-	// Check path traversal on scene sources.
+	// Check path traversal on scene sources and image-layer sources.
 	workspace := ToolWorkspaceFromCtx(ctx)
 	for i, scene := range sb.Scenes {
 		if scene.Source != "" && !strings.HasPrefix(scene.Source, "http://") && !strings.HasPrefix(scene.Source, "https://") {
 			if err := t.validateAssetPath(workspace, scene.Source); err != nil {
 				return ErrorResult(fmt.Sprintf("scene %d: invalid source path: %v", i, err))
+			}
+		}
+		for j, layer := range scene.Layers {
+			if layer.Source == "" || strings.HasPrefix(layer.Source, "http://") || strings.HasPrefix(layer.Source, "https://") {
+				continue
+			}
+			if err := t.validateAssetPath(workspace, layer.Source); err != nil {
+				return ErrorResult(fmt.Sprintf("scene %d layer %d: invalid source path: %v", i, j, err))
 			}
 		}
 	}

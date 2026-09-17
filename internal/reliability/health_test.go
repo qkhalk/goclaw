@@ -43,7 +43,7 @@ func TestHealthScoreHealthy(t *testing.T) {
 	if s := reg.Score("pv", "m"); s != 1.0 {
 		t.Errorf("no-signal score=%v want 1.0", s)
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		reg.ObserveSuccess("pv", "m")
 	}
 	s := reg.Score("pv", "m")
@@ -54,7 +54,7 @@ func TestHealthScoreHealthy(t *testing.T) {
 
 func TestHealthScoreDegradesWithFailures(t *testing.T) {
 	reg := NewHealthRegistry(nil)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		reg.ObserveFailure("pv", "m", ErrProviderTimeout)
 	}
 	// All timeouts: attempts=10, successes=0, timeouts=10 → score 0.
@@ -69,10 +69,10 @@ func TestHealthScoreOpenCircuitCrushed(t *testing.T) {
 	cb := newTestBreaker(now)
 	reg := NewHealthRegistry(cb)
 	// Pre-fill successes, then open the circuit.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		reg.ObserveSuccess("pv", "m")
 	}
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		reg.ObserveFailure("pv", "m", ErrProviderServerError)
 	}
 	s := reg.Score("pv", "m")
@@ -87,10 +87,10 @@ func TestHealthScoreOpenCircuitCrushed(t *testing.T) {
 // already reflected in the success ratio).
 func TestHealthScoreSingleCountsFailures(t *testing.T) {
 	reg := NewHealthRegistry(nil)
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		reg.ObserveSuccess("pv", "m")
 	}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		reg.ObserveFailure("pv", "m", ErrProviderTimeout)
 	}
 	s := reg.Score("pv", "m")
@@ -104,7 +104,7 @@ func TestHealthScoreSingleCountsFailures(t *testing.T) {
 // but only once each.
 func TestHealthScorePenalizesStallAndToolError(t *testing.T) {
 	reg := NewHealthRegistry(nil)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		reg.ObserveSuccess("pv", "m")
 	}
 	reg.ObserveStreamStall("pv", "m")

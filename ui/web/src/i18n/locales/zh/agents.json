@@ -158,7 +158,20 @@
     "create": "创建",
     "creating": "创建中...",
     "checkAndCreate": "检查并创建",
-    "failedToCreate": "创建Agent失败"
+    "failedToCreate": "创建Agent失败",
+    "subagent": {
+      "title": "子代理配置",
+      "toolCount": "{{count}} 个工具",
+      "allTools": "全部工具",
+      "allowedTools": "允许的工具",
+      "allowedToolsHint": "选择该子代理可用的工具。留空 = 全部工具。",
+      "allowedToolsPlaceholder": "选择工具（留空 = 全部）",
+      "systemPrompt": "系统提示词",
+      "systemPromptHint": "覆盖 IDENTITY.md — 作为子代理专属系统提示词。",
+      "systemPromptPlaceholder": "你是一个专注于...的子代理",
+      "injectAgents": "注入 AGENTS.md",
+      "injectAgentsHint": "将 AGENTS.md 工作区指令包含在代理上下文中。"
+    }
   },
   "detail": {
     "tabs": {

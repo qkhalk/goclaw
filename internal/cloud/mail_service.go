@@ -42,6 +42,22 @@ func (s *MailService) MailClient(ctx context.Context, account string) (*mail.Cli
 	if err != nil {
 		return nil, err
 	}
+	return s.MailClientFor(ctx, acct)
+}
+
+// AgentMailAccount resolves the account for an AGENT tool call, additionally
+// enforcing the per-account agent access level (admin-configured on the
+// Clouds page). Mail resolves Google accounts only.
+func (s *MailService) AgentMailAccount(ctx context.Context, name string, min AgentAccess) (*store.CloudAccount, error) {
+	return s.manager.ResolveAccount(ctx, name, []string{GoogleProvider}, func(a *store.CloudAccount) bool {
+		return a.Provider == GoogleProvider && accountHasGmailScope(a) && AgentAccessOf(a).allows(min)
+	})
+}
+
+// MailClientFor returns an authorized Gmail client for a PRE-RESOLVED account
+// (agent tools resolve + permission-check once, then call this).
+// Rate-limited per account.
+func (s *MailService) MailClientFor(ctx context.Context, acct *store.CloudAccount) (*mail.Client, error) {
 	if wait := s.limiter.reserve(acct.ID); wait > 0 {
 		timer := time.NewTimer(wait)
 		select {

@@ -96,12 +96,14 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/cloud/accounts", requireAuth("", h.handleList))
 	mux.HandleFunc("DELETE /v1/cloud/accounts/{id}", requireAuth("", h.handleDelete))
 	mux.HandleFunc("PUT /v1/cloud/accounts/{id}/shared", requireAuth("", h.handleSetShared))
+	mux.HandleFunc("PUT /v1/cloud/accounts/{id}/agent-access", requireAuth("", h.handleSetAgentAccess))
 	mux.HandleFunc("GET /v1/cloud/accounts/{id}/about", requireAuth("", h.handleAccountAbout))
 	mux.HandleFunc("GET /v1/cloud/accounts/{id}/files", requireAuth("", h.handleAccountFiles))
 	mux.HandleFunc("GET /v1/cloud/accounts/{id}/mail", requireAuth("", h.handleAccountMail))
 	mux.HandleFunc("GET /v1/cloud/bindings", requireAuth("", h.handleListBindings))
 	mux.HandleFunc("PUT /v1/cloud/bindings", requireAuth("", h.handleUpsertBinding))
 	mux.HandleFunc("DELETE /v1/cloud/bindings/{id}", requireAuth("", h.handleDeleteBinding))
+	mux.HandleFunc("POST /v1/cloud/accounts/s3", requireAuth("", h.handleConnectS3))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/start", requireAuth("", h.handleStart))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/complete", requireAuth("", h.handleComplete))
 	mux.HandleFunc("GET /v1/cloud/oauth/callback", h.handleCallback)
@@ -115,7 +117,12 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files/copy", requireAuth("", h.handleAccountCopy))
 	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files/copyurl", requireAuth("", h.handleAccountCopyURL))
 	mux.HandleFunc("DELETE /v1/cloud/accounts/{id}/files", requireAuth("", h.handleAccountDelete))
-	mux.HandleFunc("GET /v1/cloud/accounts/{id}/files/download", requireAuth("", h.handleAccountDownload))
+	// Download registers WITHOUT the requireAuth middleware: it accepts either
+	// a Bearer session or a short-lived signed ?ft= token (the <img>/<video>
+	// tags behind thumbnails/previews cannot send auth headers). Auth happens
+	// inside the handler.
+	mux.HandleFunc("GET /v1/cloud/accounts/{id}/files/download", h.handleAccountDownload)
+	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files/sign", requireAuth("", h.handleSignDownload))
 	mux.HandleFunc("POST /v1/cloud/accounts/{id}/files/publiclink", requireAuth("", h.handleAccountPublicLink))
 	mux.HandleFunc("POST /v1/cloud/transfer", requireAuth("", h.handleTransfer))
 	mux.HandleFunc("GET /v1/cloud/transfers/{id}", requireAuth("", h.handleTransferStatus))
@@ -140,8 +147,11 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 	googleConfigured := h.manager != nil && h.manager.GoogleConfigured(r.Context())
 	microsoftConfigured := h.manager != nil && h.manager.MicrosoftConfigured(r.Context())
+	dropboxConfigured := h.manager != nil && h.manager.DropboxConfigured(r.Context())
+	// s3 uses static access keys — the connect form is always available.
+	s3Configured := h.manager != nil
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled": h.enabled && (googleConfigured || microsoftConfigured),
+		"enabled": h.enabled && (googleConfigured || microsoftConfigured || dropboxConfigured || s3Configured),
 		"edition": h.editionName(),
 		"providers": map[string]any{
 			"google": map[string]bool{
@@ -149,6 +159,12 @@ func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 			},
 			"onedrive": map[string]bool{
 				"configured": microsoftConfigured,
+			},
+			"dropbox": map[string]bool{
+				"configured": dropboxConfigured,
+			},
+			"s3": map[string]bool{
+				"configured": s3Configured,
 			},
 		},
 	})
@@ -176,9 +192,12 @@ func (h *CloudHandler) handleGetSettings(w http.ResponseWriter, r *http.Request)
 	provider := h.requestProvider(r)
 	var clientID string
 	var secretSet bool
-	if provider == cloudmgr.MicrosoftProvider {
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		clientID, secretSet = h.manager.MicrosoftCredentialsStatus(r.Context())
-	} else {
+	case cloudmgr.DropboxProvider:
+		clientID, secretSet = h.manager.DropboxCredentialsStatus(r.Context())
+	default:
 		clientID, secretSet = h.manager.GoogleCredentialsStatus(r.Context())
 	}
 	writeJSON(w, http.StatusOK, cloudSettingsView{
@@ -217,9 +236,12 @@ func (h *CloudHandler) handlePutSettings(w http.ResponseWriter, r *http.Request)
 	}
 	// First-time save requires a secret; updates may omit it (keep existing).
 	alreadySet := false
-	if provider == cloudmgr.MicrosoftProvider {
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		_, alreadySet = h.manager.MicrosoftCredentialsStatus(r.Context())
-	} else {
+	case cloudmgr.DropboxProvider:
+		_, alreadySet = h.manager.DropboxCredentialsStatus(r.Context())
+	default:
 		_, alreadySet = h.manager.GoogleCredentialsStatus(r.Context())
 	}
 	if !alreadySet && in.ClientSecret == "" {
@@ -227,9 +249,12 @@ func (h *CloudHandler) handlePutSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var err error
-	if provider == cloudmgr.MicrosoftProvider {
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		err = h.manager.SaveMicrosoftCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
-	} else {
+	case cloudmgr.DropboxProvider:
+		err = h.manager.SaveDropboxCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
+	default:
 		err = h.manager.SaveGoogleCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
 	}
 	if err != nil {
@@ -251,9 +276,15 @@ func (h *CloudHandler) requestProvider(r *http.Request) string {
 	return provider
 }
 
-// validProvider writes a 400 unless the ?provider= value is connectable.
+// validProvider writes a 400 unless the ?provider= value has OAuth-client
+// settings (s3 authenticates with static keys — per-account, not here).
 func (h *CloudHandler) validProvider(w http.ResponseWriter, r *http.Request) bool {
-	if cloudmgr.IsSupportedProvider(h.requestProvider(r)) {
+	provider := h.requestProvider(r)
+	if provider == cloudmgr.S3Provider {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "s3 has no OAuth client settings — connect with access keys"})
+		return false
+	}
+	if cloudmgr.IsSupportedProvider(provider) {
 		return true
 	}
 	writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
@@ -359,6 +390,48 @@ func (h *CloudHandler) handleSetShared(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("cloud: account shared flag updated", "account_id", id, "shared", *in.Shared)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// --- PUT /v1/cloud/accounts/{id}/agent-access ---
+
+type cloudAgentAccessInput struct {
+	Access string `json:"access"`
+}
+
+// handleSetAgentAccess sets the per-account agent permission level
+// (none|read|write|full). Tenant-admin gated like the shared flag: the level
+// governs what every agent in the tenant may do with the account through the
+// cloud/mail tools; the web UI is unaffected.
+func (h *CloudHandler) handleSetAgentAccess(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) || !h.tenantAdmin(w, r) {
+		return
+	}
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid account id"})
+		return
+	}
+	var in cloudAgentAccessInput
+	locale := store.LocaleFromContext(r.Context())
+	if !bindJSON(w, r, locale, &in) {
+		return
+	}
+	level, err := cloudmgr.NormalizeAgentAccess(in.Access)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := h.accounts.SetAgentAccess(r.Context(), id, string(level)); err != nil {
+		if errors.Is(err, store.ErrCloudAccountNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found"})
+			return
+		}
+		slog.Error("cloud: set agent access failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update account"})
+		return
+	}
+	slog.Info("cloud: account agent access updated", "account_id", id, "agent_access", level)
+	writeJSON(w, http.StatusOK, map[string]string{"agent_access": string(level)})
 }
 
 // --- /v1/cloud/bindings ---
@@ -923,10 +996,23 @@ func (h *CloudHandler) handleAccountUpload(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]any{"path": remotePath, "filename": name, "size": written})
 }
 
-// handleAccountDownload streams one remote file to the browser. Read-only —
-// any caller who can see the account; no write guard. Over-cap requests get
-// a clear 413 before any transfer starts.
-func (h *CloudHandler) handleAccountDownload(w http.ResponseWriter, r *http.Request) {
+// cloudSignedDownloadTTL bounds signed download URLs (thumbnails/previews
+// re-sign on demand; the token never outlives a browsing session usefully).
+const cloudSignedDownloadTTL = 10 * time.Minute
+
+// cloudSignPayload binds the signed token to (tenant, user, account, path).
+// The expiry is NOT embedded here — SignFileToken already HMACs the suffix
+// expiry together with this payload, and keeping it out avoids a
+// sign/verify second-boundary race (the two time.Now() calls disagree).
+func cloudSignPayload(tenantID, userID, accountID, path string) string {
+	return fmt.Sprintf("cloud-dl|%s|%s|%s|%s", tenantID, userID, accountID, path)
+}
+
+// handleSignDownload issues a short-lived signed download URL for one remote
+// path (POST body {path}). The URL authenticates <img>/<video> tags that
+// cannot send Bearer headers. Auth + accessibility are enforced here; the
+// signed token only re-proves THIS tenant+user+account+path tuple.
+func (h *CloudHandler) handleSignDownload(w http.ResponseWriter, r *http.Request) {
 	if !h.available(w, r) {
 		return
 	}
@@ -934,17 +1020,95 @@ func (h *CloudHandler) handleAccountDownload(w http.ResponseWriter, r *http.Requ
 	if acct == nil {
 		return
 	}
+	var in cloudFolderPath
+	if !bindJSON(w, r, store.LocaleFromContext(r.Context()), &in) {
+		return
+	}
+	path, err := cloudmgr.CleanRemotePath(in.Path)
+	if err != nil {
+		rejectBadPath(w, "sign", in.Path)
+		return
+	}
+	tenantID := store.TenantIDFromContext(r.Context()).String()
+	userID := store.UserIDFromContext(r.Context())
+	payload := cloudSignPayload(tenantID, userID, acct.ID, path)
+	ft := SignFileToken(payload, FileSigningKey(), cloudSignedDownloadTTL)
+	// t/u are opaque echoes of the HMAC-bound identity (the token itself stays
+	// unguessable; the echo only lets the server rebuild the payload).
+	signed := fmt.Sprintf("/v1/cloud/accounts/%s/files/download?path=%s&ft=%s&t=%s&u=%s",
+		acct.ID, url.QueryEscape(path), url.QueryEscape(ft),
+		url.QueryEscape(tenantID), url.QueryEscape(userID))
+	writeJSON(w, http.StatusOK, map[string]string{"url": signed})
+}
+
+// handleAccountDownload streams one remote file to the browser with HTTP
+// byte-range relay (video previews / seeking never copy the whole file).
+// Read-only — any caller who can see the account; over-cap requests get a
+// clear 413 before any transfer starts. Auth: Bearer session OR signed ?ft=.
+func (h *CloudHandler) handleAccountDownload(w http.ResponseWriter, r *http.Request) {
+	if ft := r.URL.Query().Get("ft"); ft != "" {
+		// Signed-token mode: reconstruct the (tenant, user) ctx from the
+		// HMAC-verified payload — no Bearer session is available.
+		raw := r.URL.Query().Get("path")
+		path, perr := cloudmgr.CleanRemotePath(raw)
+		if perr != nil {
+			rejectBadPath(w, "download", raw)
+			return
+		}
+		id := r.PathValue("id")
+		if _, err := uuid.Parse(id); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid account id"})
+			return
+		}
+		tenantEcho := r.URL.Query().Get("t")
+		userEcho := r.URL.Query().Get("u")
+		expiry, exErr := strconv.ParseInt(ft[strings.LastIndex(ft, ".")+1:], 10, 64)
+		if tenantEcho == "" || userEcho == "" || exErr != nil || time.Now().Unix() > expiry ||
+			!VerifyFileToken(ft, cloudSignPayload(tenantEcho, userEcho, id, path), FileSigningKey()) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired download token"})
+			return
+		}
+		tenantID, tErr := uuid.Parse(tenantEcho)
+		if tErr != nil {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired download token"})
+			return
+		}
+		r = r.Clone(store.WithUserID(store.WithTenantID(r.Context(), tenantID), userEcho))
+		h.streamCloudDownload(w, r, id, path)
+		return
+	}
+	// Bearer-session mode: run the standard auth middleware, then stream.
+	requireAuth("", func(w http.ResponseWriter, r *http.Request) {
+		if !h.available(w, r) {
+			return
+		}
+		acct := h.accessibleAccount(w, r)
+		if acct == nil {
+			return
+		}
+		raw := r.URL.Query().Get("path")
+		path, err := cloudmgr.CleanRemotePath(raw)
+		if err != nil {
+			rejectBadPath(w, "download", raw)
+			return
+		}
+		h.streamCloudDownload(w, r, acct.ID, path)
+	})(w, r)
+}
+
+// streamCloudDownload resolves the account and streams the file body with
+// Range relay. The caller has already authenticated + validated the path.
+func (h *CloudHandler) streamCloudDownload(w http.ResponseWriter, r *http.Request, accountID, path string) {
 	st := h.storageLayer(w)
 	if st == nil {
 		return
 	}
-	raw := r.URL.Query().Get("path")
-	path, err := cloudmgr.CleanRemotePath(raw)
+	acct, err := h.manager.AccountByID(r.Context(), accountID)
 	if err != nil {
-		rejectBadPath(w, "download", raw)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found"})
 		return
 	}
-	df, err := st.DownloadAccount(r.Context(), acct, path, h.fetchCapMB)
+	content, info, err := st.OpenAccount(r.Context(), acct, path, r.Header.Get("Range"), h.fetchCapMB)
 	if err != nil {
 		if errors.Is(err, cloudmgr.ErrFileTooLarge) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": err.Error()})
@@ -953,19 +1117,33 @@ func (h *CloudHandler) handleAccountDownload(w http.ResponseWriter, r *http.Requ
 		h.storageError(w, err)
 		return
 	}
-	// The temp copy lives exactly as long as this request.
-	defer os.RemoveAll(df.Dir)
-	f, err := os.Open(filepath.Join(df.Dir, df.Name))
-	if err != nil {
-		h.storageError(w, err)
-		return
+	defer content.Close()
+
+	name := info.Name
+	if name == "" {
+		name = pathDisplayName(path)
 	}
-	defer f.Close()
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", df.Name))
-	if df.Stat != nil && df.Stat.MimeType != "" {
-		w.Header().Set("Content-Type", df.Stat.MimeType)
+	status := http.StatusOK
+	if content.Status == http.StatusPartialContent {
+		status = http.StatusPartialContent
 	}
-	http.ServeContent(w, r, df.Name, time.Time{}, f)
+	mimeType := content.MimeType
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = info.MimeType
+	}
+	if mimeType != "" {
+		w.Header().Set("Content-Type", mimeType)
+	}
+	w.Header().Set("Accept-Ranges", "bytes")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
+	if content.Status == http.StatusPartialContent && content.ContentRange != "" {
+		w.Header().Set("Content-Range", content.ContentRange)
+	}
+	if content.Length >= 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(content.Length, 10))
+	}
+	w.WriteHeader(status)
+	_, _ = io.Copy(w, content)
 }
 
 // handleAccountPublicLink creates/retrieves a public share link. Guarded like
@@ -1084,6 +1262,7 @@ func (h *CloudHandler) handleTransferStatus(w http.ResponseWriter, r *http.Reque
 		"finished": job.Finished,
 		"success":  job.Success,
 		"error":    job.Error,
+		"progress": map[string]int64{"files_done": job.FilesDone, "files_total": job.FilesTotal},
 	})
 }
 
@@ -1462,9 +1641,20 @@ func pathDisplayName(path string) string {
 	return path
 }
 
-// storageError maps rclone-layer failures to status codes.
-func (h *CloudHandler) storageError(w http.ResponseWriter, err error) {	if errors.Is(err, cloudmgr.ErrRCloneMissing) {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+// storageError maps native storage-layer failures to status codes.
+func (h *CloudHandler) storageError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, cloudmgr.ErrNotFound):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "cloud: path not found"})
+		return
+	case errors.Is(err, cloudmgr.ErrFileTooLarge):
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": err.Error()})
+		return
+	case errors.Is(err, cloudmgr.ErrDirNotEmpty):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "directory not empty"})
+		return
+	case errors.Is(err, cloudmgr.ErrNoDrive):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
 	}
 	slog.Warn("cloud: storage detail failed", "error", err)
@@ -1485,6 +1675,52 @@ type cloudStartResponse struct {
 	// browser lands back on the server callback) or "paste" (embedded shared
 	// client — the browser lands on a loopback URL the user pastes back).
 	Mode string `json:"mode"`
+}
+
+// --- POST /v1/cloud/accounts/s3 (access-key connect — no OAuth flow) ---
+
+type cloudS3ConnectInput struct {
+	Label     string `json:"label"`
+	Endpoint  string `json:"endpoint"`
+	Region    string `json:"region"`
+	Bucket    string `json:"bucket"`
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+}
+
+// handleConnectS3 validates and stores an S3-compatible account (R2, B2,
+// Wasabi, MinIO, DO Spaces, AWS). The keys never round-trip back to the
+// client — the response is the same account view the list endpoint returns.
+func (h *CloudHandler) handleConnectS3(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	var in cloudS3ConnectInput
+	locale := store.LocaleFromContext(r.Context())
+	if !bindJSON(w, r, locale, &in) {
+		return
+	}
+	tenantID := store.TenantIDFromContext(r.Context())
+	userID := store.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing user identity"})
+		return
+	}
+	acct, err := h.manager.ConnectS3(r.Context(), tenantID.String(), userID, cloudmgr.S3ConnectInput{
+		Label:     in.Label,
+		Endpoint:  in.Endpoint,
+		Region:    in.Region,
+		Bucket:    in.Bucket,
+		AccessKey: in.AccessKey,
+		SecretKey: in.SecretKey,
+	})
+	if err != nil {
+		slog.Warn("cloud: s3 connect failed", "error", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	slog.Info("cloud: s3 account connected", "bucket", in.Bucket)
+	writeJSON(w, http.StatusOK, cloudAccountView{CloudAccount: *acct, CanWrite: true})
 }
 
 func (h *CloudHandler) handleStart(w http.ResponseWriter, r *http.Request) {
