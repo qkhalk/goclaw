@@ -25,6 +25,7 @@ type VideoRenderJob struct {
 	OutputPath       string     `json:"output_path"`
 	OutputSizeBytes  int64      `json:"output_size_bytes"`
 	Error            string     `json:"error"`
+	DownloadURL      string     `json:"download_url,omitempty" db:"-"` // signed /v1/files URL, populated at delivery time (never persisted)
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 	StartedAt        *time.Time `json:"started_at,omitempty"`
