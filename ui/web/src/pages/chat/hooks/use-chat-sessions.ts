@@ -3,6 +3,7 @@ import { useWs } from "@/hooks/use-ws";
 import { useWsEvent } from "@/hooks/use-ws-event";
 import { Methods, Events } from "@/api/protocol";
 import type { SessionInfo } from "@/types/session";
+import { sessionOrigin } from "@/lib/session-origin";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { toast } from "@/stores/use-toast-store";
 import i18next from "i18next";
@@ -29,7 +30,14 @@ export function useChatSessions(agentId: string) {
         Methods.SESSIONS_LIST,
         { agentId, channel: "ws" },
       );
-      const sorted = (res.sessions ?? []).sort(
+      // Studio sessions (video/pptx designer chats) never belong in the
+      // /chat sidebar — they live on their own tool pages. The backend
+      // filters by agentId when one is selected; this covers the unscoped
+      // default list (agentId === "").
+      const usable = (res.sessions ?? []).filter(
+        (s: SessionInfo) => sessionOrigin(s.key) !== "video" && sessionOrigin(s.key) !== "pptx",
+      );
+      const sorted = usable.sort(
         (a: SessionInfo, b: SessionInfo) =>
           new Date(b.updated).getTime() - new Date(a.updated).getTime(),
       );
