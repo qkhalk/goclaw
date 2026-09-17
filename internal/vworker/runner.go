@@ -22,6 +22,10 @@ type Runner struct {
 	jobs map[string]*jobState
 }
 
+// narrationTailSec is the breathing room added when a scene is stretched to
+// fit its narration — the voice should land, not get clipped on the cut.
+const narrationTailSec = 0.35
+
 // jobState holds per-job mutable state.
 type jobState struct {
 	mu       sync.Mutex
@@ -205,48 +209,20 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		narrMap[na.SceneIndex] = na.AudioPath
 	}
 
-	// Transition timeline math: xfade overlaps scene tails by transitionSec,
-	// so every scene except the last renders transitionSec longer — the
-	// output start of scene i then still equals the sum of the original
-	// durations, keeping narration alignment exact.
-	hasTransitions := false
-	for i := 1; i < len(sb.Scenes); i++ {
-		if tr := sb.Scenes[i].Transition; tr != "" && tr != "none" {
-			hasTransitions = true
-			break
-		}
-	}
-	offsets := make([]float64, 0, len(sb.Scenes)-1) // absolute start of scene i (i>=1)
-	if hasTransitions {
-		// Scene renders grow by transitionSec; let the safety cap follow so
-		// the builder never trims the overlap away (that would desync xfade).
-		if ffcfg.MaxSceneSec > 0 {
-			ffcfg.MaxSceneSec += transitionSec
-		}
-		cum := 0.0
-		for i := 0; i < len(sb.Scenes); i++ {
-			cum += sb.Scenes[i].DurationSec
-			if i < len(sb.Scenes)-1 {
-				offsets = append(offsets, cum)
-				sb.Scenes[i].DurationSec += transitionSec
-			}
-		}
-	}
-
-	// Per-scene: narrate + render
-	sceneFiles := make([]string, len(sb.Scenes))
+	// Narration pre-pass: synthesize (or materialize) every scene's audio,
+	// probe its real duration, and stretch scenes whose narration does not
+	// fit. This runs BEFORE the transition-offset math below — extending a
+	// scene after it would desync both the xfade offsets and the adelay mix
+	// times from the actual scene boundaries.
 	narrFiles := make([]string, len(sb.Scenes))
-	for i, sc := range sb.Scenes {
+	for i := range sb.Scenes {
 		select {
 		case <-ctx.Done():
 			r.cancelJob(js)
 			return
 		default:
 		}
-
-		slog.Info("rendering scene", "job", job.JobID, "scene", i, "type", sc.Type)
-
-		// Narration: use pre-synthesized or synthesize on the fly
+		sc := &sb.Scenes[i]
 		var narrPath string
 		if p, ok := narrMap[i]; ok && p != "" {
 			// Pre-synthesized narration
@@ -265,6 +241,73 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 			}
 		}
 		narrFiles[i] = narrPath
+
+		if narrPath == "" {
+			continue
+		}
+		dur, err := ProbeDuration(ctx, r.cfg.FFProbePath, narrPath)
+		if err != nil {
+			slog.Warn("narration probe failed", "scene", i, "err", err)
+			continue
+		}
+		if dur <= 0 {
+			continue
+		}
+		if need := dur + narrationTailSec; sc.DurationSec < need {
+			slog.Info("extending scene to fit narration", "job", job.JobID,
+				"scene", i, "from", sc.DurationSec, "to", need)
+			sc.DurationSec = need
+		}
+	}
+
+	// Transition timeline math: xfade overlaps scene tails by transitionSec,
+	// so every scene except the last renders transitionSec longer — the
+	// output start of scene i then still equals the sum of the original
+	// durations, keeping narration alignment exact.
+	hasTransitions := false
+	for i := 1; i < len(sb.Scenes); i++ {
+		if tr := sb.Scenes[i].Transition; tr != "" && tr != "none" {
+			hasTransitions = true
+			break
+		}
+	}
+	// sceneStarts[i] is scene i's start in the final timeline (sum of the
+	// scene durations as they are now — narration-fitted, pre-padding); the
+	// adelay mix pins each narration clip to exactly this time.
+	sceneStarts := make([]float64, len(sb.Scenes))
+	offsets := make([]float64, 0, len(sb.Scenes)-1) // absolute start of scene i (i>=1)
+	if hasTransitions {
+		// Scene renders grow by transitionSec; let the safety cap follow so
+		// the builder never trims the overlap away (that would desync xfade).
+		if ffcfg.MaxSceneSec > 0 {
+			ffcfg.MaxSceneSec += transitionSec
+		}
+	}
+	cum := 0.0
+	for i := 0; i < len(sb.Scenes); i++ {
+		sceneStarts[i] = cum
+		cum += sb.Scenes[i].DurationSec
+		if hasTransitions && i < len(sb.Scenes)-1 {
+			offsets = append(offsets, cum)
+			sb.Scenes[i].DurationSec += transitionSec
+		}
+	}
+	// Final video length: with xfade the padded tails are consumed by the
+	// transitions, so this sum-of-originals is the timeline length in both
+	// the concat and xfade paths — the silence base for the audio mix.
+	totalDur := cum
+
+	// Per-scene: render (narration was synthesized in the pre-pass above)
+	sceneFiles := make([]string, len(sb.Scenes))
+	for i, sc := range sb.Scenes {
+		select {
+		case <-ctx.Done():
+			r.cancelJob(js)
+			return
+		default:
+		}
+
+		slog.Info("rendering scene", "job", job.JobID, "scene", i, "type", sc.Type)
 
 		// Materialize source asset
 		scenePath, err := r.materializeSource(ctx, &sb.Scenes[i], tempDir)
@@ -353,11 +396,18 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		}
 	}
 
-	// Filter out empty narration files
-	validNarrFiles := filterEmpty(narrFiles)
+	// Narration tracks pinned to each scene's start in the final timeline —
+	// scenes without narration no longer push later audio out of sync.
+	var tracks []NarrTrack
+	for i, p := range narrFiles {
+		if p == "" || i >= len(sceneStarts) {
+			continue
+		}
+		tracks = append(tracks, NarrTrack{Path: p, StartSec: sceneStarts[i]})
+	}
 
 	mixArgs := buildMixArgs(ffcfg, concatOut, outputPath,
-		validNarrFiles, bgmPath, sb.Audio, fps)
+		tracks, bgmPath, sb.Audio, fps, totalDur)
 
 	if err := execFFmpeg(ctx, r.cfg.FFmpegPath, mixArgs); err != nil {
 		r.failJob(js, fmt.Sprintf("mix audio: %v", err))
@@ -470,16 +520,6 @@ func effectiveCanvas(sb *contract.Storyboard) (w, h, fps int) {
 }
 
 // filterEmpty removes empty strings from a slice.
-func filterEmpty(ss []string) []string {
-	var result []string
-	for _, s := range ss {
-		if s != "" {
-			result = append(result, s)
-		}
-	}
-	return result
-}
-
 // sortJobsByAge returns job IDs sorted by creation time (oldest first).
 // Used by cleanup to process jobs in order.
 func sortJobsByAge(jobs map[string]*jobState) []string {

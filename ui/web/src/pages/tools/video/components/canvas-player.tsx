@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Play,
@@ -7,9 +7,21 @@ import {
   SkipForward,
   ChevronLeft,
   ChevronRight,
+  Volume2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useTtsCapabilities } from "@/api/tts-capabilities";
 import { useCanvasPlayer } from "../hooks/use-canvas-player";
+import type { NarrationAudioController } from "../hooks/use-narration-audio";
+import { FALLBACK_EDGE_VOICES } from "../hooks/use-narration-audio";
 import type { Scene } from "../hooks/use-timeline";
 
 // ── Types (Scene is the canonical model from use-timeline) ──
@@ -24,6 +36,10 @@ interface Storyboard {
 
 interface CanvasPlayerProps {
   storyboard: Storyboard;
+  narration?: NarrationAudioController;
+  /** Storyboard-level default TTS voice (edge-tts id), applied at submit. */
+  defaultVoice?: string;
+  onDefaultVoiceChange?: (voice: string) => void;
 }
 
 // ── Time formatting ──
@@ -36,15 +52,21 @@ function formatTime(seconds: number): string {
 
 // ── Component ──
 
-export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
+export function CanvasPlayer({ storyboard, narration, defaultVoice, onDefaultVoiceChange }: CanvasPlayerProps) {
   const { t } = useTranslation("toolbox");
-  const player = useCanvasPlayer(storyboard);
+  const player = useCanvasPlayer(storyboard, narration);
   const containerRef = useRef<HTMLDivElement>(null);
   // The resize effect must not depend on the player's identity: player.state
   // changes every frame during playback, which would tear down and rebuild
   // the ResizeObserver per frame.
   const playerRef = useRef(player);
   playerRef.current = player;
+
+  const { data: capabilities } = useTtsCapabilities();
+  const edgeVoices = useMemo(() => {
+    const fromApi = capabilities?.find((p) => p.provider === "edge")?.voices ?? [];
+    return fromApi.length > 0 ? fromApi : FALLBACK_EDGE_VOICES;
+  }, [capabilities]);
 
   // Auto-resize canvas to container (16px = the container's p-2 padding)
   const handleResize = useCallback(() => {
@@ -189,11 +211,40 @@ export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
         </span>
       </div>
 
-      {/* Scene indicator */}
-      <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+      {/* Scene indicator + default voice + narration synth status */}
+      <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-muted-foreground">
         <span>
           {t("video.scene_n", { n: currentSceneIndex + 1 })} / {storyboard.scenes.length}
         </span>
+        {narration && narration.pendingCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-primary">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t("video.tts_loading")}
+          </span>
+        )}
+        {onDefaultVoiceChange && (
+          <div className="ml-auto flex items-center gap-1.5">
+            <Volume2 className="h-3.5 w-3.5 shrink-0" />
+            <Select value={defaultVoice ?? ""} onValueChange={onDefaultVoiceChange}>
+              <SelectTrigger
+                className="h-8 w-auto max-w-[220px] text-xs"
+                aria-label={t("video.voice_global")}
+              >
+                <SelectValue placeholder={t("video.voice_global")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto" className="text-xs">
+                  {t("video.voice_auto")}
+                </SelectItem>
+                {edgeVoices.map((v) => (
+                  <SelectItem key={v.voice_id} value={v.voice_id} className="text-xs">
+                    {v.name || v.voice_id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -247,12 +247,15 @@ func TestBuildConcatArgs(t *testing.T) {
 
 func TestBuildMixArgs_NarrationAndBGM(t *testing.T) {
 	cfg := FFmpegConfig{}
-	narrFiles := []string{"/tmp/narr_001.mp3", "/tmp/narr_002.mp3"}
+	narr := []NarrTrack{
+		{Path: "/tmp/narr_001.mp3", StartSec: 0},
+		{Path: "/tmp/narr_002.mp3", StartSec: 5.5},
+	}
 	bgmPath := "/tmp/bgm.mp3"
 	mix := contract.AudioMix{BGMVolume: 0.3, NarrationVolume: 0.8}
 
 	args := buildMixArgs(cfg, "/tmp/video.mp4", "/tmp/final.mp4",
-		narrFiles, bgmPath, mix, 30)
+		narr, bgmPath, mix, 30, 12.0)
 
 	// Should have filter_complex
 	if !containsArg(args, "-filter_complex") {
@@ -262,22 +265,33 @@ func TestBuildMixArgs_NarrationAndBGM(t *testing.T) {
 	if !containsArg(args, "aac") {
 		t.Error("expected aac codec")
 	}
-	// Should have 3 inputs (video + 2 narr + 1 bgm = 4)
+	// Should have 5 inputs (video + silence base + 2 narr + 1 bgm)
 	inputCount := 0
 	for _, a := range args {
 		if a == "-i" {
 			inputCount++
 		}
 	}
-	if inputCount != 4 {
-		t.Errorf("expected 4 inputs (video + 2 narr + 1 bgm), got %d", inputCount)
+	if inputCount != 5 {
+		t.Errorf("expected 5 inputs (video + silence + 2 narr + 1 bgm), got %d", inputCount)
+	}
+	// Narration clips are delayed to their scene starts, not concatenated
+	fc := filterArg(args, "-filter_complex")
+	if !strings.Contains(fc, "adelay=0:all=1") {
+		t.Errorf("expected adelay=0 for the first track, got %s", fc)
+	}
+	if !strings.Contains(fc, "adelay=5500:all=1") {
+		t.Errorf("expected adelay=5500 for the second track, got %s", fc)
+	}
+	if strings.Contains(fc, "concat=") {
+		t.Errorf("narration must not be concatenated: %s", fc)
 	}
 }
 
 func TestBuildMixArgs_NoAudio(t *testing.T) {
 	cfg := FFmpegConfig{}
 	args := buildMixArgs(cfg, "/tmp/video.mp4", "/tmp/final.mp4",
-		nil, "", contract.AudioMix{}, 30)
+		nil, "", contract.AudioMix{}, 30, 10.0)
 
 	if containsArg(args, "-filter_complex") {
 		t.Error("no filter_complex expected with no audio")
@@ -286,13 +300,17 @@ func TestBuildMixArgs_NoAudio(t *testing.T) {
 
 func TestBuildMixArgs_NarrationOnly(t *testing.T) {
 	cfg := FFmpegConfig{}
-	narrFiles := []string{"/tmp/narr_001.mp3"}
+	narr := []NarrTrack{{Path: "/tmp/narr_001.mp3", StartSec: 2.0}}
 
 	args := buildMixArgs(cfg, "/tmp/video.mp4", "/tmp/final.mp4",
-		narrFiles, "", contract.AudioMix{}, 30)
+		narr, "", contract.AudioMix{}, 30, 10.0)
 
 	if !containsArg(args, "-filter_complex") {
 		t.Error("expected filter_complex for narration")
+	}
+	fc := filterArg(args, "-filter_complex")
+	if !strings.Contains(fc, "adelay=2000:all=1") {
+		t.Errorf("expected adelay=2000, got %s", fc)
 	}
 }
 
@@ -423,4 +441,14 @@ func indexOfArg(args []string, val string) int {
 		}
 	}
 	return -1
+}
+
+// filterArg returns the value following the named flag, or "" when absent.
+func filterArg(args []string, flag string) string {
+	for i, a := range args {
+		if a == flag && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
 }

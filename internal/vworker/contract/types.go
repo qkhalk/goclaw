@@ -41,6 +41,11 @@ type Scene struct {
 	Type        SceneKind  `json:"type"`
 	Source      string     `json:"source,omitempty"` // workspace-relative path or URL
 	Color       string     `json:"color,omitempty"`  // "#RRGGBB" for color scenes
+	// Color2 is the optional second gradient stop of a color scene; empty
+	// falls back to a darker shade of Color. Grid overlays a faint blueprint
+	// grid (both mirror internal/video — keep the copy-shapes in sync).
+	Color2      string     `json:"color2,omitempty"`
+	Grid        bool       `json:"grid,omitempty"`
 	DurationSec float64    `json:"duration_sec"`
 	Fit         string     `json:"fit,omitempty"` // cover|contain
 	Mute        bool       `json:"mute,omitempty"`

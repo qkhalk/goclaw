@@ -80,6 +80,8 @@ func NarratorFromName(provider, defaultVoice string) Narrator {
 
 // SynthesizeScene narrates a scene's narration text if present.
 // Returns the audio file path, or empty string if no narration.
+// edge-tts intermittently 403s a datacenter IP on first contact — retry
+// once after a short backoff before giving up on the scene's audio.
 func SynthesizeScene(ctx context.Context, narrator Narrator, sceneIndex int, narrationText, narrationVoice, tempDir string) (string, error) {
 	if narrationText == "" {
 		return "", nil
@@ -88,7 +90,21 @@ func SynthesizeScene(ctx context.Context, narrator Narrator, sceneIndex int, nar
 	outPath := filepath.Join(tempDir, fmt.Sprintf("narr_%03d.mp3", sceneIndex))
 	start := time.Now()
 
-	if err := narrator.Synthesize(ctx, narrationText, narrationVoice, outPath); err != nil {
+	err := narrator.Synthesize(ctx, narrationText, narrationVoice, outPath)
+	if err != nil {
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("synthesize scene %d: %w", sceneIndex, err)
+		case <-time.After(2 * time.Second):
+		}
+		slog.Warn("narration synth retrying after failure", "scene", sceneIndex, "err", err)
+		if retryErr := narrator.Synthesize(ctx, narrationText, narrationVoice, outPath); retryErr == nil {
+			err = nil
+		} else {
+			err = retryErr
+		}
+	}
+	if err != nil {
 		return "", fmt.Errorf("synthesize scene %d: %w", sceneIndex, err)
 	}
 

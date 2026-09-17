@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Clapperboard,
@@ -8,6 +8,7 @@ import {
   Loader2,
   RefreshCw,
   Trash2,
+  Eraser,
   Wand2,
   X,
 } from "lucide-react";
@@ -33,6 +34,8 @@ import {
   type VideoRenderJob,
 } from "./hooks/use-video";
 import { useTimeline, type Scene } from "./hooks/use-timeline";
+import { useNarrationAudio } from "./hooks/use-narration-audio";
+import { normalizeEditorScenes } from "./lib/storyboard-wire";
 import { useVideoExport, exportExtension } from "./hooks/use-video-export";
 import { CanvasPlayer } from "./components/canvas-player";
 import { Timeline } from "./components/timeline";
@@ -47,11 +50,17 @@ interface StoryboardMeta {
   canvas: { width: number; height: number; fps: number };
   audio?: { bgm_path?: string; bgm_volume?: number };
   output?: { format?: string; height?: number };
+  /** Client-only default TTS voice for scene narrations (edge-tts id);
+   * applied per scene at submit time, stripped from the wire payload. */
+  narration_voice?: string;
 }
 
 export interface Storyboard extends StoryboardMeta {
   scenes: Scene[];
 }
+
+/** localStorage draft key — the storyboard survives tab/app reloads. */
+const DRAFT_KEY = "goclaw:video-draft:v1";
 
 const ASPECTS = {
   "9:16": { width: 1080, height: 1920 },
@@ -124,6 +133,12 @@ export function VideoToolPage() {
   // the canvas player or the submit payload from the timeline strip.
   const timeline = useTimeline();
 
+  // Real-TTS narration audio shared by the player, the per-scene listen
+  // button, and the duration-fit hint. Falls back to the storyboard-level
+  // default voice when a scene has no override.
+  const defaultVoice = meta.narration_voice && meta.narration_voice !== "auto" ? meta.narration_voice : undefined;
+  const narrationAudio = useNarrationAudio(defaultVoice);
+
   const sb: Storyboard = useMemo(
     () => ({ ...meta, scenes: timeline.state.scenes }),
     [meta, timeline.state.scenes],
@@ -133,16 +148,59 @@ export function VideoToolPage() {
     setMeta((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // Draft persistence: restore once on mount, save debounced on every edit.
+  const draftRestoredRef = useRef(false);
+  useEffect(() => {
+    if (draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Storyboard;
+      if (!parsed || !Array.isArray(parsed.scenes) || parsed.scenes.length === 0) return;
+      const { scenes, ...parsedMeta } = parsed;
+      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
+      timeline.replaceScenes(normalizeEditorScenes(scenes));
+      toast.success(t("video.draft_restored"));
+    } catch {
+      // Corrupted draft — start fresh rather than blocking the page.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(sb));
+      } catch {
+        // Storage full/unavailable — drafts are best-effort.
+      }
+    }, 800);
+    return () => clearTimeout(id);
+  }, [sb]);
+
+  function clearDraft() {
+    localStorage.removeItem(DRAFT_KEY);
+    setMeta(defaultStoryboard());
+    timeline.replaceScenes([{ type: "image", source: "", duration_sec: 5, fit: "cover" }]);
+    toast.success(t("video.draft_cleared"));
+  }
+
   /** Apply a designer-produced storyboard: meta fields go to the form,
    * scenes replace the timeline (one history entry, undo works). */
   const applyStoryboard = useCallback((next: Storyboard) => {
-    setMeta({
+    setMeta((prev) => ({
       version: next.version ?? 1,
       canvas: next.canvas ?? defaultStoryboard().canvas,
       audio: next.audio,
       output: next.output,
-    });
-    timeline.replaceScenes(next.scenes?.length ? next.scenes : [{ type: "image", source: "", duration_sec: 5, fit: "cover" }]);
+      narration_voice: next.narration_voice ?? prev.narration_voice,
+    }));
+    timeline.replaceScenes(
+      next.scenes?.length
+        ? normalizeEditorScenes(next.scenes)
+        : [{ type: "image", source: "", duration_sec: 5, fit: "cover" }],
+    );
   }, [timeline]);
 
   // Export
@@ -184,7 +242,7 @@ export function VideoToolPage() {
       if (!parsed || typeof parsed !== "object") throw new Error("not an object");
       const { scenes, ...parsedMeta } = parsed;
       setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
-      timeline.replaceScenes(scenes ?? []);
+      timeline.replaceScenes(normalizeEditorScenes(scenes ?? []));
       setJsonError("");
       setShowJson(false);
     } catch (e) {
@@ -409,7 +467,12 @@ export function VideoToolPage() {
         {/* ── Editor Tab ── */}
         <TabsContent value="editor" className="flex flex-col gap-4">
           {/* Canvas Player */}
-          <CanvasPlayer storyboard={sb} />
+          <CanvasPlayer
+            storyboard={sb}
+            narration={narrationAudio}
+            defaultVoice={defaultVoice}
+            onDefaultVoiceChange={(v) => updateMeta({ narration_voice: v === "auto" ? undefined : v })}
+          />
 
           {/* Timeline */}
           <div className="rounded-lg border p-3">
@@ -434,6 +497,7 @@ export function VideoToolPage() {
               scene={timeline.state.scenes[timeline.state.selectedIndex]!}
               index={timeline.state.selectedIndex}
               total={timeline.state.scenes.length}
+              narration={narrationAudio}
               onUpdate={(patch) =>
                 timeline.updateScene(timeline.state.selectedIndex, patch)
               }
@@ -459,14 +523,26 @@ export function VideoToolPage() {
               {t("video.total_duration", { sec: totalSec.toFixed(1) })} ·{" "}
               {t("video.scenes_count", { n: sb.scenes.length })}
             </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowJson((v) => !v)}
-              className="min-h-11 sm:min-h-9"
-            >
-              {t("video.json_mode")}
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearDraft}
+                title={t("video.draft_clear_hint")}
+                className="min-h-11 sm:min-h-9"
+              >
+                <Eraser className="mr-2 h-4 w-4" />
+                {t("video.draft_clear")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowJson((v) => !v)}
+                className="min-h-11 sm:min-h-9"
+              >
+                {t("video.json_mode")}
+              </Button>
+            </div>
           </div>
 
           {showJson && (

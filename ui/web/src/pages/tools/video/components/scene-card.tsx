@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Trash2,
   ArrowUp,
   ArrowDown,
   Volume2,
-  Type,
   Square,
+  Type,
   ImagePlus,
+  Loader2,
+  StopCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,9 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTtsCapabilities } from "@/api/tts-capabilities";
+import { toast } from "@/stores/use-toast-store";
 import { TRANSITION_TYPES } from "./scene-transition";
 import { LayerTimeline } from "./layer-timeline";
 import { cn } from "@/lib/utils";
+import type { NarrationAudioController } from "../hooks/use-narration-audio";
+import { FALLBACK_EDGE_VOICES } from "../hooks/use-narration-audio";
 import type { Layer, Scene } from "../hooks/use-timeline";
 
 interface KenBurns {
@@ -32,24 +38,20 @@ interface KenBurns {
   pan: "none" | "left" | "right" | "up" | "down";
 }
 interface Caption {
-  text: string;
+  text?: string;
   position?: "top" | "center" | "bottom";
   font_size?: number;
 }
 
-function previewTTS(text: string, voice?: string) {
-  if (!text) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  if (voice) {
-    const voices = speechSynthesis.getVoices();
-    const match = voices.find(
-      (v) => v.name.includes(voice) || v.lang.startsWith(voice),
-    );
-    if (match) utterance.voice = match;
-  }
-  speechSynthesis.cancel();
-  speechSynthesis.speak(utterance);
-}
+/** Color-scene backdrop presets (gradient c0→c2, optional grid) tuned after
+ * the reference "developer dark-mode" shorts style. */
+const COLOR_PRESETS: { key: string; color: string; color2: string; grid: boolean }[] = [
+  { key: "tech_dark", color: "#0D1117", color2: "#1E293B", grid: true },
+  { key: "deep_ocean", color: "#0B1220", color2: "#1E3A8A", grid: false },
+  { key: "ember", color: "#450A0A", color2: "#B45309", grid: false },
+  { key: "violet_night", color: "#1E1B2E", color2: "#6D28D9", grid: false },
+  { key: "plain", color: "#000000", color2: "#000000", grid: false },
+];
 
 interface SceneCardProps {
   scene: Scene;
@@ -59,6 +61,8 @@ interface SceneCardProps {
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  /** Shared narration-audio controller (cache + synth). */
+  narration?: NarrationAudioController;
 }
 
 export function SceneCard({
@@ -69,9 +73,43 @@ export function SceneCard({
   onRemove,
   onMoveUp,
   onMoveDown,
+  narration,
 }: SceneCardProps) {
   const { t } = useTranslation("toolbox");
   const [selLayer, setSelLayer] = useState(0);
+  const [previewing, setPreviewing] = useState(false);
+  const previewElRef = useRef<HTMLAudioElement | null>(null);
+
+  const { data: capabilities } = useTtsCapabilities();
+  const edgeVoices = useMemo(() => {
+    const fromApi = capabilities?.find((p) => p.provider === "edge")?.voices ?? [];
+    return fromApi.length > 0 ? fromApi : FALLBACK_EDGE_VOICES;
+  }, [capabilities]);
+
+  /** Play the scene's narration through real TTS (shared cache with the
+   * player preview); second click stops. */
+  async function toggleNarrationPreview() {
+    const text = scene.narration?.trim();
+    if (!text || !narration) return;
+    const el = previewElRef.current;
+    if (previewing && el && !el.paused) {
+      el.pause();
+      setPreviewing(false);
+      return;
+    }
+    setPreviewing(true);
+    try {
+      const got = (await narration.prepare(text, scene.narration_voice)) ?? undefined;
+      if (!got) return;
+      previewElRef.current = got;
+      got.onended = () => setPreviewing(false);
+      got.currentTime = 0;
+      await got.play();
+    } catch {
+      toast.error(t("video.tts_preview_failed"));
+      setPreviewing(false);
+    }
+  }
 
   // Layer editing rides updateScene's undo history — every change goes
   // through onUpdate({ layers: [...] }).
@@ -134,10 +172,16 @@ export function SceneCard({
         </div>
 
         {scene.type === "color" ? (
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">{t("video.color")}</Label>
-            <Input value={scene.color ?? "#000000"} onChange={(e) => onUpdate({ color: e.target.value })} placeholder="#1D4ED8" className="text-base md:text-sm" />
-          </div>
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">{t("video.color")}</Label>
+              <Input value={scene.color ?? "#000000"} onChange={(e) => onUpdate({ color: e.target.value })} placeholder="#1D4ED8" className="text-base md:text-sm" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">{t("video.color2")}</Label>
+              <Input value={scene.color2 ?? ""} onChange={(e) => onUpdate({ color2: e.target.value || undefined })} placeholder={t("video.color2_hint")} className="text-base md:text-sm" />
+            </div>
+          </>
         ) : (
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <Label className="text-xs">{t("video.source")}</Label>
@@ -150,6 +194,47 @@ export function SceneCard({
           <Input type="number" min={1} max={30} value={scene.duration_sec} onChange={(e) => onUpdate({ duration_sec: Number(e.target.value) || 1 })} className="text-base md:text-sm" />
         </div>
       </div>
+
+      {/* Color-scene backdrop: animated-gradient presets + blueprint grid.
+          Mirrors the worker's lavfi gradients (c0→c1) + drawgrid overlay. */}
+      {scene.type === "color" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t("video.color_presets")}</span>
+          {COLOR_PRESETS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              title={t(`video.preset_${p.key}`)}
+              onClick={() =>
+                onUpdate({
+                  color: p.color,
+                  ...(p.key === "plain" ? { color2: undefined, grid: undefined } : { color2: p.color2, grid: p.grid }),
+                })
+              }
+              className={cn(
+                "h-7 w-12 rounded border transition-transform hover:scale-105",
+                scene.color?.toLowerCase() === p.color.toLowerCase() &&
+                  scene.color2?.toLowerCase() === p.color2.toLowerCase() &&
+                  !!scene.grid === p.grid
+                  ? "border-primary ring-2 ring-primary/40"
+                  : "border-border",
+              )}
+              style={{ background: `linear-gradient(135deg, ${p.color}, ${p.color2})` }}
+              aria-label={t(`video.preset_${p.key}`)}
+            />
+          ))}
+          <div className="ml-2 flex items-center gap-2">
+            <Switch
+              id={`grid-${index}`}
+              checked={scene.grid ?? false}
+              onCheckedChange={(v) => onUpdate({ grid: v || undefined })}
+            />
+            <Label htmlFor={`grid-${index}`} className="text-xs">
+              {t("video.grid")}
+            </Label>
+          </div>
+        </div>
+      )}
 
       {/* Ken Burns + Mute toggles */}
       {scene.type !== "color" && (
@@ -261,7 +346,8 @@ export function SceneCard({
         </details>
       )}
 
-      {/* Enter transition (browser preview + client export; server cuts hard) */}
+      {/* Enter transition — honored by the browser preview, client export,
+          and the server render (xfade). */}
       <div className="flex flex-col gap-1.5 sm:max-w-xs">
         <Label className="text-xs">{t("video.transition")}</Label>
         <Select
@@ -445,21 +531,33 @@ export function SceneCard({
         </div>
       </details>
 
-      {/* Narration pacing fit: ~2.3 words/sec (VN-normalized). A narration
-          much longer than the scene is what makes voice/text feel mismatched
-          in renders — surface the estimate and offer one-tap fit. */}
+      {/* Narration pacing fit. With a synthesized clip we know the REAL
+          audio duration; before that, estimate ~2.3 words/sec (VN-normalized).
+          A narration longer than the scene is what makes voice/text feel
+          mismatched — surface it and offer one-tap fit. (The server also
+          auto-extends scenes to fit narration on render.) */}
       {(() => {
-        const words = (scene.narration ?? "").trim().split(/\s+/).filter(Boolean).length;
-        if (words === 0) return null;
-        const est = words / 2.3;
+        const text = (scene.narration ?? "").trim();
+        if (!text) return null;
+        const audioDur = narration?.durationOf(text, scene.narration_voice);
+        const words = text.split(/\s+/).filter(Boolean).length;
+        const est = audioDur ?? words / 2.3;
         const dur = Number(scene.duration_sec) || 0;
         if (est <= dur + 0.5) return null;
         return (
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-600 dark:text-amber-400">
-            <span>{t("video.narration_fit_hint", { est: Math.ceil(est), dur })}</span>
+            <span>
+              {audioDur !== undefined
+                ? t("video.narration_fit_measured", { sec: audioDur.toFixed(1), dur })
+                : t("video.narration_fit_hint", { est: Math.ceil(est), dur })}
+            </span>
             <button
               type="button"
-              onClick={() => onUpdate({ duration_sec: Math.ceil(est) })}
+              onClick={() =>
+                audioDur !== undefined
+                  ? onUpdate({ duration_sec: Math.ceil(audioDur + 0.35) })
+                  : onUpdate({ duration_sec: Math.ceil(est) })
+              }
               className="ml-auto rounded border border-amber-500/50 px-1.5 py-0.5 font-medium transition-colors hover:bg-amber-500/10"
             >
               {t("video.narration_fit_apply", { est: Math.ceil(est) })}
@@ -470,16 +568,58 @@ export function SceneCard({
 
       {/* Narration (TTS) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <div className="flex flex-col gap-1.5 sm:col-span-3">
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
           <Label className="text-xs">{t("video.scene.narration")}</Label>
           <Textarea value={scene.narration ?? ""} onChange={(e) => onUpdate({ narration: e.target.value || undefined })} rows={2} placeholder={t("video.narration_placeholder")} className="text-base md:text-sm" />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">{t("video.scene.voice")}</Label>
-          <Button variant="outline" size="sm" onClick={() => previewTTS(scene.narration || "")} disabled={!scene.narration?.trim()} className="min-h-11 sm:min-h-9">
-            <Volume2 className="mr-2 h-3.5 w-3.5" />
-            {t("video.scene.preview_tts")}
+          <Select
+            value={scene.narration_voice ?? "default"}
+            onValueChange={(v) => onUpdate({ narration_voice: v === "default" ? undefined : v })}
+          >
+            <SelectTrigger className="text-base md:text-sm" aria-label={t("video.scene.voice")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">{t("video.voice_default")}</SelectItem>
+              {edgeVoices.map((v) => (
+                <SelectItem key={v.voice_id} value={v.voice_id}>
+                  {v.name || v.voice_id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t("video.scene.preview_tts")}</Label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleNarrationPreview}
+            disabled={!scene.narration?.trim() || !narration || (narration.isLoading(scene.narration ?? "", scene.narration_voice) && !previewing)}
+            className="min-h-11 sm:min-h-9"
+          >
+            {narration?.isLoading(scene.narration ?? "", scene.narration_voice) && !previewing ? (
+              <>
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                {t("video.tts_loading")}
+              </>
+            ) : previewing ? (
+              <>
+                <StopCircle className="mr-2 h-3.5 w-3.5" />
+                {t("video.preview_stop")}
+              </>
+            ) : (
+              <>
+                <Volume2 className="mr-2 h-3.5 w-3.5" />
+                {t("video.scene.preview_tts")}
+              </>
+            )}
           </Button>
+          {scene.narration && scene.narration.trim().length > 500 && (
+            <p className="text-xs text-muted-foreground">{t("video.tts_truncated")}</p>
+          )}
         </div>
       </div>
     </div>

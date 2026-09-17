@@ -6,9 +6,12 @@ import { renderSceneWithTransition, type SceneTransition } from "./scene-transit
 //
 // Single source of truth for painting one storyboard frame, used by BOTH the
 // canvas player (preview) and the client-side MediaRecorder export, so what
-// you preview is what exports. Handles: color/image scenes, Ken Burns,
-// OpenCut-style per-scene transform (scale/offset/rotate/opacity) + filters
-// (brightness/contrast/saturate/blur), captions, and enter transitions.
+// you preview is what exports. Handles: color scenes (animated gradient +
+// optional blueprint grid, mirroring the worker's lavfi gradients/drawgrid),
+// image scenes, Ken Burns, OpenCut-style per-scene transform
+// (scale/offset/rotate/opacity) + filters (brightness/contrast/saturate/blur),
+// captions (with karaoke word-reveal synced to the narration audio), and
+// enter transitions.
 
 export function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/);
@@ -38,21 +41,76 @@ function sceneFilter(f: Scene["filter"]): string {
   return parts.join(" ");
 }
 
+/** Halve each channel — the TS twin of the worker's darkerHex, so the
+ * preview's default second stop matches the server gradient exactly. */
+function darkerHex(hex: string): string {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return hex;
+  let out = "";
+  for (let i = 0; i < 3; i++) {
+    const v = Math.floor(parseInt(h.slice(i * 2, i * 2 + 2), 16) / 2);
+    out += v.toString(16).padStart(2, "0");
+  }
+  return `#${out}`;
+}
+
+/** Animated two-stop gradient backdrop for color scenes — mirrors the
+ * worker's `gradients=c0:c1:speed=0.008` lavfi source: a linear gradient
+ * whose axis slowly rotates over the scene. */
+function drawColorBackdrop(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  scene: Scene,
+  localTime: number,
+) {
+  const c0 = scene.color || "#000000";
+  const c1 = scene.color2?.trim() || darkerHex(c0);
+  const angle = (localTime * 0.008 * Math.PI) % Math.PI;
+  const r = Math.hypot(width, height) / 2;
+  const dx = Math.cos(angle) * r;
+  const dy = Math.sin(angle) * r;
+  const grad = ctx.createLinearGradient(width / 2 - dx, height / 2 - dy, width / 2 + dx, height / 2 + dy);
+  grad.addColorStop(0, c0);
+  grad.addColorStop(1, c1);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, width, height);
+
+  if (scene.grid) {
+    const cellW = Math.max(1, width / 24);
+    const cellH = Math.max(1, height / 24);
+    ctx.save();
+    ctx.strokeStyle = "rgba(148,163,184,0.10)";
+    ctx.lineWidth = Math.max(1, width / 1280);
+    ctx.beginPath();
+    for (let x = cellW; x < width; x += cellW) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+    }
+    for (let y = cellH; y < height; y += cellH) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 export function renderSceneBase(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   scene: Scene,
   localTime: number,
   imageCache: Map<string, HTMLImageElement>,
+  narrProgress?: number,
 ) {
   const { width, height } = canvas;
   ctx.clearRect(0, 0, width, height);
 
   if (scene.type === "color") {
-    ctx.fillStyle = scene.color || "#000000";
-    ctx.fillRect(0, 0, width, height);
+    drawColorBackdrop(ctx, width, height, scene, localTime);
     drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-    drawCaption(ctx, width, height, scene);
+    drawCaption(ctx, width, height, scene, narrProgress);
     return;
   }
 
@@ -61,7 +119,7 @@ export function renderSceneBase(
     ctx.fillStyle = "#1a1a2e";
     ctx.fillRect(0, 0, width, height);
     drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-    drawCaption(ctx, width, height, scene);
+    drawCaption(ctx, width, height, scene, narrProgress);
     return;
   }
 
@@ -133,7 +191,7 @@ export function renderSceneBase(
   ctx.restore();
 
   drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-  drawCaption(ctx, width, height, scene);
+  drawCaption(ctx, width, height, scene, narrProgress);
 }
 
 /** Paint the scene's timed overlay layers (under the caption), in array
@@ -193,7 +251,13 @@ export function drawSceneLayers(
   }
 }
 
-function drawCaption(ctx: CanvasRenderingContext2D, width: number, height: number, scene: Scene) {
+function drawCaption(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  scene: Scene,
+  narrProgress?: number,
+) {
   if (!scene.caption?.text) return;
   const fontSize = scene.caption.font_size || Math.round(Math.min(width, height) * 0.035);
   ctx.font = `bold ${fontSize}px sans-serif`;
@@ -204,7 +268,20 @@ function drawCaption(ctx: CanvasRenderingContext2D, width: number, height: numbe
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = fontSize * 0.05;
 
-  const lines = wrapText(ctx, scene.caption.text, width * 0.85);
+  // Karaoke reveal: with a narration-audio progress (0..1), words light up
+  // in step with the voice — the on-screen text tracks what is being said.
+  const words = scene.caption.text.split(/\s+/).filter(Boolean);
+  let visible: string;
+  let dimmed: string | null = null;
+  if (narrProgress !== undefined && words.length > 0 && scene.narration?.trim()) {
+    const shown = Math.min(words.length, Math.ceil(Math.max(0, narrProgress) * words.length));
+    visible = words.slice(0, shown).join(" ");
+    dimmed = shown < words.length ? words.slice(shown).join(" ") : null;
+  } else {
+    visible = scene.caption.text;
+  }
+
+  const lines = wrapText(ctx, visible, width * 0.85);
   const lineHeight = fontSize * 1.3;
   const totalTextH = lines.length * lineHeight;
 
@@ -226,14 +303,31 @@ function drawCaption(ctx: CanvasRenderingContext2D, width: number, height: numbe
     ctx.fillText(line, width / 2, baseY + (li - (lines.length - 1) / 2) * lineHeight);
   });
 
+  if (dimmed) {
+    // Not-yet-spoken words render faintly right after the revealed text so
+    // the line layout stays stable while the voice catches up.
+    const lastLine = lines[lines.length - 1] ?? "";
+    const lastW = ctx.measureText(lastLine).width;
+    const dimX = width / 2 + lastW / 2 + ctx.measureText(" ").width;
+    const dimLines = wrapText(ctx, dimmed, width * 0.85 - (dimX - width * 0.075));
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    dimLines.forEach((line, li) => {
+      ctx.fillText(line, dimX, baseY + ((lines.length - 1) / 2 + li) * lineHeight);
+    });
+    ctx.restore();
+  }
+
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
 }
 
 /** Paint the storyboard frame at scenes[index]/localTime, honoring the
- * scene's enter transition. scratchA/scratchB are caller-owned reusable
- * offscreen buffers (resized here when the output size changes). */
+ * scene's enter transition. narrProgress (0..1) is the narration-audio
+ * progress of scenes[index] and drives the caption karaoke reveal.
+ * scratchA/scratchB are caller-owned reusable offscreen buffers (resized
+ * here when the output size changes). */
 export function drawStoryboardFrame(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
@@ -243,6 +337,7 @@ export function drawStoryboardFrame(
   imageCache: Map<string, HTMLImageElement>,
   scratchA: HTMLCanvasElement,
   scratchB: HTMLCanvasElement,
+  narrProgress?: number,
 ): void {
   renderSceneWithTransition(
     ctx,
@@ -254,6 +349,7 @@ export function drawStoryboardFrame(
     renderSceneBase,
     scratchA,
     scratchB,
+    narrProgress,
   );
 }
 
