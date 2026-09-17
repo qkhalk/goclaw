@@ -14,11 +14,12 @@ import type { RecentLLMRequest } from "./types";
 const REFRESH_INTERVAL = 15_000;
 const REQUEST_LIMIT = 30;
 
-/** 9router-style recent requests: compact fixed-height card, one row per LLM
- * API call — status dot | Model | In/Out (colored) | When. Live: refetches on
- * trace status changes (a request starting/finishing anywhere) with a 15s
- * polling fallback; scrolls internally with a sticky header through up to 30
- * rows so it never stretches the overview grid row. */
+/** 9router-style recent requests: one compact row per LLM API call — status
+ * dot | Model | In/Out (colored) | When. Live: refetches on trace status
+ * changes (a request starting/finishing anywhere) with a 15s polling
+ * fallback. The scroll body is pinned to the routing graph's height
+ * (h-[320px] sm:h-[480px]) so the card is exactly as tall as the Model
+ * Routing card beside it — longer lists scroll inside with a sticky header. */
 export function RecentRequestsCard() {
   const { t } = useTranslation("overview");
   const http = useHttp();
@@ -39,7 +40,7 @@ export function RecentRequestsCard() {
   const requests = data?.requests ?? [];
 
   return (
-    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
+    <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base">{t("recentRequests.title")}</CardTitle>
         {requests.length > 0 && (
@@ -51,15 +52,18 @@ export function RecentRequestsCard() {
           </Link>
         )}
       </CardHeader>
-      <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3">
+      <CardContent>
+        {/* Same height math as the routing graph container next to this card
+            (320px / 480px at sm) — equal cards by construction. */}
+        <div className="h-[320px] w-full overflow-y-auto overscroll-contain sm:h-[480px]">
         {isLoading ? (
-          <div className="space-y-2.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-6 w-full" />
+          <div className="space-y-1.5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-4 w-full" />
             ))}
           </div>
         ) : requests.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
+          <p className="py-6 text-center text-xs text-muted-foreground">
             {t("recentRequests.noRequests")}
           </p>
         ) : (
@@ -67,25 +71,25 @@ export function RecentRequestsCard() {
           // overflow-x wrapper would become the sticky thead's scrollport and
           // break sticking. overflow-y-auto computes overflow-x to auto, so
           // the min-w table still scrolls horizontally.
-          <table className="w-full min-w-[300px] text-sm">
+          <table className="w-full min-w-[300px] text-xs">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b text-left text-muted-foreground">
-                <th className="pb-2 font-medium">{t("recentRequests.columns.model")}</th>
-                <th className="px-3 pb-2 font-medium text-right">{t("recentRequests.columns.inOut")}</th>
-                <th className="pb-2 pl-3 font-medium text-right">{t("recentRequests.columns.when")}</th>
+                <th className="pb-1.5 text-[11px] font-medium">{t("recentRequests.columns.model")}</th>
+                <th className="px-2.5 pb-1.5 text-[11px] font-medium text-right">{t("recentRequests.columns.inOut")}</th>
+                <th className="pb-1.5 pl-2.5 text-[11px] font-medium text-right">{t("recentRequests.columns.when")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {requests.map((r) => (
                 <tr key={r.span_id} className="hover:bg-muted/30 transition-colors">
-                  <td className="py-2 pr-3">
-                    <div className="flex min-w-0 items-center gap-2">
+                  <td className="py-1.5 pr-2.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
                       <span
                         className={`h-1.5 w-1.5 shrink-0 rounded-full ${r.status === "error" ? "bg-red-500" : "bg-emerald-500"}`}
                         title={r.error || r.status}
                       />
                       <p
-                        className="truncate font-mono text-xs font-medium"
+                        className="truncate font-mono text-[11px] font-medium"
                         title={
                           r.cost_usd && r.cost_usd > 0
                             ? `${r.model} · $${r.cost_usd.toFixed(4)}`
@@ -97,20 +101,20 @@ export function RecentRequestsCard() {
                     </div>
                   </td>
                   <td
-                    className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
+                    className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums"
                     title={`${r.input_tokens.toLocaleString()} in / ${r.output_tokens.toLocaleString()} out`}
                   >
-                    <span className="inline-flex items-center gap-1 text-rose-500 dark:text-rose-400">
-                      <ArrowUp className="h-3 w-3" />
+                    <span className="inline-flex items-center gap-0.5 text-rose-500 dark:text-rose-400">
+                      <ArrowUp className="h-2.5 w-2.5" />
                       {formatTokens(r.input_tokens)}
                     </span>
-                    <span className="mx-1.5 text-muted-foreground/60">/</span>
-                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                      <ArrowDown className="h-3 w-3" />
+                    <span className="mx-1 text-muted-foreground/60">/</span>
+                    <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+                      <ArrowDown className="h-2.5 w-2.5" />
                       {formatTokens(r.output_tokens)}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap py-2 pl-3 text-right text-muted-foreground">
+                  <td className="whitespace-nowrap py-1.5 pl-2.5 text-right text-[11px] text-muted-foreground">
                     {formatRelativeTime(r.start_time)}
                   </td>
                 </tr>
@@ -118,6 +122,7 @@ export function RecentRequestsCard() {
             </tbody>
           </table>
         )}
+        </div>
       </CardContent>
     </Card>
   );
