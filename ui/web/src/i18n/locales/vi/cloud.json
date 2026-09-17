@@ -204,7 +204,8 @@
     "not_found": "Không tìm thấy tài khoản hoặc tài khoản không còn truy cập được",
     "back_home": "Về trang Clouds",
     "toggle_accounts": "Ẩn/hiện tài khoản",
-    "quick_views": "Xem nhanh"
+    "quick_views": "Xem nhanh",
+    "up": "Lên thư mục cha"
   },
   "files": {
     "upload": "Tải lên",

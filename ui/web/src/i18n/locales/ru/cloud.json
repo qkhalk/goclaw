@@ -204,7 +204,8 @@
     "toggle_accounts": "Показать/скрыть аккаунты",
     "quick_views": "Быстрый доступ",
     "search_accounts": "Поиск аккаунтов…",
-    "no_accounts_match": "Нет подходящих аккаунтов"
+    "no_accounts_match": "Нет подходящих аккаунтов",
+    "up": "На папку выше"
   },
   "files": {
     "upload": "Загрузить",

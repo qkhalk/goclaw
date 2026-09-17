@@ -204,7 +204,8 @@
     "toggle_accounts": "展开/收起账户",
     "quick_views": "快速访问",
     "search_accounts": "搜索账户…",
-    "no_accounts_match": "没有匹配的账户"
+    "no_accounts_match": "没有匹配的账户",
+    "up": "上一级文件夹"
   },
   "files": {
     "upload": "上传",

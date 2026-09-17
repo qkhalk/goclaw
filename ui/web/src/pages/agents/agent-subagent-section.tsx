@@ -25,7 +25,10 @@ export function AgentSubagentSection({
   onInjectAgentsMdChange: (on: boolean) => void;
 }) {
   const { t } = useTranslation("agents");
-  const [open, setOpen] = useState(false);
+  // Open by default: these builder fields (allowed tools, system prompt,
+  // AGENTS.md injection) are the point of the advanced-create flow — a
+  // collapsed row read as "missing" in real-world use.
+  const [open, setOpen] = useState(true);
 
   return (
     <div className="rounded-lg border">

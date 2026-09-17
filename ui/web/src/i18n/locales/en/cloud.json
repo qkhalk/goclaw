@@ -204,7 +204,8 @@
     "toggle_accounts": "Toggle accounts",
     "quick_views": "Quick views",
     "search_accounts": "Search accounts…",
-    "no_accounts_match": "No matching accounts"
+    "no_accounts_match": "No matching accounts",
+    "up": "Go up one folder"
   },
   "files": {
     "upload": "Upload",
