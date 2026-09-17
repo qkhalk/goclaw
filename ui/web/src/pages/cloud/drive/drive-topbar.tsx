@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
   ArrowUp,
+  CornerLeftUp,
   LayoutGrid,
   List,
   Search,
@@ -17,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DriveBreadcrumbs } from "./drive-breadcrumbs";
-import type { SortDir, SortKey, SortSpec, ViewMode } from "./paths";
+import { parentPath, type SortDir, type SortKey, type SortSpec, type ViewMode } from "./paths";
 
 const SORT_KEYS: SortKey[] = ["name", "size", "modified"];
 
@@ -77,19 +78,6 @@ export function DriveTopBar({
           </div>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          {isAccountView && onSearchChange && (
-            <div className="relative mr-1 min-w-0">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search ?? ""}
-                onChange={(e) => onSearchChange?.(e.target.value)}
-                placeholder={t("drive.search_placeholder")}
-                className="h-8 w-28 pl-8 text-base sm:w-44 md:w-52 md:text-sm"
-                autoComplete="off"
-                data-cloud-search
-              />
-            </div>
-          )}
           {right}
           {onRefresh && (
             <RefreshButton
@@ -103,6 +91,34 @@ export function DriveTopBar({
 
       {isAccountView && (
         <div className="flex flex-wrap items-center gap-2">
+          {/* Up-one-folder arrow opening the tools row — the search box and
+              the modified-date sort sit right beside it (Explorer-style
+              toolbar: [↑ parent] [search] [sort: modified ▲]). */}
+          {path !== undefined && onNavigatePath && (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label={t("drive.up")}
+              title={t("drive.up")}
+              disabled={!path || path === "/"}
+              onClick={() => onNavigatePath(parentPath(path))}
+            >
+              <CornerLeftUp className="h-4 w-4" />
+            </Button>
+          )}
+          {onSearchChange && (
+            <div className="relative min-w-0 flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search ?? ""}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={t("drive.search_placeholder")}
+                className="h-8 pl-8 text-base md:text-sm"
+                autoComplete="off"
+                data-cloud-search
+              />
+            </div>
+          )}
           {sort && onSortChange && (
             <div className="flex items-center gap-1">
               <Select
