@@ -22,7 +22,8 @@ import (
 //
 //   - browser.remote.open: validate URL (SSRF/policy) → open a per-tenant tab
 //     in the shared Rod browser → return the a11y snapshot + screenshot.
-//   - browser.remote.act: click/type/press/back on the live page by [eN] ref.
+//   - browser.remote.act: click/type/press/hover/scroll/back on the live
+//     page by [eN] ref (mouse-move = hover; scroll takes direction+amount).
 //   - browser.remote.screenshot: re-capture the current view.
 //
 // This gives the agent full control over JS-heavy SPA sites that the
@@ -127,6 +128,8 @@ func (m *BrowserRemoteMethods) handleAct(ctx context.Context, client *gateway.Cl
 		Text      string `json:"text,omitempty"`
 		Key       string `json:"key,omitempty"`
 		URL       string `json:"url,omitempty"`
+		Direction string `json:"direction,omitempty"` // scroll: up|down
+		Amount    int    `json:"amount,omitempty"`    // scroll: pixels (default 600)
 		SessionID string `json:"sessionId,omitempty"`
 	}
 	if req.Params != nil {
@@ -171,11 +174,34 @@ func (m *BrowserRemoteMethods) handleAct(ctx context.Context, client *gateway.Cl
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, "press: "+err.Error()))
 			return
 		}
+	case "hover":
+		if params.Ref == "" {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, "ref is required for hover"))
+			return
+		}
+		if err := m.mgr.Hover(actCtx, params.TargetID, params.Ref); err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, "hover: "+err.Error()))
+			return
+		}
+	case "scroll":
+		pixels := params.Amount
+		if pixels <= 0 {
+			pixels = 600
+		}
+		if params.Direction == "up" {
+			pixels = -pixels
+		}
+		js := fmt.Sprintf(`window.scrollBy(0, %d)`, pixels)
+		if _, err := m.mgr.Evaluate(actCtx, params.TargetID, js); err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, "scroll: "+err.Error()))
+			return
+		}
 	case "back":
-		if err := m.mgr.Navigate(actCtx, params.TargetID, "about:blank"); err != nil {
-			// about:blank navigation is a placeholder; real history-back is
-			// expressed by re-opening the previous URL — acceptable for v1.
-			slog.Debug("browser.remote: back fallback navigate", "error", err)
+		// Real history back (in-page JS) — replaces the v1 about:blank
+		// placeholder; no-ops when there is no history entry.
+		if _, err := m.mgr.Evaluate(actCtx, params.TargetID, "history.back()"); err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, "back: "+err.Error()))
+			return
 		}
 	case "navigate":
 		target := strings.TrimSpace(params.URL)
@@ -196,7 +222,7 @@ func (m *BrowserRemoteMethods) handleAct(ctx context.Context, client *gateway.Cl
 		}
 	default:
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest,
-			fmt.Sprintf("unsupported action %q (click|type|press|back|navigate)", params.Action)))
+			fmt.Sprintf("unsupported action %q (click|type|press|hover|scroll|back|navigate)", params.Action)))
 		return
 	}
 

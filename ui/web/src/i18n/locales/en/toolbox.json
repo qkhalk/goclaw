@@ -176,6 +176,31 @@
       "align_center": "Center",
       "align_right": "Right",
       "opacity": "Opacity"
+    },
+    "designer": {
+      "title": "Video Designer",
+      "toggle": "Toggle the designer column",
+      "attach": "Attach the current storyboard",
+      "attached": "The current storyboard will be attached",
+      "attachedPrefix": "Storyboard attached",
+      "badge": "Designer",
+      "newChat": "New chat",
+      "close": "Close",
+      "history": "History",
+      "historyEmpty": "No conversations yet",
+      "historyMessages": "{{n}} messages",
+      "emptyHint": "Describe the video you need — the designer drafts the storyboard.",
+      "chip1": "Tech-news short video",
+      "chip2": "Product launch teaser",
+      "chip3": "60s explainer with narration",
+      "designing": "Designer is drafting...",
+      "applied": "Applied",
+      "apply": "Apply to editor",
+      "invalid": "Invalid storyboard",
+      "sceneCount": "{{n}} scenes",
+      "duration": "~{{n}}s",
+      "viewJson": "View JSON",
+      "hideJson": "Hide JSON"
     }
   },
   "watermark": {
