@@ -38,6 +38,8 @@ interface RenderPanelProps {
   hardware: HardwareInfo;
   isExporting: boolean;
   progress: number;
+  /** Scene validation failed (e.g. media scene without source) — block export. */
+  hasErrors: boolean;
   onExportClient: () => void;
   onExportServer: () => void;
   onCancel: () => void;
@@ -63,6 +65,7 @@ export function RenderPanel({
   hardware,
   isExporting,
   progress,
+  hasErrors,
   onExportClient,
   onExportServer,
   onCancel,
@@ -191,7 +194,7 @@ export function RenderPanel({
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={onExportClient}
-                disabled={totalSec <= 0}
+                disabled={totalSec <= 0 || hasErrors}
                 className="min-h-11 sm:min-h-9"
               >
                 <Monitor className="mr-2 h-4 w-4" />
@@ -200,7 +203,7 @@ export function RenderPanel({
               <Button
                 variant="outline"
                 onClick={onExportServer}
-                disabled={totalSec <= 0}
+                disabled={totalSec <= 0 || hasErrors}
                 className="min-h-11 sm:min-h-9"
               >
                 <Cloud className="mr-2 h-4 w-4" />
