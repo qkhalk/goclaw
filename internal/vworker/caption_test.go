@@ -146,10 +146,18 @@ func TestBuildColorSceneArgs_VisualsV2(t *testing.T) {
 		"sin(t/6.1+2.2)",   // glow orb 2 drift
 		"fade=t=in:st=0.000:d=0.25:alpha=1",  // base strip fade
 		"enable='between(t,", // karaoke windows
+		"[vs][cs0]overlay=", // caption chain starts after the style filters
+		"[cc0][cs1]overlay=", // chained karaoke overlays reuse the prior label
+		"[cc1][cs2]overlay=",
 	} {
 		if !strings.Contains(fc, want) {
 			t.Errorf("filtergraph missing %q in: %s", want, fc)
 		}
+	}
+	// A double-bracketed label is invalid ffmpeg syntax — the whole render
+	// dies with "Invalid argument" before the first frame.
+	if strings.Contains(fc, "[[") {
+		t.Errorf("double-bracketed label in filtergraph: %s", fc)
 	}
 	// Glow + caption PNGs are real inputs.
 	joined := strings.Join(args, " ")
@@ -181,6 +189,9 @@ func TestBuildImageSceneArgs_CaptionOverlays(t *testing.T) {
 	fc := filterArg(args, "-filter_complex")
 	if !strings.Contains(fc, "fade=t=in") || !strings.Contains(fc, "overlay=") {
 		t.Errorf("caption overlays missing from image scene: %s", fc)
+	}
+	if strings.Contains(fc, "[[") {
+		t.Errorf("double-bracketed label in filtergraph: %s", fc)
 	}
 	if strings.Contains(fc, "drawtext=") {
 		t.Errorf("bundled fonts present — caption must not fall back to drawtext: %s", fc)
@@ -222,5 +233,42 @@ func TestRenderGlowPNG(t *testing.T) {
 	}
 	if img.Bounds().Dx() != 512 {
 		t.Errorf("glow size = %d, want 512", img.Bounds().Dx())
+	}
+}
+
+// TestRenderDims pins the output-resolution scaling: 720p means the short
+// side renders at 720 (portrait 720×1280, landscape 1280×720), an output
+// at or above the canvas never upscales, and dimensions stay even for
+// yuv420p.
+func TestRenderDims(t *testing.T) {
+	cases := []struct {
+		name             string
+		canvasW, canvasH int
+		outHeight        int
+		wantW, wantH     int
+	}{
+		{"portrait 720p", 1080, 1920, 720, 720, 1280},
+		{"landscape 720p", 1920, 1080, 720, 1280, 720},
+		{"square 480p", 1080, 1080, 480, 480, 480},
+		{"no downscale at 1080p", 1080, 1920, 1080, 1080, 1920},
+		{"upscale refused", 720, 1280, 1080, 720, 1280},
+		{"unset output defaults to 720 short side", 1080, 1920, 0, 720, 1280},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			sb := &contract.Storyboard{
+				Canvas: contract.Canvas{Width: c.canvasW, Height: c.canvasH, FPS: 30},
+			}
+			if c.outHeight > 0 {
+				sb.Output = contract.Output{Height: c.outHeight}
+			}
+			w, h, fps := renderDims(sb)
+			if w != c.wantW || h != c.wantH || fps != 30 {
+				t.Errorf("renderDims() = %dx%d@%d, want %dx%d@30", w, h, fps, c.wantW, c.wantH)
+			}
+			if w%2 != 0 || h%2 != 0 {
+				t.Errorf("renderDims() = %dx%d — dimensions must stay even", w, h)
+			}
+		})
 	}
 }

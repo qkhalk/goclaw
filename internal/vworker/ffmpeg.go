@@ -490,14 +490,14 @@ func appendCaptionSteps(fc *strings.Builder, plan *captionPlan, firstIdx int, cu
 	}
 	for k, ov := range plan.Overlays {
 		in := firstIdx + k
-		src := fmt.Sprintf("[cs%d]", k)
-		fmt.Fprintf(fc, "[%d:v]format=rgba,fade=t=in:st=%.3f:d=%.2f:alpha=1%s;", in, ov.RevealAt, ov.FadeSec, src)
-		out := fmt.Sprintf("[cc%d]", k)
+		src := fmt.Sprintf("cs%d", k)
+		fmt.Fprintf(fc, "[%d:v]format=rgba,fade=t=in:st=%.3f:d=%.2f:alpha=1[%s];", in, ov.RevealAt, ov.FadeSec, src)
+		out := fmt.Sprintf("cc%d", k)
 		en := ""
 		if ov.RevealAt > 0 {
 			en = fmt.Sprintf(":enable='between(t,%.3f,%.3f)'", ov.RevealAt, dur+0.5)
 		}
-		fmt.Fprintf(fc, "[%s][%s]overlay=x=%d:y=%d:format=auto:eval=init%s%s;", cur, src, ov.X, ov.Y, en, out)
+		fmt.Fprintf(fc, "[%s][%s]overlay=x=%d:y=%d:format=auto:eval=init%s[%s];", cur, src, ov.X, ov.Y, en, out)
 		cur = out
 	}
 	return cur
