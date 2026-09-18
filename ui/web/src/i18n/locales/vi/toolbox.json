@@ -175,7 +175,25 @@
       "align_left": "Trái",
       "align_center": "Giữa",
       "align_right": "Phải",
-      "opacity": "Độ mờ"
+      "opacity": "Độ mờ",
+      "kind_icon": "Icon",
+      "kind_card": "Khung",
+      "icon": "Tên icon",
+      "chip": "Ô màu nền",
+      "border": "Viền khung",
+      "radius": "Bo góc",
+      "anim": "Animation vào",
+      "anim_none": "Không",
+      "anim_fade": "Mờ dần hiện",
+      "anim_up": "Trượt lên",
+      "anim_down": "Trượt xuống",
+      "anim_left": "Trượt trái",
+      "anim_right": "Trượt phải",
+      "anim_pop": "Nảy ra",
+      "font": "Kiểu chữ",
+      "font_body": "Thân",
+      "font_display": "Tiêu đề (đậm)",
+      "font_mono": "Mono"
     },
     "designer": {
       "title": "Video Designer",
@@ -230,7 +248,13 @@
     "glow": "Quầng sáng",
     "glow_off": "Tắt",
     "vignette": "Tối viền",
-    "grain": "Hạt phim"
+    "grain": "Hạt phim",
+    "job_edit": "Biên tập",
+    "job_edit_hint": "Đưa kịch bản của bản render này vào biên tập",
+    "job_edit_loaded": "Đã đưa kịch bản vào biên tập",
+    "job_edit_failed": "Không đọc được kịch bản của job này",
+    "layers_add_icon": "Icon",
+    "layers_add_card": "Khung"
   },
   "watermark": {
     "title": "Xóa watermark",

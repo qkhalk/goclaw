@@ -19,10 +19,16 @@ interface Caption {
  * Geometry is normalized 0..1 (top-left origin); a layer is visible while
  * start <= t < start+duration (duration 0 = until the scene ends). */
 export interface Layer {
-  kind: "text" | "shape" | "image";
+  kind: "text" | "shape" | "image" | "icon" | "card";
   text?: string;
   source?: string;
   shape?: string; // "rect"
+  icon?: string; // icon layers: one of FEATHER_ICONS
+  anim?: "" | "fade" | "up" | "down" | "left" | "right" | "pop";
+  font?: "" | "body" | "display" | "mono"; // text layers
+  chip?: boolean; // icon layers: tinted tile behind the glyph
+  border?: boolean; // card layers: contrast edge ring
+  radius?: number; // card corner radius, 0..0.2 of canvas width
   start?: number;
   duration?: number;
   x?: number;
@@ -34,6 +40,17 @@ export interface Layer {
   font_size?: number;
   align?: "left" | "center" | "right";
 }
+
+/** The embedded icon set — mirrors contract.ValidIcons in the worker (the
+ * golden fixture test keeps the two packages honest; this mirrors both). */
+export const FEATHER_ICONS = [
+  "check", "zap", "users", "user", "cpu", "database", "git-branch",
+  "globe", "heart", "star", "trending-up", "shield", "layers", "code",
+  "terminal", "book-open", "message-circle", "clock", "eye", "lock",
+  "package", "settings", "bar-chart-2", "arrow-right", "download", "play",
+  "target", "search", "calendar", "camera", "music", "wifi", "cloud",
+  "coffee",
+] as const;
 
 export interface Scene {
   type: "image" | "video" | "color";

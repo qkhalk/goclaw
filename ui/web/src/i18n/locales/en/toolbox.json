@@ -175,7 +175,25 @@
       "align_left": "Left",
       "align_center": "Center",
       "align_right": "Right",
-      "opacity": "Opacity"
+      "opacity": "Opacity",
+      "kind_icon": "Icon",
+      "kind_card": "Card",
+      "icon": "Icon name",
+      "chip": "Chip tile",
+      "border": "Border ring",
+      "radius": "Corner radius",
+      "anim": "Entrance",
+      "anim_none": "None",
+      "anim_fade": "Fade",
+      "anim_up": "Slide up",
+      "anim_down": "Slide down",
+      "anim_left": "Slide left",
+      "anim_right": "Slide right",
+      "anim_pop": "Pop",
+      "font": "Font style",
+      "font_body": "Body",
+      "font_display": "Display (bold)",
+      "font_mono": "Mono"
     },
     "designer": {
       "title": "Video Designer",
@@ -230,7 +248,13 @@
     "glow": "Glow orbs",
     "glow_off": "Off",
     "vignette": "Vignette",
-    "grain": "Film grain"
+    "grain": "Film grain",
+    "job_edit": "Edit",
+    "job_edit_hint": "Load this render's storyboard into the editor",
+    "job_edit_loaded": "Storyboard loaded into the editor",
+    "job_edit_failed": "Could not read this job's storyboard",
+    "layers_add_icon": "Icon",
+    "layers_add_card": "Card"
   },
   "watermark": {
     "title": "Watermark Remover",
