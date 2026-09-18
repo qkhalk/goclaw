@@ -1,13 +1,18 @@
 import type { Scene } from "../hooks/use-timeline";
+import { getIconDef } from "../lib/icon-library";
 import { renderSceneWithTransition, type SceneTransition } from "./scene-transition";
 
 // ── Shared storyboard frame renderer ──
 //
 // Single source of truth for painting one storyboard frame, used by BOTH the
 // canvas player (preview) and the client-side MediaRecorder export, so what
-// you preview is what exports. Handles: color/image scenes, Ken Burns,
-// OpenCut-style per-scene transform (scale/offset/rotate/opacity) + filters
-// (brightness/contrast/saturate/blur), captions, and enter transitions.
+// you preview is what exports. Handles: color/icon/image scenes, two-stop
+// background gradients, Ken Burns, OpenCut-style per-scene transform
+// (scale/offset/rotate/opacity) + filters (brightness/contrast/saturate/
+// blur), captions, and enter transitions.
+
+/** Enter animation length for icon glyphs (scale-in, ease-out). */
+export const ICON_ENTER_SEC = 0.6;
 
 export function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/);
@@ -37,6 +42,67 @@ function sceneFilter(f: Scene["filter"]): string {
   return parts.join(" ");
 }
 
+/** Flat color or two-stop diagonal gradient background (gradient is a
+ * browser-only effect; the server renderer falls back to the flat color). */
+function paintBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  scene: Scene,
+) {
+  const g = scene.gradient;
+  if (g && /^#[0-9a-fA-F]{6}$/.test(g.from) && /^#[0-9a-fA-F]{6}$/.test(g.to)) {
+    const grad = ctx.createLinearGradient(0, 0, width, height);
+    grad.addColorStop(0, g.from);
+    grad.addColorStop(1, g.to);
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = scene.color || "#000000";
+  }
+  ctx.fillRect(0, 0, width, height);
+}
+
+/** Draw the icon scene's glyph: a bundled line icon centered on the frame,
+ * scaling in over ICON_ENTER_SEC with an ease-out curve while the caption
+ * fades up below (drawn separately by drawCaption). */
+function drawIconGlyph(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  scene: Scene,
+  localTime: number,
+) {
+  const def = getIconDef(scene.icon?.name);
+  if (!def) return;
+  const color =
+    scene.icon?.color && /^#[0-9a-fA-F]{6}$/.test(scene.icon.color)
+      ? scene.icon.color
+      : "#ffffff";
+
+  const p = Math.min(1, Math.max(0, localTime / ICON_ENTER_SEC));
+  const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+
+  const base = Math.min(width, height) * 0.36;
+  const size = base * (0.7 + 0.3 * eased);
+  // Leave headroom for the caption sitting below the glyph.
+  const centerY = scene.caption?.text ? height * 0.44 : height * 0.5;
+
+  const scale = size / 24;
+  ctx.save();
+  ctx.globalAlpha = eased;
+  ctx.translate(width / 2, centerY);
+  ctx.scale(scale, scale);
+  ctx.translate(-12, -12);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const d of def.d) {
+    ctx.stroke(new Path2D(d));
+  }
+  ctx.restore();
+}
+
 export function renderSceneBase(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
@@ -48,8 +114,14 @@ export function renderSceneBase(
   ctx.clearRect(0, 0, width, height);
 
   if (scene.type === "color") {
-    ctx.fillStyle = scene.color || "#000000";
-    ctx.fillRect(0, 0, width, height);
+    paintBackground(ctx, width, height, scene);
+    drawCaption(ctx, width, height, scene);
+    return;
+  }
+
+  if (scene.type === "icon") {
+    paintBackground(ctx, width, height, scene);
+    drawIconGlyph(ctx, width, height, scene, localTime);
     drawCaption(ctx, width, height, scene);
     return;
   }

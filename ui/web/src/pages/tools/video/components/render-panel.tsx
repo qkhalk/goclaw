@@ -74,6 +74,13 @@ export function RenderPanel({
     0,
   );
 
+  // Browser-only effects, two severity levels: gradients are simply flattened
+  // by the server renderer (it paints the flat base color), but icon scenes
+  // are unknown to the server contract — a storyboard containing one is
+  // rejected outright, so the server export must be disabled.
+  const hasIconScenes = storyboard.scenes.some((s) => s.type === "icon");
+  const hasBrowserOnlyEffects = hasIconScenes || storyboard.scenes.some((s) => s.gradient !== undefined);
+
   return (
     <div className="flex flex-col gap-4">
       {/* Render Settings */}
@@ -186,6 +193,14 @@ export function RenderPanel({
 
       {/* Export Actions */}
       <div className="rounded-lg border p-4">
+        {hasBrowserOnlyEffects && !isExporting && (
+          <div className="mb-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
+            <p className="text-xs text-foreground/80">
+              {t(hasIconScenes ? "video.render_panel.icon_server_block" : "video.render_panel.client_only_effects")}
+            </p>
+          </div>
+        )}
         {!isExporting ? (
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-2">
@@ -200,7 +215,7 @@ export function RenderPanel({
               <Button
                 variant="outline"
                 onClick={onExportServer}
-                disabled={totalSec <= 0}
+                disabled={totalSec <= 0 || hasIconScenes}
                 className="min-h-11 sm:min-h-9"
               >
                 <Cloud className="mr-2 h-4 w-4" />

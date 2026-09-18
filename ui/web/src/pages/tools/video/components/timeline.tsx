@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Plus, Undo2, Redo2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getIconDef } from "../lib/icon-library";
 import type { Scene } from "../hooks/use-timeline";
 
 // ── Types ──
@@ -23,12 +24,35 @@ interface TimelineProps {
 // ── Scene thumbnail ──
 
 function SceneThumb({ scene, index }: { scene: Scene; index: number }) {
-  if (scene.type === "color") {
+  if (scene.type === "color" || scene.type === "icon") {
+    const def = scene.type === "icon" ? getIconDef(scene.icon?.name) : undefined;
     return (
       <div
-        className="h-full w-full rounded"
-        style={{ backgroundColor: scene.color || "#000" }}
-      />
+        className="flex h-full w-full items-center justify-center rounded"
+        style={{
+          background: scene.gradient
+            ? `linear-gradient(135deg, ${scene.gradient.from}, ${scene.gradient.to})`
+            : undefined,
+          backgroundColor: scene.gradient ? undefined : scene.color || "#000000",
+        }}
+      >
+        {def && (
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke={scene.icon?.color || "#ffffff"}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            {def.d.map((d, i) => (
+              <path key={i} d={d} />
+            ))}
+          </svg>
+        )}
+      </div>
     );
   }
 

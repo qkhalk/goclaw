@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TRANSITION_TYPES } from "./scene-transition";
+import { IconPicker } from "./icon-picker";
+import { getIconDef } from "../lib/icon-library";
 import { cn } from "@/lib/utils";
 import type { Scene } from "../hooks/use-timeline";
 
@@ -87,11 +89,25 @@ export function SceneCard({
         </div>
       </div>
 
-      {/* Type + Source + Duration */}
+      {/* Type + Source/Color/Icon + Duration */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">{t("video.type")}</Label>
-          <Select value={scene.type} onValueChange={(v) => onUpdate({ type: v as Scene["type"] })}>
+          <Select
+            value={scene.type}
+            onValueChange={(v) => {
+              if (v === "icon") {
+                // Seed a valid glyph so the scene renders immediately.
+                onUpdate({
+                  type: "icon",
+                  icon: scene.icon ?? { name: "zap", color: "#ffffff" },
+                  color: scene.color ?? "#111827",
+                });
+              } else {
+                onUpdate({ type: v as Scene["type"] });
+              }
+            }}
+          >
             <SelectTrigger className="text-base md:text-sm" aria-label={t("video.type")}>
               <SelectValue />
             </SelectTrigger>
@@ -99,19 +115,44 @@ export function SceneCard({
               <SelectItem value="image">{t("video.type_image")}</SelectItem>
               <SelectItem value="video">{t("video.type_video")}</SelectItem>
               <SelectItem value="color">{t("video.type_color")}</SelectItem>
+              <SelectItem value="icon">{t("video.type_icon")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {scene.type === "color" ? (
+        {scene.type === "color" || scene.type === "icon" ? (
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">{t("video.color")}</Label>
-            <Input value={scene.color ?? "#000000"} onChange={(e) => onUpdate({ color: e.target.value })} placeholder="#1D4ED8" className="text-base md:text-sm" />
+            <Label className="text-xs">{t("video.background")}</Label>
+            <Input
+              value={scene.color ?? (scene.type === "icon" ? "#111827" : "#000000")}
+              onChange={(e) => onUpdate({ color: e.target.value })}
+              placeholder="#1D4ED8"
+              className="text-base md:text-sm"
+            />
           </div>
         ) : (
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <Label className="text-xs">{t("video.source")}</Label>
             <Input value={scene.source ?? ""} onChange={(e) => onUpdate({ source: e.target.value })} placeholder={t("video.source_hint")} className={cn("text-base md:text-sm", !scene.source?.trim() && "border-destructive/60 focus-visible:ring-destructive/30")} />
+          </div>
+        )}
+
+        {scene.type === "icon" && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">{t("video.icon_color")}</Label>
+            <Input
+              value={scene.icon?.color ?? "#ffffff"}
+              onChange={(e) =>
+                onUpdate({
+                  icon: {
+                    name: scene.icon?.name ?? "zap",
+                    color: e.target.value,
+                  },
+                })
+              }
+              placeholder="#FFFFFF"
+              className="text-base md:text-sm"
+            />
           </div>
         )}
 
@@ -121,8 +162,71 @@ export function SceneCard({
         </div>
       </div>
 
-      {/* Ken Burns + Mute toggles */}
-      {scene.type !== "color" && (
+      {/* Icon glyph picker (icon scenes) */}
+      {scene.type === "icon" && (
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">
+            {t("video.icon")}
+            {scene.icon?.name && getIconDef(scene.icon.name) && (
+              <span className="ml-1 font-normal text-muted-foreground">
+                ({scene.icon.name})
+              </span>
+            )}
+          </Label>
+          <IconPicker
+            value={scene.icon?.name}
+            onChange={(name) =>
+              onUpdate({ icon: { name, color: scene.icon?.color ?? "#ffffff" } })
+            }
+          />
+        </div>
+      )}
+
+      {/* Background gradient (color/icon scenes, browser-only effect) */}
+      {(scene.type === "color" || scene.type === "icon") && (
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch
+              id={`grad-${index}`}
+              checked={scene.gradient !== undefined}
+              onCheckedChange={(v) =>
+                onUpdate({
+                  gradient: v
+                    ? { from: scene.color || "#0F172A", to: "#1D4ED8" }
+                    : undefined,
+                })
+              }
+            />
+            <Label htmlFor={`grad-${index}`} className="text-xs">
+              {t("video.gradient")}
+            </Label>
+          </div>
+          {scene.gradient && (
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs">{t("video.gradient_from")}</Label>
+              <Input
+                value={scene.gradient.from}
+                onChange={(e) =>
+                  onUpdate({ gradient: { ...scene.gradient!, from: e.target.value } })
+                }
+                className="h-8 w-24 text-base md:text-sm"
+              />
+              <Label className="text-xs">{t("video.gradient_to")}</Label>
+              <Input
+                value={scene.gradient.to}
+                onChange={(e) =>
+                  onUpdate({ gradient: { ...scene.gradient!, to: e.target.value } })
+                }
+                className="h-8 w-24 text-base md:text-sm"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ken Burns + Mute toggles (media scenes only — icon scenes animate
+          via their own scale-in, color scenes are static) */}
+      {(scene.type === "image" || scene.type === "video") && (
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Switch id={`kb-${index}`} checked={scene.ken_burns !== undefined} onCheckedChange={(v) => onUpdate({ ken_burns: v ? { zoom_from: 1.0, zoom_to: 1.12, pan: "none" } : undefined })} />

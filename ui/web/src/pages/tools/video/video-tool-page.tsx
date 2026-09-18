@@ -8,6 +8,7 @@ import {
   Loader2,
   RefreshCw,
   Trash2,
+  Wand2,
   X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -22,6 +23,8 @@ import { useHttp } from "@/hooks/use-ws";
 import { toast } from "@/stores/use-toast-store";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
+import { useIsTablet } from "@/hooks/use-media-query";
+import { useUiStore } from "@/stores/use-ui-store";
 import {
   submitRenderJob,
   useVideoCancel,
@@ -30,11 +33,15 @@ import {
   type VideoRenderJob,
 } from "./hooks/use-video";
 import { useTimeline, type Scene } from "./hooks/use-timeline";
-import { useVideoExport, exportExtension } from "./hooks/use-video-export";
+import { useVideoExport, exportExtension, type Storyboard } from "./hooks/use-video-export";
+import { getIconDef } from "./lib/icon-library";
+import { parseStoryboard } from "./lib/parse-storyboard-blocks";
 import { CanvasPlayer } from "./components/canvas-player";
 import { Timeline } from "./components/timeline";
 import { SceneCard } from "./components/scene-card";
 import { RenderPanel } from "./components/render-panel";
+import { TemplateGallery } from "./components/template-gallery";
+import { DesignerColumn } from "./components/designer-column";
 
 // ── Storyboard (non-scene fields; scenes live in the timeline) ──
 
@@ -43,10 +50,6 @@ interface StoryboardMeta {
   canvas: { width: number; height: number; fps: number };
   audio?: { bgm_path?: string; bgm_volume?: number };
   output?: { format?: string; height?: number };
-}
-
-export interface Storyboard extends StoryboardMeta {
-  scenes: Scene[];
 }
 
 const ASPECTS = {
@@ -65,9 +68,13 @@ function defaultStoryboard(): StoryboardMeta {
 
 function hasValidationErrors(sb: Storyboard): boolean {
   return sb.scenes.some(
-    (s) => (s.type === "image" || s.type === "video") && !s.source?.trim(),
+    (s) =>
+      ((s.type === "image" || s.type === "video") && !s.source?.trim()) ||
+      (s.type === "icon" && !getIconDef(s.icon?.name)),
   );
 }
+
+
 
 function statusClass(status: VideoRenderJob["status"]): string {
   switch (status) {
@@ -103,6 +110,12 @@ export function VideoToolPage() {
   const [deleteTarget, setDeleteTarget] = useState<VideoRenderJob | null>(null);
   const [jobsOpen, setJobsOpen] = useState(true);
 
+  // Designer column (chat rail on desktop, bottom sheet on tablets/phones).
+  // Visibility lives in the shared ui store (persisted) — same as pptx.
+  const isCompact = useIsTablet();
+  const designerOpen = useUiStore((st) => st.videoDesignerOpen);
+  const setDesignerOpen = useUiStore((st) => st.setVideoDesignerOpen);
+
   // Feature gate
   const { data: gate, error: gateError } = useQuery({
     queryKey: ["video", "gate"],
@@ -115,7 +128,10 @@ export function VideoToolPage() {
   // Timeline hook — the single source of truth for scenes. The full
   // storyboard is derived, so undo/redo and scene edits can never desync
   // the canvas player or the submit payload from the timeline strip.
-  const timeline = useTimeline();
+  const timeline = useTimeline(undefined, {
+    getMeta: () => meta,
+    setMeta: (m) => setMeta(m as StoryboardMeta),
+  });
 
   const sb: Storyboard = useMemo(
     () => ({ ...meta, scenes: timeline.state.scenes }),
@@ -125,6 +141,26 @@ export function VideoToolPage() {
   const updateMeta = useCallback((patch: Partial<StoryboardMeta>) => {
     setMeta((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  // The one Apply path shared by the designer column and the JSON mode, so
+  // the canvas player, timeline strip and render payload stay consistent.
+  // replaceScenes records an undo step and selects scene 1, so applying is
+  // always reversible.
+  const applyStoryboard = useCallback(
+    (next: Storyboard) => {
+      const { scenes, ...nextMeta } = next;
+      setMeta({ ...defaultStoryboard(), ...nextMeta, version: 1 });
+      timeline.replaceScenes(scenes ?? []);
+    },
+    [timeline],
+  );
+
+  const applyTemplate = useCallback(
+    (scenes: Scene[]) => {
+      timeline.replaceScenes(scenes);
+    },
+    [timeline],
+  );
 
   // Export
   const {
@@ -160,21 +196,16 @@ export function VideoToolPage() {
   }
 
   function loadJson() {
-    try {
-      const parsed = JSON.parse(jsonDraft) as Storyboard;
-      if (!parsed || typeof parsed !== "object") throw new Error("not an object");
-      const { scenes, ...parsedMeta } = parsed;
-      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
-      timeline.replaceScenes(scenes ?? []);
-      setJsonError("");
-      setShowJson(false);
-    } catch (e) {
+    const parsed = parseStoryboard(jsonDraft);
+    if (!parsed.ok) {
       setJsonError(
-        t("video.json_invalid", {
-          error: e instanceof Error ? e.message : String(e),
-        }),
+        t("video.json_invalid", { error: parsed.error }),
       );
+      return;
     }
+    applyStoryboard(parsed.storyboard);
+    setJsonError("");
+    setShowJson(false);
   }
 
   function handleExportClient() {
@@ -217,20 +248,37 @@ export function VideoToolPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
+    // The page fills the app scrollport exactly (h-full of <main>): the
+    // editor column scrolls internally and the designer rail always fits
+    // the viewport (same layout contract as the PPTX studio).
+    <div className="h-full min-h-0">
+      <div className="mx-auto flex h-full w-full items-stretch">
+        <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-6">
       <PageHeader
         title={t("video.title")}
         description={t("video.description")}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refresh()}
-            className="min-h-11 sm:min-h-9"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {t("video.jobs_refresh")}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refresh()}
+              className="min-h-11 sm:min-h-9"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {t("video.jobs_refresh")}
+            </Button>
+            <Button
+              variant={designerOpen ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDesignerOpen(!designerOpen)}
+              className="min-h-11 sm:min-h-9"
+              title={t("video.designer.toggle")}
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              {t("video.designer.title")}
+            </Button>
+          </>
         }
       />
 
@@ -374,6 +422,9 @@ export function VideoToolPage() {
         <TabsContent value="editor" className="flex flex-col gap-4">
           {/* Canvas Player */}
           <CanvasPlayer storyboard={sb} />
+
+          {/* Template gallery */}
+          <TemplateGallery onApply={applyTemplate} />
 
           {/* Timeline */}
           <div className="rounded-lg border p-3">
@@ -534,6 +585,15 @@ export function VideoToolPage() {
           }
         }}
       />
+        </div>
+
+        {/* Designer column: full-height chat rail on desktop; on compact
+            screens it renders itself as a portal bottom sheet, so the
+            wrapper stays empty. */}
+        <div className={cn("h-full shrink-0", !isCompact && "min-w-0")}>
+          <DesignerColumn onApplyStoryboard={applyStoryboard} currentStoryboard={sb} />
+        </div>
+      </div>
     </div>
   );
 }

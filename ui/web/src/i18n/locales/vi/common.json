@@ -140,5 +140,8 @@
   },
   "errors": {
     "serverError": "Đã xảy ra lỗi. Vui lòng thử lại sau."
+  },
+  "pane": {
+    "resize": "Thay đổi kích thước khung"
   }
 }

@@ -140,5 +140,8 @@
   },
   "errors": {
     "serverError": "出了点问题，请稍后重试。"
+  },
+  "pane": {
+    "resize": "调整面板大小"
   }
 }

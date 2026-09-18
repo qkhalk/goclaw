@@ -1,31 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SceneTransition } from "../components/scene-transition";
+import type { Scene } from "./use-timeline";
 import { drawStoryboardFrame } from "../components/render-shared";
 
 // ── Types ──
 
-interface KenBurns {
-  zoom_from: number;
-  zoom_to: number;
-  pan: "none" | "left" | "right" | "up" | "down";
-}
-interface Caption {
-  text: string;
-  position?: "top" | "center" | "bottom";
-  font_size?: number;
-}
-interface Scene {
-  type: "image" | "video" | "color";
-  source?: string;
-  color?: string;
-  duration_sec: number;
-  fit?: "cover" | "contain";
-  mute?: boolean;
-  ken_burns?: KenBurns;
-  caption?: Caption;
-  narration?: string;
-  transition?: SceneTransition;
-}
 interface Storyboard {
   version: number;
   canvas: { width: number; height: number; fps: number };

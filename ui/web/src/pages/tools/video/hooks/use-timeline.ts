@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { SceneTransition } from "../components/scene-transition";
 
 // ── Types (matching storyboard types) ──
@@ -14,9 +14,16 @@ interface Caption {
   font_size?: number;
 }
 export interface Scene {
-  type: "image" | "video" | "color";
+  /** `icon` scenes are browser-only: the canvas preview and client export
+   * draw them, the server renderer does not (see render-panel warning). */
+  type: "image" | "video" | "color" | "icon";
   source?: string;
   color?: string;
+  /** Optional two-stop background gradient (browser-only; the server render
+   * falls back to the flat `color`). */
+  gradient?: { from: string; to: string };
+  /** Icon-scene glyph: a bundled line icon, optionally tinted. */
+  icon?: { name: string; color?: string };
   duration_sec: number;
   fit?: "cover" | "contain";
   mute?: boolean;
@@ -70,18 +77,37 @@ export interface UseTimelineReturn {
   replaceScenes: (scenes: Scene[]) => void;
 }
 
-export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
+export interface TimelineMetaSync {
+  /** Read the editor's current storyboard meta (canvas/audio/output). */
+  getMeta?: () => unknown;
+  /** Restore storyboard meta during undo/redo when the entry carries one. */
+  setMeta?: (meta: unknown) => void;
+}
+
+interface HistoryEntry {
+  scenes: Scene[];
+  /** Meta snapshot at the time this entry was recorded (undo/redo restore). */
+  meta?: unknown;
+}
+
+export function useTimeline(initialScenes?: Scene[], metaSync?: TimelineMetaSync): UseTimelineReturn {
+  const metaSyncRef = useRef(metaSync);
+  metaSyncRef.current = metaSync;
   const [scenes, setScenes] = useState<Scene[]>(() => initialScenes ?? [emptyScene()]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [history, setHistory] = useState<Scene[][]>(() => [initialScenes ?? [emptyScene()]]);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => [
+    { scenes: initialScenes ?? [emptyScene()], meta: metaSyncRef.current?.getMeta?.() },
+  ]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
   /** Record the next state: drop any redo tail, append, cap the stack.
-   * Pure updater — no side effects (React may double-invoke updaters). */
+   * Pure updater — no side effects (React may double-invoke updaters). The
+   * current storyboard meta rides along so undo/redo can restore it. */
   const pushHistory = useCallback((next: Scene[]) => {
+    const entry: HistoryEntry = { scenes: next, meta: metaSyncRef.current?.getMeta?.() };
     setHistory((prev) => {
       const trimmed = prev.slice(0, historyIndex + 1);
-      trimmed.push(next);
+      trimmed.push(entry);
       if (trimmed.length > MAX_HISTORY) trimmed.shift();
       return trimmed;
     });
@@ -142,22 +168,24 @@ export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
   const undo = useCallback(() => {
     if (historyIndex <= 0) return;
     const prevIndex = historyIndex - 1;
-    const prevScenes = history[prevIndex];
-    if (prevScenes) {
-      setScenes(prevScenes);
+    const prev = history[prevIndex];
+    if (prev) {
+      setScenes(prev.scenes);
       setHistoryIndex(prevIndex);
-      setSelectedIndex((i) => Math.min(i, prevScenes.length - 1));
+      setSelectedIndex((i) => Math.min(i, prev.scenes.length - 1));
+      if (prev.meta !== undefined) metaSyncRef.current?.setMeta?.(prev.meta);
     }
   }, [history, historyIndex]);
 
   const redo = useCallback(() => {
     if (historyIndex >= history.length - 1) return;
     const nextIndex = historyIndex + 1;
-    const nextScenes = history[nextIndex];
-    if (nextScenes) {
-      setScenes(nextScenes);
+    const next = history[nextIndex];
+    if (next) {
+      setScenes(next.scenes);
       setHistoryIndex(nextIndex);
-      setSelectedIndex((i) => Math.min(i, nextScenes.length - 1));
+      setSelectedIndex((i) => Math.min(i, next.scenes.length - 1));
+      if (next.meta !== undefined) metaSyncRef.current?.setMeta?.(next.meta);
     }
   }, [history, historyIndex]);
 
