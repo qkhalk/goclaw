@@ -377,9 +377,19 @@ var designerIdentityPolish = func() string {
 	return s
 }()
 
+// designerIdentityTransitions is the transition-contract persona (v7,
+// 2026-09-19): the motion bullet enumerates the actual transition values.
+// "slide" alone is not a valid enum and produced rejected storyboards.
+var designerIdentityTransitions = func() string {
+	return strings.Replace(designerIdentityPolish,
+		"transitions fade/slide between scenes, matched to mood.",
+		`transitions between scenes, matched to mood: "fade", "crossfade", "slide_left", "slide_up" — these four only ("slide" alone is invalid).`,
+		1)
+}()
+
 // designerIdentity is the IDENTITY.md persona (English, LLM consumption).
 // Contract mirrors internal/video/types.go Storyboard.Validate.
-var designerIdentity = designerIdentityPolish
+var designerIdentity = designerIdentityTransitions
 
 // designerIdentityHistory lists every system-authored persona version, oldest
 // first. A boot-time migration upgrades an existing agent's IDENTITY.md only
@@ -397,6 +407,8 @@ var designerIdentityHistory = []string{
 	designerIdentityVisuals,
 	// frames era (2026-09-18): icon/card layers + entrance animations.
 	designerIdentityFrames,
+	// polish era (2026-09-18): typography hierarchy, icon chips, borders.
+	designerIdentityPolish,
 }
 
 // EnsureDesignerAgent creates the video-designer predefined agent when the
