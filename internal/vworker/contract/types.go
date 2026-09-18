@@ -71,7 +71,30 @@ const (
 	LayerText  LayerKind = "text"
 	LayerShape LayerKind = "shape"
 	LayerImage LayerKind = "image"
+	LayerIcon  LayerKind = "icon"
+	LayerCard  LayerKind = "card"
 )
+
+// ValidIcons is the canonical set of embedded icon names (Feather-style
+// stroke glyphs, MIT). The worker embeds the SVG bodies under the same
+// keys — cross-checked by a vworker test.
+var ValidIcons = map[string]bool{
+	"check": true, "zap": true, "users": true, "user": true,
+	"cpu": true, "database": true, "git-branch": true, "globe": true,
+	"heart": true, "star": true, "trending-up": true, "shield": true,
+	"layers": true, "code": true, "terminal": true, "book-open": true,
+	"message-circle": true, "clock": true, "eye": true, "lock": true,
+	"package": true, "settings": true, "bar-chart-2": true,
+	"arrow-right": true, "download": true, "play": true, "target": true,
+	"search": true, "calendar": true, "camera": true, "music": true,
+	"wifi": true, "cloud": true, "coffee": true,
+}
+
+// ValidAnims enumerates layer entrance animations ("": instant).
+var ValidAnims = map[string]bool{
+	"": true, "fade": true, "up": true, "down": true,
+	"left": true, "right": true, "pop": true,
+}
 
 // Layer is one timed overlay inside a scene — copy-shape mirror of
 // internal/video.Layer (drift-guarded by the golden fixture "layers").
@@ -80,6 +103,8 @@ type Layer struct {
 	Text     string    `json:"text,omitempty"`
 	Source   string    `json:"source,omitempty"`
 	Shape    string    `json:"shape,omitempty"`
+	Icon     string    `json:"icon,omitempty"`
+	Anim     string    `json:"anim,omitempty"`
 	Start    float64   `json:"start,omitempty"`
 	Duration float64   `json:"duration,omitempty"`
 	X        float64   `json:"x,omitempty"`
@@ -88,6 +113,7 @@ type Layer struct {
 	H        float64   `json:"h,omitempty"`
 	Fill     string    `json:"fill,omitempty"`
 	Opacity  float64   `json:"opacity,omitempty"`
+	Radius   float64   `json:"radius,omitempty"`
 	FontSize int       `json:"font_size,omitempty"`
 	Align    string    `json:"align,omitempty"`
 }
@@ -138,8 +164,12 @@ func (l *Layer) EffectiveBox() (x, y, w, h float64) {
 	if w == 0 {
 		w = 0.8
 	}
-	if h == 0 && l.Kind == LayerShape {
+	if h == 0 && (l.Kind == LayerShape || l.Kind == LayerCard) {
 		h = 0.3
+	}
+	// Icons default to a square box — their SVG source is square.
+	if h == 0 && l.Kind == LayerIcon {
+		h = w
 	}
 	return x, y, w, h
 }

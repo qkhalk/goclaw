@@ -322,17 +322,11 @@ func fillRoundRect(img *image.RGBA, r image.Rectangle, radius int, c color.RGBA)
 	}
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			cx := x
-			if cx < x0+radius {
-				cx = x0 + radius
-			}
+			cx := max(x, x0+radius)
 			if cx > x1-1-radius {
 				cx = x1 - 1 - radius
 			}
-			cyy := y
-			if cyy < y0+radius {
-				cyy = y0 + radius
-			}
+			cyy := max(y, y0+radius)
 			if cyy > y1-1-radius {
 				cyy = y1 - 1 - radius
 			}
@@ -357,8 +351,8 @@ func renderGlowPNG(tempDir, hexColor string, sceneIdx int) (string, error) {
 	cx, cy := float64(size/2), float64(size/2)
 	radius := float64(size / 2)
 	const peak = 44 // ~0.17 alpha at the core
-	for y := 0; y < size; y++ {
-		for x := 0; x < size; x++ {
+	for y := range size {
+		for x := range size {
 			d := math.Hypot(float64(x)-cx, float64(y)-cy) / radius
 			if d >= 1 {
 				continue
@@ -383,7 +377,7 @@ func parseHexColor(s string) (r, g, b uint8, err error) {
 		return 0, 0, 0, fmt.Errorf("bad color %q", s)
 	}
 	var v [3]uint8
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		var b byte
 		if _, err := fmt.Sscanf(s[i*2:i*2+2], "%02x", &b); err != nil {
 			return 0, 0, 0, fmt.Errorf("bad color %q: %w", s, err)

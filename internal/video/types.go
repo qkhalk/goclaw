@@ -76,7 +76,32 @@ const (
 	LayerText  LayerKind = "text"
 	LayerShape LayerKind = "shape"
 	LayerImage LayerKind = "image"
+	LayerIcon  LayerKind = "icon"
+	LayerCard  LayerKind = "card"
 )
+
+// ValidIcons is the canonical set of embedded icon names for icon layers
+// (Feather-style stroke glyphs, MIT). The worker embeds the SVG bodies
+// under the same keys. Mirrored in internal/vworker/contract — the golden
+// fixture test cross-checks the two sets.
+var ValidIcons = map[string]bool{
+	"check": true, "zap": true, "users": true, "user": true,
+	"cpu": true, "database": true, "git-branch": true, "globe": true,
+	"heart": true, "star": true, "trending-up": true, "shield": true,
+	"layers": true, "code": true, "terminal": true, "book-open": true,
+	"message-circle": true, "clock": true, "eye": true, "lock": true,
+	"package": true, "settings": true, "bar-chart-2": true,
+	"arrow-right": true, "download": true, "play": true, "target": true,
+	"search": true, "calendar": true, "camera": true, "music": true,
+	"wifi": true, "cloud": true, "coffee": true,
+}
+
+// ValidAnims enumerates layer entrance animations ("": instant). Mirrored in
+// internal/vworker/contract.
+var ValidAnims = map[string]bool{
+	"": true, "fade": true, "up": true, "down": true,
+	"left": true, "right": true, "pop": true,
+}
 
 // Layer is one timed overlay inside a scene. Geometry is normalized to the
 // canvas (0..1, top-left origin) so a storyboard is resolution-independent;
@@ -85,17 +110,20 @@ const (
 // (duration 0 = until the scene ends).
 type Layer struct {
 	Kind     LayerKind `json:"kind"`
-	Text     string    `json:"text,omitempty"`     // text layers
-	Source   string    `json:"source,omitempty"`   // image layers: workspace-relative path or http(s) URL
-	Shape    string    `json:"shape,omitempty"`    // shape layers: rect
-	Start    float64   `json:"start,omitempty"`    // seconds into the scene (default 0)
-	Duration float64   `json:"duration,omitempty"` // seconds (0 = to scene end)
-	X        float64   `json:"x,omitempty"`        // 0..1 (default 0.1)
-	Y        float64   `json:"y,omitempty"`        // 0..1 (default 0.1)
-	W        float64   `json:"w,omitempty"`        // 0..1 width (default 0.8)
-	H        float64   `json:"h,omitempty"`        // 0..1 height, shape layers only (default 0.3)
-	Fill     string    `json:"fill,omitempty"`     // #RRGGBB — text color / shape fill (default white)
-	Opacity  float64   `json:"opacity,omitempty"`  // 0..1 (default 1)
+	Text     string    `json:"text,omitempty"`      // text layers
+	Source   string    `json:"source,omitempty"`    // image layers: workspace-relative path or http(s) URL
+	Shape    string    `json:"shape,omitempty"`     // shape layers: rect
+	Icon     string    `json:"icon,omitempty"`      // icon layers: one of ValidIcons
+	Anim     string    `json:"anim,omitempty"`      // entrance animation: fade|up|down|left|right|pop (default none)
+	Start    float64   `json:"start,omitempty"`     // seconds into the scene (default 0)
+	Duration float64   `json:"duration,omitempty"`  // seconds (0 = to scene end)
+	X        float64   `json:"x,omitempty"`         // 0..1 (default 0.1)
+	Y        float64   `json:"y,omitempty"`         // 0..1 (default 0.1)
+	W        float64   `json:"w,omitempty"`         // 0..1 width (default 0.8)
+	H        float64   `json:"h,omitempty"`         // 0..1 height, shape/card layers (default 0.3; icons default square)
+	Fill     string    `json:"fill,omitempty"`      // #RRGGBB — text color / shape fill / icon stroke / card fill (default white)
+	Opacity  float64   `json:"opacity,omitempty"`   // 0..1 (default 1; cards usually 0.08..0.25)
+	Radius   float64   `json:"radius,omitempty"`    // card corner radius, 0..0.2 of canvas width (default 0.018)
 	FontSize int       `json:"font_size,omitempty"` // text layers (default 48)
 	Align    string    `json:"align,omitempty"`     // left|center|right within the box (default center)
 }
@@ -370,8 +398,22 @@ func (l *Layer) validate(sceneSec float64) error {
 		if strings.TrimSpace(l.Source) == "" {
 			return fmt.Errorf("image layers need source")
 		}
+	case LayerIcon:
+		if !ValidIcons[l.Icon] {
+			return fmt.Errorf("unknown icon %q (see ValidIcons for the embedded set)", l.Icon)
+		}
+	case LayerCard:
+		if !hexColor(l.Fill) {
+			return fmt.Errorf("card layers need a #RRGGBB fill, got %q", l.Fill)
+		}
 	default:
-		return fmt.Errorf("unknown layer kind %q (text, shape, image)", l.Kind)
+		return fmt.Errorf("unknown layer kind %q (text, shape, image, icon, card)", l.Kind)
+	}
+	if !ValidAnims[l.Anim] {
+		return fmt.Errorf("unknown anim %q (fade, up, down, left, right, pop)", l.Anim)
+	}
+	if l.Radius < 0 || l.Radius > 0.2 {
+		return fmt.Errorf("radius %.3f out of range 0..0.2 (fraction of canvas width)", l.Radius)
 	}
 	if l.Start < 0 || l.Start >= sceneSec {
 		return fmt.Errorf("start %.2fs out of range 0..%.2f", l.Start, sceneSec)
@@ -455,8 +497,12 @@ func (l *Layer) EffectiveBox() (x, y, w, h float64) {
 	if w == 0 {
 		w = 0.8
 	}
-	if h == 0 && l.Kind == LayerShape {
+	if h == 0 && (l.Kind == LayerShape || l.Kind == LayerCard) {
 		h = 0.3
+	}
+	// Icons default to a square box — their SVG source is square.
+	if h == 0 && l.Kind == LayerIcon {
+		h = w
 	}
 	return x, y, w, h
 }

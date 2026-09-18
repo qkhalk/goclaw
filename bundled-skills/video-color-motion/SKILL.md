@@ -83,4 +83,6 @@ on dark scenes, skip them on light backgrounds:
 4. The whole video uses one palette scheme, one glow accent and one
    transition family.
 5. Dark color scenes set vignette true and a glow from the scheme.
-6. The storyboard block is valid JSON on a single fence, version 1.
+6. Composed frames stagger their layer starts 0.25-0.35s apart; entrance
+   directions and card opacity stay consistent across the video.
+7. The storyboard block is valid JSON on a single fence, version 1.

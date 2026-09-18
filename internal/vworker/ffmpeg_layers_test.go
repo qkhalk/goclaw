@@ -44,7 +44,7 @@ func TestBuildColorSceneArgs_LayersMixed(t *testing.T) {
 	if !strings.Contains(chain, "fontsize=72:fontcolor=0xFACC15@1.00") {
 		t.Errorf("text style not resolved: %s", chain)
 	}
-	if !strings.Contains(chain, "x=108+(864-tw)/2") {
+	if !strings.Contains(chain, "x='108+(864-tw)/2'") {
 		t.Errorf("centered align expr missing: %s", chain)
 	}
 	if strings.Contains(chain, "overlay=") {
