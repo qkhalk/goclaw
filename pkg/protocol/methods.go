@@ -325,6 +325,11 @@ const (
 	MethodBrowserSnapshot   = "browser.snapshot"
 	MethodBrowserScreenshot = "browser.screenshot"
 
+	// Browser panel (client-side browsing): the web client posts the extracted
+	// page content back for a browser.panel.invoke it received. Distinct from
+	// browser.act/snapshot/screenshot which drive the SERVER-side Rod browser.
+	MethodBrowserPanelResult = "browser.panel.result"
+
 	// Zalo Personal
 	MethodZaloPersonalQRStart  = "zalo.personal.qr.start"
 	MethodZaloPersonalContacts = "zalo.personal.contacts"

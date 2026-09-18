@@ -18,6 +18,9 @@ interface ChatTopBarProps {
   /** Paseo Phase 4 (§25): web terminal panel toggle. */
   onToggleTerminal?: () => void;
   termPanelOpen?: boolean;
+  /** Client-side browsing: browser panel toggle. */
+  onToggleBrowser?: () => void;
+  browserPanelOpen?: boolean;
   /** Selected workspace id + change callback for the console menu. */
   workspaceId?: string | null;
   onWorkspaceChange?: (id: string | null) => void;
@@ -39,6 +42,8 @@ export function ChatTopBar({
   jobsTasksPanelOpen,
   onToggleTerminal,
   termPanelOpen,
+  onToggleBrowser,
+  browserPanelOpen,
   workspaceId,
   onWorkspaceChange,
 }: ChatTopBarProps) {
@@ -69,9 +74,11 @@ export function ChatTopBar({
           filesPanelOpen={!!filesPanelOpen}
           jobsPanelOpen={!!jobsTasksPanelOpen}
           termPanelOpen={!!termPanelOpen}
+          browserPanelOpen={!!browserPanelOpen}
           onToggleFiles={() => onToggleFiles?.()}
           onToggleJobsTasks={() => onToggleJobsTasks?.()}
           onToggleTerminal={() => onToggleTerminal?.()}
+          onToggleBrowser={() => onToggleBrowser?.()}
         />
 
         {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}

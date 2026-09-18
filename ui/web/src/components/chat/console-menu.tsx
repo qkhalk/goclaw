@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, ListTree, PanelsTopLeft, SquareTerminal } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, Globe, ListTree, PanelsTopLeft, SquareTerminal } from "lucide-react";
 import { Methods } from "@/api/protocol";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
 import { useWs } from "@/hooks/use-ws";
@@ -13,9 +13,11 @@ interface ConsoleMenuProps {
   filesPanelOpen: boolean;
   jobsPanelOpen: boolean;
   termPanelOpen: boolean;
+  browserPanelOpen: boolean;
   onToggleFiles: () => void;
   onToggleJobsTasks: () => void;
   onToggleTerminal: () => void;
+  onToggleBrowser: () => void;
 }
 
 /**
@@ -30,9 +32,11 @@ export function ConsoleMenu({
   filesPanelOpen,
   jobsPanelOpen,
   termPanelOpen,
+  browserPanelOpen,
   onToggleFiles,
   onToggleJobsTasks,
   onToggleTerminal,
+  onToggleBrowser,
 }: ConsoleMenuProps) {
   const { t } = useTranslation("chat");
   const ws = useWs();
@@ -330,6 +334,12 @@ export function ConsoleMenu({
             onClick={() => { onToggleTerminal(); setOpen(false); }}
             icon={<SquareTerminal className="h-4 w-4 shrink-0" />}
             label={t("terminal.title")}
+          />
+          <MenuRow
+            active={browserPanelOpen}
+            onClick={() => { onToggleBrowser(); setOpen(false); }}
+            icon={<Globe className="h-4 w-4 shrink-0" />}
+            label={t("browserPanel.title")}
           />
         </div>,
         document.body,

@@ -102,6 +102,18 @@
     "connecting": "正在连接…",
     "failed": "终端出错：{{message}}"
   },
+  "browserPanel": {
+    "title": "浏览器",
+    "loading": "正在加载页面…",
+    "ready": "就绪",
+    "error": "无法显示页面",
+    "errorHint": "该网站可能禁止嵌入 — 请使用\"在新标签页打开\"。",
+    "openNewTab": "在新标签页打开",
+    "reload": "重新加载",
+    "close": "关闭面板",
+    "urlBar": "页面 URL",
+    "empty": "尚未打开页面。让助手帮你打开一个网页吧。"
+  },
   "taskTree": {
     "empty": "暂无任务",
     "priority": "优先级",
