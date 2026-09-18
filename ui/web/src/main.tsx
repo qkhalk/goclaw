@@ -40,6 +40,18 @@ createRoot(document.getElementById("root")!).render(
 );
 
 const ric = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1));
+
+// Register the offline-shell service worker. Secure context only: on plain
+// http:// LAN addresses (not localhost) registration is skipped because the
+// browser refuses service workers there anyway.
+if ("serviceWorker" in navigator && window.isSecureContext) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // Best-effort — the app works fine without the offline shell.
+    });
+  });
+}
+
 ric(() => {
   const elapsed = performance.now() - loaderStart;
   const delay = Math.max(0, LOADER_MIN_MS - elapsed);
