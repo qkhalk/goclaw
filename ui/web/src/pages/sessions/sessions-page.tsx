@@ -12,6 +12,7 @@ import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { useUiStore } from "@/stores/use-ui-store";
 import { useSessions } from "./hooks/use-sessions";
 import { SessionDetailPage } from "./session-detail-page";
+import { resolveSessionOrigin } from "./sessions-origin";
 import { parseSessionKey } from "@/lib/session-key";
 import { formatRelativeTime, formatTokens } from "@/lib/format";
 import type { SessionInfo } from "@/types/session";
@@ -96,10 +97,11 @@ export function SessionsPage() {
           />
         ) : (
           <div className="rounded-md border overflow-x-auto">
-            <table className="w-full min-w-[750px]">
+            <table className="w-full min-w-[850px]">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.session")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.origin")}</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.agent")}</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.context")}</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">{t("columns.messages")}</th>
@@ -140,6 +142,7 @@ function SessionRow({
 }) {
   const { t } = useTranslation("sessions");
   const parsed = parseSessionKey(session.key);
+  const origin = resolveSessionOrigin(session);
 
   return (
     <tr
@@ -152,10 +155,10 @@ function SessionRow({
         </div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {session.metadata?.username ? `@${session.metadata.username}` : session.key}
-          {session.channel && session.channel !== "ws" && (
-            <Badge variant="secondary" className="text-2xs px-1 py-0">{session.channel}</Badge>
-          )}
         </div>
+      </td>
+      <td className="px-4 py-3">
+        <OriginBadge origin={origin} t={t} />
       </td>
       <td className="px-4 py-3">
         <Badge variant="outline">{session.agentName || parsed.agentId}</Badge>
@@ -173,6 +176,32 @@ function SessionRow({
         {formatRelativeTime(session.updated)}
       </td>
     </tr>
+  );
+}
+
+/** Always-on "Origin" badge: platform (channel-borne), studio designer
+ * agents, or Web Chat. Distinct tones per kind. */
+function OriginBadge({
+  origin,
+  t,
+}: {
+  origin: ReturnType<typeof resolveSessionOrigin>;
+  t: (key: string) => string;
+}) {
+  if (!origin) return <span className="text-xs text-muted-foreground">—</span>;
+  const label = origin.labelKey ? t(origin.labelKey) : origin.label ?? "";
+  const variant =
+    origin.kind === "platform"
+      ? "secondary"
+      : origin.kind === "designer"
+        ? origin.label === "PPTX"
+          ? "warning"
+          : "info"
+        : "outline";
+  return (
+    <Badge variant={variant} className="text-2xs px-1.5 py-0">
+      {label}
+    </Badge>
   );
 }
 

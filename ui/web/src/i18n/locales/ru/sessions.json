@@ -8,10 +8,15 @@
   "noMatchDescription": "Попробуйте другой поисковый запрос.",
   "columns": {
     "session": "Сессия",
+    "origin": "Источник",
     "agent": "Агент",
     "context": "Контекст",
     "messages": "Сообщения",
     "updated": "Обновлено"
+  },
+  "origin": {
+    "webChat": "Веб-чат",
+    "videoEditor": "Видеоредактор"
   },
   "contextBar": {
     "compacted": "Сжато раз: {{count}}"

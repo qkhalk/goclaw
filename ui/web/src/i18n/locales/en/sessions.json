@@ -8,10 +8,15 @@
   "noMatchDescription": "Try a different search term.",
   "columns": {
     "session": "Session",
+    "origin": "Origin",
     "agent": "Agent",
     "context": "Context",
     "messages": "Messages",
     "updated": "Updated"
+  },
+  "origin": {
+    "webChat": "Web Chat",
+    "videoEditor": "Video Editor"
   },
   "contextBar": {
     "compacted": "Compacted {{count}} time(s)"

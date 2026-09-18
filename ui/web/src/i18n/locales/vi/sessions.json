@@ -8,10 +8,15 @@
   "noMatchDescription": "Thử từ khóa tìm kiếm khác.",
   "columns": {
     "session": "Session",
+    "origin": "Nguồn",
     "agent": "Agent",
     "context": "Ngữ cảnh",
     "messages": "Tin nhắn",
     "updated": "Cập nhật"
+  },
+  "origin": {
+    "webChat": "Chat web",
+    "videoEditor": "Trình chỉnh sửa video"
   },
   "contextBar": {
     "compacted": "Đã nén {{count}} lần"

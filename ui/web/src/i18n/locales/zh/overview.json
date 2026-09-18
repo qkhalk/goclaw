@@ -10,12 +10,6 @@
     "title": "已连接客户端",
     "you": "（你）"
   },
-  "cronJobs": {
-    "disabled": "已禁用",
-    "manage": "管理",
-    "noJobs": "暂无 Cron 任务",
-    "title": "Cron 任务"
-  },
   "description": "网关概览和配额使用情况",
   "tabs": {
     "overview": "概览",

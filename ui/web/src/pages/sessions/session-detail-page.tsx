@@ -14,6 +14,7 @@ import type { SessionInfo, SessionPreview, Message } from "@/types/session";
 import type { ChatMessage, AgentEventPayload, ToolStreamEntry } from "@/types/chat";
 import { messageToTimestamp } from "@/lib/message-utils";
 import { SystemMessageBlock, SummaryBlock } from "./session-message-blocks";
+import { resolveSessionOrigin } from "./sessions-origin";
 import { useRunTimeline } from "./hooks/use-run-timeline";
 import { RunTimelinePanel } from "./run-timeline-panel";
 
@@ -198,12 +199,25 @@ export function SessionDetailPage({
             )}
             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="outline">{session.agentName || parsed.agentId}</Badge>
-              {session.channel && session.channel !== "ws" && (
-                <Badge variant="secondary" className="gap-1">
-                  <Eye className="h-3 w-3" />
-                  {session.channel}
-                </Badge>
-              )}
+              {(() => {
+                const origin = resolveSessionOrigin(session);
+                if (!origin) return null;
+                const label = origin.labelKey ? t(origin.labelKey) : origin.label ?? "";
+                const variant =
+                  origin.kind === "platform"
+                    ? "secondary"
+                    : origin.kind === "designer"
+                      ? origin.label === "PPTX"
+                        ? "warning"
+                        : "info"
+                      : "outline";
+                return (
+                  <Badge variant={variant} className="gap-1">
+                    <Eye className="h-3 w-3" />
+                    {label}
+                  </Badge>
+                );
+              })()}
               {session.metadata?.username && (
                 <Badge variant="secondary">@{session.metadata.username}</Badge>
               )}

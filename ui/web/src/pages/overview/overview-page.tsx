@@ -18,7 +18,6 @@ import type {
   HealthPayload,
   StatusPayload,
   QuotaUsageResult,
-  CronListPayload,
   ChannelStatusPayload,
 } from "./types";
 import { useLiveUptime } from "./hooks/use-live-uptime";
@@ -26,7 +25,6 @@ import { StatCard } from "./stat-card";
 import { useOverviewSparklines } from "./hooks/use-overview-sparklines";
 import { SystemHealthCard } from "./system-health-card";
 import { ConnectedClientsCard } from "./connected-clients-card";
-import { CronJobsCard } from "./cron-jobs-card";
 import { RecentRequestsCard } from "./recent-requests-card";
 import { RoutingGraphCard } from "./routing-graph-card";
 import { QuotaUsageCard } from "./quota-usage-card";
@@ -54,8 +52,6 @@ export function OverviewPage() {
   const { call: fetchQuota, data: quota } =
     useWsCall<QuotaUsageResult>(Methods.QUOTA_USAGE);
   const sparklines = useOverviewSparklines();
-  const { call: fetchCron, data: cronData } =
-    useWsCall<CronListPayload>(Methods.CRON_LIST);
   const { call: fetchChannels, data: channelStatusData } =
     useWsCall<ChannelStatusPayload>(Methods.CHANNELS_STATUS);
   const { providers, loading: providersLoading } = useProviders();
@@ -75,9 +71,8 @@ export function OverviewPage() {
     fetchHealth();
     fetchStatus();
     fetchQuota();
-    fetchCron({ includeDisabled: true });
     fetchChannels();
-  }, [fetchHealth, fetchStatus, fetchQuota, fetchCron, fetchChannels]);
+  }, [fetchHealth, fetchStatus, fetchQuota, fetchChannels]);
 
   useEffect(() => {
     if (!connected) return;
@@ -254,24 +249,25 @@ export function OverviewPage() {
             />
           </div>
 
-          {/* System Health */}
-          <SystemHealthCard
-            health={health}
-            liveUptime={liveUptime}
-            enabledProviderCount={enabledProviders.length}
-            sessions={status?.sessions ?? 0}
-            clientCount={clientList.length}
-            channelEntries={channelEntries}
-            runtimeEntries={runtimes?.runtimes}
-          />
-
-          {/* Connected Clients + Cron Jobs */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ConnectedClientsCard
-              clients={clientList}
-              currentId={health?.currentId}
-            />
-            <CronJobsCard jobs={cronData?.jobs ?? []} />
+          {/* System Health + Connected Clients */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <SystemHealthCard
+                health={health}
+                liveUptime={liveUptime}
+                enabledProviderCount={enabledProviders.length}
+                sessions={status?.sessions ?? 0}
+                clientCount={clientList.length}
+                channelEntries={channelEntries}
+                runtimeEntries={runtimes?.runtimes}
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <ConnectedClientsCard
+                clients={clientList}
+                currentId={health?.currentId}
+              />
+            </div>
           </div>
 
           {/* Routing graph + Recent Requests (9router-style dashboard) */}

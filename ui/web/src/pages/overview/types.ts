@@ -63,17 +63,3 @@ export interface QuotaUsageResult {
   uniqueUsersToday: number;
   entries: QuotaUsageEntry[];
 }
-
-export interface CronJob {
-  id: string;
-  name: string;
-  enabled: boolean;
-  state: {
-    nextRunAtMs?: number;
-    lastStatus?: string;
-  };
-}
-
-export interface CronListPayload {
-  jobs: CronJob[];
-}
