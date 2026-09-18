@@ -3,6 +3,7 @@ package vworker
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -310,12 +311,12 @@ func TestPanExprLeft(t *testing.T) {
 }
 
 func TestSceneOutputPath(t *testing.T) {
-	got := sceneOutputPath("/tmp/job123", 0)
-	if got != "/tmp/job123/scene_000.mp4" {
+	got := sceneOutputPath(filepath.Join("/tmp", "job123"), 0)
+	if got != filepath.Join("/tmp", "job123", "scene_000.mp4") {
 		t.Errorf("unexpected scene path: %s", got)
 	}
-	got = sceneOutputPath("/tmp/job123", 5)
-	if got != "/tmp/job123/scene_005.mp4" {
+	got = sceneOutputPath(filepath.Join("/tmp", "job123"), 5)
+	if got != filepath.Join("/tmp", "job123", "scene_005.mp4") {
 		t.Errorf("unexpected scene path: %s", got)
 	}
 }
@@ -323,12 +324,7 @@ func TestSceneOutputPath(t *testing.T) {
 // --- helpers ---
 
 func containsArg(args []string, val string) bool {
-	for _, a := range args {
-		if a == val {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, val)
 }
 
 func indexOfArg(args []string, val string) int {

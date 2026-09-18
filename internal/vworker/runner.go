@@ -269,17 +269,29 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		js.mu.Unlock()
 	}
 
-	// Concat scenes
-	concatPath := filepath.Join(tempDir, "concat.txt")
-	if err := writeConcatFile(concatPath, sceneFiles); err != nil {
-		r.failJob(js, fmt.Sprintf("write concat file: %v", err))
-		return
-	}
-	concatOut := filepath.Join(tempDir, "concat.mp4")
-	concatArgs := buildConcatArgs(ffcfg, sceneFiles, concatPath, concatOut)
-	if err := execFFmpeg(ctx, r.cfg.FFmpegPath, concatArgs); err != nil {
-		r.failJob(js, fmt.Sprintf("concat: %v", err))
-		return
+	// Join scenes: chained xfade when any scene declares an enter transition
+	// (re-encodes via filter_complex), otherwise the stream-copy concat
+	// demuxer.
+	var concatOut string
+	if anyEnterTransition(sb.Scenes) {
+		concatOut = filepath.Join(tempDir, "transition.mp4")
+		tArgs := buildTransitionArgs(ffcfg, sb.Scenes, sceneFiles, concatOut, fps)
+		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, tArgs); err != nil {
+			r.failJob(js, fmt.Sprintf("transitions: %v", err))
+			return
+		}
+	} else {
+		concatPath := filepath.Join(tempDir, "concat.txt")
+		if err := writeConcatFile(concatPath, sceneFiles); err != nil {
+			r.failJob(js, fmt.Sprintf("write concat file: %v", err))
+			return
+		}
+		concatOut = filepath.Join(tempDir, "concat.mp4")
+		concatArgs := buildConcatArgs(ffcfg, sceneFiles, concatPath, concatOut)
+		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, concatArgs); err != nil {
+			r.failJob(js, fmt.Sprintf("concat: %v", err))
+			return
+		}
 	}
 
 	js.mu.Lock()

@@ -2,6 +2,7 @@ package video
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -226,5 +227,59 @@ func TestSceneDurationBounds(t *testing.T) {
 	sb2 := Storyboard{Version: 1, Scenes: []Scene{{Type: SceneColor, Color: "#000000", DurationSec: 30}}}
 	if err := sb2.Validate(); err != nil {
 		t.Fatalf("30s duration should be valid: %v", err)
+	}
+}
+
+func TestSceneTransitionValidation(t *testing.T) {
+	valid := []string{"", TransitionNone, TransitionFade, TransitionCrossfade, TransitionSlideLeft, TransitionSlideUp}
+	for _, tr := range valid {
+		sb := Storyboard{Version: 1, Scenes: []Scene{{Type: SceneColor, Color: "#000000", DurationSec: 3, Transition: tr}}}
+		if err := sb.Validate(); err != nil {
+			t.Errorf("transition %q should be valid: %v", tr, err)
+		}
+	}
+	sb := Storyboard{Version: 1, Scenes: []Scene{{Type: SceneColor, Color: "#000000", DurationSec: 3, Transition: "wipe"}}}
+	err := sb.Validate()
+	if err == nil {
+		t.Fatal("expected error for unknown transition type")
+	}
+	if !strings.Contains(err.Error(), "transition") {
+		t.Errorf("error should mention transition, got: %v", err)
+	}
+}
+
+// TestSceneFxWireShape pins the exact JSON field names the web editor sends
+// (see ui/web use-timeline.ts): transform {scale,x,y,rotate,opacity},
+// filter {brightness,contrast,saturate,blur}, transition as a plain string.
+func TestSceneFxWireShape(t *testing.T) {
+	raw := `{
+		"version": 1,
+		"scenes": [{
+			"type": "image",
+			"source": "media/banner.png",
+			"duration_sec": 5,
+			"transform": { "scale": 1.2, "x": 5, "y": -10, "rotate": 15, "opacity": 0.8 },
+			"filter": { "brightness": 1.1, "contrast": 0.9, "saturate": 1.3, "blur": 2 },
+			"transition": "slide_left"
+		}]
+	}`
+	var sb Storyboard
+	if err := json.Unmarshal([]byte(raw), &sb); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	sc := sb.Scenes[0]
+	if sc.Transform == nil || sc.Transform.Scale != 1.2 || sc.Transform.X != 5 || sc.Transform.Y != -10 ||
+		sc.Transform.Rotate != 15 || sc.Transform.Opacity != 0.8 {
+		t.Errorf("transform parse mismatch: %+v", sc.Transform)
+	}
+	if sc.Filter == nil || sc.Filter.Brightness != 1.1 || sc.Filter.Contrast != 0.9 ||
+		sc.Filter.Saturate != 1.3 || sc.Filter.Blur != 2 {
+		t.Errorf("filter parse mismatch: %+v", sc.Filter)
+	}
+	if sc.Transition != TransitionSlideLeft {
+		t.Errorf("transition = %q, want %q", sc.Transition, TransitionSlideLeft)
+	}
+	if err := sb.Validate(); err != nil {
+		t.Errorf("fx storyboard should validate: %v", err)
 	}
 }

@@ -54,14 +54,44 @@ var goldenFixtures = []struct {
 			}]
 		}`,
 	},
-	{
-		name: "empty_audio",
-		json: `{
-			"version": 1,
-			"scenes": [{ "type": "color", "color": "#ABCDEF", "duration_sec": 2 }],
-			"audio": {}
-		}`,
-	},
+		{
+			name: "empty_audio",
+			json: `{
+				"version": 1,
+				"scenes": [{ "type": "color", "color": "#ABCDEF", "duration_sec": 2 }],
+				"audio": {}
+			}`,
+		},
+		{
+			name: "fx_and_transitions",
+			json: `{
+				"version": 1,
+				"canvas": { "width": 1080, "height": 1920, "fps": 30 },
+				"scenes": [
+					{
+						"type": "image",
+						"source": "media/a.png",
+						"duration_sec": 5,
+						"transform": { "scale": 1.15, "x": 4, "y": -2, "rotate": 8, "opacity": 0.9 },
+						"filter": { "brightness": 1.1, "contrast": 1.2, "saturate": 0.8, "blur": 1.5 }
+					},
+					{
+						"type": "video",
+						"source": "media/b.mp4",
+						"duration_sec": 4,
+						"transition": "crossfade",
+						"transform": { "scale": 0.9 },
+						"filter": { "blur": 2 }
+					},
+					{
+						"type": "color",
+						"color": "#101820",
+						"duration_sec": 3,
+						"transition": "slide_left"
+					}
+				]
+			}`,
+		},
 }
 
 // TestGoldenParseMatchGateway verifies that the worker contract parser
@@ -118,6 +148,11 @@ func TestGoldenValidateMatchGateway(t *testing.T) {
 		{"no_scenes", `{"version":1,"scenes":[]}`},
 		{"bad_height", `{"version":1,"output":{"height":1440},"scenes":[{"type":"color","color":"#000","duration_sec":5}]}`},
 		{"bad_format", `{"version":1,"output":{"format":"webm"},"scenes":[{"type":"color","color":"#000","duration_sec":5}]}`},
+		{"bad_transition", `{"version":1,"scenes":[{"type":"color","color":"#000000","duration_sec":5,"transition":"wipe"}]}`},
+		{"good_transitions", `{"version":1,"scenes":[
+			{"type":"color","color":"#000000","duration_sec":5},
+			{"type":"color","color":"#111111","duration_sec":5,"transition":"fade"},
+			{"type":"color","color":"#222222","duration_sec":5,"transition":"slide_up"}]}`},
 	}
 
 	for _, tc := range invalidCases {

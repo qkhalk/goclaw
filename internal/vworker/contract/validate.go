@@ -70,6 +70,48 @@ func (sc *Scene) validate() error {
 	if sc.DurationSec < 1 || sc.DurationSec > maxSceneSec {
 		return fmt.Errorf("duration_sec %.1f out of range 1..%.0f", sc.DurationSec, maxSceneSec)
 	}
+	switch sc.Transition {
+	case "", TransitionNone, TransitionFade, TransitionCrossfade, TransitionSlideLeft, TransitionSlideUp:
+	default:
+		return fmt.Errorf("unknown transition type %q (want none, fade, crossfade, slide_left or slide_up)", sc.Transition)
+	}
+	if err := sc.validateFx(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateFx bounds the optional per-scene transform and color grade so a
+// hostile or buggy storyboard cannot drive the filtergraph into giant pad
+// allocations or Inf parameters. Zero counts as unset (omitempty) and always
+// passes.
+func (sc *Scene) validateFx() error {
+	if tr := sc.Transform; tr != nil {
+		if s := tr.Scale; s != 0 && (s < 0.01 || s > 16) {
+			return fmt.Errorf("transform scale %.3f out of range 0.01..16", s)
+		}
+		if tr.X < -100 || tr.X > 100 || tr.Y < -100 || tr.Y > 100 {
+			return fmt.Errorf("transform x/y %.1f/%.1f out of range -100..100 (%% of frame)", tr.X, tr.Y)
+		}
+		if tr.Rotate < -360 || tr.Rotate > 360 {
+			return fmt.Errorf("transform rotate %.1f out of range -360..360 degrees", tr.Rotate)
+		}
+		if tr.Opacity < 0 || tr.Opacity > 1 {
+			return fmt.Errorf("transform opacity %.3f out of range 0..1", tr.Opacity)
+		}
+	}
+	if f := sc.Filter; f != nil {
+		switch {
+		case f.Brightness < 0 || f.Brightness > 2:
+			return fmt.Errorf("filter brightness %.2f out of range 0..2", f.Brightness)
+		case f.Contrast < 0 || f.Contrast > 3:
+			return fmt.Errorf("filter contrast %.2f out of range 0..3", f.Contrast)
+		case f.Saturate < 0 || f.Saturate > 3:
+			return fmt.Errorf("filter saturate %.2f out of range 0..3", f.Saturate)
+		case f.Blur < 0 || f.Blur > 100:
+			return fmt.Errorf("filter blur %.1f out of range 0..100 px", f.Blur)
+		}
+	}
 	return nil
 }
 
