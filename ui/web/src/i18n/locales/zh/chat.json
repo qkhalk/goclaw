@@ -140,7 +140,8 @@
     "modelDefault": "代理默认模型",
     "loadingModels": "正在加载模型…",
     "thinking": "思考级别",
-    "permissionMode": "权限模式"
+    "permissionMode": "权限模式",
+    "devMode": "开发模式"
   },
   "thinkingLevels": {
     "adaptive": "自适应",
@@ -200,6 +201,7 @@
     "readOnly": "只读视图 — 打开聊天以回答",
     "other": "其他…",
     "otherPlaceholder": "输入你自己的回答…",
-    "send": "发送回答"
+    "send": "发送回答",
+    "recommended": "推荐"
   }
 }

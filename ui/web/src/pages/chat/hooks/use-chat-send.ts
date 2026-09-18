@@ -93,6 +93,9 @@ export function useChatSend({
             ...(overrides?.model && { model: overrides.model }),
             ...(overrides?.thinkingLevel && { thinkingLevel: overrides.thinkingLevel }),
             ...(overrides?.permissionMode && { permissionMode: overrides.permissionMode }),
+            // Dev mode: gateway prepends the dev-mode behavior section to the
+            // run's system prompt (web equivalent of the Telegram /dev flag).
+            ...(overrides?.devMode && { devMode: true }),
           },
           600_000,
         );

@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Bot } from "lucide-react";
+import { BotAvatar } from "@/components/chat/bot-avatar";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { ActiveRunZone } from "@/components/chat/active-run-zone";
 import { SystemNotification } from "@/components/chat/system-notification";
@@ -182,7 +182,7 @@ function MergedToolGroup({ msgs }: { msgs: ChatMessage[] }) {
   return (
     <div className="flex gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background">
-        <Bot className="h-4 w-4" />
+        <BotAvatar className="h-4 w-4 rounded-full" />
       </div>
       <div className="flex-1 min-w-0 rounded-md border bg-muted/30 divide-y divide-border">
         {allThinking.length > 0 && (

@@ -98,6 +98,36 @@ export function ChatPage() {
     onExpectRun: expectRun,
   });
 
+  // Dev mode toggle — persisted per session in localStorage (not globally):
+  // draft sessions (no URL key yet) share the "draft" bucket.
+  const devModeStorageKey = `goclaw.dev-mode.${sessionKey || "draft"}`;
+  const [devMode, setDevMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(devModeStorageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  // Reload the toggle when switching sessions so it follows the per-session flag.
+  useEffect(() => {
+    try {
+      setDevMode(localStorage.getItem(devModeStorageKey) === "1");
+    } catch {
+      // storage unavailable — toggle just won't persist
+    }
+  }, [devModeStorageKey]);
+  const handleDevModeChange = useCallback(
+    (on: boolean) => {
+      setDevMode(on);
+      try {
+        localStorage.setItem(devModeStorageKey, on ? "1" : "0");
+      } catch {
+        // storage unavailable (private mode) — toggle just won't persist
+      }
+    },
+    [devModeStorageKey],
+  );
+
   const handleNewChat = useCallback(() => {
     navigate(`/chat/${encodeURIComponent(buildNewSessionKey())}`);
   }, [buildNewSessionKey, navigate]);
@@ -138,12 +168,26 @@ export function ChatPage() {
       let key = sessionKey;
       if (!key) {
         key = buildNewSessionKey();
+        // Carry the draft dev-mode toggle under the real session key before
+        // navigating, so the per-session effect doesn't reset it right after
+        // the first message creates the session.
+        try {
+          localStorage.setItem(`goclaw.dev-mode.${key}`, devMode ? "1" : "0");
+        } catch {
+          // storage unavailable — toggle just won't persist
+        }
         navigate(`/chat/${encodeURIComponent(key)}`, { replace: true });
       }
-      send(message, key, sendFiles, overrides);
+      // Merge devMode here (not just in ChatInput) so ask_options answer
+      // sends — which bypass the composer — keep the flag on the run.
+      const merged: ComposerOverrides | undefined = {
+        ...overrides,
+        ...(devMode ? { devMode: true } : {}),
+      };
+      send(message, key, sendFiles, merged);
       setScrollTrigger((n) => n + 1);
     },
-    [sessionKey, send, buildNewSessionKey, navigate],
+    [sessionKey, send, buildNewSessionKey, navigate, devMode],
   );
 
   const handleDropFiles = useCallback((dropped: File[]) => {
@@ -328,6 +372,8 @@ export function ChatPage() {
                 disabled={!connected}
                 files={files}
                 onFilesChange={setFiles}
+                devMode={devMode}
+                onDevModeChange={handleDevModeChange}
               />
             </>
           )}

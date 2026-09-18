@@ -140,7 +140,8 @@
     "modelDefault": "Agent model",
     "loadingModels": "Loading models…",
     "thinking": "Thinking level",
-    "permissionMode": "Permission mode"
+    "permissionMode": "Permission mode",
+    "devMode": "Dev mode"
   },
   "thinkingLevels": {
     "adaptive": "Adaptive",
@@ -200,6 +201,7 @@
     "readOnly": "Read-only view — open the chat to answer",
     "other": "Other…",
     "otherPlaceholder": "Type your own answer…",
-    "send": "Send answer"
+    "send": "Send answer",
+    "recommended": "Recommended"
   }
 }

@@ -6,17 +6,21 @@ import { useAskOptions } from "./ask-options-context";
 interface AskOptionsCardProps {
   question: string;
   options: string[];
+  /** 0-based index of the agent-recommended option (absent = none). */
+  recommended?: number;
 }
 
 /**
  * Interactive question card for ask_options tool calls in the web chat:
  * one button per option plus a free-text "Other" path, mirroring the
- * Telegram inline keyboard. Picking an option injects the answer as the
- * next user message (same format the Telegram channel uses), disables the
- * buttons and shows the chosen answer. Without the send context (read-only
- * surfaces like session detail) the options render as static chips.
+ * Telegram inline keyboard. A recommended option (agent-set) gets a badge
+ * and highlight ring, mirroring the Telegram "★ " button prefix. Picking an
+ * option injects the answer as the next user message (same format the
+ * Telegram channel uses), disables the buttons and shows the chosen answer.
+ * Without the send context (read-only surfaces like session detail) the
+ * options render as static chips.
  */
-export function AskOptionsCard({ question, options }: AskOptionsCardProps) {
+export function AskOptionsCard({ question, options, recommended }: AskOptionsCardProps) {
   const { t } = useTranslation("chat");
   const ask = useAskOptions();
   const [picked, setPicked] = useState<string | null>(null);
@@ -58,22 +62,30 @@ export function AskOptionsCard({ question, options }: AskOptionsCardProps) {
       ) : (
         <>
           <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {options.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => pick(option)}
-                disabled={!interactive}
-                title={interactive ? undefined : t("askOptions.readOnly")}
-                className={`min-h-[36px] rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
-                  interactive
-                    ? "hover:border-primary/60 hover:bg-accent"
-                    : "pointer-events-none opacity-60"
-                }`}
-              >
-                <span className="line-clamp-2 break-words">{option}</span>
-              </button>
-            ))}
+            {options.map((option, idx) => {
+              const isRecommended = recommended === idx;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => pick(option)}
+                  disabled={!interactive}
+                  title={interactive ? undefined : t("askOptions.readOnly")}
+                  className={`min-h-[36px] rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
+                    interactive
+                      ? "hover:border-primary/60 hover:bg-accent"
+                      : "pointer-events-none opacity-60"
+                  } ${isRecommended ? "border-primary/60 ring-1 ring-primary/40" : ""}`}
+                >
+                  {isRecommended && (
+                    <span className="mb-0.5 flex items-center gap-1 text-2xs font-medium text-primary">
+                      ★ {t("askOptions.recommended")}
+                    </span>
+                  )}
+                  <span className="line-clamp-2 break-words">{option}</span>
+                </button>
+              );
+            })}
           </div>
 
           {interactive && (
@@ -126,12 +138,21 @@ export function AskOptionsCard({ question, options }: AskOptionsCardProps) {
  */
 export function parseAskOptionsArgs(
   args: Record<string, unknown> | undefined | null,
-): { question: string; options: string[] } | null {
+): { question: string; options: string[]; recommended?: number } | null {
   if (!args) return null;
   const question = typeof args.question === "string" ? args.question.trim() : "";
   const rawOptions = args.options;
   if (!question || !Array.isArray(rawOptions) || rawOptions.length === 0) return null;
   const options = rawOptions.filter((o): o is string => typeof o === "string" && o.trim().length > 0);
   if (options.length === 0) return null;
-  return { question, options };
+  // Recommended is optional; keep it only when it points at a real option.
+  const rawRecommended = args.recommended;
+  const recommended =
+    typeof rawRecommended === "number" &&
+    Number.isInteger(rawRecommended) &&
+    rawRecommended >= 0 &&
+    rawRecommended < options.length
+      ? rawRecommended
+      : undefined;
+  return { question, options, recommended };
 }

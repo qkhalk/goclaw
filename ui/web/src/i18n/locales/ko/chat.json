@@ -60,7 +60,8 @@
     "modelDefault": "에이전트 기본 모델",
     "loadingModels": "모델 로드 중…",
     "thinking": "사고 수준",
-    "permissionMode": "권한 모드"
+    "permissionMode": "권한 모드",
+    "devMode": "개발 모드"
   },
   "thinkingLevels": {
     "adaptive": "적응형",
@@ -149,6 +150,7 @@
     "readOnly": "읽기 전용 — 채팅에서 답변하세요",
     "other": "기타…",
     "otherPlaceholder": "직접 답변 입력…",
-    "send": "답변 보내기"
+    "send": "답변 보내기",
+    "recommended": "추천"
   }
 }

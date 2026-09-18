@@ -1,4 +1,5 @@
-import { Bot, User } from "lucide-react";
+import { User } from "lucide-react";
+import { BotAvatar } from "./bot-avatar";
 import { MessageContent } from "./message-content";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolCallCard } from "./tool-call-card";
@@ -35,7 +36,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background">
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+        {isUser ? <User className="h-4 w-4" /> : <BotAvatar className="h-4 w-4 rounded-full" />}
       </div>
 
       {isToolOnly ? (

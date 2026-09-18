@@ -30,7 +30,7 @@ export function ToolCallCard({ entry, compact }: ToolCallCardProps) {
   // the hooks above so the card can switch rendering modes safely.
   const askArgs = isAskOptionsTool(entry.name) ? parseAskOptionsArgs(entry.arguments) : null;
   if (askArgs) {
-    return <AskOptionsCard question={askArgs.question} options={askArgs.options} />;
+    return <AskOptionsCard question={askArgs.question} options={askArgs.options} recommended={askArgs.recommended} />;
   }
   const hasDetails = entry.arguments || entry.result || !!entry.output;
   const hasError = entry.phase === "error" && !!entry.errorContent;

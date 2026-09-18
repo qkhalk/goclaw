@@ -140,7 +140,8 @@
     "modelDefault": "Model của agent",
     "loadingModels": "Đang tải model…",
     "thinking": "Mức độ suy nghĩ",
-    "permissionMode": "Chế độ quyền"
+    "permissionMode": "Chế độ quyền",
+    "devMode": "Chế độ dev"
   },
   "thinkingLevels": {
     "adaptive": "Thích ứng",
@@ -200,6 +201,7 @@
     "readOnly": "Chế độ chỉ đọc — mở mục Trò chuyện để trả lời",
     "other": "Khác…",
     "otherPlaceholder": "Nhập câu trả lời của bạn…",
-    "send": "Gửi câu trả lời"
+    "send": "Gửi câu trả lời",
+    "recommended": "Đề xuất"
   }
 }

@@ -1,4 +1,5 @@
-import { Loader2, Bot } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { BotAvatar } from "@/components/chat/bot-avatar";
 import { useAgents } from "@/hooks/use-agents";
 import { stripLeadingEmoji } from "@/lib/agent-emoji";
 import type { SessionInfo } from "@/types/session";
@@ -60,7 +61,7 @@ export function ChatTopBar({
         {emoji ? (
           <span className="text-base">{emoji}</span>
         ) : (
-          <Bot className="h-4 w-4 text-muted-foreground" />
+          <BotAvatar className="h-4 w-4 rounded-full" />
         )}
         <span className="text-sm font-semibold">{displayName}</span>
       </div>

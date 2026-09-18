@@ -295,7 +295,7 @@ func TestTransformInteractiveReply_Passthrough(t *testing.T) {
 // --- ask_options keyboard + callbacks ---
 
 func TestAskKeyboard(t *testing.T) {
-	rows := askKeyboard([]string{"Postgres", "MySQL", "SQLite"}, "vi")
+	rows := askKeyboard([]string{"Postgres", "MySQL", "SQLite"}, "vi", -1)
 	if len(rows) != 2+1 { // 2 option rows + Other
 		t.Fatalf("rows = %d, want 3", len(rows))
 	}
@@ -307,6 +307,20 @@ func TestAskKeyboard(t *testing.T) {
 		if len(b.CallbackData) > 64 {
 			t.Errorf("callback data too long: %q", b.CallbackData)
 		}
+	}
+}
+
+func TestAskKeyboard_RecommendedPrefix(t *testing.T) {
+	rows := askKeyboard([]string{"Postgres", "MySQL"}, "vi", 1)
+	if got := rows[0][1].Text; got != "★ MySQL" {
+		t.Errorf("recommended label = %q, want star prefix", got)
+	}
+	if got := rows[0][0].Text; got != "Postgres" {
+		t.Errorf("non-recommended label = %q, want unchanged", got)
+	}
+	// Callback routing stays by index, not label.
+	if got := rows[0][1].CallbackData; got != "ak:1" {
+		t.Errorf("recommended callback = %q, want ak:1", got)
 	}
 }
 
@@ -409,7 +423,7 @@ func TestSendAskQuestion_SendsKeyboard(t *testing.T) {
 	ch, caller := newPickerTestChannel(t, nil)
 	encoded, _ := json.Marshal([]string{"Postgres", "MySQL"})
 
-	if err := ch.sendAskQuestion(context.Background(), -100, "-100", "Which DB?", string(encoded), 0, 0); err != nil {
+	if err := ch.sendAskQuestion(context.Background(), -100, "-100", "Which DB?", string(encoded), 0, 0, -1); err != nil {
 		t.Fatalf("sendAskQuestion: %v", err)
 	}
 
@@ -489,7 +503,7 @@ func TestSendAskQuestion_PlaceholderSentinelSendsFresh(t *testing.T) {
 	ch.placeholders.Store("-100", -1)
 	encoded, _ := json.Marshal([]string{"Postgres"})
 
-	if err := ch.sendAskQuestion(context.Background(), -100, "-100", "Which DB?", string(encoded), 0, 0); err != nil {
+	if err := ch.sendAskQuestion(context.Background(), -100, "-100", "Which DB?", string(encoded), 0, 0, -1); err != nil {
 		t.Fatalf("sendAskQuestion: %v", err)
 	}
 	var send *recordedTelegramCall

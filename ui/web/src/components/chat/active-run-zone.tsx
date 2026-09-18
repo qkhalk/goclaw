@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Bot } from "lucide-react";
+import { BotAvatar } from "./bot-avatar";
 import { ActivityIndicator } from "./activity-indicator";
 import { BlockReplyBubble } from "./block-reply-bubble";
 import { ThinkingBlock } from "./thinking-block";
@@ -35,7 +35,7 @@ export const ActiveRunZone = memo(function ActiveRunZone({
   return (
     <div className="flex gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background">
-        <Bot className="h-4 w-4" />
+        <BotAvatar className="h-4 w-4 rounded-full" />
       </div>
 
       <div className="flex-1 min-w-0 space-y-3">

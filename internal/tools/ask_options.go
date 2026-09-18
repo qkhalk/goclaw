@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
@@ -23,6 +25,11 @@ const askOptionsLabelMax = 48
 // labels as a JSON array. The Telegram channel Send path renders the inline
 // keyboard from it (metadata convention, precedent: placeholder_update).
 const MetaAskOptions = "ask_options"
+
+// MetaAskOptionsRecommended is the OutboundMessage.Metadata key carrying the
+// recommended option's 0-based index (decimal string). Empty/absent = no
+// recommendation; the Telegram channel prefixes that button with "★ ".
+const MetaAskOptionsRecommended = "ask_options_recommended"
 
 // MetaOutboundLocalKey mirrors the channel-side "local_key" outbound metadata
 // key (send.go localKey lookup) — declared here to avoid importing the
@@ -49,6 +56,8 @@ func (t *AskOptionsTool) Description() string {
 		"Use when the request is ambiguous and 2-4 distinct interpretations exist, or when a key " +
 		"decision (scope, target, approach) must be confirmed before proceeding. " +
 		"The question is sent to the chat with one button per option plus an Other button for free-text. " +
+		"When you have a clear recommendation, set recommended to that option's 0-based index — it is " +
+		"marked as the recommended choice in the UI. " +
 		"After calling this tool, END YOUR TURN and wait for the user's reply — the answer arrives " +
 		"as their next message in this session."
 }
@@ -67,6 +76,11 @@ func (t *AskOptionsTool) Parameters() map[string]any {
 				"minItems":    1,
 				"maxItems":    askOptionsMax,
 				"description": "1-4 mutually exclusive answer options, each a short button label (<=48 chars).",
+			},
+			"recommended": map[string]any{
+				"type":        "integer",
+				"minimum":     0,
+				"description": "Optional 0-based index into options of the choice you recommend. Set it whenever one option is clearly the best call — the user sees it highlighted as the recommended choice.",
 			},
 		},
 		"required": []string{"question", "options"},
@@ -105,6 +119,22 @@ func (t *AskOptionsTool) Execute(ctx context.Context, args map[string]any) *Resu
 		options = append(options, label)
 	}
 
+	// Optional recommendation: JSON numbers decode as float64, so require an
+	// integral value in [0, len(options)). Range-check the float BEFORE the
+	// int conversion — Trunc(±Inf) passes the integral check and converting
+	// an out-of-int64 float is implementation-defined.
+	recommended := -1
+	if raw, ok := args["recommended"]; ok && raw != nil {
+		num, isNum := raw.(float64)
+		if !isNum || num != math.Trunc(num) {
+			return ErrorResult("recommended must be an integer index into options")
+		}
+		if num < 0 || num >= float64(len(options)) {
+			return ErrorResult(fmt.Sprintf("recommended index out of range: %v (%d options)", num, len(options)))
+		}
+		recommended = int(num)
+	}
+
 	channel := ToolChannelFromCtx(ctx)
 	chatID := ToolChatIDFromCtx(ctx)
 	if channel == "" || chatID == "" || channel == ChannelTeammate || channel == ChannelSystem || channel == ChannelDashboard {
@@ -121,6 +151,9 @@ func (t *AskOptionsTool) Execute(ctx context.Context, args map[string]any) *Resu
 		// With the bare chat ID the question would land in the General topic.
 		target := ToolLocalKeyFromCtx(ctx)
 		metadata := map[string]string{MetaAskOptions: string(mustJSON(options))}
+		if recommended >= 0 {
+			metadata[MetaAskOptionsRecommended] = strconv.Itoa(recommended)
+		}
 		if target != "" {
 			metadata[MetaOutboundLocalKey] = target
 			if idx := strings.Index(target, ":topic:"); idx > 0 {

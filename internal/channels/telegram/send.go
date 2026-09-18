@@ -250,9 +250,17 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 
 	// ask_options tool: render the question with an inline keyboard and record
 	// the sent message so button presses / replies route the answer back into
-	// the session (metadata convention, see tools.MetaAskOptions).
+	// the session (metadata convention, see tools.MetaAskOptions). The optional
+	// recommended index (tools.MetaAskOptionsRecommended) marks that button
+	// with a "★ " prefix; unparseable/absent = no recommendation.
 	if raw := msg.Metadata[tools.MetaAskOptions]; raw != "" {
-		return c.sendAskQuestion(ctx, chatID, localKey, msg.Content, raw, replyToMsgID, threadID)
+		recommended := -1
+		if rawRec := msg.Metadata[tools.MetaAskOptionsRecommended]; rawRec != "" {
+			if n, perr := strconv.Atoi(rawRec); perr == nil {
+				recommended = n
+			}
+		}
+		return c.sendAskQuestion(ctx, chatID, localKey, msg.Content, raw, replyToMsgID, threadID, recommended)
 	}
 
 	// Handle media attachments if present

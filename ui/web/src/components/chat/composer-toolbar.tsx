@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { BrainCog, Cpu, ShieldCheck } from "lucide-react";
+import { BrainCog, Code2, Cpu, ShieldCheck } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -17,6 +17,11 @@ export interface ComposerOverrides {
   model?: string;
   thinkingLevel?: string;
   permissionMode?: string;
+  /**
+   * Dev mode flag (chat.send per-message). Not persisted inside the composer
+   * overrides object — state lives in the chat page, keyed per session.
+   */
+  devMode?: boolean;
 }
 
 /** Permission modes mirrored from tools.PermMode* (chat.send permissionMode). */
@@ -31,6 +36,13 @@ interface ComposerToolbarProps {
   value: ComposerOverrides;
   onChange: (next: ComposerOverrides) => void;
   disabled?: boolean;
+  /**
+   * Dev mode toggle (engineer workflow: plan, ask with options, verify).
+   * State lives in the parent (persisted per session); rides to chat.send as
+   * a per-message flag the gateway maps to the dev-mode system prompt.
+   */
+  devMode?: boolean;
+  onDevModeChange?: (on: boolean) => void;
   /**
    * Provider name of the agent this composer talks to. When no provider
    * override is picked, the model list is fed from this provider so a model
@@ -57,7 +69,7 @@ const AGENT_DEFAULT = "agent-default";
  * is selected). Popper also flips upward automatically for the bottom-docked
  * composer.
  */
-export function ComposerToolbar({ value, onChange, disabled, defaultProviderName }: ComposerToolbarProps) {
+export function ComposerToolbar({ value, onChange, disabled, devMode, onDevModeChange, defaultProviderName }: ComposerToolbarProps) {
   const { t } = useTranslation("chat");
   const { providers } = useProviders(!disabled);
 
@@ -205,6 +217,25 @@ export function ComposerToolbar({ value, onChange, disabled, defaultProviderName
           ))}
         </SelectContent>
       </Select>
+      {/* Dev mode toggle — per-message flag; on = agent runs with the
+          dev-mode behavior section (plan, skills, ask_options, verify). */}
+      {onDevModeChange && (
+        <button
+          type="button"
+          onClick={() => onDevModeChange(!devMode)}
+          disabled={disabled}
+          aria-pressed={!!devMode}
+          title={t("composer.devMode")}
+          className={`flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 ${
+            devMode
+              ? "bg-primary/10 text-primary"
+              : "border-none bg-muted/60 text-muted-foreground shadow-none hover:text-foreground"
+          }`}
+        >
+          <Code2 className="h-3.5 w-3.5 shrink-0" />
+          {t("composer.devMode")}
+        </button>
+      )}
     </div>
   );
 }
