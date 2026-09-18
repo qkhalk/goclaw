@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 	"math"
 	"os"
@@ -26,7 +27,8 @@ var iconFS embed.FS
 // tempDir and points their Source at those files, letting the render path
 // treat them like any other PNG layer input. Must run before
 // appendImageLayerInputs. Icon stroke color and card fill/opacity come from
-// the layer's style.
+// the layer's style; icons with Chip render on a tinted tile, cards with
+// Border get a contrast ring.
 func prepareLayerAssets(sc *contract.Scene, canvasW, canvasH int, tempDir string, sceneIdx int) error {
 	for j := range sc.Layers {
 		l := &sc.Layers[j]
@@ -46,13 +48,17 @@ func prepareLayerAssets(sc *contract.Scene, canvasW, canvasH int, tempDir string
 		switch l.Kind {
 		case contract.LayerIcon:
 			size := min(bw, bh)
-			pngBytes, err = renderIconPNG(l.Icon, fill, size)
+			if l.Chip {
+				pngBytes, err = renderChipPNG(l.Icon, fill, size)
+			} else {
+				pngBytes, err = renderIconPNG(l.Icon, fill, size)
+			}
 		case contract.LayerCard:
 			radFrac := l.Radius
 			if radFrac <= 0 {
 				radFrac = 0.018
 			}
-			pngBytes, err = renderCardPNG(bw, bh, int(math.Round(radFrac*float64(canvasW))), fill, opacity)
+			pngBytes, err = renderCardPNG(bw, bh, int(math.Round(radFrac*float64(canvasW))), fill, opacity, l.Border)
 		}
 		if err != nil {
 			return fmt.Errorf("layer %d: %w", j, err)
@@ -70,6 +76,20 @@ func prepareLayerAssets(sc *contract.Scene, canvasW, canvasH int, tempDir string
 // given #RRGGBB stroke color. Returns PNG bytes with a transparent
 // background.
 func renderIconPNG(icon, hex string, size int) ([]byte, error) {
+	rgba, err := renderIconRGBA(icon, hex, size)
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	if err := png.Encode(&out, rgba); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+// renderIconRGBA is renderIconPNG without the encode step, so callers can
+// composite the icon onto tiles.
+func renderIconRGBA(icon, hex string, size int) (*image.RGBA, error) {
 	if size < 8 || size > 2048 {
 		return nil, fmt.Errorf("icon size %d out of range 8..2048", size)
 	}
@@ -103,6 +123,17 @@ func renderIconPNG(icon, hex string, size int) ([]byte, error) {
 	// SvgIcon.Draw applies the SetTarget transform — drawing the paths
 	// directly would rasterize at the raw 24-unit size.
 	parsed.Draw(raster, 1.0)
+	return rgba, nil
+}
+
+// renderChipPNG composes a feature-tile: a rounded square in the accent
+// color at low opacity with the icon centered on top — the icon-chip look
+// used across modern landing pages.
+func renderChipPNG(icon, hex string, size int) ([]byte, error) {
+	rgba, err := renderChipRGBA(icon, hex, size)
+	if err != nil {
+		return nil, err
+	}
 	var out bytes.Buffer
 	if err := png.Encode(&out, rgba); err != nil {
 		return nil, err
@@ -110,11 +141,39 @@ func renderIconPNG(icon, hex string, size int) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+func renderChipRGBA(icon, hex string, size int) (*image.RGBA, error) {
+	tile, err := renderCardRGBA(size, size, int(math.Round(float64(size)*0.24)), hex, 0.16, false)
+	if err != nil {
+		return nil, err
+	}
+	inner := int(math.Round(float64(size) * 0.58))
+	glyph, err := renderIconRGBA(icon, hex, inner)
+	if err != nil {
+		return nil, err
+	}
+	off := (size - inner) / 2
+	draw.Draw(tile, image.Rect(off, off, off+inner, off+inner), glyph, image.Point{}, draw.Over)
+	return tile, nil
+}
+
 // renderCardPNG draws a rounded rectangle with baked-in alpha (the card
 // fill's coverage × opacity) and returns PNG bytes. Coverage comes from the
 // rounded-rect signed distance field, giving exact anti-aliasing without a
-// supersample pass.
-func renderCardPNG(w, h, r int, hex string, opacity float64) ([]byte, error) {
+// supersample pass. With border, a ~2px ring in the same hue at boosted
+// opacity outlines the shape.
+func renderCardPNG(w, h, r int, hex string, opacity float64, border bool) ([]byte, error) {
+	rgba, err := renderCardRGBA(w, h, r, hex, opacity, border)
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	if err := png.Encode(&out, rgba); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+func renderCardRGBA(w, h, r int, hex string, opacity float64, border bool) (*image.RGBA, error) {
 	if w < 4 || h < 4 || w > 4096 || h > 4096 {
 		return nil, fmt.Errorf("card size %dx%d out of range 4..4096", w, h)
 	}
@@ -132,6 +191,7 @@ func renderCardPNG(w, h, r int, hex string, opacity float64) ([]byte, error) {
 	halfW := float64(w) / 2
 	halfH := float64(h) / 2
 	rad := float64(r)
+	ringAlpha := math.Min(1, opacity+0.4)
 	for y := range h {
 		dy := math.Abs(float64(y)+0.5-halfH) - (halfH - rad)
 		for x := range w {
@@ -143,18 +203,25 @@ func renderCardPNG(w, h, r int, hex string, opacity float64) ([]byte, error) {
 			if cov <= 0 {
 				continue
 			}
+			alpha := cov * opacity
+			if border {
+				// ~2px ring hugging the shape edge, AA'd by the distance
+				// falloff on both sides of the band.
+				ring := math.Min(math.Max(1-math.Abs(d+1), 0), 1)
+				if ring > 0 {
+					alpha = math.Max(alpha, ring*ringAlpha)
+				}
+			}
 			off := rgba.PixOffset(x, y)
-			rgba.Pix[off] = col.r
-			rgba.Pix[off+1] = col.g
-			rgba.Pix[off+2] = col.b
-			rgba.Pix[off+3] = uint8(math.Round(cov * opacity * 255))
+			// image.RGBA stores premultiplied color — scale the channels by
+			// the same coverage the alpha gets.
+			rgba.Pix[off] = uint8(math.Round(float64(col.r) * alpha))
+			rgba.Pix[off+1] = uint8(math.Round(float64(col.g) * alpha))
+			rgba.Pix[off+2] = uint8(math.Round(float64(col.b) * alpha))
+			rgba.Pix[off+3] = uint8(math.Round(alpha * 255))
 		}
 	}
-	var out bytes.Buffer
-	if err := png.Encode(&out, rgba); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	return rgba, nil
 }
 
 type rgb struct{ r, g, b uint8 }

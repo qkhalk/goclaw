@@ -130,10 +130,26 @@ func layerXExpr(align string, x0, bw int) string {
 	}
 }
 
+// layerFontFor resolves a text layer's font path: display → bundled bold,
+// mono → bundled monospace, body/empty → the layer default font.
+func layerFontFor(l contract.Layer, fonts FontSet, fallback string) string {
+	switch l.Font {
+	case "display":
+		if fonts.BodyBold != "" {
+			return fonts.BodyBold
+		}
+	case "mono":
+		if fonts.Mono != "" {
+			return fonts.Mono
+		}
+	}
+	return fallback
+}
+
 // layerInlineFilter renders one text/shape layer as a plain (chainable)
 // filter — usable inside -vf and -filter_complex alike. Image layers go
 // through appendLayerSteps (dual-input overlay).
-func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int, tempDir string, sceneIdx, layerIdx int, fontFile string) (string, error) {
+func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int, tempDir string, sceneIdx, layerIdx int, fonts FontSet, fontFile string) (string, error) {
 	_, opacity, fontSize, align := l.EffectiveStyle()
 	x, y, w, _ := l.EffectiveBox()
 	x0 := int(math.Round(x * float64(canvasW)))
@@ -142,7 +158,8 @@ func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int
 	en := layerEnableExpr(l, sc.DurationSec)
 	switch l.Kind {
 	case contract.LayerText:
-		if fontFile == "" {
+		fontPath := layerFontFor(l, fonts, fontFile)
+		if fontPath == "" {
 			return "", nil // no font on the worker — skip like captions
 		}
 		tv, err := layerTextValue(tempDir, sceneIdx, layerIdx, l.Text)
@@ -172,8 +189,10 @@ func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int
 		case "right":
 			xe = fmt.Sprintf("'%s-%d*%s'", layerXExpr(align, x0, bw), offX, eo)
 		}
-		return fmt.Sprintf("drawtext=%s:%s:fontsize=%d:fontcolor=0x%s@%.2f:borderw=2:bordercolor=black:x=%s:y=%s:%s:%s",
-			fontFileArg(fontFile), tv, fontSize, hex, opacity, xe, ye, fade, en), nil
+		// Soft halo instead of a hard outline: half-strength border plus a
+		// 2px drop shadow keeps light text readable over glow orbs.
+		return fmt.Sprintf("drawtext=%s:%s:fontsize=%d:fontcolor=0x%s@%.2f:borderw=2:bordercolor=black@0.5:shadowcolor=black@0.35:shadowx=0:shadowy=2:x=%s:y=%s:%s:%s",
+			fontFileArg(fontPath), tv, fontSize, hex, opacity, xe, ye, fade, en), nil
 	case contract.LayerShape:
 		hex := strings.ToUpper(strings.TrimPrefix(l.Fill, "#"))
 		_, _, _, h := l.EffectiveBox()
@@ -189,7 +208,7 @@ func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int
 // PNG layers (image/icon/card) chain entrance animation + alpha-reduce +
 // width-fit scale, then overlay; text/shape layers stay inline. Returns the
 // label holding the composited frame.
-func appendLayerSteps(fc *strings.Builder, sc contract.Scene, canvasW, canvasH int, tempDir string, sceneIdx int, fontFile, cur string) string {
+func appendLayerSteps(fc *strings.Builder, sc contract.Scene, canvasW, canvasH int, tempDir string, sceneIdx int, fonts FontSet, fontFile, cur string) string {
 	nextInput := 1 // input 0 is the scene base
 	for j := range sc.Layers {
 		l := sc.Layers[j]
@@ -217,7 +236,7 @@ func appendLayerSteps(fc *strings.Builder, sc contract.Scene, canvasW, canvasH i
 			cur = out
 			continue
 		}
-		f, err := layerInlineFilter(sc, l, canvasW, canvasH, tempDir, sceneIdx, j, fontFile)
+		f, err := layerInlineFilter(sc, l, canvasW, canvasH, tempDir, sceneIdx, j, fonts, fontFile)
 		if err != nil || f == "" {
 			continue
 		}
@@ -377,7 +396,7 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 		cur = appendGlowSteps(&fc, 1+countImageLayers(sc), cur, canvasW, canvasH)
 	}
 	if len(sc.Layers) > 0 {
-		cur = appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, layerFontFile(cfg), cur)
+		cur = appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, cfg.Fonts, layerFontFile(cfg), cur)
 	}
 	cur = appendCaptionSteps(&fc, plan, 1+countImageLayers(sc)+boolInt(glowPath != ""), cur, dur)
 	if plan == nil && sc.Caption != nil && sc.Caption.Text != "" && cfg.FontFile != "" {
@@ -480,7 +499,7 @@ func buildVideoSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 			cur = appendGlowSteps(&fc, 1+countImageLayers(sc), cur, canvasW, canvasH)
 		}
 		if len(sc.Layers) > 0 {
-			cur = appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, layerFontFile(cfg), cur)
+			cur = appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, cfg.Fonts, layerFontFile(cfg), cur)
 		}
 		cur = appendCaptionSteps(&fc, plan, 1+countImageLayers(sc)+boolInt(glowPath != ""), cur, dur)
 		fmt.Fprintf(&fc, "[%s]format=yuv420p[vout];", cur)
@@ -491,7 +510,7 @@ func buildVideoSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 		parts = append(parts, visualStyleFilters(sc)...)
 		layerFilters := make([]string, 0, len(sc.Layers))
 		for j := range sc.Layers {
-			f, err := layerInlineFilter(sc, sc.Layers[j], canvasW, canvasH, tempDir, sceneIdx, j, layerFontFile(cfg))
+			f, err := layerInlineFilter(sc, sc.Layers[j], canvasW, canvasH, tempDir, sceneIdx, j, cfg.Fonts, layerFontFile(cfg))
 			if err != nil {
 				continue // video scenes keep rendering on a bad layer
 			}
@@ -715,7 +734,7 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 			cur = "vs"
 		}
 		if len(sc.Layers) > 0 {
-			cur = appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, layerFontFile(cfg), cur)
+			cur = appendLayerSteps(&fc, sc, canvasW, canvasH, tempDir, sceneIdx, cfg.Fonts, layerFontFile(cfg), cur)
 		}
 		cur = appendCaptionSteps(&fc, plan, 1+countImageLayers(sc)+boolInt(glowPath != ""), cur, dur)
 		fmt.Fprintf(&fc, "[%s]format=yuv420p[vout];", cur)
@@ -738,7 +757,7 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	}
 	filters = append(filters, visualStyleFilters(sc)...)
 	for j := range sc.Layers {
-		f, err := layerInlineFilter(sc, sc.Layers[j], canvasW, canvasH, tempDir, sceneIdx, j, layerFontFile(cfg))
+		f, err := layerInlineFilter(sc, sc.Layers[j], canvasW, canvasH, tempDir, sceneIdx, j, cfg.Fonts, layerFontFile(cfg))
 		if err != nil {
 			return nil, err
 		}

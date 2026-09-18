@@ -341,9 +341,45 @@ var designerIdentityFrames = func() string {
 	return s
 }()
 
+// designerPolishBullet + designerPolishRules are the v6 persona additions
+// (typography hierarchy, icon chips, card borders, headline discipline).
+const designerPolishBullet = `- Typography carries the frame: text layers accept "font": "display"
+  (bold — headlines, big stat numbers), "body" (default — supporting lines)
+  and "mono" (eyebrow labels like // PART 1, code, metrics). Headlines stay
+  under 14 characters per line — split long ones across two stacked text
+  layers rather than shrinking or overflowing. Put a thin accent bar above
+  the headline: a card layer with h ≈ 0.008 and full opacity in the accent
+  color. Icons look intentional on "chip": true tiles (same color family as
+  the icon); "border": true on cards adds a crisp edge when the card tone
+  is close to the background.
+`
+
+const designerPolishRules = `Text layers accept "font": "body"|"display"|"mono". Icon layers accept "chip": true (tinted tile behind the glyph, same fill color). Card layers accept "border": true. `
+
+// designerIdentityPolish is the polish persona (v6, 2026-09-18): font
+// hierarchy, icon chips, card borders and headline width discipline.
+var designerIdentityPolish = func() string {
+	s := designerIdentityFrames
+
+	bullet := "- Load your design skills (use_skill) for detailed guidance before your\n  first design of a session.\n"
+	s = strings.Replace(s, bullet, designerPolishBullet+bullet, 1)
+
+	s = strings.Replace(s,
+		designerFramesRules,
+		designerFramesRules+" "+designerPolishRules,
+		1)
+
+	// Example scene: chip icon + bordered card + display font headline.
+	s = strings.Replace(s,
+		"\"layers\":[{\"kind\":\"card\",\"x\":0.08,\"y\":0.55,\"w\":0.84,\"h\":0.16,\"fill\":\"#FFFFFF\",\"opacity\":0.12,\"radius\":0.02,\"anim\":\"up\",\"start\":0.4},{\"kind\":\"icon\",\"icon\":\"zap\",\"x\":0.13,\"y\":0.58,\"w\":0.08,\"fill\":\"#FACC15\",\"anim\":\"pop\",\"start\":0.7},{\"kind\":\"text\",\"text\":\"SALE 50%\",\"x\":0.26,\"y\":0.6,\"font_size\":72,\"fill\":\"#FACC15\",\"anim\":\"left\",\"start\":0.9}]}]",
+		"\"layers\":[{\"kind\":\"card\",\"x\":0.08,\"y\":0.55,\"w\":0.84,\"h\":0.16,\"fill\":\"#1E293B\",\"opacity\":0.5,\"radius\":0.02,\"border\":true,\"anim\":\"up\",\"start\":0.4},{\"kind\":\"icon\",\"icon\":\"zap\",\"x\":0.13,\"y\":0.57,\"w\":0.08,\"fill\":\"#FACC15\",\"chip\":true,\"anim\":\"pop\",\"start\":0.7},{\"kind\":\"text\",\"text\":\"SALE 50%\",\"x\":0.26,\"y\":0.6,\"font_size\":72,\"fill\":\"#FACC15\",\"font\":\"display\",\"anim\":\"left\",\"start\":0.9}]}]",
+		1)
+	return s
+}()
+
 // designerIdentity is the IDENTITY.md persona (English, LLM consumption).
 // Contract mirrors internal/video/types.go Storyboard.Validate.
-var designerIdentity = designerIdentityFrames
+var designerIdentity = designerIdentityPolish
 
 // designerIdentityHistory lists every system-authored persona version, oldest
 // first. A boot-time migration upgrades an existing agent's IDENTITY.md only
@@ -359,6 +395,8 @@ var designerIdentityHistory = []string{
 	designerIdentityLayers,
 	// visuals era (2026-09-18): image_search default + chip/mono + glow.
 	designerIdentityVisuals,
+	// frames era (2026-09-18): icon/card layers + entrance animations.
+	designerIdentityFrames,
 }
 
 // EnsureDesignerAgent creates the video-designer predefined agent when the

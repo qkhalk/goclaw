@@ -150,9 +150,9 @@ var goldenFixtures = []struct {
 					"grid": true, "glow": "#38BDF8", "vignette": true,
 					"duration_sec": 5,
 					"layers": [
-						{ "kind": "card", "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.3, "fill": "#1E293B", "opacity": 0.45, "radius": 0.03, "anim": "up", "start": 0.6 },
-						{ "kind": "icon", "icon": "zap", "x": 0.14, "y": 0.34, "w": 0.1, "fill": "#FACC15", "anim": "pop", "start": 0.9 },
-						{ "kind": "text", "text": "Cộng đồng cùng xây", "x": 0.28, "y": 0.38, "w": 0.6, "font_size": 56, "fill": "#FFFFFF", "anim": "left", "start": 1.1 }
+						{ "kind": "card", "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.3, "fill": "#1E293B", "opacity": 0.45, "radius": 0.03, "border": true, "anim": "up", "start": 0.6 },
+						{ "kind": "icon", "icon": "zap", "x": 0.14, "y": 0.34, "w": 0.1, "fill": "#FACC15", "chip": true, "anim": "pop", "start": 0.9 },
+						{ "kind": "text", "text": "Cộng đồng cùng xây", "x": 0.28, "y": 0.38, "w": 0.6, "font_size": 56, "fill": "#FFFFFF", "font": "display", "anim": "left", "start": 1.1 }
 					]
 				}
 			]
@@ -220,6 +220,14 @@ func TestGoldenIconAnimSetsMatch(t *testing.T) {
 	for a := range ValidAnims {
 		if !gwvideo.ValidAnims[a] {
 			t.Errorf("anim %q missing from gateway ValidAnims", a)
+		}
+	}
+	if len(ValidFonts) != len(gwvideo.ValidFonts) {
+		t.Fatalf("ValidFonts size drift: worker=%d gateway=%d", len(ValidFonts), len(gwvideo.ValidFonts))
+	}
+	for f := range ValidFonts {
+		if !gwvideo.ValidFonts[f] {
+			t.Errorf("font %q missing from gateway ValidFonts", f)
 		}
 	}
 }

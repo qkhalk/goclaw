@@ -322,14 +322,8 @@ func fillRoundRect(img *image.RGBA, r image.Rectangle, radius int, c color.RGBA)
 	}
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			cx := max(x, x0+radius)
-			if cx > x1-1-radius {
-				cx = x1 - 1 - radius
-			}
-			cyy := max(y, y0+radius)
-			if cyy > y1-1-radius {
-				cyy = y1 - 1 - radius
-			}
+			cx := min(max(x, x0+radius), x1-1-radius)
+			cyy := min(max(y, y0+radius), y1-1-radius)
 			dx, dy := x-cx, y-cyy
 			if dx*dx+dy*dy <= radius*radius {
 				img.SetRGBA(x, y, c)

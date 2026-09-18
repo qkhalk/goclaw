@@ -15,10 +15,15 @@ func TestDesignerIdentityLayerContract(t *testing.T) {
 		// Frames era (v5): the example storyboard leads with a composed frame.
 		`"layers":[{"kind":"card"`,
 		`"anim":"up"`,
-		`"icon":"zap"`,
 		"SALE 50%",
 		// Frames wire contract made it into the rules paragraph.
 		`"anim": "fade"|"up"|"down"|"left"|"right"|"pop"`,
+		// Polish era (v6): font hierarchy, chips, borders.
+		`"font": "body"|"display"|"mono"`,
+		`"chip": true`,
+		`"border": true`,
+		`"font":"display"`,
+		"14 characters per line",
 	} {
 		if !strings.Contains(designerIdentity, want) {
 			t.Errorf("designerIdentity missing layers contract fragment: %q", want)
@@ -31,6 +36,9 @@ func TestDesignerIdentityLayerContract(t *testing.T) {
 	}
 	if strings.Contains(designerIdentityVisuals, `"anim": "fade"`) {
 		t.Error("designerIdentityVisuals must stay the pre-frames persona")
+	}
+	if strings.Contains(designerIdentityFrames, `"font": "body"`) {
+		t.Error("designerIdentityFrames must stay the pre-polish persona")
 	}
 	for _, v := range designerIdentityHistory {
 		if v == "" {
