@@ -23,6 +23,21 @@ export interface SubagentsConfig {
   archiveAfterMinutes?: number;
   maxRetries?: number;
   model?: string;
+  definitions?: SubagentDefinition[];
+}
+
+/**
+ * SubagentDefinition mirrors Go config.SubagentDefinition — a named, reusable
+ * spawn template persisted in the agent's subagents_config JSONB. The LLM
+ * selects one by name via the spawn tool's "definition" parameter.
+ */
+export interface SubagentDefinition {
+  name: string;
+  model?: string;
+  description?: string;
+  allowedTools?: string[];
+  systemPrompt?: string;
+  injectAgentsMd?: boolean;
 }
 
 export interface CompactionConfig {

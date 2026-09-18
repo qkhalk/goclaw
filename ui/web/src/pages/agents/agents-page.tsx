@@ -47,6 +47,10 @@ export function AgentsPage() {
   const { resolve } = useContactResolver(ownerIDs);
 
   const filtered = useMemo(() => agents.filter((a) => {
+    // Designer agents (e.g. pptx-designer, video-designer) are studio-only
+    // workers addressed directly by session key from the tools pages — hide
+    // them from the general agent grid.
+    if (a.agent_key.endsWith("-designer")) return false;
     if (ownerFilter && a.owner_id !== ownerFilter) return false;
     if (typeFilter && a.agent_type !== typeFilter) return false;
     const q = search.toLowerCase();

@@ -33,6 +33,12 @@ type Registry struct {
 	// a deferred MCP tool. Returns true if the tool was successfully activated.
 	deferredActivator func(name string) bool
 
+	// fileGuard enforces the per-agent file/cloud capability policy
+	// (other_config.file_policy) at execute time. Nil = no enforcement
+	// (guard not wired, e.g. tests/eval drivers). Carried into Clone() so
+	// subagent registries enforce the same policy.
+	fileGuard *FilePolicyGuard
+
 	// Native deferred mode (tools.deferred, Phase 3). Mirrors the MCP manager's
 	// search mode: when the visible tool count exceeds deferThreshold, excess
 	// canonical tools are moved out of `tools` into `deferredTools` and a
@@ -93,6 +99,24 @@ func (r *Registry) TryActivateDeferred(name string) bool {
 // SetRateLimiter enables per-key tool rate limiting.
 func (r *Registry) SetRateLimiter(rl *ToolRateLimiter) {
 	r.rateLimiter = rl
+}
+
+// SetFilePolicyGuard wires the per-agent file/cloud capability enforcement
+// (other_config.file_policy) into the execute path. Nil disables enforcement.
+// Thread-safe: called once at wiring time before tools execute.
+func (r *Registry) SetFilePolicyGuard(g *FilePolicyGuard) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fileGuard = g
+}
+
+// FilePolicyGuard returns the wired guard (nil when enforcement is off).
+// Used to propagate the guard to freshly-built subagent file tools that are
+// registered into a cloned registry after Clone().
+func (r *Registry) FilePolicyGuard() *FilePolicyGuard {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.fileGuard
 }
 
 // SetDeferredThreshold configures the visible canonical tool count above which
@@ -407,6 +431,25 @@ func (r *Registry) Unregister(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.tools, name)
+	// Also drop a deferred twin: without this, Unregister (used by the
+	// subagent deny list) leaves the deferred copy callable by exact name.
+	delete(r.deferredTools, name)
+	delete(r.deferredMetadata, name)
+}
+
+// PruneDeferred removes deferred tools whose names are not in keep. Deferred
+// tools are invisible to List/Unregister yet stay callable by exact name via
+// TryActivateDeferred — without this prune, an allow-list pass over List()
+// would not actually narrow the callable surface.
+func (r *Registry) PruneDeferred(keep map[string]bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for name := range r.deferredTools {
+		if !keep[name] {
+			delete(r.deferredTools, name)
+			delete(r.deferredMetadata, name)
+		}
+	}
 }
 
 // Execute runs a tool by name with the given arguments.
@@ -455,6 +498,15 @@ func (r *Registry) ExecuteWithContext(ctx context.Context, name string, args map
 	}
 	if asyncCB != nil {
 		ctx = WithToolAsyncCB(ctx, asyncCB)
+	}
+
+	// Per-agent file/cloud capability policy (other_config.file_policy).
+	// Runs after alias resolution so legacy names (Read → read_file) and
+	// Claude Code aliases are classified by their canonical tool.
+	if r.FilePolicyGuard() != nil {
+		if deny := r.checkFilePolicy(ctx, tool); deny != nil {
+			return deny
+		}
 	}
 
 	// Rate limit check (per session key). A per-agent override
@@ -622,6 +674,7 @@ func (r *Registry) Clone() *Registry {
 		deferredMetadata: make(map[string]ToolMetadata, len(r.deferredMetadata)),
 		rateLimiter:      r.rateLimiter,
 		scrubbing:        r.scrubbing,
+		fileGuard:        r.fileGuard,
 		deferThreshold:   r.deferThreshold,
 		deferInline:      append([]string(nil), r.deferInline...),
 		deferredActive:   r.deferredActive,

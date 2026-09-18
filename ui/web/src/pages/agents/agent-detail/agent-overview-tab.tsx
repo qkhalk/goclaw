@@ -184,6 +184,8 @@ export function AgentOverviewTab({ agent, onUpdate, heartbeat, onManageCodexPool
       <OrchestrationSection agentId={agent.id} />
 
       <CapabilitiesSection
+        agent={agent}
+        onUpdate={onUpdate}
         subEnabled={subEnabled}
         sub={sub}
         onSubToggle={setSubEnabled}

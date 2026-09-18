@@ -318,6 +318,7 @@ func newSubagentTask(
 		MediaPathPrefix:     mediaPathPrefix,
 		CreatedAt:           time.Now().UnixMilli(),
 		spawnConfig:         cfg,
+		definition:          SubagentDefinitionFromCtx(ctx),
 	}
 }
 

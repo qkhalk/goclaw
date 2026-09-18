@@ -58,6 +58,10 @@ func (t *SpawnTool) Parameters() map[string]any {
 				"type":        "string",
 				"description": "Optional model override (e.g. 'anthropic/claude-sonnet-4-5-20250929')",
 			},
+			"definition": map[string]any{
+				"type":        "string",
+				"description": "Optional name of a predefined subagent definition configured for this agent. Applies its model, allowed tools, and system prompt. Available names are listed in the spawn tool help when definitions exist.",
+			},
 			"id": map[string]any{
 				"type":        "string",
 				"description": "Task ID for cancel/steer. For cancel: use 'all' to cancel all or 'last' for most recent",
@@ -157,8 +161,36 @@ func (t *SpawnTool) executeSpawn(ctx context.Context, args map[string]any) *Resu
 	return t.executeSubagentAsync(ctx, args, task)
 }
 
+// resolveDefinitionArg resolves the optional "definition" arg against the
+// agent's subagents config and returns a context carrying it. Returns the
+// original context unchanged when no definition is requested.
+func (t *SpawnTool) resolveDefinitionArg(ctx context.Context, args map[string]any) (context.Context, *Result) {
+	name, _ := args["definition"].(string)
+	if name == "" {
+		return ctx, nil
+	}
+	def := ResolveSubagentDefinition(ctx, name)
+	if def == nil {
+		var available []string
+		if cfg := SubagentConfigFromCtx(ctx); cfg != nil {
+			for _, d := range cfg.Definitions {
+				available = append(available, d.Name)
+			}
+		}
+		return ctx, ErrorResult(fmt.Sprintf("unknown subagent definition %q. Available definitions: %v",
+			name, available))
+	}
+	return WithSubagentDefinition(ctx, def), nil
+}
+
 // executeSubagentAsync spawns an async self-clone.
 func (t *SpawnTool) executeSubagentAsync(ctx context.Context, args map[string]any, task string) *Result {
+	defCtx, errResult := t.resolveDefinitionArg(ctx, args)
+	if errResult != nil {
+		return errResult
+	}
+	ctx = defCtx
+
 	label, _ := args["label"].(string)
 	modelOverride, _ := args["model"].(string)
 
@@ -224,6 +256,12 @@ func persistedCompletionPayload(task *store.SubagentTaskData) map[string]any {
 
 // executeSubagentSync runs a sync self-clone.
 func (t *SpawnTool) executeSubagentSync(ctx context.Context, args map[string]any, task string) *Result {
+	defCtx, errResult := t.resolveDefinitionArg(ctx, args)
+	if errResult != nil {
+		return errResult
+	}
+	ctx = defCtx
+
 	label, _ := args["label"].(string)
 	modelOverride, _ := args["model"].(string)
 	if label == "" {

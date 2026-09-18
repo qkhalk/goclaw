@@ -22,7 +22,13 @@ function agentEmoji(agent: AgentData): string | undefined {
 export function AgentSelector({ value, onChange, openSignal }: AgentSelectorProps) {
   const { t } = useTranslation("common");
   const { data: allAgents = [] } = useAgents();
-  const agents = allAgents.filter((a) => a.status === "active");
+  // Only active, non-designer agents are selectable in /chat. Designer agents
+  // (e.g. pptx-designer) are studio-only workers addressed directly by session
+  // key from the tools pages — excluding them here keeps their session history
+  // out of the chat selector.
+  const agents = allAgents.filter(
+    (a) => a.status === "active" && !a.agent_key.endsWith("-designer"),
+  );
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
