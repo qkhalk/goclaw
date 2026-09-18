@@ -272,3 +272,27 @@ func TestRenderDims(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildXfadeChainArgs pins that xfade offsets stay absolute — the old
+// absOffset accumulation double-counted them, so the 2nd join landed past
+// the first input's end and ffmpeg silently truncated every scene after
+// the second (audio kept the full length: video 8.77s vs audio 11.26s).
+func TestBuildXfadeChainArgs(t *testing.T) {
+	args := buildXfadeChainArgs(
+		[]string{"s0.mp4", "s1.mp4", "s2.mp4"},
+		[]string{"none", "fade", "fade"},
+		[]float64{4.262, 8.262},
+		30, "/tmp/x.mp4")
+	fc := filterArg(args, "-filter_complex")
+	for _, want := range []string{
+		"xfade=transition=fadeblack:duration=0.50:offset=4.262[v1]",
+		"[v1][2:v]xfade=transition=fadeblack:duration=0.50:offset=8.262[v2]",
+	} {
+		if !strings.Contains(fc, want) {
+			t.Errorf("filtergraph missing %q in: %s", want, fc)
+		}
+	}
+	if strings.Contains(fc, "offset=12.524") {
+		t.Errorf("offset was accumulated — must stay absolute: %s", fc)
+	}
+}

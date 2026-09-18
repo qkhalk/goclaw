@@ -871,13 +871,14 @@ func buildXfadeChainArgs(sceneFiles []string, transitions []string, offsets []fl
 
 	var fc strings.Builder
 	prev := "[0:v]"
-	absOffset := 0.0
 	for i := 1; i < len(sceneFiles); i++ {
 		out := fmt.Sprintf("[v%d]", i)
+		// offsets are already absolute on the accumulated timeline (batched
+		// callers pass batch-relative values) — accumulating them here
+		// double-counts and pushes later joins past the input's end, silently
+		// truncating every scene after the second.
 		fmt.Fprintf(&fc, "%s[%d:v]xfade=transition=%s:duration=%.2f:offset=%.3f%s;",
-			prev, i, xfadeTransition(transitions[i]), transitionSec, absOffset+offsets[i-1], out)
-		// Next offset is relative to the END of the current output segment
-		absOffset += offsets[i-1]
+			prev, i, xfadeTransition(transitions[i]), transitionSec, offsets[i-1], out)
 		prev = out
 	}
 
