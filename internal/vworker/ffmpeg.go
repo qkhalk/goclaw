@@ -78,9 +78,19 @@ func fontFileArg(fontFile string) string {
 // --- timed overlay layers (storyboard layers[]) ---
 
 // hasImageLayers reports whether any layer needs its own ffmpeg input.
+// isPNGLayer reports whether a layer is composited from an extra image
+// input (photo, embedded icon, or card panel).
+func isPNGLayer(k contract.LayerKind) bool {
+	switch k {
+	case contract.LayerImage, contract.LayerIcon, contract.LayerCard:
+		return true
+	}
+	return false
+}
+
 func hasImageLayers(sc contract.Scene) bool {
 	for j := range sc.Layers {
-		if sc.Layers[j].Kind == contract.LayerImage {
+		if isPNGLayer(sc.Layers[j].Kind) {
 			return true
 		}
 	}
@@ -145,8 +155,25 @@ func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int
 		}
 		// 0.3s alpha fade at the layer's start — text stops popping in.
 		fade := fmt.Sprintf("alpha='min(1,(t-%.2f)/0.30)'", l.Start)
-		return fmt.Sprintf("drawtext=%s:%s:fontsize=%d:fontcolor=0x%s@%.2f:borderw=2:bordercolor=black:x=%s:y=%d:%s:%s",
-			fontFileArg(fontFile), tv, fontSize, hex, opacity, layerXExpr(align, x0, bw), y0, fade, en), nil
+		// Slide entrances share the ease-out used by PNG layers; drawtext
+		// values are quoted so the commas inside pow() parse safely.
+		xe := fmt.Sprintf("'%s'", layerXExpr(align, x0, bw))
+		ye := fmt.Sprint(y0)
+		offX := int(math.Round(0.05 * float64(canvasW)))
+		offY := int(math.Round(0.05 * float64(canvasH)))
+		eo := easeOut(l.Start)
+		switch l.Anim {
+		case "up":
+			ye = fmt.Sprintf("'%d+%d*%s'", y0, offY, eo)
+		case "down":
+			ye = fmt.Sprintf("'%d-%d*%s'", y0, offY, eo)
+		case "left":
+			xe = fmt.Sprintf("'%s+%d*%s'", layerXExpr(align, x0, bw), offX, eo)
+		case "right":
+			xe = fmt.Sprintf("'%s-%d*%s'", layerXExpr(align, x0, bw), offX, eo)
+		}
+		return fmt.Sprintf("drawtext=%s:%s:fontsize=%d:fontcolor=0x%s@%.2f:borderw=2:bordercolor=black:x=%s:y=%s:%s:%s",
+			fontFileArg(fontFile), tv, fontSize, hex, opacity, xe, ye, fade, en), nil
 	case contract.LayerShape:
 		hex := strings.ToUpper(strings.TrimPrefix(l.Fill, "#"))
 		_, _, _, h := l.EffectiveBox()
@@ -159,15 +186,16 @@ func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int
 }
 
 // appendLayerSteps writes the full layer section for -filter_complex flows:
-// image layers alpha-reduce their input then overlay; text/shape layers stay
-// inline. Returns the label holding the composited frame.
+// PNG layers (image/icon/card) chain entrance animation + alpha-reduce +
+// width-fit scale, then overlay; text/shape layers stay inline. Returns the
+// label holding the composited frame.
 func appendLayerSteps(fc *strings.Builder, sc contract.Scene, canvasW, canvasH int, tempDir string, sceneIdx int, fontFile, cur string) string {
 	nextInput := 1 // input 0 is the scene base
 	for j := range sc.Layers {
 		l := sc.Layers[j]
 		en := layerEnableExpr(l, sc.DurationSec)
 		out := fmt.Sprintf("ly%d", j)
-		if l.Kind == contract.LayerImage {
+		if isPNGLayer(l.Kind) {
 			_, opacity, _, _ := l.EffectiveStyle()
 			x, y, w, _ := l.EffectiveBox()
 			x0 := int(math.Round(x * float64(canvasW)))
@@ -176,8 +204,15 @@ func appendLayerSteps(fc *strings.Builder, sc contract.Scene, canvasW, canvasH i
 			src := fmt.Sprintf("li%d", j)
 			// Width-fitted (scale=w:-1), horizontally centered in the box —
 			// mirrors the browser painter exactly.
-			fmt.Fprintf(fc, "[%d:v]format=rgba,colorchannelmixer=aa=%.2f,scale=%d:-1[%s];", nextInput, opacity, bw, src)
-			fmt.Fprintf(fc, "[%s][%s]overlay=x='%d+(%d-w)/2':y=%d:%s[%s];", cur, src, x0, bw, y0, en, out)
+			anim := layerAnimChain(l)
+			sep := ""
+			if anim != "" {
+				sep = ","
+			}
+			fmt.Fprintf(fc, "[%d:v]format=rgba%s%s,colorchannelmixer=aa=%.2f,scale=%d:-1[%s];",
+				nextInput, sep, anim, opacity, bw, src)
+			ox, oy := layerOverlayPos(l, x0, y0, bw, canvasW, canvasH)
+			fmt.Fprintf(fc, "[%s][%s]overlay=x=%s:y=%s:%s[%s];", cur, src, ox, oy, en, out)
 			nextInput++
 			cur = out
 			continue
@@ -192,12 +227,60 @@ func appendLayerSteps(fc *strings.Builder, sc contract.Scene, canvasW, canvasH i
 	return cur
 }
 
-// appendImageLayerInputs adds the -i args for image layers (in layer order —
-// must match appendLayerSteps' input numbering).
-func appendImageLayerInputs(args []string, sc contract.Scene) []string {
+// animSec is the entrance-animation window shared by every anim kind.
+const animSec = 0.45
+
+// easeOut returns the ease-out-quad progress expression for a layer's
+// entrance: 0 before Start, 1 after animSec.
+func easeOut(start float64) string {
+	return fmt.Sprintf("pow(1-clip((t-%.3f)/%.2f,0,1),2)", start, animSec)
+}
+
+// layerAnimChain returns the per-input filters implementing entrance
+// animations that must run on the PNG layer stream itself (fade alpha,
+// pop scale). Slide animations live in layerOverlayPos instead.
+func layerAnimChain(l contract.Layer) string {
+	switch l.Anim {
+	case "fade":
+		return fmt.Sprintf("fade=t=in:st=%.3f:d=0.30:alpha=1", l.Start)
+	case "pop":
+		return fmt.Sprintf("fade=t=in:st=%.3f:d=0.20:alpha=1,"+
+			"scale=w='ceil(iw*(1+0.35*%s))':h=-2:eval=frame",
+			l.Start, easeOut(l.Start))
+	}
+	return ""
+}
+
+// layerOverlayPos returns the overlay x/y expressions — static box centering
+// plus the slide offset for up/down/left/right entrances.
+func layerOverlayPos(l contract.Layer, x0, y0, bw, canvasW, canvasH int) (string, string) {
+	xe := fmt.Sprintf("'%d+(%d-w)/2'", x0, bw)
+	ye := fmt.Sprint(y0)
+	offX := int(math.Round(0.06 * float64(canvasW)))
+	offY := int(math.Round(0.06 * float64(canvasH)))
+	eo := easeOut(l.Start)
+	switch l.Anim {
+	case "up":
+		ye = fmt.Sprintf("'%d+%d*%s'", y0, offY, eo)
+	case "down":
+		ye = fmt.Sprintf("'%d-%d*%s'", y0, offY, eo)
+	case "left": // enters from the right edge, moving left
+		xe = fmt.Sprintf("'%d+(%d-w)/2+%d*%s'", x0, bw, offX, eo)
+	case "right": // enters from the left edge, moving right
+		xe = fmt.Sprintf("'%d+(%d-w)/2-%d*%s'", x0, bw, offX, eo)
+	}
+	return xe, ye
+}
+
+// appendImageLayerInputs adds the -i args for PNG layers (in layer order —
+// must match appendLayerSteps' input numbering). Inputs are looped for the
+// scene duration: a single-frame input can't animate (fade/scale need a
+// timeline), and repeating frames cost nothing.
+func appendImageLayerInputs(args []string, sc contract.Scene, fps int, dur float64) []string {
 	for j := range sc.Layers {
-		if sc.Layers[j].Kind == contract.LayerImage {
-			args = append(args, "-i", sc.Layers[j].Source)
+		if isPNGLayer(sc.Layers[j].Kind) {
+			args = append(args, "-loop", "1", "-framerate", fmt.Sprint(fps),
+				"-t", fmt.Sprintf("%.3f", dur), "-i", sc.Layers[j].Source)
 		}
 	}
 	return args
@@ -209,13 +292,13 @@ func appendImageLayerInputs(args []string, sc contract.Scene) []string {
 // crop), a margin-bound eased Ken Burns rides on the composite, and the
 // caption renders as chip/karaoke PNG overlays. Output: scene_N.mp4
 func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int, narrSec float64) ([]string, error) {
+	if err := prepareLayerAssets(&sc, canvasW, canvasH, tempDir, sceneIdx); err != nil {
+		return nil, err
+	}
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 
 	// Input: still image looped for duration_sec
 	args = append(args, "-loop", "1", "-framerate", fmt.Sprint(fps), "-i", sc.Source)
-	if hasImageLayers(sc) {
-		args = appendImageLayerInputs(args, sc)
-	}
 
 	// Duration
 	dur := sc.DurationSec
@@ -223,6 +306,10 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 		dur = cfg.MaxSceneSec
 	}
 	totalFrames := int(math.Ceil(float64(fps) * dur))
+
+	if hasImageLayers(sc) {
+		args = appendImageLayerInputs(args, sc, fps, dur)
+	}
 
 	// Caption overlays (PNG inputs appended after the image-layer inputs).
 	plan := sceneCaptionPlan(cfg, sc, canvasW, canvasH, narrSec, tempDir, sceneIdx)
@@ -259,6 +346,13 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	zoompanFilter := fmt.Sprintf("zoompan=z='%s':x='%s':y='%s':d=%d:s=%dx%d:fps=%d",
 		zoomExpr, xExpr, yExpr, totalFrames, canvasW, canvasH, fps)
 
+	// zoompan crops at integer pixel offsets, which at delivery resolution
+	// reads as camera shake. Supersampling the composited frame ×2 (small
+	// canvases only, to bound memory) makes each crop step sub-pixel at
+	// output scale.
+	zpSrc := "comp"
+	supersample := canvasW*canvasH <= 1<<20
+
 	// Composite: blurred cover backdrop (downscale→upscale is the cheap blur)
 	// under the contain-fit foreground, Ken Burns, v2 style filters, then the
 	// timed layers and caption on top.
@@ -268,7 +362,11 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 		canvasW/8, canvasH/8, canvasW/8, canvasH/8, canvasW, canvasH)
 	fmt.Fprintf(&fc, "[fg]scale=%d:%d:force_original_aspect_ratio=decrease[fgf];", canvasW, canvasH)
 	fc.WriteString("[bgf][fgf]overlay=0:0[comp];")
-	fmt.Fprintf(&fc, "[comp]%s[zp];", zoompanFilter)
+	if supersample {
+		fmt.Fprintf(&fc, "[comp]scale=%d:%d:flags=lanczos[css];", canvasW*2, canvasH*2)
+		zpSrc = "css"
+	}
+	fmt.Fprintf(&fc, "[%s]%s[zp];", zpSrc, zoompanFilter)
 
 	cur := "zp"
 	for _, vf := range visualStyleFilters(sc) {
@@ -316,11 +414,11 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	return args, nil
 }
 
-// countImageLayers returns the number of image layers (extra ffmpeg inputs).
+// countImageLayers returns the number of PNG layers (extra ffmpeg inputs).
 func countImageLayers(sc contract.Scene) int {
 	n := 0
 	for j := range sc.Layers {
-		if sc.Layers[j].Kind == contract.LayerImage {
+		if isPNGLayer(sc.Layers[j].Kind) {
 			n++
 		}
 	}
@@ -338,15 +436,18 @@ func boolInt(b bool) int {
 // canvas). Caption/glow overlays upgrade the render to a filter_complex
 // graph; the plain -vf path stays for scenes without them.
 func buildVideoSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int, narrSec float64) []string {
+	if err := prepareLayerAssets(&sc, canvasW, canvasH, tempDir, sceneIdx); err != nil {
+		slog.Warn("video layer assets failed", "scene", sceneIdx, "err", err)
+	}
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 	args = append(args, "-i", sc.Source)
-	if hasImageLayers(sc) {
-		args = appendImageLayerInputs(args, sc)
-	}
 
 	dur := sc.DurationSec
 	if cfg.MaxSceneSec > 0 && dur > cfg.MaxSceneSec {
 		dur = cfg.MaxSceneSec
+	}
+	if hasImageLayers(sc) {
+		args = appendImageLayerInputs(args, sc, fps, dur)
 	}
 
 	plan := sceneCaptionPlan(cfg, sc, canvasW, canvasH, narrSec, tempDir, sceneIdx)
@@ -564,6 +665,9 @@ func layerFontFile(cfg FFmpegConfig) string {
 // the v2 style filters upgrade the render to a filter_complex graph; plain
 // scenes keep the cheap -vf path.
 func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int, animated bool, narrSec float64) ([]string, error) {
+	if err := prepareLayerAssets(&sc, canvasW, canvasH, tempDir, sceneIdx); err != nil {
+		return nil, err
+	}
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 
 	dur := sc.DurationSec
@@ -588,7 +692,7 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	if plan != nil || glowPath != "" || hasImageLayers(sc) {
 		args = append(args, "-f", "lavfi", "-i", lavfi())
 		if hasImageLayers(sc) {
-			args = appendImageLayerInputs(args, sc)
+			args = appendImageLayerInputs(args, sc, fps, dur)
 		}
 		if glowPath != "" {
 			args = append(args, "-loop", "1", "-framerate", fmt.Sprint(fps),
@@ -734,10 +838,7 @@ func buildMixArgs(cfg FFmpegConfig, videoPath, outputPath string, narr []NarrTra
 
 	// Each narration clip is delayed to its scene's start on the timeline.
 	for k, nt := range narr {
-		delayMs := int(math.Round(nt.StartSec * 1000))
-		if delayMs < 0 {
-			delayMs = 0
-		}
+		delayMs := max(int(math.Round(nt.StartSec*1000)), 0)
 		filters = append(filters, fmt.Sprintf("[%d:a]adelay=%d:all=1[an%d]", narrBase+k, delayMs, k))
 		audioInputs = append(audioInputs, fmt.Sprintf("[an%d]", k))
 	}
@@ -800,7 +901,7 @@ func buildPanExprs(pan string, totalFrames int) (xExpr, yExpr string) {
 // for the animated gradient of a color scene.
 func darkerHex(hex string) string {
 	out := make([]byte, 6)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		v, _ := strconv.ParseUint(hex[i*2:i*2+2], 16, 8)
 		out[i*2] = hexDigit(v / 2 / 16)
 		out[i*2+1] = hexDigit(v / 2 % 16)

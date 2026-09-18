@@ -29,14 +29,14 @@ const narrationTailSec = 0.35
 
 // jobState holds per-job mutable state.
 type jobState struct {
-	mu       sync.Mutex
-	Status   contract.JobStatus
-	Progress int
-	Error    string
-	Output   string
+	mu         sync.Mutex
+	Status     contract.JobStatus
+	Progress   int
+	Error      string
+	Output     string
 	OutputSize int64
 	DurationMS int64
-	cancel   context.CancelFunc
+	cancel     context.CancelFunc
 }
 
 // WorkerConfig holds all configuration for the worker.
@@ -622,10 +622,9 @@ func batchedXfade(ctx context.Context, ffmpegPath string, sceneFiles []string, t
 		// Determine batch end: at most xfadeBatchSize scenes, but we need
 		// an overlap scene (last of this batch = first of next) if there
 		// are more scenes after this batch.
-		batchEnd := batchStart + xfadeBatchSize
-		if batchEnd >= n {
-			batchEnd = n // include all remaining scenes
-		}
+		batchEnd := min(batchStart+xfadeBatchSize,
+			// include all remaining scenes
+			n)
 
 		// Build batch inputs and transitions
 		batchFiles := sceneFiles[batchStart:batchEnd]

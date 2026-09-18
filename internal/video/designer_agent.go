@@ -264,9 +264,10 @@ const designerColorBullet = `- Color scenes: dark, rich backgrounds with high-co
 
 const designerVisualsRules = `Captions accept "style": "chip"|"mono" (default plain). Color scenes also accept "glow" "#RRGGBB", "vignette" and "grain" booleans. `
 
-// designerIdentity is the IDENTITY.md persona (English, LLM consumption).
-// Contract mirrors internal/video/types.go Storyboard.Validate.
-var designerIdentity = func() string {
+// designerIdentityVisuals is the visuals-v2 persona (v4, 2026-09-18: image
+// search default, chip/mono captions, glow/vignette), preserved byte-for-byte
+// as a boot-migration source for the frames persona.
+var designerIdentityVisuals = func() string {
 	s := designerIdentityLayers
 
 	// v3 imagery bullet → image_search-first sourcing.
@@ -303,6 +304,47 @@ var designerIdentity = func() string {
 	return s
 }()
 
+// designerFramesBullet + designerFramesRules are the v5 persona additions
+// (composed frames: icon/card layers with entrance animations).
+const designerFramesBullet = `- Composed frames: when a beat has no strong photo, build it from layers
+  instead of a bare caption — a translucent "card" panel, an "icon" and a
+  short text layer inside it, each with an entrance "anim" ("up", "left",
+  "pop", ...). Stagger their starts 0.25-0.35s apart so the frame builds up.
+  Icon names: check, zap, users, cpu, database, git-branch, globe, heart,
+  star, trending-up, shield, layers, code, terminal, book-open, message-circle,
+  clock, eye, lock, package, settings, bar-chart-2, arrow-right, download,
+  play, target, search, calendar, camera, music, wifi, cloud, coffee.
+`
+
+const designerFramesRules = `Any layer accepts "anim": "fade"|"up"|"down"|"left"|"right"|"pop" (a ~0.45s entrance at its start). "card" layers take fill + opacity (0.08..0.25 reads as a glass panel) and radius 0..0.2 (fraction of canvas width). "icon" layers take "icon": "<name>" with fill as the stroke color. `
+
+// designerIdentityFrames is the composed-frames persona (v5, 2026-09-18):
+// icons, glass cards and entrance animations on top of the visuals-v2 base.
+var designerIdentityFrames = func() string {
+	s := designerIdentityVisuals
+
+	// Skills bullet → composed-frames bullet + skills line.
+	bullet := "- Load your design skills (use_skill) for detailed guidance before your\n  first design of a session.\n"
+	s = strings.Replace(s, bullet, designerFramesBullet+bullet, 1)
+
+	// Extend the wire-contract rules with anim/card/icon vocabulary.
+	s = strings.Replace(s,
+		designerVisualsRules,
+		designerVisualsRules+" "+designerFramesRules,
+		1)
+
+	// Example scene: card + icon + text composed frame.
+	s = strings.Replace(s,
+		"\"layers\":[{\"kind\":\"text\",\"text\":\"SALE 50%\",\"y\":0.3,\"font_size\":72,\"fill\":\"#FACC15\",\"start\":0.5,\"duration\":2}]}]",
+		"\"layers\":[{\"kind\":\"card\",\"x\":0.08,\"y\":0.55,\"w\":0.84,\"h\":0.16,\"fill\":\"#FFFFFF\",\"opacity\":0.12,\"radius\":0.02,\"anim\":\"up\",\"start\":0.4},{\"kind\":\"icon\",\"icon\":\"zap\",\"x\":0.13,\"y\":0.58,\"w\":0.08,\"fill\":\"#FACC15\",\"anim\":\"pop\",\"start\":0.7},{\"kind\":\"text\",\"text\":\"SALE 50%\",\"x\":0.26,\"y\":0.6,\"font_size\":72,\"fill\":\"#FACC15\",\"anim\":\"left\",\"start\":0.9}]}]",
+		1)
+	return s
+}()
+
+// designerIdentity is the IDENTITY.md persona (English, LLM consumption).
+// Contract mirrors internal/video/types.go Storyboard.Validate.
+var designerIdentity = designerIdentityFrames
+
 // designerIdentityHistory lists every system-authored persona version, oldest
 // first. A boot-time migration upgrades an existing agent's IDENTITY.md only
 // when its content still matches one of these byte-for-byte — a persona an
@@ -315,6 +357,8 @@ var designerIdentityHistory = []string{
 	designerIdentityV3,
 	// layers era (2026-09-16): timed overlay layers.
 	designerIdentityLayers,
+	// visuals era (2026-09-18): image_search default + chip/mono + glow.
+	designerIdentityVisuals,
 }
 
 // EnsureDesignerAgent creates the video-designer predefined agent when the

@@ -137,6 +137,27 @@ var goldenFixtures = []struct {
 			]
 		}`,
 	},
+	{
+		// Composed frames: embedded icon layers, card panels and entrance
+		// animations must survive both parsers identically.
+		name: "layers_v2",
+		json: `{
+			"version": 1,
+			"canvas": { "width": 1080, "height": 1920, "fps": 30 },
+			"scenes": [
+				{
+					"type": "color", "color": "#0D1117", "color2": "#1E293B",
+					"grid": true, "glow": "#38BDF8", "vignette": true,
+					"duration_sec": 5,
+					"layers": [
+						{ "kind": "card", "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.3, "fill": "#1E293B", "opacity": 0.45, "radius": 0.03, "anim": "up", "start": 0.6 },
+						{ "kind": "icon", "icon": "zap", "x": 0.14, "y": 0.34, "w": 0.1, "fill": "#FACC15", "anim": "pop", "start": 0.9 },
+						{ "kind": "text", "text": "Cộng đồng cùng xây", "x": 0.28, "y": 0.38, "w": 0.6, "font_size": 56, "fill": "#FFFFFF", "anim": "left", "start": 1.1 }
+					]
+				}
+			]
+		}`,
+	},
 }
 
 // TestGoldenParseMatchGateway verifies that the worker contract parser
@@ -179,6 +200,27 @@ func TestGoldenParseMatchGateway(t *testing.T) {
 					fix.name, gwNormJSON, wNormJSON)
 			}
 		})
+	}
+}
+
+// TestGoldenIconAnimSetsMatch verifies the worker contract and the gateway
+// video package agree on the embedded icon names and animation modes.
+func TestGoldenIconAnimSetsMatch(t *testing.T) {
+	if len(ValidIcons) != len(gwvideo.ValidIcons) {
+		t.Fatalf("ValidIcons size drift: worker=%d gateway=%d", len(ValidIcons), len(gwvideo.ValidIcons))
+	}
+	for name := range ValidIcons {
+		if !gwvideo.ValidIcons[name] {
+			t.Errorf("icon %q missing from gateway ValidIcons", name)
+		}
+	}
+	if len(ValidAnims) != len(gwvideo.ValidAnims) {
+		t.Fatalf("ValidAnims size drift: worker=%d gateway=%d", len(ValidAnims), len(gwvideo.ValidAnims))
+	}
+	for a := range ValidAnims {
+		if !gwvideo.ValidAnims[a] {
+			t.Errorf("anim %q missing from gateway ValidAnims", a)
+		}
 	}
 }
 

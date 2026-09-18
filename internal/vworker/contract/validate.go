@@ -124,8 +124,22 @@ func (l *Layer) validate(sceneSec float64) error {
 		if strings.TrimSpace(l.Source) == "" {
 			return fmt.Errorf("image layers need source")
 		}
+	case LayerIcon:
+		if !ValidIcons[l.Icon] {
+			return fmt.Errorf("unknown icon %q (see ValidIcons for the embedded set)", l.Icon)
+		}
+	case LayerCard:
+		if !hexColor(l.Fill) {
+			return fmt.Errorf("card layers need a #RRGGBB fill, got %q", l.Fill)
+		}
 	default:
-		return fmt.Errorf("unknown layer kind %q (text, shape, image)", l.Kind)
+		return fmt.Errorf("unknown layer kind %q (text, shape, image, icon, card)", l.Kind)
+	}
+	if !ValidAnims[l.Anim] {
+		return fmt.Errorf("unknown anim %q (fade, up, down, left, right, pop)", l.Anim)
+	}
+	if l.Radius < 0 || l.Radius > 0.2 {
+		return fmt.Errorf("radius %.3f out of range 0..0.2 (fraction of canvas width)", l.Radius)
 	}
 	if l.Start < 0 || l.Start >= sceneSec {
 		return fmt.Errorf("start %.2fs out of range 0..%.2f", l.Start, sceneSec)

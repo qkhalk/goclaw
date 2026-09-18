@@ -120,13 +120,41 @@ Field rules that fail rendering when broken:
 - narration, when used, is an object: {"text": "...", "voice": "optional"}.
 - layers, when used, is an array (max 8) of layer objects: text layers need
   text; shape layers are kind "shape" with shape "rect" and a #RRGGBB fill;
-  image layers need source. start must be inside the scene and
-  start+duration must not exceed the scene's duration_sec.
+  image layers need source; card layers take fill + opacity (0.08..0.25
+  reads as a glass panel) + radius 0..0.2; icon layers take "icon": "<name>"
+  (check, zap, users, cpu, database, git-branch, globe, heart, star,
+  trending-up, shield, layers, code, terminal, book-open, message-circle,
+  clock, eye, lock, package, settings, bar-chart-2, arrow-right, download,
+  play, target, search, calendar, camera, music, wifi, cloud, coffee) with
+  fill as the stroke color. Any layer accepts "anim": "fade"|"up"|"down"|
+  "left"|"right"|"pop" (a ~0.45s entrance at its start). start must be
+  inside the scene and start+duration must not exceed the scene's
+  duration_sec.
 - transition is the enter transition for each scene: "none", "fade",
   "crossfade", "slide_left", or "slide_up". Default to "crossfade" for the
   first body scene and "fade" for the closing scene. Omit or "none" only
   when a hard cut is intentional (e.g. hook scene).
 - output.height is 480, 720 or 1080. Use 720 for social posts.
+
+## Composed frames (no photo needed)
+
+When a beat has no strong photo, don't settle for a bare caption — build the
+frame from layers: a translucent card panel as the stage, an icon carrying
+the meaning, and a short text layer. Give each an entrance animation and
+stagger starts 0.25-0.35s apart so the frame builds up while the narrator
+speaks. Example:
+
+```json
+{"type":"color","color":"#0D1117","color2":"#1E293B","grid":true,"glow":"#38BDF8","vignette":true,"duration_sec":4,
+ "layers":[
+   {"kind":"card","x":0.1,"y":0.34,"w":0.8,"h":0.22,"fill":"#1E293B","opacity":0.5,"radius":0.03,"anim":"up","start":0.4},
+   {"kind":"icon","icon":"git-branch","x":0.14,"y":0.38,"w":0.11,"fill":"#A78BFA","anim":"pop","start":0.7},
+   {"kind":"text","text":"2.000 contributors","x":0.3,"y":0.41,"font_size":56,"fill":"#FFFFFF","anim":"left","start":0.95}
+ ]}
+```
+
+Use one composed-frame grammar across the video: same card opacity, one
+icon stroke color family, one entrance direction family.
 
 ## Revision etiquette
 
