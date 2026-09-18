@@ -63,7 +63,10 @@
     "cancel": "取消",
     "update": "更新凭据",
     "advanced": "使用您自己的 OAuth 客户端（高级）",
-    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。"
+    "embedded_note": "快速连接使用 rclone 共享 OAuth 客户端——无需任何配置，但共享速率限制。共享客户端现已授予完整 Drive 权限。Gmail 工具仍需要您自己的 OAuth 客户端（见云盘设置）。",
+    "showMore": "展开设置",
+    "showLess": "收起设置",
+    "requiredHint": "需要设置"
   },
   "disconnect_confirm": {
     "title": "断开账户？",
@@ -123,7 +126,10 @@
     "col_actions": "操作",
     "scope_type": "范围类型",
     "rule_added": "规则已添加",
-    "table_empty": "暂无规则"
+    "table_empty": "暂无规则",
+    "personal_accounts": "个人账户",
+    "shared_accounts": "共享（企业）账户",
+    "accounts_explainer": "个人账户是您自己连接的云盘。共享（企业）账户面向整个租户 — 可在下方通过优先级规则将其绑定到群组或用户。"
   },
   "detail": {
     "mail_btn": "邮箱",

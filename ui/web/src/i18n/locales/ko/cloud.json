@@ -63,7 +63,10 @@
     "cancel": "취소",
     "update": "자격 증명 업데이트",
     "advanced": "자체 OAuth 클라이언트 사용 (고급)",
-    "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. 공유 클라이언트는 이제 전체 Drive 권한을 부여합니다. Gmail 도구에는 여전히 자체 OAuth 클라이언트가 필요합니다(클라우드 설정 참조)."
+    "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. 공유 클라이언트는 이제 전체 Drive 권한을 부여합니다. Gmail 도구에는 여전히 자체 OAuth 클라이언트가 필요합니다(클라우드 설정 참조).",
+    "showMore": "설정 펼치기",
+    "showLess": "설정 접기",
+    "requiredHint": "설정 필요"
   },
   "disconnect_confirm": {
     "title": "계정 연결을 해제하시겠습니까?",
@@ -123,7 +126,10 @@
     "col_actions": "작업",
     "scope_type": "범위 유형",
     "rule_added": "규칙이 추가되었습니다",
-    "table_empty": "규칙이 없습니다"
+    "table_empty": "규칙이 없습니다",
+    "personal_accounts": "개인 계정",
+    "shared_accounts": "공유(비즈니스) 계정",
+    "accounts_explainer": "개인 계정은 본인이 연결한 클라우드입니다. 공유(비즈니스) 계정은 테넌트 전체에 적용되며 — 아래에서 우선순위 규칙으로 그룹이나 사용자에게 바인딩할 수 있습니다."
   },
   "detail": {
     "mail_btn": "메일함",

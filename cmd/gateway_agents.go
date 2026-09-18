@@ -231,18 +231,28 @@ func buildSubagentToolsRegistry(
 ) (*tools.Registry, *tools.ExecTool) {
 	reg := parentReg.Clone()
 	var execTool *tools.ExecTool
+	var writeTool tools.Tool
 	if sandboxMgr != nil {
 		reg.Register(tools.NewSandboxedReadFileTool(workspace, restrict, sandboxMgr))
-		reg.Register(tools.NewSandboxedWriteFileTool(workspace, restrict, sandboxMgr))
+		writeTool = tools.NewSandboxedWriteFileTool(workspace, restrict, sandboxMgr)
+		reg.Register(writeTool)
 		reg.Register(tools.NewSandboxedListFilesTool(workspace, restrict, sandboxMgr))
 		execTool = tools.NewSandboxedExecTool(workspace, restrict, sandboxMgr)
 		reg.Register(execTool)
 	} else {
 		reg.Register(tools.NewReadFileTool(workspace, restrict))
-		reg.Register(tools.NewWriteFileTool(workspace, restrict))
+		writeTool = tools.NewWriteFileTool(workspace, restrict)
+		reg.Register(writeTool)
 		reg.Register(tools.NewListFilesTool(workspace, restrict))
 		execTool = tools.NewExecTool(workspace, restrict)
 		reg.Register(execTool)
+	}
+	// Propagate the per-agent file/cloud capability guard to the fresh write
+	// tool (the registry-level guard already came across via Clone).
+	if guard := parentReg.FilePolicyGuard(); guard != nil {
+		if aware, ok := writeTool.(tools.FilePolicyAware); ok {
+			aware.SetFilePolicyGuard(guard)
+		}
 	}
 	// Red Team F3: subagent ExecTool must enforce the secure-CLI gate
 	// (and env scrub on fall-through) — without this, a parent agent

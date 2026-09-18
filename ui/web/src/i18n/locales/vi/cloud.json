@@ -63,7 +63,10 @@
     "cancel": "Hủy",
     "update": "Cập nhật thông tin",
     "advanced": "Dùng OAuth client riêng (nâng cao)",
-    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Client dùng chung nay cấp quyền Drive đầy đủ. Công cụ Gmail vẫn cần OAuth client riêng của bạn (xem Cài đặt đám mây)."
+    "embedded_note": "Kết nối nhanh dùng OAuth client dùng chung của rclone — không cần cấu hình, nhưng chịu giới hạn tốc độ chung. Client dùng chung nay cấp quyền Drive đầy đủ. Công cụ Gmail vẫn cần OAuth client riêng của bạn (xem Cài đặt đám mây).",
+    "showMore": "Hiện hướng dẫn thiết lập",
+    "showLess": "Ẩn hướng dẫn thiết lập",
+    "requiredHint": "Cần thiết lập"
   },
   "disconnect_confirm": {
     "title": "Ngắt kết nối tài khoản?",
@@ -123,7 +126,10 @@
     "col_actions": "Thao tác",
     "scope_type": "Loại phạm vi",
     "rule_added": "Đã thêm quy tắc",
-    "table_empty": "Chưa có quy tắc nào"
+    "table_empty": "Chưa có quy tắc nào",
+    "personal_accounts": "Tài khoản cá nhân",
+    "shared_accounts": "Tài khoản dùng chung (doanh nghiệp)",
+    "accounts_explainer": "Tài khoản cá nhân là các đám mây của riêng bạn. Tài khoản dùng chung (doanh nghiệp) áp dụng cho cả tenant — gắn chúng vào nhóm hoặc người dùng bên dưới với quy tắc ưu tiên."
   },
   "detail": {
     "mail_btn": "Hộp thư",

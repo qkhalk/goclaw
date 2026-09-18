@@ -457,5 +457,10 @@ func init() {
 		MsgVideoJobDone:      "job render video %s đã hoàn thành",
 		MsgVideoDisabled:     "render video chưa được bật trên gateway này",
 		MsgVideoWorkerUnavail: "worker video không thể truy cập",
+
+		// Per-agent file/cloud capability policy
+		MsgFileReadDenied:   "Đọc tệp đã bị tắt cho agent này bởi chính sách tệp. Quản trị viên có thể bật lại trong cài đặt agent → Quyền tệp & đám mây.",
+		MsgFileWriteDenied:  "Ghi tệp đã bị tắt cho agent này bởi chính sách tệp. Quản trị viên có thể bật lại trong cài đặt agent → Quyền tệp & đám mây.",
+		MsgFileCreateDenied: "Tạo tệp mới đã bị tắt cho agent này bởi chính sách tệp. Quản trị viên có thể bật lại trong cài đặt agent → Quyền tệp & đám mây.",
 	})
 }
