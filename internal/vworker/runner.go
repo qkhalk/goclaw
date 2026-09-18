@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -196,8 +197,8 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		MaxSceneSec: r.cfg.MaxSceneSec,
 		Fonts:       r.cfg.Fonts,
 	}
-	// Determine canvas dimensions
-	canvasW, canvasH, fps := effectiveCanvas(sb)
+	// Determine canvas dimensions, scaled to the delivery resolution
+	canvasW, canvasH, fps := renderDims(sb)
 
 	// Set rendering status
 	js.mu.Lock()
@@ -526,6 +527,36 @@ func effectiveCanvas(sb *contract.Storyboard) (w, h, fps int) {
 		fps = 30
 	}
 	return w, h, fps
+}
+
+// renderDims returns the dimensions the filter graph actually renders at:
+// the canvas scaled down to output.height when set (720p → 720×1280
+// portrait / 1280×720 landscape, never upscaled). Running the pixel-heavy
+// chain (zoompan, noise, vignette, overlays) at the delivery size instead
+// of the full 1080×1920 canvas cuts per-frame work ~2.25x — the difference
+// between a smooth render and a wedged 1-vCPU/512MB box.
+func renderDims(sb *contract.Storyboard) (w, h, fps int) {
+	w, h, fps = effectiveCanvas(sb)
+	_, outShort, _ := sb.EffectiveOutput()
+	if outShort <= 0 {
+		return w, h, fps
+	}
+	short := min(w, h)
+	if outShort >= short {
+		return w, h, fps
+	}
+	s := float64(outShort) / float64(short)
+	w = evenInt(int(math.Round(float64(w) * s)))
+	h = evenInt(int(math.Round(float64(h) * s)))
+	return w, h, fps
+}
+
+// evenInt clamps to a positive even value — yuv420p needs even dimensions.
+func evenInt(n int) int {
+	if n < 2 {
+		return 2
+	}
+	return n / 2 * 2
 }
 
 // filterEmpty removes empty strings from a slice.
