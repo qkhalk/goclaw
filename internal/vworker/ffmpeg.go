@@ -27,7 +27,13 @@ type FFmpegConfig struct {
 }
 
 // common FFmpeg flags for "light" rendering.
-var baseFlags = []string{"-preset", "veryfast", "-crf", "28", "-threads", "1", "-y"}
+// baseFlags keeps the encoder lean for tiny boxes: single-threaded encode
+// and single-threaded filter graph (each filter_complex input spawns its
+// own thread pool — with 7 inputs the pools alone can eat 100+ MB), and a
+// short x264 lookahead so the encoder holds few reference frames.
+var baseFlags = []string{"-preset", "veryfast", "-crf", "28",
+	"-threads", "1", "-filter_threads", "1", "-filter_complex_threads", "1",
+	"-x264-params", "rc-lookahead=8:ref=1:bframes=2", "-y"}
 
 // escapeDrawText escapes text for the ffmpeg drawtext filter.
 // ffmpeg drawtext requires escaping: single quotes, colons, backslashes, and brackets.
