@@ -1,4 +1,5 @@
-import type { DeckTheme, Slide } from "../types";
+import type { AnimSpec, DecorPrim, DeckTheme, Slide } from "../types";
+import { DEFAULT_ICON_STROKE_WIDTH, getIcon } from "./icon-library";
 
 /**
  * Single source of truth for slide geometry. Every layout emits a flat list
@@ -19,8 +20,17 @@ const M = 96;
 const CONTENT_W = STAGE_W - M * 2; // 1088
 
 export type SlidePrim =
-  | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; radius?: number }
-  | { kind: "ellipse"; x: number; y: number; w: number; h: number; fill: string }
+  | {
+      kind: "rect";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      fill: string;
+      radius?: number;
+      anim?: AnimSpec;
+    }
+  | { kind: "ellipse"; x: number; y: number; w: number; h: number; fill: string; anim?: AnimSpec }
   | {
       kind: "frame";
       x: number;
@@ -31,6 +41,18 @@ export type SlidePrim =
       width: number;
       radius?: number;
       dash?: boolean;
+      anim?: AnimSpec;
+    }
+  | {
+      kind: "icon";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      name: string;
+      color: string;
+      strokeWidth: number;
+      anim?: AnimSpec;
     }
   | {
       kind: "text";
@@ -123,6 +145,117 @@ function contentHeader(prims: SlidePrim[], slide: Slide, p: Palette, size = 46):
   return tickY + 6 + 34;
 }
 
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+/** Push one icon primitive; unknown icon names vanish silently so a deck
+ * hand-edited with a bad name never breaks preview or export. */
+function pushIcon(
+  prims: SlidePrim[],
+  name: string | null | undefined,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  strokeWidth = DEFAULT_ICON_STROKE_WIDTH,
+  anim?: AnimSpec,
+): void {
+  if (!getIcon(name)) return;
+  prims.push({ kind: "icon", x, y, w, h, name: name as string, color, strokeWidth, anim });
+}
+
+/** Expand one frame decor into base geometry prims (rect / ellipse / frame),
+ * so preview and export share one path and the export needs no new shape
+ * vocabulary beyond the icon raster. */
+function expandFrame(d: Extract<DecorPrim, { type: "frame" }>, prims: SlidePrim[], p: Palette): void {
+  const weight = Math.max(1, Math.min(40, Math.round(d.weight ?? (d.variant === "band" ? 10 : 2))));
+  const fallback = d.variant === "band" ? p.accent : d.variant === "ring" ? p.ghostAccent : p.muted;
+  const color = d.color && HEX_RE.test(d.color) ? d.color : fallback;
+  const anim = d.anim;
+
+  switch (d.variant) {
+    case "corner": {
+      // L-brackets at the four corners of the box.
+      const arm = Math.max(14, Math.min(46, Math.round(Math.min(d.w, d.h) * 0.22)));
+      const t = weight;
+      const rects: Array<[number, number, number, number]> = [
+        [d.x, d.y, arm, t], [d.x, d.y, t, arm], // top-left
+        [d.x + d.w - arm, d.y, arm, t], [d.x + d.w - t, d.y, t, arm], // top-right
+        [d.x, d.y + d.h - t, arm, t], [d.x, d.y + d.h - arm, t, arm], // bottom-left
+        [d.x + d.w - arm, d.y + d.h - t, arm, t], [d.x + d.w - t, d.y + d.h - arm, t, arm], // bottom-right
+      ];
+      for (const [x, y, w, h] of rects) prims.push({ kind: "rect", x, y, w, h, fill: color, anim });
+      break;
+    }
+    case "outline": {
+      prims.push({ kind: "frame", x: d.x, y: d.y, w: d.w, h: d.h, color, width: weight, radius: 12, anim });
+      break;
+    }
+    case "band": {
+      // Accent side strip hugging the left edge of the box.
+      prims.push({ kind: "rect", x: d.x, y: d.y, w: weight, h: d.h, fill: color, anim });
+      break;
+    }
+    case "dots": {
+      // Dot grid inset in the box; spacing grows to cap the prim count.
+      const inset = 14;
+      const dot = 5;
+      const cols = Math.max(1, Math.floor((d.w - inset * 2) / 28) + 1);
+      const rows = Math.max(1, Math.floor((d.h - inset * 2) / 28) + 1);
+      const stepX = cols > 1 ? (d.w - inset * 2) / (cols - 1) : 0;
+      const stepY = rows > 1 ? (d.h - inset * 2) / (rows - 1) : 0;
+      const maxDots = 160;
+      const total = cols * rows;
+      const colStride = total <= maxDots ? 1 : 2;
+      for (let r = 0; r < rows; r += colStride) {
+        for (let c = 0; c < cols; c += colStride) {
+          prims.push({
+            kind: "ellipse",
+            x: d.x + inset + c * stepX - dot / 2,
+            y: d.y + inset + r * stepY - dot / 2,
+            w: dot,
+            h: dot,
+            fill: color,
+            anim,
+          });
+        }
+      }
+      break;
+    }
+    case "ring": {
+      // Ghost circle: a frame whose radius rounds the rect into a circle.
+      prims.push({
+        kind: "frame",
+        x: d.x,
+        y: d.y,
+        w: d.w,
+        h: d.h,
+        color,
+        width: weight,
+        radius: Math.min(d.w, d.h) / 2,
+        anim,
+      });
+      break;
+    }
+  }
+}
+
+/** Layer the slide's decor primitives (icons + frames) on top of the layout. */
+function appendDecor(prims: SlidePrim[], slide: Slide, p: Palette): void {
+  for (const d of slide.decor ?? []) {
+    if (d.type === "frame") {
+      expandFrame(d, prims, p);
+    } else if (d.type === "icon") {
+      const color = d.color && HEX_RE.test(d.color) ? d.color : p.accent;
+      pushIcon(
+        prims, d.icon, d.x, d.y, d.w, d.h, color,
+        d.strokeWidth && d.strokeWidth > 0 ? d.strokeWidth : DEFAULT_ICON_STROKE_WIDTH,
+        d.anim,
+      );
+    }
+  }
+}
+
 export function buildSlidePrims(slide: Slide, theme: DeckTheme): SlidePrim[] {
   const p = palette(theme);
   const prims: SlidePrim[] = [];
@@ -142,6 +275,22 @@ export function buildSlidePrims(slide: Slide, theme: DeckTheme): SlidePrim[] {
         kind: "ellipse", x: 1005, y: 462, w: 330, h: 330, fill: p.softAccent,
       });
       prims.push({ kind: "rect", x: M, y: 236, w: 88, h: 10, fill: p.accent });
+      // Icon chip + corner brackets: only when the slide carries an icon, so
+      // decks without the new primitives render exactly as before.
+      const chip = getIcon(slide.icon);
+      if (chip) {
+        prims.push({ kind: "rect", x: M, y: 148, w: 64, h: 64, fill: p.softAccent, radius: 16 });
+        pushIcon(prims, slide.icon, M + 15, 163, 34, 34, p.accent);
+        const t = 3;
+        const arm = 30;
+        const brackets: Array<[number, number, number, number]> = [
+          [28, 28, arm, t], [28, 28, t, arm],
+          [STAGE_W - 28 - arm, 28, arm, t], [STAGE_W - 28 - t, 28, t, arm],
+          [28, STAGE_H - 28 - t, arm, t], [28, STAGE_H - 28 - arm, t, arm],
+          [STAGE_W - 28 - arm, STAGE_H - 28 - t, arm, t], [STAGE_W - 28 - t, STAGE_H - 28 - arm, t, arm],
+        ];
+        for (const [x, y, w, h] of brackets) prims.push({ kind: "rect", x, y, w, h, fill: p.muted });
+      }
       const titleH = textH(slide.title ?? "", 1088, 76, 1.12);
       prims.push({
         kind: "text", x: M, y: 274, w: 1088, h: titleH, text: slide.title ?? "",
@@ -164,6 +313,10 @@ export function buildSlidePrims(slide: Slide, theme: DeckTheme): SlidePrim[] {
         kind: "ellipse", x: 950, y: 150, w: 380, h: 380, fill: p.softAccent,
       });
       prims.push({ kind: "rect", x: M, y: 300, w: 120, h: 10, fill: p.accent });
+      // Big leading icon between the band and the title (icon slides only).
+      if (getIcon(slide.icon)) {
+        pushIcon(prims, slide.icon, M, 186, 84, 84, p.accent, 1.75);
+      }
       const titleH = textH(slide.title ?? "", 1000, 62, 1.12);
       prims.push({
         kind: "text", x: M, y: 338, w: 1000, h: titleH, text: slide.title ?? "",
@@ -184,18 +337,25 @@ export function buildSlidePrims(slide: Slide, theme: DeckTheme): SlidePrim[] {
       // Editorial hairline anchoring the right edge.
       prims.push({ kind: "rect", x: 1182, y: 64, w: 2, h: STAGE_H - 128, fill: p.hairline });
       const items = slide.bullets ?? [];
+      const icons = slide.bullet_icons ?? [];
       const size = items.length > 5 ? 28 : 31;
       const gap = items.length > 5 ? 22 : 30;
       let y = bodyTop;
-      for (const b of items) {
-        prims.push({ kind: "rect", x: M, y: y + size * 0.42, w: 12, h: 12, fill: p.accent });
+      items.forEach((b, i) => {
+        const icon = getIcon(icons[i]);
+        if (icon) {
+          // Leading icon replaces the square marker; text column unchanged.
+          pushIcon(prims, icons[i], M, y + size * 0.66 - 14, 28, 28, p.accent, 2);
+        } else {
+          prims.push({ kind: "rect", x: M, y: y + size * 0.42, w: 12, h: 12, fill: p.accent });
+        }
         const h = textH(b, CONTENT_W - 44, size, 1.32);
         prims.push({
           kind: "text", x: M + 44, y, w: CONTENT_W - 44, h, text: b,
           font: "body", size, color: p.fg, lineHeight: 1.32,
         });
         y += Math.max(h, size * 1.32) + gap;
-      }
+      });
       break;
     }
 
@@ -258,19 +418,25 @@ export function buildSlidePrims(slide: Slide, theme: DeckTheme): SlidePrim[] {
       const n = Math.max(1, Math.min(4, stats.length));
       const slot = CONTENT_W / n;
       const valueSize = n >= 4 ? 66 : n === 3 ? 76 : 84;
+      // Icon-per-stat slides shift the value block down uniformly so the
+      // stat row stays on one baseline; iconless decks keep the old geometry.
+      const iconShift = stats.some((st) => getIcon(st.icon)) ? 58 : 0;
       stats.slice(0, 4).forEach((st, i) => {
         const x = M + i * slot;
         if (i > 0) {
-          prims.push({ kind: "rect", x: x - 20, y: bodyTop + 16, w: 2, h: 240, fill: p.hairline });
+          prims.push({ kind: "rect", x: x - 20, y: bodyTop + 16, w: 2, h: 240 + iconShift, fill: p.hairline });
         }
         prims.push({ kind: "rect", x, y: bodyTop, w: slot - 44, h: 4, fill: p.accent });
+        if (iconShift > 0) {
+          pushIcon(prims, st.icon, x, bodyTop + 18, 42, 42, p.accent, 1.75);
+        }
         prims.push({
-          kind: "text", x, y: bodyTop + 30, w: slot - 44, h: valueSize * 1.1,
+          kind: "text", x, y: bodyTop + 30 + iconShift, w: slot - 44, h: valueSize * 1.1,
           text: st.value, font: "heading", size: valueSize, bold: true,
           color: p.accent, lineHeight: 1.05,
         });
         prims.push({
-          kind: "text", x, y: bodyTop + 30 + valueSize * 1.1 + 18, w: slot - 60,
+          kind: "text", x, y: bodyTop + 30 + iconShift + valueSize * 1.1 + 18, w: slot - 60,
           h: textH(st.label, slot - 60, 25, 1.35), text: st.label,
           font: "body", size: 25, color: p.muted, lineHeight: 1.35,
         });
@@ -332,6 +498,9 @@ export function buildSlidePrims(slide: Slide, theme: DeckTheme): SlidePrim[] {
       break;
     }
   }
+
+  // Decor primitives (icons + frames) layer on top of every layout.
+  appendDecor(prims, slide, p);
 
   return prims;
 }

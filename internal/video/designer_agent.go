@@ -27,11 +27,20 @@ var designerSkillSlugs = []string{
 	"video-storyboard-design",
 }
 
+// designerAllowToolsV1 is the initial allowlist. Kept verbatim so the boot
+// migration (upgradeDesignerTools) can replace exactly this stored policy —
+// it was missing read_file, which the skill-loading protocol requires (the
+// use_skill no-op answers "read the SKILL.md with read_file"), so the
+// designer could never load its granted skill and errored on the first
+// design turn. Same root cause as the pptx designer fix.
+const designerAllowToolsV1 = `{"profile":"minimal","allow":["skill_search","use_skill","session_status","ask_options"]}`
+
 // designerAllowTools is the complete tool surface of the designer agent:
-// knowledge lookup plus the clarifying-question tool. No exec, no write_file,
-// no delegate, no cron — the enforcement is the fail-closed execution gate
-// that intersects the registry with this allowlist.
-const designerAllowTools = `{"profile":"minimal","allow":["skill_search","use_skill","session_status","ask_options"]}`
+// knowledge lookup (skill protocol needs read_file for SKILL.md, workspace-
+// scoped and read-only) plus the clarifying-question tool. No exec, no
+// write_file, no delegate, no cron — the enforcement is the fail-closed
+// execution gate that intersects the registry with this allowlist.
+const designerAllowTools = `{"profile":"minimal","allow":["skill_search","use_skill","read_file","session_status","ask_options"]}`
 
 // DesignerToolPolicy returns the parsed tool policy of the designer agent.
 // Single source of truth for the designer's tool surface: the loop's
@@ -134,6 +143,9 @@ func EnsureDesignerAgent(ctx context.Context, cfg *config.Config, agentStore sto
 		agentID = existing.ID
 		if err := upgradeDesignerIdentity(ctx, agentStore, agentID); err != nil {
 			slog.Warn("video: designer agent identity upgrade failed", "error", err)
+		}
+		if err := upgradeDesignerTools(ctx, agentStore, agentID); err != nil {
+			slog.Warn("video: designer agent tool policy upgrade failed", "error", err)
 		}
 	} else {
 		provider := cfg.Agents.Defaults.Provider
@@ -240,5 +252,31 @@ func grantDesignerSkills(ctx context.Context, skills store.SkillManageStore, age
 			slog.Info("video: design skill granted to designer", "slug", slug)
 		}
 	}
+	return nil
+}
+
+// upgradeDesignerTools brings an existing agent's stored tool policy to the
+// current allowlist, but only when it still matches a known system version
+// byte-for-byte (v1 shipped without read_file, which the skill-loading
+// protocol requires — same root cause as the pptx designer fix). A policy an
+// admin customized is never touched.
+func upgradeDesignerTools(ctx context.Context, agentStore store.AgentStore, agentID uuid.UUID) error {
+	ag, err := agentStore.GetByID(ctx, agentID)
+	if err != nil || ag == nil {
+		return fmt.Errorf("read agent: %w", err)
+	}
+	current := string(ag.ToolsConfig)
+	if current == designerAllowTools {
+		return nil // already current
+	}
+	if current != designerAllowToolsV1 {
+		return nil // custom policy — leave it alone
+	}
+	if err := agentStore.Update(ctx, agentID, map[string]any{
+		"tools_config": []byte(designerAllowTools),
+	}); err != nil {
+		return fmt.Errorf("write upgraded tools config: %w", err)
+	}
+	slog.Info("video: designer agent tool policy upgraded", "agent_id", agentID)
 	return nil
 }

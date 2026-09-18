@@ -1,4 +1,5 @@
-import type { Deck, Slide, SlideLayout } from "../types";
+import type { AnimEffect, AnimSpec, DecorPrim, FrameVariant, Deck, Slide, SlideLayout } from "../types";
+import { ICON_NAMES } from "./icon-library";
 
 /**
  * Bridge between the pptx-designer agent's ```deck fenced blocks and the
@@ -50,6 +51,8 @@ const LAYOUTS = new Set<SlideLayout>([
   "end",
 ]);
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const ANIM_EFFECTS = new Set<string>(["fade-in", "slide-up", "slide-left", "scale-in"]);
+const FRAME_VARIANTS = new Set<string>(["corner", "outline", "band", "dots", "ring"]);
 
 export function parseDeck(raw: string): ParsedDeck {
   let data: unknown;
@@ -77,7 +80,106 @@ export function parseDeck(raw: string): ParsedDeck {
     const err = slideError(d.slides[i], i);
     if (err) return { ok: false, error: err, raw };
   }
-  return { ok: true, deck: { ...(d as Deck), version: 1 }, raw };
+  // Optional decoration fields are forgiving: invalid entries are dropped,
+  // never rejected, so one bad icon name can't fail a whole deck.
+  const slides = d.slides.map((s) => sanitizeSlide(s as Slide));
+  return { ok: true, deck: { ...(d as Deck), version: 1, slides }, raw };
+}
+
+function finiteNum(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function optColor(v: unknown): string | undefined {
+  return typeof v === "string" && HEX_RE.test(v) ? v : undefined;
+}
+
+function sanitizeAnim(v: unknown): AnimSpec | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const a = v as Record<string, unknown>;
+  if (typeof a.effect !== "string" || !ANIM_EFFECTS.has(a.effect)) return undefined;
+  const delayMs = finiteNum(a.delayMs);
+  return {
+    effect: a.effect as AnimEffect,
+    ...(delayMs !== null ? { delayMs: Math.max(0, Math.min(60000, Math.round(delayMs))) } : {}),
+  };
+}
+
+function sanitizeDecor(decor: unknown): DecorPrim[] | undefined {
+  if (!Array.isArray(decor)) return undefined;
+  const out: DecorPrim[] = [];
+  for (const item of decor.slice(0, 24)) {
+    if (!item || typeof item !== "object") continue;
+    const d = item as Record<string, unknown>;
+    const x = finiteNum(d.x);
+    const y = finiteNum(d.y);
+    const w = finiteNum(d.w);
+    const h = finiteNum(d.h);
+    if (x === null || y === null || w === null || h === null) continue;
+    const color = optColor(d.color);
+    const anim = sanitizeAnim(d.anim);
+    if (d.type === "icon") {
+      if (typeof d.icon !== "string" || !ICON_NAMES.has(d.icon)) continue;
+      const sw = finiteNum(d.strokeWidth);
+      out.push({
+        type: "icon",
+        icon: d.icon,
+        x, y, w, h,
+        ...(color ? { color } : {}),
+        ...(sw !== null && sw > 0 ? { strokeWidth: Math.min(10, sw) } : {}),
+        ...(anim ? { anim } : {}),
+      });
+    } else if (d.type === "frame") {
+      if (typeof d.variant !== "string" || !FRAME_VARIANTS.has(d.variant)) continue;
+      const weight = finiteNum(d.weight);
+      out.push({
+        type: "frame",
+        variant: d.variant as FrameVariant,
+        x, y, w, h,
+        ...(color ? { color } : {}),
+        ...(weight !== null ? { weight: Math.max(1, Math.min(40, weight)) } : {}),
+        ...(anim ? { anim } : {}),
+      });
+    }
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/** Strip optional decoration fields the studio can't render (unknown icon
+ * names, malformed decor entries) while keeping the hard contract intact. */
+function sanitizeSlide(s: Slide): Slide {
+  const next: Slide = { ...s };
+  if (next.icon !== undefined && (typeof next.icon !== "string" || !ICON_NAMES.has(next.icon))) {
+    delete next.icon;
+  }
+  if (next.bullet_icons !== undefined) {
+    if (!Array.isArray(next.bullet_icons)) {
+      delete next.bullet_icons;
+    } else {
+      // Parallel to `bullets`; null marks "no icon for this bullet".
+      const cleaned = next.bullet_icons.map((n) => (typeof n === "string" && ICON_NAMES.has(n) ? n : null));
+      if (cleaned.some((n) => n !== null)) {
+        next.bullet_icons = cleaned;
+      } else {
+        delete next.bullet_icons;
+      }
+    }
+  }
+  if (next.stats !== undefined && Array.isArray(next.stats)) {
+    next.stats = next.stats.map((st) => {
+      if (st && typeof st === "object" && st.icon !== undefined) {
+        if (typeof st.icon !== "string" || !ICON_NAMES.has(st.icon)) {
+          const { icon: _drop, ...rest } = st;
+          return rest as typeof st;
+        }
+      }
+      return st;
+    });
+  }
+  const decor = sanitizeDecor(next.decor);
+  if (decor) next.decor = decor;
+  else delete next.decor;
+  return next;
 }
 
 function themeError(theme: unknown): string | null {

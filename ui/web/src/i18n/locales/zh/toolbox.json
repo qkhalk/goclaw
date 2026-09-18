@@ -226,5 +226,40 @@
       "drag_to_compare": "拖动比较"
     },
     "drop_title_video": "将视频拖放到此处"
+  },
+  "pptx": {
+    "field": {
+      "icon": "图标",
+      "bullet_icons": "要点图标",
+      "decor": "边框与动效"
+    },
+    "icon": {
+      "search": "搜索图标…",
+      "none": "无图标"
+    },
+    "decor": {
+      "add_frame": "添加边框",
+      "remove": "移除装饰"
+    },
+    "frame": {
+      "corner": "角括号",
+      "outline": "外框",
+      "band": "侧边条",
+      "dots": "点阵",
+      "ring": "幽灵圆环"
+    },
+    "anim": {
+      "none": "无动画",
+      "fade_in": "淡入",
+      "slide_up": "上滑",
+      "slide_left": "左滑",
+      "scale_in": "缩放进入",
+      "delay": "延迟 (ms)",
+      "preview_only": "动画仅在预览中播放 — 导出的 .pptx 为静态。"
+    },
+    "sample": {
+      "load": "加载示例幻灯片",
+      "loaded": "示例已加载"
+    }
   }
 }

@@ -226,5 +226,40 @@
       "drag_to_compare": "Drag to compare"
     },
     "drop_title_video": "Drop a video here"
+  },
+  "pptx": {
+    "field": {
+      "icon": "Icon",
+      "bullet_icons": "Bullet icons",
+      "decor": "Frames & motion"
+    },
+    "icon": {
+      "search": "Search icons…",
+      "none": "No icon"
+    },
+    "decor": {
+      "add_frame": "Add frame",
+      "remove": "Remove decoration"
+    },
+    "frame": {
+      "corner": "Corner brackets",
+      "outline": "Outline",
+      "band": "Side band",
+      "dots": "Dot grid",
+      "ring": "Ghost ring"
+    },
+    "anim": {
+      "none": "No animation",
+      "fade_in": "Fade in",
+      "slide_up": "Slide up",
+      "slide_left": "Slide left",
+      "scale_in": "Scale in",
+      "delay": "Delay (ms)",
+      "preview_only": "Animations play in the preview only — the exported .pptx is static."
+    },
+    "sample": {
+      "load": "Load sample deck",
+      "loaded": "Sample deck loaded"
+    }
   }
 }

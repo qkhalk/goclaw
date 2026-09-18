@@ -280,7 +280,10 @@
       "value": "값",
       "label": "라벨",
       "add_stat": "통계 추가",
-      "remove_stat": "통계 삭제"
+      "remove_stat": "통계 삭제",
+      "icon": "아이콘",
+      "bullet_icons": "글머리 기호 아이콘",
+      "decor": "프레임 & 모션"
     },
     "layout": {
       "title": "표지",
@@ -315,6 +318,34 @@
       "attachedPrefix": "[참고용 현재 덱]",
       "designing": "덱 마무리 중…",
       "slideCount": "슬라이드 {{n}}장"
+    },
+    "icon": {
+      "search": "아이콘 검색…",
+      "none": "아이콘 없음"
+    },
+    "decor": {
+      "add_frame": "프레임 추가",
+      "remove": "장식 삭제"
+    },
+    "frame": {
+      "corner": "코너 브래킷",
+      "outline": "외곽선",
+      "band": "측면 밴드",
+      "dots": "도트 그리드",
+      "ring": "고스트 링"
+    },
+    "anim": {
+      "none": "애니메이션 없음",
+      "fade_in": "페이드 인",
+      "slide_up": "위로 슬라이드",
+      "slide_left": "왼쪽 슬라이드",
+      "scale_in": "확대",
+      "delay": "지연 (ms)",
+      "preview_only": "애니메이션은 미리보기에서만 재생됩니다 — 내보낸 .pptx는 정적입니다."
+    },
+    "sample": {
+      "load": "샘플 덱 불러오기",
+      "loaded": "샘플 덱을 불러왔습니다"
     }
   }
 }

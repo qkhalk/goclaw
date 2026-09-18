@@ -226,5 +226,40 @@
       "drag_to_compare": "Kéo để so sánh"
     },
     "drop_title_video": "Kéo thả video vào đây"
+  },
+  "pptx": {
+    "field": {
+      "icon": "Biểu tượng",
+      "bullet_icons": "Biểu tượng đầu dòng",
+      "decor": "Khung & chuyển động"
+    },
+    "icon": {
+      "search": "Tìm biểu tượng…",
+      "none": "Không có biểu tượng"
+    },
+    "decor": {
+      "add_frame": "Thêm khung",
+      "remove": "Xóa trang trí"
+    },
+    "frame": {
+      "corner": "Góc ngoặc",
+      "outline": "Viền ngoài",
+      "band": "Dải bên",
+      "dots": "Lưới chấm",
+      "ring": "Vòng mờ"
+    },
+    "anim": {
+      "none": "Không hiệu ứng",
+      "fade_in": "Mờ dần hiện",
+      "slide_up": "Trượt lên",
+      "slide_left": "Trượt sang trái",
+      "scale_in": "Phóng to",
+      "delay": "Trễ (ms)",
+      "preview_only": "Hiệu ứng chỉ chạy trong xem trước — file .pptx xuất ra không có chuyển động."
+    },
+    "sample": {
+      "load": "Tải deck mẫu",
+      "loaded": "Đã tải deck mẫu"
+    }
   }
 }

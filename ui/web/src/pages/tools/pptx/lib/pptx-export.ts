@@ -1,6 +1,7 @@
 import PptxGenJS from "pptxgenjs";
 import type { Deck, DeckTheme } from "../types";
 import { buildSlidePrims, type SlidePrim } from "./slide-spec";
+import { iconSvgString } from "./icon-library";
 
 /**
  * Client-side deck → .pptx export (the studio's "heavy processing stays in
@@ -11,6 +12,12 @@ import { buildSlidePrims, type SlidePrim } from "./slide-spec";
  *
  * Canvas: LAYOUT_WIDE 13.33×7.5in at 96dpi-equivalent → 1280×720px.
  * px → in = px / 96 (both axes); font px → pt = px × 72/96 = px × 0.75.
+ *
+ * Icon primitives are vector line art in the preview; PowerPoint has no
+ * native SVG-path shape, so they are rasterized to PNG data URLs client-side
+ * (string → Image → canvas at 3× → dataURL) and placed with addImage. Rasters
+ * are cached per (icon, color, strokeWidth, size). `anim` is preview-only and
+ * skipped silently here.
  */
 
 const IN_W = 13.33;
@@ -21,6 +28,52 @@ const fontPx2pt = (px: number) => Math.round(px * 0.75 * 10) / 10;
 function hex(color: string | undefined, fallback: string): string {
   const c = (color ?? "").replace("#", "");
   return /^[0-9a-fA-F]{6}$/.test(c) ? c : fallback.replace("#", "");
+}
+
+/**
+ * Raster cache keyed by (icon, color, strokeWidth, w×h at 1×). The encoded
+ * SVG is drawn onto a canvas at 3× the stage pixel size so the exported PNG
+ * stays crisp when PowerPoint scales it. `null` results (rasterization
+ * unavailable, e.g. no DOM) are cached too so failures cost one attempt.
+ */
+const iconRasterCache = new Map<string, string | null>();
+
+async function rasterizeIcon(
+  name: string,
+  color: string,
+  strokeWidth: number,
+  wPx: number,
+  hPx: number,
+): Promise<string | null> {
+  const key = `${name}|${color}|${strokeWidth}|${Math.round(wPx)}x${Math.round(hPx)}`;
+  const hit = iconRasterCache.get(key);
+  if (hit !== undefined) return hit;
+
+  let out: string | null = null;
+  const svg = iconSvgString(name, color, strokeWidth);
+  const scale = 3;
+  if (svg && wPx > 0 && hPx > 0 && typeof document !== "undefined") {
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("icon svg decode failed"));
+        img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(wPx * scale));
+      canvas.height = Math.max(1, Math.round(hPx * scale));
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        out = canvas.toDataURL("image/png");
+      }
+    } catch {
+      out = null; // degrade silently — a missing decoration never blocks export
+    }
+  }
+  iconRasterCache.set(key, out);
+  return out;
 }
 
 export async function exportDeckPptx(deck: Deck, fileName: string): Promise<void> {
@@ -106,6 +159,21 @@ async function drawPrim(
         margin: 0,
         fit: "shrink",
       });
+      break;
+    }
+
+    case "icon": {
+      // Rasterize the vector icon (preview-only `anim` is skipped silently).
+      const dataUrl = await rasterizeIcon(prim.name, prim.color, prim.strokeWidth, prim.w, prim.h);
+      if (dataUrl) {
+        s.addImage({
+          data: dataUrl,
+          x: X(prim.x),
+          y: Y(prim.y),
+          w: X(prim.w),
+          h: Y(prim.h),
+        });
+      }
       break;
     }
 

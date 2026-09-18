@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DECK_LAYOUTS, type Slide, type SlideLayout } from "../types";
+import {
+  type AnimEffect,
+  type DecorPrim,
+  type FrameVariant,
+  type Slide,
+  type SlideLayout,
+  DECK_LAYOUTS,
+} from "../types";
+import { IconPicker } from "./icon-picker";
 
 interface SlideEditorProps {
   slide: Slide;
@@ -21,13 +30,71 @@ interface SlideEditorProps {
   onLayoutChange: (layout: SlideLayout) => void;
 }
 
+const ANIM_EFFECTS: AnimEffect[] = ["fade-in", "slide-up", "slide-left", "scale-in"];
+
+/** Default placement boxes per frame variant (1280×720 stage). */
+function defaultFrameBox(variant: FrameVariant): { x: number; y: number; w: number; h: number } {
+  switch (variant) {
+    case "band":
+      return { x: 0, y: 160, w: 40, h: 400 };
+    case "dots":
+      return { x: 900, y: 72, w: 300, h: 216 };
+    case "ring":
+      return { x: 920, y: 64, w: 280, h: 280 };
+    default:
+      return { x: 56, y: 56, w: 1168, h: 608 };
+  }
+}
+
 /**
  * Form editor for the selected slide. Layout switching goes through the page
  * (it re-derives the field skeleton); field patches are shallow merges so
- * typing never drops sibling fields.
+ * typing never drops sibling fields. Beyond the classic content fields this
+ * edits the decoration layer: slide icons, per-bullet/stat icons, frame
+ * primitives and their preview-only entrance animations.
  */
 export function SlideEditor({ slide, index, total, onChange, onLayoutChange }: SlideEditorProps) {
   const { t } = useTranslation("toolbox");
+  const [frameVariant, setFrameVariant] = useState<FrameVariant>("corner");
+
+  const patchDecor = (i: number, patch: Partial<Extract<DecorPrim, { type: "frame" }>>) => {
+    const next = (slide.decor ?? []).map((d, j) =>
+      j === i && d.type === "frame" ? { ...d, ...patch } : d,
+    );
+    onChange({ decor: next });
+  };
+
+  const removeDecor = (i: number) => {
+    onChange({ decor: (slide.decor ?? []).filter((_, j) => j !== i) });
+  };
+
+  const addFrame = (variant: FrameVariant) => {
+    onChange({
+      decor: [
+        ...(slide.decor ?? []),
+        { type: "frame", variant, ...defaultFrameBox(variant) },
+      ],
+    });
+  };
+
+  const setBulletIcon = (i: number, icon: string | null) => {
+    // bullet_icons stays parallel to bullets; null = default square marker.
+    const next: (string | null)[] = Array.from(
+      { length: (slide.bullets ?? []).length },
+      (_, j) => slide.bullet_icons?.[j] ?? null,
+    );
+    next[i] = icon;
+    onChange({ bullet_icons: next.some((n) => n !== null) ? next : undefined });
+  };
+
+  const setStatIcon = (i: number, icon: string | null) => {
+    const next = (slide.stats ?? []).map((st, j) =>
+      j === i ? { ...st, icon: icon ?? undefined } : st,
+    );
+    onChange({ stats: next });
+  };
+
+  const hasAnim = (slide.decor ?? []).some((d) => !!d.anim);
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,15 +119,28 @@ export function SlideEditor({ slide, index, total, onChange, onLayoutChange }: S
         </span>
       </div>
 
-      {hasTitle(slide) && (
-        <Field label={t("pptx.field.title")}>
-          <Input
-            value={slide.title ?? ""}
-            onChange={(e) => onChange({ title: e.target.value })}
-            className="min-h-11 text-base sm:min-h-9 sm:text-sm"
-          />
-        </Field>
-      )}
+      <div className="flex items-end gap-3">
+        {hasTitle(slide) && (
+          <Field label={t("pptx.field.title")} className="flex-1">
+            <Input
+              value={slide.title ?? ""}
+              onChange={(e) => onChange({ title: e.target.value })}
+              className="min-h-11 text-base sm:min-h-9 sm:text-sm"
+            />
+          </Field>
+        )}
+        {(slide.layout === "title" || slide.layout === "section") && (
+          <Field label={t("pptx.field.icon")}>
+            <IconPicker
+              value={slide.icon}
+              onChange={(name) => onChange({ icon: name ?? undefined })}
+              label={t("pptx.field.icon")}
+              searchPlaceholder={t("pptx.icon.search")}
+              clearLabel={t("pptx.icon.none")}
+            />
+          </Field>
+        )}
+      </div>
 
       {(slide.layout === "title" || slide.layout === "section" || slide.layout === "end") && (
         <Field label={t("pptx.field.subtitle")}>
@@ -73,16 +153,34 @@ export function SlideEditor({ slide, index, total, onChange, onLayoutChange }: S
       )}
 
       {slide.layout === "bullets" && (
-        <Field label={t("pptx.field.bullets")}>
-          <Textarea
-            rows={6}
-            value={(slide.bullets ?? []).join("\n")}
-            onChange={(e) =>
-              onChange({ bullets: e.target.value.split("\n").filter((l) => l.trim() !== "") })
-            }
-            className="text-base sm:text-sm"
-          />
-        </Field>
+        <>
+          <Field label={t("pptx.field.bullets")}>
+            <Textarea
+              rows={6}
+              value={(slide.bullets ?? []).join("\n")}
+              onChange={(e) =>
+                onChange({ bullets: e.target.value.split("\n").filter((l: string) => l.trim() !== "") })
+              }
+              className="text-base sm:text-sm"
+            />
+          </Field>
+          {(slide.bullets ?? []).length > 0 && (
+            <Field label={t("pptx.field.bullet_icons")}>
+              <div className="flex flex-wrap gap-2">
+                {(slide.bullets ?? []).map((_, i) => (
+                  <IconPicker
+                    key={i}
+                    value={slide.bullet_icons?.[i]}
+                    onChange={(name) => setBulletIcon(i, name)}
+                    label={`${t("pptx.field.bullet_icons")} ${i + 1}`}
+                    searchPlaceholder={t("pptx.icon.search")}
+                    clearLabel={t("pptx.icon.none")}
+                  />
+                ))}
+              </div>
+            </Field>
+          )}
+        </>
       )}
 
       {slide.layout === "two_column" && (
@@ -107,7 +205,7 @@ export function SlideEditor({ slide, index, total, onChange, onLayoutChange }: S
                   onChange({
                     [side]: {
                       ...(slide[side] ?? { heading: "", bullets: [] }),
-                      bullets: e.target.value.split("\n").filter((l) => l.trim() !== ""),
+                      bullets: e.target.value.split("\n").filter((l: string) => l.trim() !== ""),
                     },
                   })
                 }
@@ -143,6 +241,13 @@ export function SlideEditor({ slide, index, total, onChange, onLayoutChange }: S
         <div className="flex flex-col gap-2">
           {(slide.stats ?? []).map((st, i) => (
             <div key={i} className="flex items-center gap-2">
+              <IconPicker
+                value={st.icon}
+                onChange={(name) => setStatIcon(i, name)}
+                label={`${t("pptx.field.icon")} ${i + 1}`}
+                searchPlaceholder={t("pptx.icon.search")}
+                clearLabel={t("pptx.icon.none")}
+              />
               <Input
                 value={st.value}
                 onChange={(e) => {
@@ -221,6 +326,101 @@ export function SlideEditor({ slide, index, total, onChange, onLayoutChange }: S
           />
         </Field>
       )}
+
+      {/* Decoration layer: frame primitives + preview-only animations */}
+      <div className="flex flex-col gap-2 rounded-lg border border-dashed p-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <Label className="text-xs text-muted-foreground">{t("pptx.field.decor")}</Label>
+        </div>
+
+        {(slide.decor ?? []).map((d, i) =>
+          d.type === "frame" ? (
+            <div key={i} className="flex flex-wrap items-center gap-2">
+              <span className="min-w-20 text-xs text-muted-foreground">
+                {t(`pptx.frame.${d.variant}`)}
+              </span>
+              <Select
+                value={d.anim?.effect ?? "none"}
+                onValueChange={(v) =>
+                  patchDecor(i, {
+                    anim:
+                      v === "none"
+                        ? undefined
+                        : { effect: v as AnimEffect, delayMs: d.anim?.delayMs },
+                  })
+                }
+              >
+                <SelectTrigger className="min-h-11 w-32 sm:min-h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("pptx.anim.none")}</SelectItem>
+                  {ANIM_EFFECTS.map((fx) => (
+                    <SelectItem key={fx} value={fx}>
+                      {t(`pptx.anim.${fx.replace("-", "_")}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {d.anim && (
+                <Input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={d.anim.delayMs ?? 0}
+                  onChange={(e) =>
+                    patchDecor(i, {
+                      anim: {
+                        effect: d.anim!.effect,
+                        delayMs: Math.max(0, Math.min(60000, Number(e.target.value) || 0)),
+                      },
+                    })
+                  }
+                  title={t("pptx.anim.delay")}
+                  aria-label={t("pptx.anim.delay")}
+                  className="min-h-11 w-24 text-base sm:min-h-9 sm:text-sm"
+                />
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => removeDecor(i)}
+                className="ml-auto min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
+                aria-label={t("pptx.decor.remove")}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null,
+        )}
+
+        <div className="flex items-center gap-2">
+          <Select value={frameVariant} onValueChange={(v) => setFrameVariant(v as FrameVariant)}>
+            <SelectTrigger className="min-h-11 w-40 sm:min-h-9" aria-label={t("pptx.decor.add_frame")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(["corner", "outline", "band", "dots", "ring"] as const).map((v) => (
+                <SelectItem key={v} value={v}>
+                  {t(`pptx.frame.${v}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => addFrame(frameVariant)}
+            className="min-h-11 sm:min-h-9"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {t("pptx.decor.add_frame")}
+          </Button>
+        </div>
+
+        {hasAnim && <p className="text-xs text-muted-foreground">{t("pptx.anim.preview_only")}</p>}
+      </div>
     </div>
   );
 }
@@ -233,9 +433,9 @@ function hasNotes(slide: Slide): boolean {
   return ["bullets", "two_column", "stats", "image", "quote"].includes(slide.layout);
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
       <Label className="text-xs text-muted-foreground">{label}</Label>
       {children}
     </div>

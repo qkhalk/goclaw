@@ -5,6 +5,7 @@ import {
   ArrowUp,
   Copy,
   Download,
+  FlaskConical,
   Loader2,
   Plus,
   Presentation,
@@ -41,6 +42,7 @@ import {
 } from "./types";
 import { exportDeckPptx } from "./lib/pptx-export";
 import { parseDeck } from "./lib/parse-deck-blocks";
+import { sampleDeck } from "./lib/sample-deck";
 import { SlideView } from "./components/slide-view";
 import { SlideEditor } from "./components/slide-editor";
 import { DesignerColumn } from "./components/designer-column";
@@ -150,6 +152,11 @@ export function PptxToolPage() {
     setSelected(0);
   };
 
+  const loadSample = () => {
+    applyDeck(sampleDeck());
+    toast.success(t("pptx.sample.loaded"));
+  };
+
   function loadJson() {
     const parsed = parseDeck(jsonDraft);
     if (!parsed.ok) {
@@ -208,6 +215,16 @@ export function PptxToolPage() {
                 )}
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={loadSample}
+                className="min-h-11 sm:min-h-9"
+                title={t("pptx.sample.load")}
+              >
+                <FlaskConical className="mr-2 h-4 w-4" />
+                {t("pptx.sample.load")}
+              </Button>
+              <Button
                 variant={designerOpen ? "default" : "outline"}
                 size="sm"
                 onClick={() => setDesignerOpen(!designerOpen)}
@@ -234,9 +251,10 @@ export function PptxToolPage() {
             <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
               {current && (
                 <div className="p-2 sm:p-3">
-                  {/* key={selected}: soft crossfade when the slide changes */}
+                  {/* key={selected}: soft crossfade when the slide changes —
+                      the remount also replays `anim` entrance effects */}
                   <div key={selected} className="pptx-enter-soft overflow-hidden rounded-md">
-                    <SlideView slide={current} theme={deck.theme} />
+                    <SlideView slide={current} theme={deck.theme} animate />
                   </div>
                 </div>
               )}

@@ -17,12 +17,57 @@ export interface DeckTheme {
 export interface StatsItem {
   value: string;
   label: string;
+  /** Optional leading icon (icon-library name), rendered above the value. */
+  icon?: string;
 }
 
 export interface ColumnContent {
   heading: string;
   bullets: string[];
 }
+
+/** Preview-only entrance animation. Skipped silently in the .pptx export. */
+export type AnimEffect = "fade-in" | "slide-up" | "slide-left" | "scale-in";
+
+export interface AnimSpec {
+  effect: AnimEffect;
+  /** Stagger delay in milliseconds (0 by default). */
+  delayMs?: number;
+}
+
+export type FrameVariant = "corner" | "outline" | "band" | "dots" | "ring";
+
+/** Positioned line icon on the 1280×720 stage (icon-library name). */
+export interface IconDecor {
+  type: "icon";
+  icon: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** #RRGGBB; defaults to the theme accent. */
+  color?: string;
+  /** Stroke width in 24-unit viewBox coordinates (default 2). */
+  strokeWidth?: number;
+  anim?: AnimSpec;
+}
+
+/** Decorative frame. Pure geometry in both preview and export. */
+export interface FrameDecor {
+  type: "frame";
+  variant: FrameVariant;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** #RRGGBB; defaults depend on the variant (band → accent, rest → muted). */
+  color?: string;
+  /** Stroke/strip thickness in stage px (default 2, band 10). */
+  weight?: number;
+  anim?: AnimSpec;
+}
+
+export type DecorPrim = IconDecor | FrameDecor;
 
 export type SlideLayout =
   | "title"
@@ -43,6 +88,9 @@ export interface Slide extends SlideBase {
   title?: string;
   subtitle?: string;
   bullets?: string[];
+  /** Parallel to `bullets`: per-bullet leading icon (icon-library name) or
+   * null for the default square marker. */
+  bullet_icons?: (string | null)[];
   left?: ColumnContent;
   right?: ColumnContent;
   quote?: string;
@@ -50,6 +98,10 @@ export interface Slide extends SlideBase {
   stats?: StatsItem[];
   source?: string;
   caption?: string;
+  /** Slide icon: title renders an icon chip, section a big leading icon. */
+  icon?: string;
+  /** Decor primitives layered on top of the layout (icons + frames). */
+  decor?: DecorPrim[];
 }
 
 export interface Deck {
