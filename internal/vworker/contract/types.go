@@ -96,6 +96,11 @@ var ValidAnims = map[string]bool{
 	"left": true, "right": true, "pop": true,
 }
 
+// ValidFonts enumerates text-layer font styles ("": the default body font).
+var ValidFonts = map[string]bool{
+	"": true, "body": true, "display": true, "mono": true,
+}
+
 // Layer is one timed overlay inside a scene — copy-shape mirror of
 // internal/video.Layer (drift-guarded by the golden fixture "layers").
 type Layer struct {
@@ -105,6 +110,8 @@ type Layer struct {
 	Shape    string    `json:"shape,omitempty"`
 	Icon     string    `json:"icon,omitempty"`
 	Anim     string    `json:"anim,omitempty"`
+	Font     string    `json:"font,omitempty"` // text layers: body (default) | display (bold) | mono
+	Chip     bool      `json:"chip,omitempty"` // icon layers: tinted rounded tile behind the glyph
 	Start    float64   `json:"start,omitempty"`
 	Duration float64   `json:"duration,omitempty"`
 	X        float64   `json:"x,omitempty"`
@@ -114,6 +121,7 @@ type Layer struct {
 	Fill     string    `json:"fill,omitempty"`
 	Opacity  float64   `json:"opacity,omitempty"`
 	Radius   float64   `json:"radius,omitempty"`
+	Border   bool      `json:"border,omitempty"` // card layers: contrast ring on the edge
 	FontSize int       `json:"font_size,omitempty"`
 	Align    string    `json:"align,omitempty"`
 }

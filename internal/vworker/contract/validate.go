@@ -138,6 +138,9 @@ func (l *Layer) validate(sceneSec float64) error {
 	if !ValidAnims[l.Anim] {
 		return fmt.Errorf("unknown anim %q (fade, up, down, left, right, pop)", l.Anim)
 	}
+	if !ValidFonts[l.Font] {
+		return fmt.Errorf("unknown font %q (body, display, mono)", l.Font)
+	}
 	if l.Radius < 0 || l.Radius > 0.2 {
 		return fmt.Errorf("radius %.3f out of range 0..0.2 (fraction of canvas width)", l.Radius)
 	}

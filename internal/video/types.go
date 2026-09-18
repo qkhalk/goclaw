@@ -103,6 +103,12 @@ var ValidAnims = map[string]bool{
 	"left": true, "right": true, "pop": true,
 }
 
+// ValidFonts enumerates text-layer font styles ("": the default body font).
+// Mirrored in internal/vworker/contract.
+var ValidFonts = map[string]bool{
+	"": true, "body": true, "display": true, "mono": true,
+}
+
 // Layer is one timed overlay inside a scene. Geometry is normalized to the
 // canvas (0..1, top-left origin) so a storyboard is resolution-independent;
 // the worker and the browser preview resolve x/y/w/h against the same
@@ -115,6 +121,8 @@ type Layer struct {
 	Shape    string    `json:"shape,omitempty"`     // shape layers: rect
 	Icon     string    `json:"icon,omitempty"`      // icon layers: one of ValidIcons
 	Anim     string    `json:"anim,omitempty"`      // entrance animation: fade|up|down|left|right|pop (default none)
+	Font     string    `json:"font,omitempty"`      // text layers: body (default) | display (bold) | mono
+	Chip     bool      `json:"chip,omitempty"`      // icon layers: tinted rounded tile behind the glyph
 	Start    float64   `json:"start,omitempty"`     // seconds into the scene (default 0)
 	Duration float64   `json:"duration,omitempty"`  // seconds (0 = to scene end)
 	X        float64   `json:"x,omitempty"`         // 0..1 (default 0.1)
@@ -124,6 +132,7 @@ type Layer struct {
 	Fill     string    `json:"fill,omitempty"`      // #RRGGBB — text color / shape fill / icon stroke / card fill (default white)
 	Opacity  float64   `json:"opacity,omitempty"`   // 0..1 (default 1; cards usually 0.08..0.25)
 	Radius   float64   `json:"radius,omitempty"`    // card corner radius, 0..0.2 of canvas width (default 0.018)
+	Border   bool      `json:"border,omitempty"`    // card layers: contrast ring on the edge
 	FontSize int       `json:"font_size,omitempty"` // text layers (default 48)
 	Align    string    `json:"align,omitempty"`     // left|center|right within the box (default center)
 }
@@ -411,6 +420,9 @@ func (l *Layer) validate(sceneSec float64) error {
 	}
 	if !ValidAnims[l.Anim] {
 		return fmt.Errorf("unknown anim %q (fade, up, down, left, right, pop)", l.Anim)
+	}
+	if !ValidFonts[l.Font] {
+		return fmt.Errorf("unknown font %q (body, display, mono)", l.Font)
 	}
 	if l.Radius < 0 || l.Radius > 0.2 {
 		return fmt.Errorf("radius %.3f out of range 0..0.2 (fraction of canvas width)", l.Radius)

@@ -91,8 +91,9 @@ func TestRenderCardPNG(t *testing.T) {
 	if center[3] == 0 {
 		t.Fatal("center alpha = 0, want the card fill")
 	}
-	if maxDiff(int(center[0]), 0x1E) > 2 || maxDiff(int(center[1]), 0x29) > 2 || maxDiff(int(center[2]), 0x3B) > 2 {
-		t.Fatalf("center rgb = %v, want ~#1E293B", center[:3])
+	// colorAt reads premultiplied channels — #1E293B at opacity 0.45.
+	if maxDiff(int(center[0]), 14) > 2 || maxDiff(int(center[1]), 18) > 2 || maxDiff(int(center[2]), 26) > 2 {
+		t.Fatalf("center rgb = %v, want premultiplied ~#1E293B", center[:3])
 	}
 	wantA := uint8(math.Round(0.45 * 255))
 	if maxDiff(int(center[3]), int(wantA)) > 2 {
@@ -144,7 +145,7 @@ func TestWriteIconSamples(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	card, err := renderCardPNG(300, 120, 10, "1E293B", 0.5)
+	card, err := renderCardPNG(300, 120, 10, "1E293B", 0.5, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +165,7 @@ func mustIcon(t *testing.T, name, hex string, size int) []byte {
 
 func mustCard(t *testing.T, w, h, r int, hex string, opacity float64) []byte {
 	t.Helper()
-	b, err := renderCardPNG(w, h, r, hex, opacity)
+	b, err := renderCardPNG(w, h, r, hex, opacity, false)
 	if err != nil {
 		t.Fatal(err)
 	}

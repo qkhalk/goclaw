@@ -1,11 +1,31 @@
 package vworker
 
 import (
+	"bytes"
+	"image/png"
 	"strings"
 	"testing"
 
 	"github.com/nextlevelbuilder/goclaw/internal/vworker/contract"
 )
+
+func mustChip(t *testing.T, name, hex string, size int) []byte {
+	t.Helper()
+	b, err := renderChipPNG(name, hex, size)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func mustCardBordered(t *testing.T, w, h, r int, hex string, opacity float64) []byte {
+	t.Helper()
+	b, err := renderCardPNG(w, h, r, hex, opacity, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
 
 // TestLayerAnimFilterGraph pins the entrance-animation wiring: PNG layers
 // (card/icon) get looped inputs, per-anim fade/scale chains and eased overlay
@@ -131,4 +151,94 @@ func TestLayerAnimValidation(t *testing.T) {
 	if err := validate(sc3); err == nil {
 		t.Fatal("radius > 0.2 must fail validation")
 	}
+
+	sc4 := sc
+	sc4.Layers = []contract.Layer{{Kind: contract.LayerText, Text: "x", Font: "comic"}}
+	if err := validate(sc4); err == nil {
+		t.Fatal("unknown font must fail validation")
+	}
+}
+
+// TestLayerPolishPins covers the visual-polish pass: icon chips, card
+// borders and per-layer font selection.
+func TestLayerPolishPins(t *testing.T) {
+	t.Run("chip tile composes icon over tint", func(t *testing.T) {
+		img, err := png.Decode(bytes.NewReader(mustChip(t, "zap", "FACC15", 96)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Corner stays transparent (outside the rounded tile).
+		if c := colorAt(t, img, 1, 1); c[3] != 0 {
+			t.Fatalf("chip corner alpha = %d, want 0", c[3])
+		}
+		// The tinted tile is visible mid-edge (accent hue at low alpha) and
+		// the glyph stroke stacks to near-full opacity somewhere inside.
+		midEdge := colorAt(t, img, 48, 6)
+		if midEdge[3] == 0 {
+			t.Fatal("tile tint missing at mid-edge")
+		}
+		// Premultiplied channels keep the warm accent ordering (r > g > b).
+		if !(midEdge[0] > midEdge[2] && midEdge[1] > midEdge[2]) {
+			t.Fatalf("tile tint should carry the accent hue, got %v", midEdge[:3])
+		}
+		stroke := false
+		for y := 20; y < 76 && !stroke; y++ {
+			for x := 20; x < 76 && !stroke; x++ {
+				if colorAt(t, img, x, y)[3] >= 200 {
+					stroke = true
+				}
+			}
+		}
+		if !stroke {
+			t.Fatal("icon stroke pixel (alpha >= 200) missing inside the tile")
+		}
+	})
+
+	t.Run("card border boosts edge alpha", func(t *testing.T) {
+		plain, err := png.Decode(bytes.NewReader(mustCard(t, 200, 100, 12, "1E293B", 0.2)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		bordered, err := png.Decode(bytes.NewReader(mustCardBordered(t, 200, 100, 12, "1E293B", 0.2)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The ring lives in the top 2px band; 30px deep is plain fill.
+		if a1, a2 := colorAt(t, plain, 100, 1)[3], colorAt(t, bordered, 100, 1)[3]; a2 <= a1 {
+			t.Fatalf("bordered edge alpha %d should exceed plain %d", a2, a1)
+		}
+		if colorAt(t, bordered, 100, 50)[3] == 0 {
+			t.Fatal("bordered card center should stay filled")
+		}
+	})
+
+	t.Run("display font selects the bold face", func(t *testing.T) {
+		fs := fontSetForTest(t)
+		cfg := FFmpegConfig{Fonts: fs}
+		sc := contract.Scene{
+			Type: contract.SceneColor, Color: "#0D1117", DurationSec: 4,
+			// A caption forces the filter_complex path (plain scenes take -vf).
+			Caption: &contract.Caption{Text: "x"},
+			Layers: []contract.Layer{
+				{Kind: contract.LayerText, Text: "Big", W: 0.8, Font: "display", FontSize: 56},
+				{Kind: contract.LayerText, Text: "// eyebrow", W: 0.8, Y: 0.3, Font: "mono", FontSize: 30},
+			},
+		}
+		tmp := t.TempDir()
+		args, err := buildColorSceneArgs(cfg, sc, 480, 852, 30, "/tmp/p.mp4", tmp, 0, true, 3.0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fc := filterArg(args, "-filter_complex")
+		if !strings.Contains(fc, fs.BodyBold) {
+			t.Fatalf("display layer must use the bold face:\n%s", fc)
+		}
+		if !strings.Contains(fc, fs.Mono) {
+			t.Fatalf("mono layer must use the monospace face:\n%s", fc)
+		}
+		// Soft halo instead of the hard black border.
+		if !strings.Contains(fc, "bordercolor=black@0.5:shadowcolor=black@0.35") {
+			t.Fatalf("text layers must carry the soft halo:\n%s", fc)
+		}
+	})
 }

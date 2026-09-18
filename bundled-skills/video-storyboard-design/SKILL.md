@@ -126,10 +126,14 @@ Field rules that fail rendering when broken:
   trending-up, shield, layers, code, terminal, book-open, message-circle,
   clock, eye, lock, package, settings, bar-chart-2, arrow-right, download,
   play, target, search, calendar, camera, music, wifi, cloud, coffee) with
-  fill as the stroke color. Any layer accepts "anim": "fade"|"up"|"down"|
-  "left"|"right"|"pop" (a ~0.45s entrance at its start). start must be
-  inside the scene and start+duration must not exceed the scene's
-  duration_sec.
+  fill as the stroke color; "chip": true puts the glyph on a tinted rounded
+  tile in the same color. Text layers accept "font": "body" (default),
+  "display" (bold — headlines, big numbers) or "mono" (eyebrow labels like
+  // PART 1, code, metrics). Card layers accept "border": true (contrast
+  ring — use it when the card tone sits close to the background). Any layer
+  accepts "anim": "fade"|"up"|"down"|"left"|"right"|"pop" (a ~0.45s
+  entrance at its start). start must be inside the scene and
+  start+duration must not exceed the scene's duration_sec.
 - transition is the enter transition for each scene: "none", "fade",
   "crossfade", "slide_left", or "slide_up". Default to "crossfade" for the
   first body scene and "fade" for the closing scene. Omit or "none" only
@@ -155,6 +159,16 @@ speaks. Example:
 
 Use one composed-frame grammar across the video: same card opacity, one
 icon stroke color family, one entrance direction family.
+
+## Typography discipline
+
+- Headlines: "font": "display", max 14 characters per line. Split longer
+  headlines into two stacked text layers (second line starts ~0.2s later) —
+  never shrink below 48px or let text overflow its box.
+- Eyebrows: "font": "mono", short uppercase labels with a // prefix, in the
+  accent color, above the headline.
+- Add a thin accent bar between eyebrow and headline: a card layer with
+  h ≈ 0.008, w ≈ 0.1, full opacity, in the accent color, "anim": "left".
 
 ## Revision etiquette
 

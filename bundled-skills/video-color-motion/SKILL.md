@@ -85,4 +85,7 @@ on dark scenes, skip them on light backgrounds:
 5. Dark color scenes set vignette true and a glow from the scheme.
 6. Composed frames stagger their layer starts 0.25-0.35s apart; entrance
    directions and card opacity stay consistent across the video.
-7. The storyboard block is valid JSON on a single fence, version 1.
+7. Headlines use "font": "display" and stay under 14 characters per line;
+   eyebrows use "font": "mono"; icons that carry meaning sit on
+   "chip": true tiles.
+8. The storyboard block is valid JSON on a single fence, version 1.
