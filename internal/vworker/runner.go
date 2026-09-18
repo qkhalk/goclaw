@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -50,6 +51,9 @@ type WorkerConfig struct {
 	MaxSceneSec   float64
 	MaxQueue      int
 	NarratorVoice string
+	// Fonts carries the extracted bundled font paths (display/body/mono) used
+	// by the caption compositor and text layers. Empty = legacy drawtext only.
+	Fonts FontSet
 }
 
 // NewRunner creates a new job runner.
@@ -191,9 +195,10 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		FFProbePath: r.cfg.FFProbePath,
 		FontFile:    r.cfg.FontFile,
 		MaxSceneSec: r.cfg.MaxSceneSec,
+		Fonts:       r.cfg.Fonts,
 	}
-	// Determine canvas dimensions
-	canvasW, canvasH, fps := effectiveCanvas(sb)
+	// Determine canvas dimensions, scaled to the delivery resolution
+	canvasW, canvasH, fps := renderDims(sb)
 
 	// Set rendering status
 	js.mu.Lock()
@@ -213,8 +218,10 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 	// probe its real duration, and stretch scenes whose narration does not
 	// fit. This runs BEFORE the transition-offset math below — extending a
 	// scene after it would desync both the xfade offsets and the adelay mix
-	// times from the actual scene boundaries.
+	// times from the actual scene boundaries. The probed durations also drive
+	// the karaoke caption reveal (word k lights at k/N of the voice).
 	narrFiles := make([]string, len(sb.Scenes))
+	narrDur := make([]float64, len(sb.Scenes))
 	for i := range sb.Scenes {
 		select {
 		case <-ctx.Done():
@@ -253,6 +260,7 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 		if dur <= 0 {
 			continue
 		}
+		narrDur[i] = dur
 		if need := dur + narrationTailSec; sc.DurationSec < need {
 			slog.Info("extending scene to fit narration", "job", job.JobID,
 				"scene", i, "from", sc.DurationSec, "to", need)
@@ -335,7 +343,7 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 
 		// Build and run ffmpeg
 		outPath := sceneOutputPath(tempDir, i)
-		err = r.renderScene(ctx, ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath, tempDir, i)
+		err = r.renderScene(ctx, ffcfg, &sb.Scenes[i], canvasW, canvasH, fps, outPath, tempDir, i, narrDur[i])
 		if err != nil {
 			r.failJob(js, fmt.Sprintf("scene %d render: %v", i, err))
 			return
@@ -439,27 +447,29 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 }
 
 // renderScene dispatches to the appropriate scene builder and runs ffmpeg.
-// Color scenes try the animated gradient first and fall back to the flat
-// color source when the local ffmpeg lacks `gradients` (pre-4.4 builds).
-func (r *Runner) renderScene(ctx context.Context, cfg FFmpegConfig, sc *contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int) error {
+// narrSec is the scene's probed narration duration (0 = none) — it drives the
+// karaoke caption timing. Color scenes try the animated gradient first and
+// fall back to the flat color source when the local ffmpeg lacks `gradients`
+// (pre-4.4 builds).
+func (r *Runner) renderScene(ctx context.Context, cfg FFmpegConfig, sc *contract.Scene, canvasW, canvasH, fps int, outputPath, tempDir string, sceneIdx int, narrSec float64) error {
 	switch sc.Type {
 	case contract.SceneImage:
-		args, err := buildImageSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx)
+		args, err := buildImageSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, narrSec)
 		if err != nil {
 			return err
 		}
 		return execFFmpeg(ctx, r.cfg.FFmpegPath, args)
 	case contract.SceneVideo:
 		return execFFmpeg(ctx, r.cfg.FFmpegPath,
-			buildVideoSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath))
+			buildVideoSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, narrSec))
 	case contract.SceneColor:
-		args, err := buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, true)
+		args, err := buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, true, narrSec)
 		if err != nil {
 			return err
 		}
 		if err := execFFmpeg(ctx, r.cfg.FFmpegPath, args); err != nil {
 			slog.Warn("gradient color scene failed, retrying flat color", "scene", sceneIdx)
-			flatArgs, ferr := buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, false)
+			flatArgs, ferr := buildColorSceneArgs(cfg, *sc, canvasW, canvasH, fps, outputPath, tempDir, sceneIdx, false, narrSec)
 			if ferr != nil {
 				return ferr
 			}
@@ -517,6 +527,36 @@ func effectiveCanvas(sb *contract.Storyboard) (w, h, fps int) {
 		fps = 30
 	}
 	return w, h, fps
+}
+
+// renderDims returns the dimensions the filter graph actually renders at:
+// the canvas scaled down to output.height when set (720p → 720×1280
+// portrait / 1280×720 landscape, never upscaled). Running the pixel-heavy
+// chain (zoompan, noise, vignette, overlays) at the delivery size instead
+// of the full 1080×1920 canvas cuts per-frame work ~2.25x — the difference
+// between a smooth render and a wedged 1-vCPU/512MB box.
+func renderDims(sb *contract.Storyboard) (w, h, fps int) {
+	w, h, fps = effectiveCanvas(sb)
+	_, outShort, _ := sb.EffectiveOutput()
+	if outShort <= 0 {
+		return w, h, fps
+	}
+	short := min(w, h)
+	if outShort >= short {
+		return w, h, fps
+	}
+	s := float64(outShort) / float64(short)
+	w = evenInt(int(math.Round(float64(w) * s)))
+	h = evenInt(int(math.Round(float64(h) * s)))
+	return w, h, fps
+}
+
+// evenInt clamps to a positive even value — yuv420p needs even dimensions.
+func evenInt(n int) int {
+	if n < 2 {
+		return 2
+	}
+	return n / 2 * 2
 }
 
 // filterEmpty removes empty strings from a slice.

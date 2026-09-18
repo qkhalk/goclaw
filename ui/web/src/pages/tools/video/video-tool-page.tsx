@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  Loader2,
   RefreshCw,
   Trash2,
   Eraser,
@@ -27,7 +26,6 @@ import { toast } from "@/stores/use-toast-store";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
 import {
-  submitRenderJob,
   useVideoCancel,
   useVideoDelete,
   useVideoJobs,
@@ -114,7 +112,6 @@ export function VideoToolPage() {
   const [showJson, setShowJson] = useState(false);
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<VideoRenderJob | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VideoRenderJob | null>(null);
   const [jobsOpen, setJobsOpen] = useState(true);
@@ -218,24 +215,6 @@ export function VideoToolPage() {
     [sb.scenes],
   );
 
-  async function handleSubmit() {
-    setSubmitting(true);
-    try {
-      await submitRenderJob(http, sb);
-      toast.success(t("video.created"));
-      setJobsOpen(true);
-      await refresh();
-    } catch (e) {
-      toast.error(
-        e instanceof Error && e.message
-          ? `${t("video.create_failed")}: ${e.message}`
-          : t("video.create_failed"),
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   function loadJson() {
     try {
       const parsed = JSON.parse(jsonDraft) as Storyboard;
@@ -279,8 +258,12 @@ export function VideoToolPage() {
       toast.success(t("video.created"));
       setJobsOpen(true);
       await refresh();
-    } catch {
-      toast.error(t("video.render_panel.server_failed"));
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message
+          ? `${t("video.create_failed")}: ${e.message}`
+          : t("video.create_failed"),
+      );
     }
   }
 
@@ -428,6 +411,16 @@ export function VideoToolPage() {
                         )}
                       </div>
                     </div>
+                    {job.status === "done" && (
+                      /* Watch right in the job card — no download round-trip
+                         to see what the agent produced. */
+                      <video
+                        controls
+                        preload="metadata"
+                        src={job.download_url ?? `/v1/files/videos/${job.id}.mp4`}
+                        className="mt-2 max-h-72 w-full max-w-[180px] rounded-md border bg-black"
+                      />
+                    )}
                     {(job.status === "queued" ||
                       job.status === "rendering") && (
                       <div className="mt-2">
@@ -582,31 +575,11 @@ export function VideoToolPage() {
             hardware={hardware}
             isExporting={isExporting}
             progress={progress}
+            hasErrors={hasValidationErrors(sb)}
             onExportClient={handleExportClient}
             onExportServer={handleExportServer}
             onCancel={cancelExport}
           />
-
-          {/* Submit to server button */}
-          <div className="flex items-center justify-end gap-2 rounded-lg border p-3">
-            <Button
-              onClick={handleSubmit}
-              disabled={submitting || totalSec <= 0 || hasValidationErrors(sb)}
-              className="min-h-11 sm:min-h-9"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t("video.submitting")}
-                </>
-              ) : (
-                <>
-                  <Clapperboard className="mr-2 h-4 w-4" />
-                  {t("video.submit")}
-                </>
-              )}
-            </Button>
-          </div>
         </TabsContent>
       </Tabs>
 

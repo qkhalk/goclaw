@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./i18n";
 import App from "./App";
 import "./index.css";
+import "./fonts.css";
 import { ApiError } from "@/api/errors";
 
 /**

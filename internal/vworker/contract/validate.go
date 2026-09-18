@@ -65,8 +65,21 @@ func (sc *Scene) validate() error {
 		if !hexColor(sc.Color) {
 			return fmt.Errorf("color scenes need a #RRGGBB color, got %q", sc.Color)
 		}
+		if sc.Color2 != "" && !hexColor(sc.Color2) {
+			return fmt.Errorf("color2 must be #RRGGBB, got %q", sc.Color2)
+		}
+		if sc.Glow != "" && !hexColor(sc.Glow) {
+			return fmt.Errorf("glow must be #RRGGBB, got %q", sc.Glow)
+		}
 	default:
 		return fmt.Errorf("unknown scene type %q", sc.Type)
+	}
+	if sc.Caption != nil {
+		switch sc.Caption.Style {
+		case "", "chip", "mono":
+		default:
+			return fmt.Errorf("caption style %q not supported (chip, mono)", sc.Caption.Style)
+		}
 	}
 	if sc.DurationSec < 1 || sc.DurationSec > maxSceneSec {
 		return fmt.Errorf("duration_sec %.1f out of range 1..%.0f", sc.DurationSec, maxSceneSec)

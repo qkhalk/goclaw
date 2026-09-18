@@ -41,15 +41,16 @@ interface Caption {
   text?: string;
   position?: "top" | "center" | "bottom";
   font_size?: number;
+  style?: "" | "chip" | "mono";
 }
 
-/** Color-scene backdrop presets (gradient c0→c2, optional grid) tuned after
- * the reference "developer dark-mode" shorts style. */
-const COLOR_PRESETS: { key: string; color: string; color2: string; grid: boolean }[] = [
-  { key: "tech_dark", color: "#0D1117", color2: "#1E293B", grid: true },
-  { key: "deep_ocean", color: "#0B1220", color2: "#1E3A8A", grid: false },
-  { key: "ember", color: "#450A0A", color2: "#B45309", grid: false },
-  { key: "violet_night", color: "#1E1B2E", color2: "#6D28D9", grid: false },
+/** Color-scene backdrop presets (gradient c0→c2, optional grid + glow orbs)
+ * tuned after the reference "developer dark-mode" shorts style. */
+const COLOR_PRESETS: { key: string; color: string; color2: string; grid: boolean; glow?: string }[] = [
+  { key: "tech_dark", color: "#0D1117", color2: "#1E293B", grid: true, glow: "#38BDF8" },
+  { key: "deep_ocean", color: "#0B1220", color2: "#1E3A8A", grid: false, glow: "#0EA5E9" },
+  { key: "ember", color: "#450A0A", color2: "#B45309", grid: false, glow: "#F97316" },
+  { key: "violet_night", color: "#1E1B2E", color2: "#6D28D9", grid: false, glow: "#8B5CF6" },
   { key: "plain", color: "#000000", color2: "#000000", grid: false },
 ];
 
@@ -208,7 +209,9 @@ export function SceneCard({
               onClick={() =>
                 onUpdate({
                   color: p.color,
-                  ...(p.key === "plain" ? { color2: undefined, grid: undefined } : { color2: p.color2, grid: p.grid }),
+                  ...(p.key === "plain"
+                    ? { color2: undefined, grid: undefined, glow: undefined, vignette: undefined }
+                    : { color2: p.color2, grid: p.grid, glow: p.glow, vignette: true }),
                 })
               }
               className={cn(
@@ -231,6 +234,53 @@ export function SceneCard({
             />
             <Label htmlFor={`grid-${index}`} className="text-xs">
               {t("video.grid")}
+            </Label>
+          </div>
+        </div>
+      )}
+
+      {/* Visual v2 (color scenes): glow-orb tint, vignette, film grain —
+          painted by the browser preview and burned in by the server worker. */}
+      {scene.type === "color" && (
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">{t("video.glow")}</Label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                aria-label={t("video.glow")}
+                value={scene.glow ?? "#38BDF8"}
+                onChange={(e) => onUpdate({ glow: e.target.value.toUpperCase() })}
+                className="h-8 w-10 cursor-pointer rounded border bg-transparent p-0.5"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-9 px-2 text-xs"
+                onClick={() => onUpdate({ glow: undefined })}
+              >
+                {t("video.glow_off")}
+              </Button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pb-1.5">
+            <Switch
+              id={`vig-${index}`}
+              checked={scene.vignette ?? false}
+              onCheckedChange={(v) => onUpdate({ vignette: v || undefined })}
+            />
+            <Label htmlFor={`vig-${index}`} className="text-xs">
+              {t("video.vignette")}
+            </Label>
+          </div>
+          <div className="flex items-center gap-2 pb-1.5">
+            <Switch
+              id={`grain-${index}`}
+              checked={scene.grain ?? false}
+              onCheckedChange={(v) => onUpdate({ grain: v || undefined })}
+            />
+            <Label htmlFor={`grain-${index}`} className="text-xs">
+              {t("video.grain")}
             </Label>
           </div>
         </div>
@@ -275,7 +325,7 @@ export function SceneCard({
 
       {/* Caption */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <div className="flex flex-col gap-1.5 sm:col-span-3">
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
           <Label className="text-xs">{t("video.caption_text")}</Label>
           <Input value={scene.caption?.text ?? ""} onChange={(e) => onUpdate({ caption: e.target.value ? { ...(scene.caption ?? { position: "bottom" as const }), text: e.target.value } : undefined })} className="text-base md:text-sm" />
         </div>
@@ -289,6 +339,28 @@ export function SceneCard({
               <SelectItem value="top">{t("video.pos_top")}</SelectItem>
               <SelectItem value="center">{t("video.pos_center")}</SelectItem>
               <SelectItem value="bottom">{t("video.pos_bottom")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t("video.caption_style")}</Label>
+          <Select
+            value={scene.caption?.style || "plain"}
+            onValueChange={(v) =>
+              onUpdate({
+                caption: scene.caption
+                  ? { ...scene.caption, style: v === "plain" ? undefined : (v as "chip" | "mono") }
+                  : undefined,
+              })
+            }
+          >
+            <SelectTrigger className="text-base md:text-sm" aria-label={t("video.caption_style")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="plain">{t("video.caption_style_plain")}</SelectItem>
+              <SelectItem value="chip">{t("video.caption_style_chip")}</SelectItem>
+              <SelectItem value="mono">{t("video.caption_style_mono")}</SelectItem>
             </SelectContent>
           </Select>
         </div>

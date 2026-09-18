@@ -116,6 +116,27 @@ var goldenFixtures = []struct {
 			]
 		}`,
 	},
+	{
+		// Visual v2: caption styles (chip/mono) and the color-scene extras
+		// (glow orbs, vignette, grain) must parse identically on both sides.
+		name: "visuals_v2",
+		json: `{
+			"version": 1,
+			"scenes": [
+				{
+					"type": "color", "color": "#0D1117", "color2": "#1E293B",
+					"grid": true, "glow": "#F97316", "vignette": true, "grain": true,
+					"duration_sec": 4,
+					"caption": { "text": "SỰ THẬT VỀ OPEN SOURCE", "position": "center", "font_size": 64, "style": "chip" },
+					"narration": { "text": "Sự thật về open source", "voice": "vi-VN-HoaiMyNeural" }
+				},
+				{
+					"type": "color", "color": "#101820", "duration_sec": 3,
+					"caption": { "text": "// epoch 2", "style": "mono" }
+				}
+			]
+		}`,
+	},
 }
 
 // TestGoldenParseMatchGateway verifies that the worker contract parser

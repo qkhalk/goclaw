@@ -1,7 +1,7 @@
 ---
 name: Video Storyboard Design
 description: Structure short vertical videos like a pro editor - hook, pacing, scene rhythm, captions, and the storyboard JSON contract for the video pipeline.
-version: 1
+version: 2
 ---
 
 # Video Storyboard Design
@@ -30,8 +30,11 @@ seconds, steady rhythm, one idea per scene.
 
 ## Image scenes
 
-- Ask the user for 2-4 photos or URLs when the topic suits real footage
-  (news, products, places). Images make videos feel produced, not generated.
+- Real imagery is the DEFAULT, not the fallback. When the user gives no
+  photos, run image_search yourself: 2-4 English keywords per visual beat
+  (e.g. "halong bay sunset", "server room datacenter") and pick the direct
+  image URLs for your image scenes. Aim for images in half to two-thirds of
+  the scenes — a video of only colored cards reads as unfinished.
 - When the request references an article or page (news recaps, product
   launches), fetch it with web_fetch and mine real image URLs before
   designing: the og:image meta tag, the hero photo, and inline article
@@ -39,8 +42,10 @@ seconds, steady rhythm, one idea per scene.
   link) as scene "source"; the render worker downloads them at render time.
 - Skip logos, avatars, icons, ads and tracking pixels — photos only. Pick
   the 2-4 strongest, visually distinct images that map to your scene facts.
-- If the fetch fails or yields nothing usable, fall back to a color-scene
-  design; never invent or guess image URLs.
+- Only go all-color when the user asks for text-only or neither image_search
+  nor web_fetch yields anything usable. Never invent or guess image URLs —
+  only URLs returned by image_search, found via web_fetch, or given by the
+  user.
 - Apply subtle ken_burns to every static image (zoom_from 1.0, zoom_to 1.12)
   and vary pan between scenes using the direction words left, up, right
   (e.g. "ken_burns": {"zoom_from": 1.0, "zoom_to": 1.12, "pan": "left"}).
@@ -54,6 +59,13 @@ seconds, steady rhythm, one idea per scene.
   neutral for news.
 - font_size: 56-72 for the hook and close, 40-52 for image captions.
 - Position: center for color scenes, bottom for image scenes.
+- Style per beat: "chip" (rounded dark chip behind the text) for hooks,
+  prices and stat lines; "mono" (monospace, reads like a code eyebrow,
+  e.g. "// PHAN 1") for section labels; plain for the rest. Add the style
+  inside the caption object: {"text": "...", "style": "chip"}.
+- With narration, captions reveal word-by-word in sync with the voice —
+  write the caption as the compressed headline of the narration sentence,
+  never the same full sentence twice.
 
 ## Voice-over (narration)
 

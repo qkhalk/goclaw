@@ -222,7 +222,15 @@
     "draft_restored": "已恢复未保存的草稿",
     "draft_cleared": "草稿已清除",
     "draft_clear": "清除草稿",
-    "draft_clear_hint": "删除浏览器保存的草稿并重新开始"
+    "draft_clear_hint": "删除浏览器保存的草稿并重新开始",
+    "caption_style": "字幕样式",
+    "caption_style_plain": "普通",
+    "caption_style_chip": "圆角标签",
+    "caption_style_mono": "等宽眉标",
+    "glow": "光晕",
+    "glow_off": "关闭",
+    "vignette": "暗角",
+    "grain": "胶片颗粒"
   },
   "watermark": {
     "title": "水印移除",

@@ -70,6 +70,13 @@ func main() {
 	ttl := time.Duration(ttlMinutes) * time.Minute
 	vworker.CleanupSweep(workDir, ttl)
 
+	// Extract the bundled display/body/mono fonts once — captions and text
+	// layers render with them (chip styles + karaoke need real faces).
+	fonts, err := vworker.ExtractFonts(workDir)
+	if err != nil {
+		slog.Warn("bundled fonts extraction failed, captions fall back to drawtext", "err", err)
+	}
+
 	// Create runner and server
 	cfg := vworker.WorkerConfig{
 		Addr:          addr,
@@ -82,6 +89,7 @@ func main() {
 		MaxSceneSec:   maxSceneSec,
 		MaxQueue:      maxQueue,
 		NarratorVoice: narrVoice,
+		Fonts:         fonts,
 	}
 
 	runner := vworker.NewRunner(cfg)

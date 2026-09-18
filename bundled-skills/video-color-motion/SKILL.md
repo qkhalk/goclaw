@@ -1,7 +1,7 @@
 ---
 name: Video Color and Motion
 description: Pick palettes and motion that look designed, not generated - harmonious hex colors, gentle Ken Burns, readable captions, and tasteful transitions.
-version: 1
+version: 2
 ---
 
 # Video Color and Motion
@@ -40,6 +40,21 @@ Rules:
 - Keep zooms slow: the motion should be felt, not noticed.
 - Color scenes need no zoom; their motion is the cut itself.
 
+## Color-scene atmosphere (glow + vignette)
+
+Dark color scenes come alive with two optional fields — use them by default
+on dark scenes, skip them on light backgrounds:
+
+- `"glow": "#RRGGBB"` — two soft orbs tinted with this color drift slowly
+  behind the text. Pick the accent from the scene's own scheme (Midnight
+  tech → #38bdf8, Bold alert → #fbbf24, Warm news → #c2410c). One glow
+  color per video keeps the look coherent.
+- `"vignette": true` — gently darkens the frame edges; adds depth to flat
+  gradients at zero cost to readability.
+- `"grid": true` stays a deliberate choice for tech/developer topics.
+- `"grain": true` adds subtle animated film grain — sparingly, at most on
+  one or two scenes for texture, never everywhere.
+
 ## Transitions
 
 - fade: the neutral choice for news, explainers, and anything calm. Default.
@@ -49,16 +64,23 @@ Rules:
 
 ## Caption rendering
 
-- White text with the pipeline's default shadow works on any dark or mid
-  background.
+- Captions render in a bold display font (Be Vietnam Pro) with a soft drop
+  shadow — crisp on any dark or mid background.
+- `"style": "chip"` puts the line on a rounded translucent chip: use it for
+  hooks, prices and stat lines. `"style": "mono"` renders a monospace
+  eyebrow (JetBrains Mono) for section markers like "// PHAN 1".
 - All-caps only for hooks under 5 words; sentence case otherwise.
 - Numbers with units read better split: "10.000 robot mỗi năm" beats
   "10k robots/yr" in Vietnamese copy.
+- With narration the caption reveals word-by-word with the voice, so the
+  caption can be the headline while narration carries the sentence.
 
 ## Pre-flight check before you answer
 
 1. Consecutive scenes never share a background color or pan direction.
 2. Every image scene has ken_burns with zoom within 1.0 to 1.12.
 3. Every caption is 8 words or fewer and positioned for its scene type.
-4. The whole video uses one palette scheme and one transition family.
-5. The storyboard block is valid JSON on a single fence, version 1.
+4. The whole video uses one palette scheme, one glow accent and one
+   transition family.
+5. Dark color scenes set vignette true and a glow from the scheme.
+6. The storyboard block is valid JSON on a single fence, version 1.

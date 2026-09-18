@@ -109,8 +109,10 @@ export function renderSceneBase(
 
   if (scene.type === "color") {
     drawColorBackdrop(ctx, width, height, scene, localTime);
+    if (scene.glow) drawGlowOrbs(ctx, width, height, scene.glow, localTime);
+    if (scene.vignette) drawVignette(ctx, width, height);
     drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-    drawCaption(ctx, width, height, scene, narrProgress);
+    drawCaption(ctx, width, height, scene, localTime, narrProgress);
     return;
   }
 
@@ -118,8 +120,10 @@ export function renderSceneBase(
   if (!img) {
     ctx.fillStyle = "#1a1a2e";
     ctx.fillRect(0, 0, width, height);
+    if (scene.glow) drawGlowOrbs(ctx, width, height, scene.glow, localTime);
+    if (scene.vignette) drawVignette(ctx, width, height);
     drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-    drawCaption(ctx, width, height, scene, narrProgress);
+    drawCaption(ctx, width, height, scene, localTime, narrProgress);
     return;
   }
 
@@ -190,8 +194,10 @@ export function renderSceneBase(
   }
   ctx.restore();
 
+  if (scene.vignette) drawVignette(ctx, width, height);
+  if (scene.glow) drawGlowOrbs(ctx, width, height, scene.glow, localTime);
   drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-  drawCaption(ctx, width, height, scene, narrProgress);
+  drawCaption(ctx, width, height, scene, localTime, narrProgress);
 }
 
 /** Paint the scene's timed overlay layers (under the caption), in array
@@ -217,8 +223,10 @@ export function drawSceneLayers(
       const fontSize = layer.font_size || 48;
       const align = layer.align || "center";
       ctx.save();
-      ctx.globalAlpha = opacity;
-      ctx.font = `bold ${fontSize}px sans-serif`;
+      // 0.3s fade at the layer's start — mirrors the worker's drawtext alpha
+      // expression; type uses the bundled Inter like the server render.
+      ctx.globalAlpha = opacity * Math.min(1, Math.max(0, localTime - start) / 0.3);
+      ctx.font = `600 ${fontSize}px ${LAYER_TEXT_FONT}`;
       ctx.fillStyle = layer.fill || "#FFFFFF";
       ctx.textBaseline = "top";
       ctx.textAlign = align === "left" ? "left" : align === "right" ? "right" : "center";
@@ -251,76 +259,186 @@ export function drawSceneLayers(
   }
 }
 
+/** Bundled caption fonts (public/fonts, same OFL files the worker embeds) —
+ * the preview uses exactly what the server burns into the render. */
+export const CAPTION_DISPLAY_FONT = '"Be Vietnam Pro", system-ui, sans-serif';
+export const CAPTION_MONO_FONT = '"JetBrains Mono", ui-monospace, monospace';
+export const LAYER_TEXT_FONT = '"Inter", system-ui, sans-serif';
+
+/** Two drifting radial glow orbs — the exact sin-phase formulas the worker's
+ * ffmpeg overlay expressions use (appendGlowSteps in vworker/ffmpeg.go).
+ * Keep the two in lockstep or preview drifts from the render. */
+function drawGlowOrbs(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  hex: string,
+  t: number,
+) {
+  const rgb = hex.replace("#", "");
+  const r = parseInt(rgb.slice(0, 2), 16) || 0;
+  const g = parseInt(rgb.slice(2, 4), 16) || 0;
+  const b = parseInt(rgb.slice(4, 6), 16) || 0;
+  const orb = (cx: number, cy: number, d: number) => {
+    const rad = d / 2;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+    grad.addColorStop(0, `rgba(${r},${g},${b},0.17)`);
+    grad.addColorStop(0.5, `rgba(${r},${g},${b},0.05)`);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+  };
+  orb(
+    width * (0.26 + 0.1 * Math.sin(t / 5.3)),
+    height * (0.26 + 0.05 * Math.cos(t / 4.1)),
+    width * 0.95,
+  );
+  orb(
+    width * (0.74 + 0.08 * Math.sin(t / 6.1 + 2.2)),
+    height * (0.72 + 0.05 * Math.sin(t / 5.0 + 1.0)),
+    width * 0.72,
+  );
+}
+
+/** Darkened frame edges — the canvas twin of the worker's vignette filter
+ * (applied under the text layers so type stays crisp). */
+function drawVignette(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  const grad = ctx.createRadialGradient(
+    width / 2,
+    height / 2,
+    Math.hypot(width, height) * 0.28,
+    width / 2,
+    height / 2,
+    Math.hypot(width, height) * 0.62,
+  );
+  grad.addColorStop(0, "rgba(0,0,0,0)");
+  grad.addColorStop(1, "rgba(0,0,0,0.38)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, width, height);
+}
+
+/** One laid-out caption word with its pen position. */
+interface CapWord {
+  text: string;
+  x: number; // pen x relative to the line start
+  line: number;
+  w: number;
+}
+
+/** Caption painter mirroring the worker's PNG compositor (caption.go):
+ * display font (mono for the "mono" eyebrow style), rounded translucent chip
+ * background, entrance fade, and the karaoke rule "word k lights up at k/N
+ * of the narration while the rest stays dim" — the same k/N math the server
+ * uses, so the file renders exactly what the preview showed. */
 function drawCaption(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   scene: Scene,
+  localTime: number,
   narrProgress?: number,
 ) {
-  if (!scene.caption?.text) return;
-  const fontSize = scene.caption.font_size || Math.round(Math.min(width, height) * 0.035);
-  ctx.font = `bold ${fontSize}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.shadowColor = "rgba(0,0,0,0.7)";
-  ctx.shadowBlur = fontSize * 0.25;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = fontSize * 0.05;
+  const cap = scene.caption;
+  if (!cap?.text) return;
+  const style = cap.style ?? "";
+  const fontSize = cap.font_size || Math.round(Math.min(width, height) * 0.035);
+  ctx.font =
+    style === "mono"
+      ? `500 ${fontSize}px ${CAPTION_MONO_FONT}`
+      : `700 ${fontSize}px ${CAPTION_DISPLAY_FONT}`;
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
 
-  // Karaoke reveal: with a narration-audio progress (0..1), words light up
-  // in step with the voice — the on-screen text tracks what is being said.
-  const words = scene.caption.text.split(/\s+/).filter(Boolean);
-  let visible: string;
-  let dimmed: string | null = null;
-  if (narrProgress !== undefined && words.length > 0 && scene.narration?.trim()) {
-    const shown = Math.min(words.length, Math.ceil(Math.max(0, narrProgress) * words.length));
-    visible = words.slice(0, shown).join(" ");
-    dimmed = shown < words.length ? words.slice(shown).join(" ") : null;
-  } else {
-    visible = scene.caption.text;
+  // Word wrap with per-word pen positions (86% of the width, like caption.go).
+  const maxW = width * 0.86;
+  const words = cap.text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return;
+  const spaceW = ctx.measureText(" ").width;
+  const lines: { words: CapWord[]; w: number }[] = [];
+  let cur = { words: [] as CapWord[], w: 0 };
+  for (const w of words) {
+    const ww = ctx.measureText(w).width;
+    const pen = cur.words.length > 0 ? cur.w + spaceW : cur.w;
+    if (pen + ww > maxW && cur.words.length > 0) {
+      lines.push(cur);
+      cur = { words: [], w: 0 };
+      cur.words.push({ text: w, x: 0, line: lines.length, w: ww });
+      cur.w = ww;
+    } else {
+      cur.words.push({ text: w, x: pen, line: lines.length, w: ww });
+      cur.w = pen + ww;
+    }
   }
+  if (cur.words.length > 0) lines.push(cur);
 
-  const lines = wrapText(ctx, visible, width * 0.85);
-  const lineHeight = fontSize * 1.3;
-  const totalTextH = lines.length * lineHeight;
+  const metrics = ctx.measureText("Hg");
+  const lineH = fontSize * 1.32;
+  const lineBoxH = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+  const shadow = Math.max(2, Math.round(fontSize / 22));
+  const padX = style === "chip" ? (fontSize * 2) / 3 : fontSize / 3 + 8;
+  const padY = style === "chip" ? fontSize / 2 : fontSize / 4 + 6;
+  const textW = Math.max(...lines.map((l) => l.w));
+  const stripW = textW + padX * 2 + shadow;
+  const stripH = lines.length * lineH + padY * 2 + shadow;
 
-  let baseY: number;
-  switch (scene.caption.position) {
+  const sx = (width - stripW) / 2;
+  let sy: number;
+  switch (cap.position) {
     case "top":
-      baseY = totalTextH / 2 + fontSize;
+      sy = 60;
       break;
     case "center":
-      baseY = height / 2;
+      sy = (height - stripH) / 2;
       break;
     default:
-      baseY = height - totalTextH / 2 - fontSize;
+      sy = height - stripH - 60;
       break;
   }
 
-  ctx.fillStyle = "#fff";
-  lines.forEach((line, li) => {
-    ctx.fillText(line, width / 2, baseY + (li - (lines.length - 1) / 2) * lineHeight);
-  });
+  // Whole-caption entrance fade (server: fade=t=in st=0 d=0.25).
+  const entrance = Math.min(1, localTime / 0.25);
 
-  if (dimmed) {
-    // Not-yet-spoken words render faintly right after the revealed text so
-    // the line layout stays stable while the voice catches up.
-    const lastLine = lines[lines.length - 1] ?? "";
-    const lastW = ctx.measureText(lastLine).width;
-    const dimX = width / 2 + lastW / 2 + ctx.measureText(" ").width;
-    const dimLines = wrapText(ctx, dimmed, width * 0.85 - (dimX - width * 0.075));
-    ctx.save();
-    ctx.globalAlpha = 0.3;
-    dimLines.forEach((line, li) => {
-      ctx.fillText(line, dimX, baseY + ((lines.length - 1) / 2 + li) * lineHeight);
-    });
-    ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = entrance;
+
+  if (style === "chip") {
+    ctx.fillStyle = "rgba(8,12,22,0.58)";
+    const r = Math.min(fontSize * 0.7, stripH / 2);
+    ctx.beginPath();
+    ctx.roundRect(sx, sy, stripW, stripH, r);
+    ctx.fill();
   }
 
-  ctx.shadowColor = "transparent";
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
+  // Karaoke: with narration progress, unspoken words stay dim; word k is lit
+  // at k/N of the voice (identical to the server's reveal schedule).
+  const karaoke =
+    narrProgress !== undefined && words.length > 0 && !!scene.narration?.trim();
+  const shown = karaoke
+    ? Math.min(words.length, Math.ceil(Math.max(0, narrProgress) * words.length))
+    : words.length;
+  let wordIdx = 0;
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    if (!line) continue;
+    const lineX = sx + padX + (textW - line.w) / 2;
+    const baseline =
+      sy + padY + li * lineH + (lineH - lineBoxH) / 2 + metrics.actualBoundingBoxAscent;
+    for (const w of line.words) {
+      const lit = wordIdx < shown;
+      wordIdx++;
+      ctx.save();
+      ctx.globalAlpha = entrance * (lit ? 1 : karaoke ? 0.38 : 1);
+      ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowOffsetX = shadow;
+      ctx.shadowOffsetY = shadow;
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#fff";
+      ctx.fillText(w.text, lineX + w.x, baseline);
+      ctx.restore();
+    }
+  }
+  ctx.restore();
 }
 
 /** Paint the storyboard frame at scenes[index]/localTime, honoring the

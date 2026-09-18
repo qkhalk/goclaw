@@ -222,7 +222,15 @@
     "draft_restored": "Unsaved draft restored",
     "draft_cleared": "Draft cleared",
     "draft_clear": "Clear draft",
-    "draft_clear_hint": "Delete the browser-saved draft and start fresh"
+    "draft_clear_hint": "Delete the browser-saved draft and start fresh",
+    "caption_style": "Caption style",
+    "caption_style_plain": "Plain",
+    "caption_style_chip": "Chip (rounded)",
+    "caption_style_mono": "Mono eyebrow",
+    "glow": "Glow orbs",
+    "glow_off": "Off",
+    "vignette": "Vignette",
+    "grain": "Film grain"
   },
   "watermark": {
     "title": "Watermark Remover",

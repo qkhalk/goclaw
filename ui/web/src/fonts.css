@@ -1,0 +1,31 @@
+/* Bundled video caption fonts — the same SIL OFL files the videoworker
+   embeds (internal/vworker/fonts), so the canvas preview paints with exactly
+   the faces the server burns into the render. */
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/fonts/BeVietnamPro-Bold.ttf") format("truetype");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/fonts/Inter-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600 700;
+  src: url("/fonts/Inter-Bold.ttf") format("truetype");
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  src: url("/fonts/JetBrainsMono-Medium.ttf") format("truetype");
+  font-display: swap;
+}

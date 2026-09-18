@@ -43,9 +43,13 @@ type Scene struct {
 	Color       string     `json:"color,omitempty"`  // "#RRGGBB" for color scenes
 	// Color2 is the optional second gradient stop of a color scene; empty
 	// falls back to a darker shade of Color. Grid overlays a faint blueprint
-	// grid (both mirror internal/video — keep the copy-shapes in sync).
+	// grid; Glow/Vignette/Grain are the visual-v2 extras (all mirror
+	// internal/video — keep the copy-shapes in sync).
 	Color2      string     `json:"color2,omitempty"`
 	Grid        bool       `json:"grid,omitempty"`
+	Glow        string     `json:"glow,omitempty"`
+	Vignette    bool       `json:"vignette,omitempty"`
+	Grain       bool       `json:"grain,omitempty"`
 	DurationSec float64    `json:"duration_sec"`
 	Fit         string     `json:"fit,omitempty"` // cover|contain
 	Mute        bool       `json:"mute,omitempty"`
@@ -228,11 +232,13 @@ func truncateJSON(b json.RawMessage) string {
 	return s
 }
 
-// Caption draws text over the scene via drawtext.
+// Caption draws text over the scene (rendered as PNG overlays by the worker;
+// with narration it becomes a karaoke reveal — mirror of internal/video).
 type Caption struct {
 	Text     string `json:"text"`
 	Position string `json:"position,omitempty"` // top|center|bottom
 	FontSize int    `json:"font_size,omitempty"`
+	Style    string `json:"style,omitempty"` // "" plain | chip | mono
 }
 
 // Narration is the spoken text for the scene.
