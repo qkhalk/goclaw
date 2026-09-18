@@ -175,7 +175,25 @@
       "align_left": "左",
       "align_center": "中",
       "align_right": "右",
-      "opacity": "不透明度"
+      "opacity": "不透明度",
+      "kind_icon": "图标",
+      "kind_card": "卡片",
+      "icon": "图标名称",
+      "chip": "色块底",
+      "border": "描边",
+      "radius": "圆角",
+      "anim": "入场动画",
+      "anim_none": "无",
+      "anim_fade": "淡入",
+      "anim_up": "上滑",
+      "anim_down": "下滑",
+      "anim_left": "左滑",
+      "anim_right": "右滑",
+      "anim_pop": "弹出",
+      "font": "字体样式",
+      "font_body": "正文",
+      "font_display": "标题（粗体）",
+      "font_mono": "等宽"
     },
     "designer": {
       "title": "Video Designer",
@@ -230,7 +248,13 @@
     "glow": "光晕",
     "glow_off": "关闭",
     "vignette": "暗角",
-    "grain": "胶片颗粒"
+    "grain": "胶片颗粒",
+    "job_edit": "编辑",
+    "job_edit_hint": "将此渲染的分镜载入编辑器",
+    "job_edit_loaded": "分镜已载入编辑器",
+    "job_edit_failed": "无法读取此任务的分镜",
+    "layers_add_icon": "图标",
+    "layers_add_card": "卡片"
   },
   "watermark": {
     "title": "水印移除",

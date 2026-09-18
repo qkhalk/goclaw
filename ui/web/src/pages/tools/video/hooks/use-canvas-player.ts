@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Scene } from "../hooks/use-timeline";
 import type { NarrationAudioController } from "./use-narration-audio";
 import { drawStoryboardFrame } from "../components/render-shared";
+import { getIconImage, setIconLoadListener } from "../lib/feather-icons";
 
 // ── Types (Scene is the canonical model from use-timeline) ──
 
@@ -122,6 +123,13 @@ export function useCanvasPlayer(
         .catch(() => {
           loadingImagesRef.current.delete(src);
         });
+    }
+    // Warm the icon image cache (icon layers) — draws skip until each glyph
+    // arrives, then the load listener repaints.
+    for (const scene of storyboard.scenes) {
+      for (const layer of scene.layers ?? []) {
+        if (layer.kind === "icon") getIconImage(layer);
+      }
     }
   }, [storyboard.scenes]);
 
@@ -318,6 +326,17 @@ export function useCanvasPlayer(
       renderCurrentFrame();
     }
   }, [storyboard.scenes, renderCurrentFrame]);
+
+  // Repaint when an icon glyph finishes loading (preview draws skip icons
+  // until their image arrives).
+  const renderRef = useRef(renderCurrentFrame);
+  renderRef.current = renderCurrentFrame;
+  useEffect(() => {
+    setIconLoadListener(() => {
+      if (!isPlayingRef.current) renderRef.current();
+    });
+    return () => setIconLoadListener(null);
+  }, []);
 
   // Cleanup
   useEffect(() => {

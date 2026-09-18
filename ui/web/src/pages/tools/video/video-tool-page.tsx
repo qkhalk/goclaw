@@ -10,6 +10,7 @@ import {
   Eraser,
   Wand2,
   X,
+  Pencil,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -110,6 +111,7 @@ export function VideoToolPage() {
 
   const [meta, setMeta] = useState<StoryboardMeta>(defaultStoryboard);
   const [showJson, setShowJson] = useState(false);
+  const [tab, setTab] = useState("editor");
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [cancelTarget, setCancelTarget] = useState<VideoRenderJob | null>(null);
@@ -185,8 +187,7 @@ export function VideoToolPage() {
 
   /** Apply a designer-produced storyboard: meta fields go to the form,
    * scenes replace the timeline (one history entry, undo works). */
-  const applyStoryboard = useCallback((next: Storyboard) => {
-    setMeta((prev) => ({
+  const applyStoryboard = useCallback((next: Storyboard) => {    setMeta((prev) => ({
       version: next.version ?? 1,
       canvas: next.canvas ?? defaultStoryboard().canvas,
       audio: next.audio,
@@ -199,6 +200,22 @@ export function VideoToolPage() {
         : [{ type: "image", source: "", duration_sec: 5, fit: "cover" }],
     );
   }, [timeline]);
+
+  /** Pull a finished job's storyboard back into the editor — tweak and
+   * re-render without starting over. */
+  const editJob = useCallback(
+    (job: VideoRenderJob) => {
+      try {
+        applyStoryboard(JSON.parse(job.storyboard_json) as Storyboard);
+        setTab("editor");
+        setJobsOpen(false);
+        toast.success(t("video.job_edit_loaded"));
+      } catch {
+        toast.error(t("video.job_edit_failed"));
+      }
+    },
+    [applyStoryboard, t],
+  );
 
   // Export
   const {
@@ -369,6 +386,18 @@ export function VideoToolPage() {
                         </span>
                       )}
                       <div className="ml-auto flex items-center gap-1">
+                        {job.status === "done" && job.storyboard_json && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="min-h-11 sm:min-h-9"
+                            title={t("video.job_edit_hint")}
+                            onClick={() => editJob(job)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            {t("video.job_edit")}
+                          </Button>
+                        )}
                         {job.status === "done" && job.output_path && (
                           <Button
                             variant="outline"
@@ -451,7 +480,7 @@ export function VideoToolPage() {
       </div>
 
       {/* Main editor with tabs */}
-      <Tabs defaultValue="editor">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="editor">{t("video.tabs.editor")}</TabsTrigger>
           <TabsTrigger value="render">{t("video.tabs.render")}</TabsTrigger>

@@ -1,5 +1,6 @@
 import type { Scene } from "../hooks/use-timeline";
 import { layerWindow } from "../hooks/use-timeline";
+import { getIconImage } from "../lib/feather-icons";
 import { renderSceneWithTransition, type SceneTransition } from "./scene-transition";
 
 // ── Shared storyboard frame renderer ──
@@ -202,7 +203,7 @@ export function renderSceneBase(
 
 /** Paint the scene's timed overlay layers (under the caption), in array
  * order — mirrors the worker's ffmpeg layer filters (drawtext/drawbox/
- * overlay) so preview matches the server render. */
+ * overlay + entrance anims) so preview matches the server render. */
 export function drawSceneLayers(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -219,30 +220,90 @@ export function drawSceneLayers(
     const y = (layer.y ?? 0.1) * height;
     const w = (layer.w ?? 0.8) * width;
     const opacity = Math.max(0, Math.min(1, layer.opacity ?? 1));
+    // Entrance animation state — the exact numbers the worker encodes into
+    // its ffmpeg expressions (animSec 0.45, 6% slide, 0.35 pop overshoot).
+    const p = Math.max(0, Math.min(1, (localTime - start) / 0.45));
+    const ease = 1 - (1 - p) * (1 - p); // ease-out-quad
+    const slideX = layer.anim === "left" ? 0.06 * width * (1 - ease) : layer.anim === "right" ? -0.06 * width * (1 - ease) : 0;
+    const slideY = layer.anim === "up" ? 0.06 * height * (1 - ease) : layer.anim === "down" ? -0.06 * height * (1 - ease) : 0;
+    const pop = layer.anim === "pop" ? 1 + 0.35 * (1 - ease) : 1;
+    const fadeD = layer.anim === "pop" ? 0.2 : 0.3;
+    const fade = layer.anim === "fade" || layer.anim === "pop" ? Math.min(1, Math.max(0, (localTime - start) / fadeD)) : 1;
     if (layer.kind === "text") {
       const fontSize = layer.font_size || 48;
       const align = layer.align || "center";
       ctx.save();
       // 0.3s fade at the layer's start — mirrors the worker's drawtext alpha
-      // expression; type uses the bundled Inter like the server render.
-      ctx.globalAlpha = opacity * Math.min(1, Math.max(0, localTime - start) / 0.3);
-      ctx.font = `600 ${fontSize}px ${LAYER_TEXT_FONT}`;
+      // expression; font mirrors the worker's per-layer face selection.
+      ctx.globalAlpha = opacity * fade;
+      ctx.font = `${layer.font === "display" ? "700 " : layer.font === "mono" ? "500 " : "600 "}${fontSize}px ${layer.font === "display" ? CAPTION_DISPLAY_FONT : layer.font === "mono" ? CAPTION_MONO_FONT : LAYER_TEXT_FONT}`;
       ctx.fillStyle = layer.fill || "#FFFFFF";
       ctx.textBaseline = "top";
       ctx.textAlign = align === "left" ? "left" : align === "right" ? "right" : "center";
-      ctx.shadowColor = "rgba(0,0,0,0.7)";
-      ctx.shadowBlur = fontSize * 0.25;
-      const tx = align === "left" ? x : align === "right" ? x + w : x + w / 2;
+      // Soft halo — half-strength border + drop shadow, like the worker.
+      ctx.shadowColor = "rgba(0,0,0,0.5)";
+      ctx.shadowBlur = fontSize * 0.22;
+      ctx.shadowOffsetY = 2;
+      const tx = (align === "left" ? x : align === "right" ? x + w : x + w / 2) + slideX;
       const lines = wrapText(ctx, layer.text ?? "", w);
       const lineHeight = fontSize * 1.3;
-      lines.forEach((line, li) => ctx.fillText(line, tx, y + li * lineHeight));
+      lines.forEach((line, li) => ctx.fillText(line, tx, y + li * lineHeight + slideY));
       ctx.restore();
     } else if (layer.kind === "shape") {
       const h = (layer.h ?? 0.3) * height;
       ctx.save();
       ctx.globalAlpha = opacity;
       ctx.fillStyle = layer.fill || "#FFFFFF";
-      ctx.fillRect(x, y, w, h);
+      ctx.fillRect(x + slideX, y + slideY, w, h);
+      ctx.restore();
+    } else if (layer.kind === "card") {
+      const h = (layer.h ?? 0.3) * height;
+      const rad = Math.round((layer.radius ?? 0.018) * width);
+      ctx.save();
+      // Pop scales around the card center (worker scales the input, which
+      // overlay then centers in the box — same visual).
+      const cx = x + w / 2 + slideX;
+      const cy = y + h / 2 + slideY;
+      ctx.translate(cx, cy);
+      ctx.scale(pop, pop);
+      ctx.translate(-cx, -cy);
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = layer.fill || "#FFFFFF";
+      ctx.globalAlpha = fade * opacity;
+      ctx.beginPath();
+      ctx.roundRect(x + slideX, y + slideY, w, h, rad);
+      ctx.fill();
+      if (layer.border) {
+        ctx.globalAlpha = fade * Math.min(1, opacity + 0.4);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = layer.fill || "#FFFFFF";
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (layer.kind === "icon") {
+      // Icon (optionally on a tinted chip tile) — glyphs come from the same
+      // embedded Feather set via data-URI <img>, cached per (name, color).
+      const size = Math.min(w, (layer.h ?? w) * height) || w;
+      const iconImg = getIconImage(layer);
+      ctx.save();
+      const cx = x + w / 2 + slideX;
+      const cy = y + size / 2 + slideY;
+      ctx.translate(cx, cy);
+      ctx.scale(pop, pop);
+      ctx.translate(-cx, -cy);
+      ctx.globalAlpha = fade * opacity;
+      if (layer.chip) {
+        ctx.fillStyle = layer.fill || "#FFFFFF";
+        ctx.globalAlpha = fade * opacity * 0.16;
+        ctx.beginPath();
+        ctx.roundRect(x + slideX, y + slideY, size, size, size * 0.24);
+        ctx.fill();
+        ctx.globalAlpha = fade * opacity;
+      }
+      if (iconImg) {
+        const inner = size * 0.58;
+        ctx.drawImage(iconImg, cx - inner / 2, cy - inner / 2, inner, inner);
+      }
       ctx.restore();
     } else if (layer.kind === "image") {
       const img = layer.source ? imageCache.get(layer.source) : undefined;
@@ -253,7 +314,7 @@ export function drawSceneLayers(
       // worker's scale=w:-1 + centered overlay.
       const drawW = w;
       const drawH = (drawW * img.naturalHeight) / Math.max(1, img.naturalWidth);
-      ctx.drawImage(img, x + (w - drawW) / 2, y, drawW, drawH);
+      ctx.drawImage(img, x + (w - drawW) / 2 + slideX, y + slideY, drawW, drawH);
       ctx.restore();
     }
   }

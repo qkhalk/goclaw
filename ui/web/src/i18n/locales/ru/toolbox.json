@@ -175,7 +175,25 @@
       "align_left": "По левому",
       "align_center": "По центру",
       "align_right": "По правому",
-      "opacity": "Прозрачность"
+      "opacity": "Прозрачность",
+      "kind_icon": "Иконка",
+      "kind_card": "Карточка",
+      "icon": "Имя иконки",
+      "chip": "Плитка",
+      "border": "Рамка",
+      "radius": "Радиус углов",
+      "anim": "Появление",
+      "anim_none": "Нет",
+      "anim_fade": "Затухание",
+      "anim_up": "Снизу вверх",
+      "anim_down": "Сверху вниз",
+      "anim_left": "Справа налево",
+      "anim_right": "Слева направо",
+      "anim_pop": "Выскок",
+      "font": "Стиль шрифта",
+      "font_body": "Обычный",
+      "font_display": "Заголовок (жирный)",
+      "font_mono": "Моно"
     },
     "designer": {
       "title": "Video Designer",
@@ -230,7 +248,13 @@
     "glow": "Свечение",
     "glow_off": "Выкл",
     "vignette": "Виньетка",
-    "grain": "Плёночное зерно"
+    "grain": "Плёночное зерно",
+    "job_edit": "Править",
+    "job_edit_hint": "Загрузить раскадровку этого рендера в редактор",
+    "job_edit_loaded": "Раскадровка загружена в редактор",
+    "job_edit_failed": "Не удалось прочитать раскадровку задания",
+    "layers_add_icon": "Иконка",
+    "layers_add_card": "Карточка"
   },
   "watermark": {
     "title": "Удаление водяных знаков",

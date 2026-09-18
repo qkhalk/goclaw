@@ -10,6 +10,8 @@ import {
   ImagePlus,
   Loader2,
   StopCircle,
+  Zap,
+  PanelTop,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +33,7 @@ import { cn } from "@/lib/utils";
 import type { NarrationAudioController } from "../hooks/use-narration-audio";
 import { FALLBACK_EDGE_VOICES } from "../hooks/use-narration-audio";
 import type { Layer, Scene } from "../hooks/use-timeline";
+import { FEATHER_ICONS } from "../hooks/use-timeline";
 
 interface KenBurns {
   zoom_from: number;
@@ -124,6 +127,8 @@ export function SceneCard({
     if (kind === "text") Object.assign(layer, { text: t("video.layer.new_text"), y: 0.2, font_size: 64 });
     if (kind === "shape") Object.assign(layer, { y: 0.15, h: 0.18, fill: "#000000", opacity: 0.5 });
     if (kind === "image") Object.assign(layer, { y: 0.55, w: 0.3 });
+    if (kind === "icon") Object.assign(layer, { icon: "check", w: 0.12, y: 0.3, fill: "#22C55E", chip: true, anim: "pop", start: 0.4 });
+    if (kind === "card") Object.assign(layer, { y: 0.3, w: 0.8, h: 0.18, fill: "#1E293B", opacity: 0.45, radius: 0.03, border: true, anim: "up", start: 0.3 });
     setLayers([...layers, layer]);
     setSelLayer(layers.length);
   }
@@ -462,6 +467,14 @@ export function SceneCard({
               <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_image")}
             </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("icon")} disabled={layers.length >= 8}>
+              <Zap className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_icon")}
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("card")} disabled={layers.length >= 8}>
+              <PanelTop className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_card")}
+            </Button>
           </div>
 
           <LayerTimeline
@@ -522,6 +535,41 @@ export function SceneCard({
                   <Input value={activeLayer.source ?? ""} onChange={(e) => patchLayer({ source: e.target.value })} placeholder="media/logo.png | https://..." className="text-base md:text-sm" />
                 </div>
               )}
+              {activeLayer.kind === "icon" && (
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">{t("video.layer.icon")}</Label>
+                    <Select value={activeLayer.icon ?? "check"} onValueChange={(v) => patchLayer({ icon: v })}>
+                      <SelectTrigger className="h-8 w-40 text-base md:text-sm" aria-label={t("video.layer.icon")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FEATHER_ICONS.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch id={`chip-${activeIdx}`} checked={activeLayer.chip ?? false} onCheckedChange={(v) => patchLayer({ chip: v || undefined })} />
+                    <Label htmlFor={`chip-${activeIdx}`} className="text-xs">{t("video.layer.chip")}</Label>
+                  </div>
+                </div>
+              )}
+              {activeLayer.kind === "card" && (
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">{t("video.layer.radius")}</Label>
+                    <Input type="number" min={0} max={0.2} step={0.005} value={activeLayer.radius ?? 0.018} onChange={(e) => patchLayer({ radius: Math.max(0, Math.min(0.2, Number(e.target.value) || 0)) })} className="h-8 w-24 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch id={`border-${activeIdx}`} checked={activeLayer.border ?? false} onCheckedChange={(v) => patchLayer({ border: v || undefined })} />
+                    <Label htmlFor={`border-${activeIdx}`} className="text-xs">{t("video.layer.border")}</Label>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
                 {([
@@ -529,7 +577,8 @@ export function SceneCard({
                   ["video.layer.duration", "duration", activeLayer.duration ?? 0],
                   ["video.layer.x", "x", activeLayer.x ?? 0.1],
                   ["video.layer.y", "y", activeLayer.y ?? 0.1],
-                  ...(activeLayer.kind === "shape" ? [["video.layer.w", "w", activeLayer.w ?? 0.8], ["video.layer.h", "h", activeLayer.h ?? 0.3]] : []),
+                  ...(activeLayer.kind === "shape" || activeLayer.kind === "card" ? [["video.layer.w", "w", activeLayer.w ?? 0.8], ["video.layer.h", "h", activeLayer.h ?? 0.3]] : []),
+                  ...(activeLayer.kind === "icon" ? [["video.layer.w", "w", activeLayer.w ?? 0.12]] : []),
                 ] as [string, "start" | "duration" | "x" | "y" | "w" | "h", number][]).map(([labelKey, key, value]) => (
                   <div key={key} className="flex items-center gap-1.5">
                     <Label className="w-16 shrink-0 text-xs">{t(labelKey)}</Label>
@@ -568,7 +617,39 @@ export function SceneCard({
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="w-16 shrink-0 text-xs">{t("video.layer.font")}</Label>
+                      <Select value={activeLayer.font || "body"} onValueChange={(v) => patchLayer({ font: v === "body" ? undefined : (v as Layer["font"]) })}>
+                        <SelectTrigger className="h-8 text-base md:text-sm" aria-label={t("video.layer.font")}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="body">{t("video.layer.font_body")}</SelectItem>
+                          <SelectItem value="display">{t("video.layer.font_display")}</SelectItem>
+                          <SelectItem value="mono">{t("video.layer.font_mono")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </>
+                )}
+                {activeLayer.kind !== "image" && (
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.anim")}</Label>
+                    <Select value={activeLayer.anim || "none"} onValueChange={(v) => patchLayer({ anim: v === "none" ? undefined : (v as Layer["anim"]) })}>
+                      <SelectTrigger className="h-8 text-base md:text-sm" aria-label={t("video.layer.anim")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t("video.layer.anim_none")}</SelectItem>
+                        <SelectItem value="fade">{t("video.layer.anim_fade")}</SelectItem>
+                        <SelectItem value="up">{t("video.layer.anim_up")}</SelectItem>
+                        <SelectItem value="down">{t("video.layer.anim_down")}</SelectItem>
+                        <SelectItem value="left">{t("video.layer.anim_left")}</SelectItem>
+                        <SelectItem value="right">{t("video.layer.anim_right")}</SelectItem>
+                        <SelectItem value="pop">{t("video.layer.anim_pop")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
                 <div className="flex items-center gap-1.5">
                   <Label className="w-16 shrink-0 text-xs">{t("video.layer.opacity")}</Label>
