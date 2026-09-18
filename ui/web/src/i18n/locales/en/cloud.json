@@ -154,7 +154,10 @@
     "col_actions": "Actions",
     "scope_type": "Scope type",
     "rule_added": "Rule added",
-    "table_empty": "No rules yet"
+    "table_empty": "No rules yet",
+    "personal_accounts": "Personal accounts",
+    "shared_accounts": "Shared (business) accounts",
+    "accounts_explainer": "Personal = your own cloud accounts. Shared (business) = tenant-wide accounts, bound to groups/users with priority."
   },
   "detail": {
     "mail_btn": "Mailbox",

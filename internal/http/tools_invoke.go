@@ -151,6 +151,9 @@ func (h *ToolsInvokeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ag, err := h.agentStore.GetByKey(ctx, agentIDStr)
 		if err == nil {
 			ctx = store.WithAgentID(ctx, ag.ID)
+			// The per-agent file policy guard resolves the caller by agent
+			// key — without this the invoke API would fail open.
+			ctx = tools.WithToolAgentKey(ctx, agentIDStr)
 		}
 	}
 

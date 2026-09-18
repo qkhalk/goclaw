@@ -23,6 +23,7 @@ type WriteFileTool struct {
 	permStore       store.ConfigPermissionStore // nil = no group write restriction
 	workspaceIntc   *WorkspaceInterceptor       // nil = no team workspace validation
 	vaultIntc       *VaultInterceptor           // nil = no vault registration
+	filePolicy      *FilePolicyGuard            // nil = no per-agent file policy enforcement
 }
 
 // AllowPaths adds extra path prefixes that write_file is allowed to access
@@ -59,6 +60,14 @@ func (t *WriteFileTool) SetWorkspaceInterceptor(intc *WorkspaceInterceptor) {
 // SetVaultInterceptor enables vault document registration on file writes.
 func (t *WriteFileTool) SetVaultInterceptor(v *VaultInterceptor) {
 	t.vaultIntc = v
+}
+
+// SetFilePolicyGuard enables the per-agent file capability check. write_file
+// maps to the "write" action when the target file already exists and to
+// "create" when it does not (the registry only applies the coarse
+// write-or-create gate before this precise split runs).
+func (t *WriteFileTool) SetFilePolicyGuard(g *FilePolicyGuard) {
+	t.filePolicy = g
 }
 
 func NewWriteFileTool(workspace string, restrict bool) *WriteFileTool {
@@ -124,6 +133,18 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *Resul
 	// Group write permission check
 	if t.permStore != nil {
 		if err := store.CheckFileWriterPermission(ctx, t.permStore); err != nil {
+			return ErrorResult(err.Error())
+		}
+	}
+
+	// Per-agent file policy split: overwriting an existing file requires the
+	// "write" capability; creating a new file requires "create". This must
+	// run BEFORE any routing branch (context-file DB, memory virtual FS,
+	// sandbox) or those paths would bypass the split entirely. Existence is
+	// probed per destination: interceptors answer "handled" from ReadFile,
+	// host/sandbox share the workspace mount so a host stat classifies both.
+	if t.filePolicy != nil {
+		if err := t.filePolicy.Check(ctx, t.fileActionFor(ctx, path)); err != nil {
 			return ErrorResult(err.Error())
 		}
 	}
@@ -243,6 +264,35 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *Resul
 		}
 	}
 	return result
+}
+
+// fileActionFor classifies a write as FileActionWrite when the destination
+// currently exists (in the virtual FS that owns it, or on the host workspace
+// — the sandbox mounts the same workspace so a host stat sees sandbox files),
+// FileActionCreate otherwise.
+func (t *WriteFileTool) fileActionFor(ctx context.Context, path string) FileAction {
+	if !IsDelegationArtifactRun(ctx) {
+		if t.contextFileIntc != nil {
+			if _, handled, _ := t.contextFileIntc.ReadFile(ctx, path); handled {
+				return FileActionWrite
+			}
+		}
+		if t.memIntc != nil {
+			if _, handled, _ := t.memIntc.ReadFile(ctx, path); handled {
+				return FileActionWrite
+			}
+		}
+	}
+	workspace := ToolWorkspaceFromCtx(ctx)
+	if workspace == "" {
+		workspace = t.workspace
+	}
+	if resolved, err := resolvePathWithAllowed(path, workspace, effectiveRestrict(ctx, t.restrict), allowedWriteWithTeamWorkspace(ctx, t.allowedPrefixes)); err == nil {
+		if _, statErr := os.Stat(resolved); statErr == nil {
+			return FileActionWrite
+		}
+	}
+	return FileActionCreate
 }
 
 func (t *WriteFileTool) executeInSandbox(ctx context.Context, path, content, sandboxKey string, deliver, appendMode bool) *Result {

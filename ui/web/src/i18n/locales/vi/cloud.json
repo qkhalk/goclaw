@@ -154,7 +154,10 @@
     "col_actions": "Thao tác",
     "scope_type": "Loại phạm vi",
     "rule_added": "Đã thêm quy tắc",
-    "table_empty": "Chưa có quy tắc nào"
+    "table_empty": "Chưa có quy tắc nào",
+    "personal_accounts": "Tài khoản cá nhân",
+    "shared_accounts": "Tài khoản dùng chung (doanh nghiệp)",
+    "accounts_explainer": "Cá nhân = tài khoản cloud của riêng bạn. Dùng chung (doanh nghiệp) = tài khoản toàn tenant, gán cho nhóm/người dùng theo độ ưu tiên."
   },
   "detail": {
     "mail_btn": "Hộp thư",

@@ -154,7 +154,10 @@
     "col_actions": "작업",
     "scope_type": "범위 유형",
     "rule_added": "규칙이 추가되었습니다",
-    "table_empty": "규칙이 없습니다"
+    "table_empty": "규칙이 없습니다",
+    "personal_accounts": "개인 계정",
+    "shared_accounts": "공유(비즈니스) 계정",
+    "accounts_explainer": "개인 = 본인의 클라우드 계정. 공유(비즈니스) = 테넌트 전체 계정으로 그룹/사용자에 우선순위로 바인딩됩니다."
   },
   "detail": {
     "mail_btn": "메일함",

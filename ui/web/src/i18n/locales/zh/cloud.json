@@ -154,7 +154,10 @@
     "col_actions": "操作",
     "scope_type": "范围类型",
     "rule_added": "规则已添加",
-    "table_empty": "暂无规则"
+    "table_empty": "暂无规则",
+    "personal_accounts": "个人账户",
+    "shared_accounts": "共享（企业）账户",
+    "accounts_explainer": "个人 = 你自己的云账户。共享（企业）= 租户级账户，按优先级绑定到组/用户。"
   },
   "detail": {
     "mail_btn": "邮箱",

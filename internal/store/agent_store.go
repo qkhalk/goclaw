@@ -262,6 +262,23 @@ func (a *AgentData) ParseAllowImageGeneration() bool {
 	return *bag.AllowImageGeneration
 }
 
+// ParseFilePolicy returns the per-agent file/cloud capability toggles from
+// other_config.file_policy. The zero FilePolicy (all fields unset) means
+// allow-all, so agents without explicit config keep full file access.
+// No DB column — stored inside the existing other_config JSONB bag.
+func (a *AgentData) ParseFilePolicy() config.FilePolicy {
+	if len(a.OtherConfig) <= 2 {
+		return config.FilePolicy{}
+	}
+	var bag struct {
+		FilePolicy json.RawMessage `json:"file_policy"`
+	}
+	if json.Unmarshal(a.OtherConfig, &bag) != nil {
+		return config.FilePolicy{}
+	}
+	return config.ParseFilePolicy(bag.FilePolicy)
+}
+
 // ParseInboundDebounceMs returns the per-agent inbound debounce override.
 // Missing or malformed config means "inherit global gateway.inbound_debounce_ms".
 func (a *AgentData) ParseInboundDebounceMs() (int, bool) {

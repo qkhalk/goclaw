@@ -457,5 +457,10 @@ func init() {
 		MsgVideoJobDone:      "video render job %s completed",
 		MsgVideoDisabled:     "video rendering is not enabled on this gateway",
 		MsgVideoWorkerUnavail: "video worker is not reachable",
+
+		// Per-agent file/cloud capability policy
+		MsgFileReadDenied:   "File read is disabled for this agent by its file policy. An admin can enable it under agent settings → File & cloud permissions.",
+		MsgFileWriteDenied:  "File writes are disabled for this agent by its file policy. An admin can enable them under agent settings → File & cloud permissions.",
+		MsgFileCreateDenied: "Creating new files is disabled for this agent by its file policy. An admin can enable it under agent settings → File & cloud permissions.",
 	})
 }
