@@ -183,7 +183,8 @@
       "instances": "Instances",
       "permissions": "Permissions",
       "evolution": "Evolution",
-      "hooks": "Hooks"
+      "hooks": "Hooks",
+      "subagentDefs": "Subagents"
     },
     "summonFailed": "Summon Failed",
     "evolving": "Evolving",
@@ -1182,5 +1183,70 @@
     "skillGrantFailed": "Failed to grant skill",
     "skillRevoked": "Skill revoked",
     "skillRevokeFailed": "Failed to revoke skill"
+  },
+  "subagentDefs": {
+    "tab": "Subagents",
+    "title": "Subagent Definitions",
+    "description": "Named spawn templates the agent can launch via the spawn tool. Each definition pins its own model, allowed tools, system prompt, and workspace instructions.",
+    "add": "Add Definition",
+    "loading": "Loading definitions...",
+    "emptyTitle": "No subagent definitions",
+    "emptyDescription": "Create a reusable template so the agent can spawn specialized subagents by name.",
+    "badgeAgentsMd": "AGENTS.md",
+    "badgeTools": "{{count}} tools",
+    "dialog": {
+      "editTitle": "Edit Subagent Definition",
+      "createTitle": "New Subagent Definition",
+      "description": "The agent's LLM can spawn this subagent by name with the spawn tool (definition parameter)."
+    },
+    "form": {
+      "name": "Name",
+      "nameInvalid": "Name must be lowercase letters, numbers, hyphens or underscores",
+      "nameTaken": "A definition with this name already exists",
+      "model": "Model",
+      "provider": "Provider",
+      "modelInherit": "(inherit from agent)",
+      "loadingModels": "Loading models...",
+      "description": "Description",
+      "descriptionPlaceholder": "What is this subagent for?",
+      "allowedTools": "Allowed tools",
+      "allowedToolsHint": "Restrict which tools this subagent may use. Leave empty to allow all tools.",
+      "noToolsLoaded": "Tool list unavailable — tools remain unrestricted unless added above.",
+      "systemPrompt": "System prompt",
+      "systemPromptPlaceholder": "Instructions for the subagent. Replaces the default subagent prompt.",
+      "injectAgentsMd": "Inject AGENTS.md",
+      "injectAgentsMdHint": "Prepend the workspace AGENTS.md content to the subagent's system prompt.",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "nameLocked": "The name is fixed after creation (delete and re-create to rename)."
+    },
+    "toast": {
+      "created": "Subagent definition created",
+      "createFailed": "Failed to create subagent definition",
+      "updated": "Subagent definition updated",
+      "updateFailed": "Failed to update subagent definition",
+      "deleted": "Subagent definition deleted",
+      "deleteFailed": "Failed to delete subagent definition"
+    },
+    "delete": {
+      "title": "Delete Subagent Definition",
+      "description": "The agent will no longer be able to spawn \"{{name}}\". This cannot be undone."
+    },
+    "badgeTools_one": "{{count}} tool",
+    "badgeTools_other": "{{count}} tools"
+  },
+  "fileCloudPermissions": {
+    "title": "File & cloud permissions",
+    "description": "Choose what this agent may do with files. Cloud read tools follow file read access.",
+    "read": "Read files",
+    "readDesc": "List and read workspace files and connected cloud drives (read_file, list_files, cloud browse).",
+    "write": "Write files",
+    "writeDesc": "Modify existing file content (write_file to an existing path, edit).",
+    "create": "Create files",
+    "createDesc": "Create new files and folders (write_file to a new path).",
+    "save": "Save permissions",
+    "saving": "Saving…",
+    "saved": "File & cloud permissions updated"
   }
 }

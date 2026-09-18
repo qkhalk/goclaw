@@ -185,7 +185,8 @@
       "instances": "用户实例",
       "permissions": "权限",
       "evolution": "进化",
-      "hooks": "钩子"
+      "hooks": "钩子",
+      "subagentDefs": "子代理"
     },
     "summonFailed": "召唤失败",
     "evolving": "进化中",
@@ -1167,5 +1168,69 @@
     "skillGrantFailed": "授权技能失败",
     "skillRevoked": "技能已撤销",
     "skillRevokeFailed": "撤销技能失败"
+  },
+  "subagentDefs": {
+    "tab": "子代理",
+    "title": "子代理定义",
+    "description": "代理可通过 spawn 工具调用的具名生成模板。每个定义可固定自己的模型、允许的工具、系统提示词与工作区指令。",
+    "add": "添加定义",
+    "loading": "正在加载定义...",
+    "emptyTitle": "暂无子代理定义",
+    "emptyDescription": "创建可复用模板，让代理能按名称生成专用子代理。",
+    "badgeAgentsMd": "AGENTS.md",
+    "badgeTools": "{{count}} 个工具",
+    "dialog": {
+      "editTitle": "编辑子代理定义",
+      "createTitle": "新建子代理定义",
+      "description": "代理的 LLM 可通过 spawn 工具（definition 参数）按名称生成此子代理。"
+    },
+    "form": {
+      "name": "名称",
+      "nameInvalid": "名称只能包含小写字母、数字、连字符或下划线",
+      "nameTaken": "已存在同名定义",
+      "model": "模型",
+      "provider": "提供商",
+      "modelInherit": "（继承代理）",
+      "loadingModels": "正在加载模型...",
+      "description": "描述",
+      "descriptionPlaceholder": "这个子代理用来做什么？",
+      "allowedTools": "允许的工具",
+      "allowedToolsHint": "限制此子代理可使用的工具。留空表示允许全部工具。",
+      "noToolsLoaded": "工具列表不可用 — 除手动添加外不做限制。",
+      "systemPrompt": "系统提示词",
+      "systemPromptPlaceholder": "子代理的指令。将替换默认的子代理提示词。",
+      "injectAgentsMd": "注入 AGENTS.md",
+      "injectAgentsMdHint": "将工作区 AGENTS.md 内容前置到子代理的系统提示词。",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中...",
+      "nameLocked": "名称在创建后不可更改（如需重命名请删除后重新创建）。"
+    },
+    "toast": {
+      "created": "子代理定义已创建",
+      "createFailed": "创建子代理定义失败",
+      "updated": "子代理定义已更新",
+      "updateFailed": "更新子代理定义失败",
+      "deleted": "子代理定义已删除",
+      "deleteFailed": "删除子代理定义失败"
+    },
+    "delete": {
+      "title": "删除子代理定义",
+      "description": "代理将无法再生成“{{name}}”。此操作无法撤销。"
+    },
+    "badgeTools_other": "{{count}} 个工具"
+  },
+  "fileCloudPermissions": {
+    "title": "文件与云权限",
+    "description": "选择此 Agent 可以对文件执行的操作。云读取工具受文件读取权限限制。",
+    "read": "读取文件",
+    "readDesc": "列出并读取工作区文件和已连接的云盘（read_file、list_files、云盘浏览）。",
+    "write": "写入文件",
+    "writeDesc": "修改现有文件内容（对已有路径使用 write_file、edit）。",
+    "create": "创建文件",
+    "createDesc": "创建新文件和文件夹（对新路径使用 write_file）。",
+    "save": "保存权限",
+    "saving": "保存中…",
+    "saved": "文件与云权限已更新"
   }
 }

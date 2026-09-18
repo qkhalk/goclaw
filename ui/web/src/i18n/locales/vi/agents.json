@@ -185,7 +185,8 @@
       "instances": "Phiên bản người dùng",
       "permissions": "Phân quyền",
       "evolution": "Tiến Hóa",
-      "hooks": "Hooks"
+      "hooks": "Hooks",
+      "subagentDefs": "Subagent"
     },
     "summonFailed": "Triệu hồi thất bại",
     "evolving": "Đang tiến hóa",
@@ -1167,5 +1168,69 @@
     "skillGrantFailed": "Không thể cấp skill",
     "skillRevoked": "Đã thu hồi skill",
     "skillRevokeFailed": "Không thể thu hồi skill"
+  },
+  "subagentDefs": {
+    "tab": "Subagent",
+    "title": "Định nghĩa Subagent",
+    "description": "Mẫu khởi tạo có tên mà agent có thể gọi qua công cụ spawn. Mỗi định nghĩa cố định model, danh sách tool được phép, system prompt và hướng dẫn workspace riêng.",
+    "add": "Thêm định nghĩa",
+    "loading": "Đang tải định nghĩa...",
+    "emptyTitle": "Chưa có định nghĩa subagent",
+    "emptyDescription": "Tạo một mẫu tái sử dụng để agent có thể khởi tạo subagent chuyên biệt theo tên.",
+    "badgeAgentsMd": "AGENTS.md",
+    "badgeTools": "{{count}} tools",
+    "dialog": {
+      "editTitle": "Sửa định nghĩa subagent",
+      "createTitle": "Định nghĩa subagent mới",
+      "description": "LLM của agent có thể khởi tạo subagent này theo tên qua công cụ spawn (tham số definition)."
+    },
+    "form": {
+      "name": "Tên",
+      "nameInvalid": "Tên chỉ gồm chữ thường, số, dấu gạch ngang hoặc gạch dưới",
+      "nameTaken": "Đã tồn tại định nghĩa với tên này",
+      "model": "Model",
+      "provider": "Nhà cung cấp",
+      "modelInherit": "(kế thừa từ agent)",
+      "loadingModels": "Đang tải model...",
+      "description": "Mô tả",
+      "descriptionPlaceholder": "Subagent này dùng để làm gì?",
+      "allowedTools": "Tool được phép",
+      "allowedToolsHint": "Giới hạn tool mà subagent được dùng. Để trống để cho phép tất cả.",
+      "noToolsLoaded": "Không tải được danh sách tool — tool vẫn không bị giới hạn trừ khi thêm ở trên.",
+      "systemPrompt": "System prompt",
+      "systemPromptPlaceholder": "Hướng dẫn cho subagent. Thay thế prompt subagent mặc định.",
+      "injectAgentsMd": "Chèn AGENTS.md",
+      "injectAgentsMdHint": "Chèn nội dung AGENTS.md của workspace vào đầu system prompt của subagent.",
+      "cancel": "Hủy",
+      "save": "Lưu",
+      "saving": "Đang lưu...",
+      "nameLocked": "Tên cố định sau khi tạo (xóa rồi tạo lại để đổi tên)."
+    },
+    "toast": {
+      "created": "Đã tạo định nghĩa subagent",
+      "createFailed": "Không thể tạo định nghĩa subagent",
+      "updated": "Đã cập nhật định nghĩa subagent",
+      "updateFailed": "Không thể cập nhật định nghĩa subagent",
+      "deleted": "Đã xóa định nghĩa subagent",
+      "deleteFailed": "Không thể xóa định nghĩa subagent"
+    },
+    "delete": {
+      "title": "Xóa định nghĩa subagent",
+      "description": "Agent sẽ không thể khởi tạo \"{{name}}\" nữa. Hành động này không thể hoàn tác."
+    },
+    "badgeTools_other": "{{count}} công cụ"
+  },
+  "fileCloudPermissions": {
+    "title": "Quyền tệp & đám mây",
+    "description": "Chọn agent này được làm gì với tệp. Công cụ đọc đám mây tuân theo quyền đọc tệp.",
+    "read": "Đọc tệp",
+    "readDesc": "Liệt kê và đọc tệp trong workspace và các đám mây đã kết nối (read_file, list_files, duyệt đám mây).",
+    "write": "Ghi tệp",
+    "writeDesc": "Sửa nội dung tệp đã có (write_file vào tệp hiện có, edit).",
+    "create": "Tạo tệp",
+    "createDesc": "Tạo tệp và thư mục mới (write_file vào đường dẫn mới).",
+    "save": "Lưu quyền",
+    "saving": "Đang lưu…",
+    "saved": "Đã cập nhật quyền tệp & đám mây"
   }
 }

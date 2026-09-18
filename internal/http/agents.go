@@ -204,6 +204,12 @@ func (h *AgentsHandler) RegisterRoutes(mux *http.ServeMux) {
 	// Instance writes (admin+)
 	mux.HandleFunc("PUT /v1/agents/{id}/instances/{userID}/files/{fileName}", h.adminMiddleware(h.handleSetInstanceFile))
 	mux.HandleFunc("PATCH /v1/agents/{id}/instances/{userID}/metadata", h.adminMiddleware(h.handleUpdateInstanceMetadata))
+	// Subagent definitions (read: viewer+, write: admin+). Stored in the
+	// agent's subagents_config JSONB — no dedicated table.
+	mux.HandleFunc("GET /v1/agents/{id}/subagent-definitions", h.authMiddleware(h.handleListSubagentDefinitions))
+	mux.HandleFunc("POST /v1/agents/{id}/subagent-definitions", h.adminMiddleware(h.handleCreateSubagentDefinition))
+	mux.HandleFunc("PUT /v1/agents/{id}/subagent-definitions/{name}", h.adminMiddleware(h.handleUpdateSubagentDefinition))
+	mux.HandleFunc("DELETE /v1/agents/{id}/subagent-definitions/{name}", h.adminMiddleware(h.handleDeleteSubagentDefinition))
 }
 
 func (h *AgentsHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -467,6 +473,20 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Defense-in-depth against column injection via arbitrary JSON keys.
 	allowed := filterAllowedKeys(updates, agentAllowedFields)
 	allowed["restrict_to_workspace"] = true
+
+	// Subagent definitions live inside subagents_config JSONB. A caller
+	// writing the config without a "definitions" key (e.g. the Overview tab
+	// saving its stale copy, or null when subagents were never enabled
+	// there) must never wipe definitions created via the dedicated CRUD —
+	// merge the stored definitions back in.
+	if sub, ok := allowed["subagents_config"]; ok {
+		merged, merr := mergeSubagentDefinitions(ag, sub)
+		if merr != nil {
+			writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidJSON))
+			return
+		}
+		allowed["subagents_config"] = merged
+	}
 
 	// If agent_key is being changed, enforce the slug format. The router
 	// cache uses `tenantID:agentKey` as its canonical key and splits on the
@@ -733,4 +753,239 @@ func (h *AgentsHandler) handleSyncWorkspace(w http.ResponseWriter, r *http.Reque
 	slog.Info("agents.sync_workspace: completed", "updated", updated, "total", len(agents), "workspace", newWorkspace)
 	emitAudit(h.msgBus, r, "agents.workspace_synced", "updated", strconv.Itoa(updated))
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "updated": updated})
+}
+
+// --- Subagent definitions CRUD ---
+// Definitions live inside the agent's subagents_config JSONB under the
+// "definitions" key (config.SubagentsConfig.Definitions). No dedicated table.
+
+const (
+	maxSubagentDefinitions  = 20
+	maxDefSystemPromptChars = 20000
+	maxDefDescriptionChars  = 1000
+	maxDefAllowedTools      = 100
+	subagentDefEntity       = "subagent definition"
+)
+
+// loadAgentForSubagentDefs parses the agent id, loads the agent within the
+// caller's tenant, and enforces the tenant-scope guard (same pattern as
+// handleUpdate). Returns (agent, locale, ok).
+func (h *AgentsHandler) loadAgentForSubagentDefs(w http.ResponseWriter, r *http.Request) (*store.AgentData, string, bool) {
+	locale := store.LocaleFromContext(r.Context())
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "agent"))
+		return nil, locale, false
+	}
+	ag, err := h.agents.GetByID(r.Context(), id)
+	if err != nil || ag == nil {
+		writeError(w, http.StatusNotFound, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "agent", r.PathValue("id")))
+		return nil, locale, false
+	}
+	if ag.TenantID != store.TenantIDFromContext(r.Context()) {
+		writeError(w, http.StatusNotFound, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "agent", id.String()))
+		return nil, locale, false
+	}
+	return ag, locale, true
+}
+
+// parseSubagentDefBody parses and validates a subagent definition request body.
+func parseSubagentDefBody(w http.ResponseWriter, r *http.Request, locale string) (*config.SubagentDefinition, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	var def config.SubagentDefinition
+	if !bindJSON(w, r, locale, &def) {
+		return nil, false
+	}
+	def.Name = strings.TrimSpace(def.Name)
+	if !isValidSlug(strings.ReplaceAll(def.Name, "_", "-")) {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest,
+			i18n.T(locale, i18n.MsgInvalidSlug, "name"))
+		return nil, false
+	}
+	def.Model = strings.TrimSpace(def.Model)
+	def.Description = strings.TrimSpace(def.Description)
+	if len(def.Description) > maxDefDescriptionChars {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest,
+			i18n.T(locale, i18n.MsgInvalidRequest, fmt.Sprintf("description must be at most %d characters", maxDefDescriptionChars)))
+		return nil, false
+	}
+	if len(def.SystemPrompt) > maxDefSystemPromptChars {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest,
+			i18n.T(locale, i18n.MsgInvalidRequest, fmt.Sprintf("systemPrompt must be at most %d characters", maxDefSystemPromptChars)))
+		return nil, false
+	}
+	tools := make([]string, 0, len(def.AllowedTools))
+	for _, name := range def.AllowedTools {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			tools = append(tools, name)
+		}
+	}
+	if len(tools) > maxDefAllowedTools {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest,
+			i18n.T(locale, i18n.MsgInvalidRequest, fmt.Sprintf("allowedTools must contain at most %d entries", maxDefAllowedTools)))
+		return nil, false
+	}
+	def.AllowedTools = tools
+	return &def, true
+}
+
+// mergeSubagentDefinitions guards the definitions sub-key when a caller
+// overwrites subagents_config wholesale: incoming configs that simply omit
+// "definitions" (or are nil) keep the agent's stored definitions.
+func mergeSubagentDefinitions(ag *store.AgentData, incoming any) (json.RawMessage, error) {
+	if cfgMap, ok := incoming.(map[string]any); ok {
+		if _, exists := cfgMap["definitions"]; exists {
+			return marshalJSONRaw(incoming) // caller manages definitions explicitly
+		}
+	}
+	// Rebuild from the stored config so its definitions survive, overlaying
+	// the incoming knobs (enabled, concurrency, ...).
+	stored := ag.ParseSubagentsConfig()
+	if stored == nil {
+		stored = &config.SubagentsConfig{}
+	}
+	defs := stored.Definitions
+	var base map[string]any
+	if incoming != nil {
+		raw, err := json.Marshal(incoming)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &base); err != nil {
+			return nil, err
+		}
+	} else {
+		base = map[string]any{}
+	}
+	base["definitions"] = defs
+	return json.Marshal(base)
+}
+
+// loadSubagentDefinitions returns the agent's definitions slice (nil-safe).
+func loadSubagentDefinitions(ag *store.AgentData) []config.SubagentDefinition {
+	cfg := ag.ParseSubagentsConfig()
+	if cfg == nil {
+		return nil
+	}
+	return cfg.Definitions
+}
+
+// persistSubagentDefinitions writes the updated definitions back into the
+// agent's subagents_config JSONB, invalidates caches, and emits an audit event.
+func (h *AgentsHandler) persistSubagentDefinitions(w http.ResponseWriter, r *http.Request, ag *store.AgentData, defs []config.SubagentDefinition, locale string) bool {
+	cfg := ag.ParseSubagentsConfig()
+	if cfg == nil {
+		cfg = &config.SubagentsConfig{}
+	}
+	cfg.Definitions = defs
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, protocol.ErrInternal, i18n.T(locale, i18n.MsgInternalError))
+		return false
+	}
+	if err := h.agents.Update(r.Context(), ag.ID, map[string]any{"subagents_config": raw}); err != nil {
+		slog.Error("agents.subagent_definitions.persist", "agent_id", ag.ID, "error", err)
+		writeError(w, http.StatusInternalServerError, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToUpdate, subagentDefEntity, err.Error()))
+		return false
+	}
+	h.emitCacheInvalidate(bus.CacheKindAgent, ag.AgentKey)
+	emitAudit(h.msgBus, r, "agent.subagent_definitions_updated", "agent", ag.ID.String())
+	return true
+}
+
+func (h *AgentsHandler) handleListSubagentDefinitions(w http.ResponseWriter, r *http.Request) {
+	ag, _, ok := h.loadAgentForSubagentDefs(w, r)
+	if !ok {
+		return
+	}
+	defs := loadSubagentDefinitions(ag)
+	if defs == nil {
+		defs = []config.SubagentDefinition{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"definitions": defs})
+}
+
+func (h *AgentsHandler) handleCreateSubagentDefinition(w http.ResponseWriter, r *http.Request) {
+	ag, locale, ok := h.loadAgentForSubagentDefs(w, r)
+	if !ok {
+		return
+	}
+	def, ok := parseSubagentDefBody(w, r, locale)
+	if !ok {
+		return
+	}
+	defs := loadSubagentDefinitions(ag)
+	if len(defs) >= maxSubagentDefinitions {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest,
+			i18n.T(locale, i18n.MsgInvalidRequest, fmt.Sprintf("at most %d subagent definitions per agent", maxSubagentDefinitions)))
+		return
+	}
+	for _, existing := range defs {
+		if existing.Name == def.Name {
+			writeError(w, http.StatusConflict, protocol.ErrAlreadyExists, i18n.T(locale, i18n.MsgAlreadyExists, subagentDefEntity, def.Name))
+			return
+		}
+	}
+	if !h.persistSubagentDefinitions(w, r, ag, append(defs, *def), locale) {
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"definition": def})
+}
+
+func (h *AgentsHandler) handleUpdateSubagentDefinition(w http.ResponseWriter, r *http.Request) {
+	ag, locale, ok := h.loadAgentForSubagentDefs(w, r)
+	if !ok {
+		return
+	}
+	name := r.PathValue("name")
+	def, ok := parseSubagentDefBody(w, r, locale)
+	if !ok {
+		return
+	}
+	defs := loadSubagentDefinitions(ag)
+	found := false
+	for i := range defs {
+		if defs[i].Name == name {
+			// Keep the original name stable — it is the lookup key used by spawn.
+			def.Name = name
+			defs[i] = *def
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, subagentDefEntity, name))
+		return
+	}
+	if !h.persistSubagentDefinitions(w, r, ag, defs, locale) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"definition": def})
+}
+
+func (h *AgentsHandler) handleDeleteSubagentDefinition(w http.ResponseWriter, r *http.Request) {
+	ag, locale, ok := h.loadAgentForSubagentDefs(w, r)
+	if !ok {
+		return
+	}
+	name := r.PathValue("name")
+	defs := loadSubagentDefinitions(ag)
+	updated := defs[:0:0]
+	found := false
+	for _, existing := range defs {
+		if existing.Name == name {
+			found = true
+			continue
+		}
+		updated = append(updated, existing)
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, subagentDefEntity, name))
+		return
+	}
+	if !h.persistSubagentDefinitions(w, r, ag, updated, locale) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
