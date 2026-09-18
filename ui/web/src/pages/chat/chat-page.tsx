@@ -23,9 +23,6 @@ import { TerminalPanel } from "@/components/chat/terminal-panel";
 import { BrowserPanel } from "@/components/chat/browser-panel";
 import { useBrowserPanel } from "./hooks/use-browser-panel";
 
-/** Widening the right pane must never squeeze the chat column below this. */
-const MIN_CHAT_COLUMN_PX = 360;
-
 export function ChatPage() {
   const { t } = useTranslation("chat");
   const { sessionKey: urlSessionKey } = useParams<{ sessionKey: string }>();
