@@ -1,0 +1,9 @@
+{
+  "name": "media-probe",
+  "display_name": "Media Probe",
+  "description": "Read image/video/audio metadata via ffprobe — duration, codec, resolution, bitrate, stream layout — as clean JSON for agents.",
+  "category": "media",
+  "runtime": "node",
+  "entry": "src/index.js",
+  "ram_note": "~60MB when running, lazy-started"
+}
