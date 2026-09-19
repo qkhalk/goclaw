@@ -21,6 +21,12 @@ type Runner struct {
 	cfg  WorkerConfig
 	mu   sync.Mutex
 	jobs map[string]*jobState
+	// renderSema serializes renders. Two concurrent ffmpeg filter graphs
+	// each address ~1GB of virtual frame buffers — on the 1 vCPU / 512MB
+	// boxes this worker targets that is a swap-death spiral (renders taking
+	// minutes per second of video). One render at a time; extra submissions
+	// wait queued.
+	renderSema chan struct{}
 }
 
 // narrationTailSec is the breathing room added when a scene is stretched to
@@ -68,8 +74,9 @@ func NewRunner(cfg WorkerConfig) *Runner {
 		cfg.MaxQueue = 5
 	}
 	return &Runner{
-		cfg:  cfg,
-		jobs: make(map[string]*jobState),
+		cfg:        cfg,
+		jobs:       make(map[string]*jobState),
+		renderSema: make(chan struct{}, 1),
 	}
 }
 
@@ -160,6 +167,25 @@ func (r *Runner) ActiveJobs() int {
 	return count
 }
 
+// ActiveWorkDirs lists the temp dirs of jobs still queued or rendering.
+// The periodic cleanup sweep passes these in so an age-based sweep can
+// never delete an in-flight job's working set (a scene render that hangs
+// for hours keeps the dir old but very much alive).
+func (r *Runner) ActiveWorkDirs() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var dirs []string
+	for id, js := range r.jobs {
+		js.mu.Lock()
+		active := js.Status == contract.JobQueued || js.Status == contract.JobRendering
+		js.mu.Unlock()
+		if active {
+			dirs = append(dirs, filepath.Join(r.cfg.WorkDir, tempPrefix+id))
+		}
+	}
+	return dirs
+}
+
 // runJob executes the full rendering pipeline for a single job.
 func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 	start := time.Now()
@@ -169,6 +195,18 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 	js.mu.Lock()
 	js.cancel = cancel
 	js.mu.Unlock()
+
+	// One render at a time — see renderSema. Waiting jobs keep their queued
+	// status; a cancellation while queued wakes the wait.
+	select {
+	case r.renderSema <- struct{}{}:
+		defer func() { <-r.renderSema }()
+	case <-ctx.Done():
+		js.mu.Lock()
+		js.Status = contract.JobCancelled
+		js.mu.Unlock()
+		return
+	}
 
 	// Create temp dir for this job
 	tempDir, err := NewTempDir(r.cfg.WorkDir, job.JobID)
