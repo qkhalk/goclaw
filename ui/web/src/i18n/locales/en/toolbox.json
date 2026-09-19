@@ -297,7 +297,21 @@
       "hint": "WAV, MP3, M4A… — at least 5 seconds, 30–60s recommended, max 16MB.",
       "submit": "Register voice",
       "success": "Voice registered — pick it from the voice list",
-      "failed": "Could not register voice: {{msg}}"
+      "failed": "Could not register voice: {{msg}}",
+      "tab_record": "Record",
+      "tab_upload": "Upload file",
+      "recording": "Recording… {{secs}}s — tap to stop",
+      "recorded": "Recorded ✓ (re-record clears it)",
+      "record_start": "Start recording",
+      "mic_denied": "Microphone access was denied",
+      "too_large": "File exceeds 16MB",
+      "base_voice": "Reading voice (base)",
+      "base_voice_hint": "Sentences are read with this voice, then re-timbred to yours.",
+      "progress": "Extracting voice fingerprint… {{pct}}%",
+      "delete": "Delete voice",
+      "also_server": "Also register on the server (render pipeline)",
+      "server_failed": "Server registration failed — the voice works for preview only",
+      "unavailable": "browser voice engine is not available yet — plain voices still work"
     },
     "studio": {
       "untitled_project": "Untitled project",

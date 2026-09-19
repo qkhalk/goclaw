@@ -93,7 +93,7 @@ importers:
         specifier: ^11.14.0
         version: 11.14.0
       onnxruntime-web:
-        specifier: ^1.30.0
+        specifier: 1.30.0
         version: 1.30.0
       pptxgenjs:
         specifier: ^4.0.1

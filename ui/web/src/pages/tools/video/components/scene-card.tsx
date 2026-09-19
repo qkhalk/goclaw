@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Trash2,
@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CloneVoiceDialog } from "./clone-voice-dialog";
+import { listVoices as listLocalCloneVoices } from "@/lib/voice-clone";
 import { useTtsCapabilities } from "@/api/tts-capabilities";
 import { toast } from "@/stores/use-toast-store";
 import { TRANSITION_TYPES } from "./scene-transition";
@@ -133,6 +134,28 @@ export function SceneCard({
     () => capabilities?.find((p) => p.provider === "clone")?.voices ?? [],
     [capabilities],
   );
+  // Locally registered clone voices (IndexedDB, browser-side pipeline) must
+  // stay selectable across scenes and after a reload — the server capability
+  // list only knows voices uploaded to the worker. Refreshed when the register
+  // dialog closes.
+  const [localClones, setLocalClones] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!cloneDialogOpen) {
+      void listLocalCloneVoices()
+        .then((vs) => setLocalClones(vs.map((v) => ({ id: v.id, name: v.name }))))
+        .catch(() => setLocalClones([]));
+    }
+  }, [cloneDialogOpen]);
+  // Merge, dropping local entries whose id already exists server-side.
+  const clonePickerVoices = useMemo(() => {
+    const serverIds = new Set(cloneVoices.map((v) => v.voice_id));
+    return [
+      ...cloneVoices.map((v) => ({ voice_id: v.voice_id, name: v.name || v.voice_id })),
+      ...localClones
+        .filter((v) => !serverIds.has(v.id))
+        .map((v) => ({ voice_id: v.id, name: v.name || v.id })),
+    ];
+  }, [cloneVoices, localClones]);
 
   /** Play the scene's narration through real TTS (shared cache with the
    * player preview); second click stops. */
@@ -1016,14 +1039,14 @@ export function SceneCard({
                   {v.name || v.voice_id}
                 </SelectItem>
               ))}
-              {cloneVoices.length > 0 && (
+              {clonePickerVoices.length > 0 && (
                 <>
                   <SelectSeparator />
                   <SelectGroup>
                     <SelectLabel>{t("video.clone_voice.group")}</SelectLabel>
-                    {cloneVoices.map((v) => (
+                    {clonePickerVoices.map((v) => (
                       <SelectItem key={v.voice_id} value={`clone:${v.voice_id}`}>
-                        {v.name || v.voice_id}
+                        {v.name}
                       </SelectItem>
                     ))}
                   </SelectGroup>

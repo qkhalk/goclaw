@@ -297,7 +297,21 @@
       "hint": "WAV, MP3, M4A… — tối thiểu 5 giây, khuyến nghị 30–60 giây, tối đa 16MB.",
       "submit": "Đăng ký giọng",
       "success": "Đã đăng ký giọng — chọn nó trong danh sách giọng",
-      "failed": "Không thể đăng ký giọng: {{msg}}"
+      "failed": "Không thể đăng ký giọng: {{msg}}",
+      "tab_record": "Ghi âm",
+      "tab_upload": "Tải tệp lên",
+      "recording": "Đang ghi… {{secs}}s — chạm để dừng",
+      "recorded": "Đã ghi ✓ (ghi lại sẽ xóa bản cũ)",
+      "record_start": "Bắt đầu ghi âm",
+      "mic_denied": "Truy cập micrô bị từ chối",
+      "too_large": "Tệp vượt quá 16MB",
+      "base_voice": "Giọng đọc (cơ sở)",
+      "base_voice_hint": "Câu đọc sẽ được đọc bằng giọng này, sau đó chuyển sang giọng của bạn.",
+      "progress": "Đang trích xuất vân thoại… {{pct}}%",
+      "delete": "Xóa giọng",
+      "also_server": "Đồng thời đăng ký lên máy chủ (pipeline render)",
+      "server_failed": "Đăng ký lên máy chủ thất bại — giọng chỉ dùng để xem trước",
+      "unavailable": "thư viện giọng đọc trên trình duyệt chưa khả dụng — giọng thường vẫn hoạt động"
     },
     "studio": {
       "untitled_project": "Dự án chưa đặt tên",

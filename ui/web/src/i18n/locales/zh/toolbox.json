@@ -297,7 +297,21 @@
       "hint": "WAV、MP3、M4A… — 至少 5 秒，建议 30–60 秒，最大 16MB。",
       "submit": "注册声音",
       "success": "声音已注册 — 请在声音列表中选择",
-      "failed": "注册声音失败：{{msg}}"
+      "failed": "注册声音失败：{{msg}}",
+      "tab_record": "录音",
+      "tab_upload": "上传文件",
+      "recording": "录音中… {{secs}} 秒 — 点按停止",
+      "recorded": "已录制 ✓（重新录制将覆盖）",
+      "record_start": "开始录音",
+      "mic_denied": "麦克风访问被拒绝",
+      "too_large": "文件超过 16MB",
+      "base_voice": "朗读语音（基础）",
+      "base_voice_hint": "句子先用此语音朗读，再转换为你的音色。",
+      "progress": "正在提取声纹… {{pct}}%",
+      "delete": "删除语音",
+      "also_server": "同时注册到服务器（渲染管线）",
+      "server_failed": "服务器注册失败 — 该语音仅可用于预览",
+      "unavailable": "浏览器语音引擎尚不可用 — 普通语音仍可使用"
     },
     "studio": {
       "untitled_project": "未命名项目",

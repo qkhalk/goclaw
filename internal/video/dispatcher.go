@@ -3,9 +3,13 @@ package video
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,13 +24,13 @@ import (
 // into the workspace, and broadcasts WS events on status changes.
 // Lifecycle: Start launches the goroutine; Stop signals shutdown and waits.
 type Dispatcher struct {
-	cfg         *config.VideoConfig
-	store       store.VideoRenderJobStore
-	worker      *WorkerClient
-	eventPub    bus.EventPublisher
-	workspace   string
-	signal      chan struct{}
-	done        chan struct{}
+	cfg       *config.VideoConfig
+	store     store.VideoRenderJobStore
+	worker    *WorkerClient
+	eventPub  bus.EventPublisher
+	workspace string
+	signal    chan struct{}
+	done      chan struct{}
 }
 
 // NewDispatcher creates a Dispatcher. The workspace is the root directory
@@ -138,6 +142,11 @@ func (d *Dispatcher) submitJob(ctx context.Context, job *store.VideoRenderJob) {
 		JobID:      job.ID,
 		Storyboard: &sb,
 		AssetsDir:  d.assetsDir(job.ID),
+		// Client-uploaded narration (POST /v1/video/narration) lands in the
+		// job's assets dir as narration-<scene>.<ext>. Nil when nothing was
+		// uploaded — the field is omitempty on the wire, so jobs without
+		// uploads produce byte-identical worker payloads.
+		Narration: d.narrationRefs(job.ID),
 	}
 
 	resp, err := d.worker.SubmitJob(ctx, submit)
@@ -341,6 +350,95 @@ func (d *Dispatcher) broadcastEvent(jobID, status string, progress int, outputPa
 // assetsDir returns the local directory for a job's mirrored assets.
 func (d *Dispatcher) assetsDir(jobID string) string {
 	return filepath.Join(d.workspace, ".video-assets", jobID)
+}
+
+// SaveNarration stores a client-uploaded narration clip for one scene of a
+// job (written by POST /v1/video/narration) inside the job's assets dir and
+// returns the absolute path handed to the worker via SubmitJob.Narration.
+// The worker's Materialize resolves absolute paths as-is, so shared-filesystem
+// deployments work without any asset sync.
+func (d *Dispatcher) SaveNarration(jobID string, sceneIndex int, ext string, data []byte) (string, error) {
+	dir := d.assetsDir(jobID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("narration assets dir: %w", err)
+	}
+	name := "narration-" + strconv.Itoa(sceneIndex) + "." + ext
+	p := filepath.Join(dir, name)
+	if err := os.WriteFile(p, data, 0o644); err != nil {
+		return "", fmt.Errorf("narration write: %w", err)
+	}
+	return p, nil
+}
+
+// NarrationJob reports the tenant-scoped existence and lifecycle status of a
+// render job for the narration upload endpoint. The store Get is context-
+// scoped, so unknown and cross-tenant ids both return ok=false (no existence
+// oracle across tenants). A nil store (unwired dispatcher) reports not-found.
+func (d *Dispatcher) NarrationJob(ctx context.Context, jobID string) (status string, ok bool) {
+	if d.store == nil {
+		return "", false
+	}
+	job, err := d.store.Get(ctx, jobID)
+	if err != nil || job == nil {
+		return "", false
+	}
+	return job.Status, true
+}
+
+// narrationRefs scans a job's assets dir for uploaded narration clips and
+// builds SubmitJob.Narration entries, sorted by scene index. One entry per
+// scene: duplicate uploads for the same index resolve deterministically to
+// the lexicographically-first filename (e.g. narration-2.mp3 beats .wav).
+// Returns nil when nothing was uploaded (or the dir does not exist yet),
+// keeping the worker payload byte-identical to pre-upload jobs.
+//
+// TODO(render-remote): remote workers cannot see gateway-local paths; until an
+// asset-sync pass exists, uploaded narration only renders on shared-filesystem
+// worker deployments (the worker logs "narration materialize failed, skipping"
+// and falls back to on-the-fly synthesis otherwise).
+func (d *Dispatcher) narrationRefs(jobID string) []NarrationAudio {
+	entries, err := os.ReadDir(d.assetsDir(jobID))
+	if err != nil {
+		return nil
+	}
+	var refs []NarrationAudio
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		rest, ok := strings.CutPrefix(name, "narration-")
+		if !ok {
+			continue
+		}
+		dot := strings.LastIndex(rest, ".")
+		if dot <= 0 {
+			continue
+		}
+		idx, err := strconv.Atoi(rest[:dot])
+		if err != nil || idx < 0 || idx >= maxScenes {
+			continue
+		}
+		refs = append(refs, NarrationAudio{
+			SceneIndex: idx,
+			AudioPath:  filepath.Join(d.assetsDir(jobID), name),
+		})
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].SceneIndex == refs[j].SceneIndex {
+			return refs[i].AudioPath < refs[j].AudioPath
+		}
+		return refs[i].SceneIndex < refs[j].SceneIndex
+	})
+	// Dedupe by scene index, keeping the first (lexicographically-first name).
+	out := refs[:0]
+	for i, ref := range refs {
+		if i > 0 && refs[i-1].SceneIndex == ref.SceneIndex {
+			continue
+		}
+		out = append(out, ref)
+	}
+	return out
 }
 
 // copyFile copies a file from src to dst, creating parent dirs as needed.
