@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	cloneaudio "github.com/nextlevelbuilder/goclaw/internal/audio/clone"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/elevenlabs"
 	geminiaudio "github.com/nextlevelbuilder/goclaw/internal/audio/gemini"
 	minimaxaudio "github.com/nextlevelbuilder/goclaw/internal/audio/minimax"
@@ -344,6 +345,19 @@ func setupTTS(cfg *config.Config) *tts.Manager {
 			Model:     ttsCfg.Gemini.Model,
 			TimeoutMs: ttsCfg.TimeoutMs,
 		}))
+	}
+
+	// Self-hosted voice-clone worker (contrib/voiceclone). Endpoint is the
+	// enable switch — inference runs on the worker machine, the gateway only
+	// proxies, so no resource gating is needed here.
+	if ep := ttsCfg.Clone.Endpoint; ep != "" {
+		mgr.RegisterProvider(cloneaudio.NewProvider(cloneaudio.Config{
+			Endpoint:  ep,
+			APIKey:    ttsCfg.Clone.APIKey,
+			Voice:     ttsCfg.Clone.Voice,
+			TimeoutMs: ttsCfg.TimeoutMs,
+		}))
+		slog.Info("audio.tts: clone worker registered", "endpoint", ep)
 	}
 
 	if !mgr.HasProviders() {

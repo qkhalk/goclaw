@@ -60,6 +60,7 @@ func (c *Config) MaskedCopy() *Config {
 	maskNonEmpty(&cp.Tts.OpenAI.APIKey)
 	maskNonEmpty(&cp.Tts.ElevenLabs.APIKey)
 	maskNonEmpty(&cp.Tts.MiniMax.APIKey)
+	maskNonEmpty(&cp.Tts.Clone.APIKey)
 
 	// Mask Tailscale auth key
 	maskNonEmpty(&cp.Tailscale.AuthKey)
@@ -110,6 +111,7 @@ func (c *Config) StripSecrets() {
 	c.Tts.OpenAI.APIKey = ""
 	c.Tts.ElevenLabs.APIKey = ""
 	c.Tts.MiniMax.APIKey = ""
+	c.Tts.Clone.APIKey = ""
 
 	// Tailscale auth key
 	c.Tailscale.AuthKey = ""
@@ -165,6 +167,7 @@ func (c *Config) StripMaskedSecrets() {
 	stripIfMasked(&c.Tts.OpenAI.APIKey)
 	stripIfMasked(&c.Tts.ElevenLabs.APIKey)
 	stripIfMasked(&c.Tts.MiniMax.APIKey)
+	stripIfMasked(&c.Tts.Clone.APIKey)
 
 	// Tailscale auth key
 	stripIfMasked(&c.Tailscale.AuthKey)
@@ -186,6 +189,7 @@ func (c *Config) ApplyDBSecrets(secrets map[string]string) {
 	apply("tts.elevenlabs.api_key", &c.Tts.ElevenLabs.APIKey)
 	apply("tts.minimax.api_key", &c.Tts.MiniMax.APIKey)
 	apply("tts.minimax.group_id", &c.Tts.MiniMax.GroupID)
+	apply("tts.clone.api_key", &c.Tts.Clone.APIKey)
 	apply("tailscale.auth_key", &c.Tailscale.AuthKey)
 }
 
@@ -206,6 +210,7 @@ func (c *Config) ExtractDBSecrets() map[string]string {
 	collect("tts.elevenlabs.api_key", c.Tts.ElevenLabs.APIKey)
 	collect("tts.minimax.api_key", c.Tts.MiniMax.APIKey)
 	collect("tts.minimax.group_id", c.Tts.MiniMax.GroupID)
+	collect("tts.clone.api_key", c.Tts.Clone.APIKey)
 	collect("tailscale.auth_key", c.Tailscale.AuthKey)
 
 	return secrets

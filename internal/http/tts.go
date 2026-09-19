@@ -59,6 +59,12 @@ func (h *TTSHandler) RegisterRoutes(mux *http.ServeMux) {
 		requireAuth(permissions.RoleOperator, h.handleSynthesize))
 	mux.HandleFunc("POST /v1/tts/test-connection",
 		requireAuth(permissions.RoleOperator, h.handleTestConnection))
+	mux.HandleFunc("GET /v1/tts/clone/voices",
+		requireAuth(permissions.RoleOperator, h.handleCloneVoicesList))
+	mux.HandleFunc("POST /v1/tts/clone/voices",
+		requireAuth(permissions.RoleOperator, h.handleCloneVoicesRegister))
+	mux.HandleFunc("DELETE /v1/tts/clone/voices/{id}",
+		requireAuth(permissions.RoleOperator, h.handleCloneVoicesDelete))
 	h.registerCapabilitiesRoute(mux)
 }
 
@@ -304,6 +310,18 @@ func (h *TTSHandler) resolveTenantProvider(ctx context.Context, explicitProvider
 		req.VoiceID, _ = h.systemConfigs.Get(ctx, "tts.gemini.voice")
 		req.ModelID, _ = h.systemConfigs.Get(ctx, "tts.gemini.model")
 		req.Params = loadParamsBlob(ctx, h.systemConfigs, "tts.gemini.params")
+
+	case "clone":
+		// Endpoint is the enable switch; the worker token is optional.
+		req.APIBase, _ = h.systemConfigs.Get(ctx, "tts.clone.endpoint")
+		if req.APIBase == "" {
+			return nil, "", nil, fmt.Errorf("no clone endpoint")
+		}
+		if key, _ := h.configSecrets.Get(ctx, "tts.clone.api_key"); key != "" {
+			req.APIKey = key
+		}
+		req.VoiceID, _ = h.systemConfigs.Get(ctx, "tts.clone.voice")
+		req.Params = loadParamsBlob(ctx, h.systemConfigs, "tts.clone.params")
 
 	default:
 		return nil, "", nil, fmt.Errorf("unsupported provider: %s", providerName)

@@ -333,6 +333,9 @@ const (
 	MsgTtsParamOutOfRange     = "error.tts_param_out_of_range"    // "TTS param %q value %v is out of range [%v, %v]"
 	MsgTtsParamUnknownKey     = "error.tts_param_unknown_key"     // "TTS param %q is not supported by this provider"
 	MsgTtsMiniMaxVoicesFailed = "error.tts_minimax_voices_failed" // "failed to fetch MiniMax voices: %s"
+	MsgTtsCloneNotConfigured  = "error.tts_clone_not_configured"  // "voice clone worker is not configured (set tts.clone.endpoint)"
+	MsgTtsCloneNameInvalid    = "error.tts_clone_name_invalid"    // "voice name is required (max %d characters)"
+	MsgTtsCloneIDInvalid      = "error.tts_clone_id_invalid"      // "invalid voice id (allowed: letters, digits, dash, underscore)"
 
 	// --- STT ---
 	MsgSTTAllProvidersFailed     = "error.stt_all_providers_failed"    // "All STT providers failed"

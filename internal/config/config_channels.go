@@ -715,6 +715,17 @@ type TtsConfig struct {
 	Edge         TtsEdgeConfig         `json:"edge"`
 	MiniMax      TtsMiniMaxConfig      `json:"minimax"`
 	Gemini       TtsGeminiConfig       `json:"gemini"`
+	Clone        TtsCloneConfig        `json:"clone"`
+}
+
+// TtsCloneConfig configures the self-hosted voice-clone worker proxy
+// (contrib/voiceclone — OpenVoice v2 tone conversion over edge-tts,
+// CPU-friendly). Setting endpoint enables the provider; the gateway only
+// proxies requests, clone inference runs on the worker machine.
+type TtsCloneConfig struct {
+	Endpoint string `json:"endpoint,omitempty"` // worker base URL, e.g. "http://192.168.1.50:18795"
+	APIKey   string `json:"api_key,omitempty"`  // shared worker bearer token, encrypted at rest
+	Voice    string `json:"voice,omitempty"`    // default clone voice id (worker default when empty)
 }
 
 // TtsOpenAICompatConfig configures a self-hosted OpenAI-compatible audio
