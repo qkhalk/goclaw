@@ -356,5 +356,19 @@
     "select_all": "Выделить всё",
     "search": "Перейти к поиску",
     "help": "Справка по клавишам"
+  },
+  "webdav": {
+    "title": "Подключить WebDAV-хранилище",
+    "description": "Поддерживаются Nextcloud, ownCloud, Synology и любой WebDAV-сервер. Учётные данные проверяются на endpoint перед сохранением.",
+    "label": "Название (необязательно)",
+    "label_placeholder": "Архив команды",
+    "endpoint": "WebDAV URL",
+    "endpoint_hint": "Коллекция, служащая корнем аккаунта, например URL remote.php/dav/files/<пользователь> в Nextcloud.",
+    "username": "Имя пользователя",
+    "password": "Пароль",
+    "password_hint": "Шифруется при сохранении; API никогда не возвращает учётные данные повторно.",
+    "cancel": "Отмена",
+    "connecting": "Подключение…",
+    "connect": "Подключить"
   }
 }

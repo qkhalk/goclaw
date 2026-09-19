@@ -356,5 +356,19 @@
     "select_all": "전체 선택",
     "search": "검색으로 이동",
     "help": "단축키 도움말"
+  },
+  "webdav": {
+    "title": "WebDAV 스토리지 연결",
+    "description": "Nextcloud, ownCloud, 시놀로지 및 모든 WebDAV 서버를 지원합니다. 저장하기 전에 엔드포인트에서 자격 증명을 검증합니다.",
+    "label": "라벨(선택)",
+    "label_placeholder": "팀 아카이브",
+    "endpoint": "WebDAV URL",
+    "endpoint_hint": "계정 루트로 사용할 컬렉션(예: Nextcloud의 remote.php/dav/files/<사용자> URL).",
+    "username": "사용자 이름",
+    "password": "비밀번호",
+    "password_hint": "저장 시 암호화되며 API는 저장 후 자격 증명을 다시 반환하지 않습니다.",
+    "cancel": "취소",
+    "connecting": "연결 중…",
+    "connect": "연결"
   }
 }

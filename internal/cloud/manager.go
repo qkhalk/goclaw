@@ -55,7 +55,7 @@ const (
 
 // SupportedProviders lists the storage providers the manager can connect,
 // in UI display order.
-var SupportedProviders = []string{GoogleProvider, MicrosoftProvider, DropboxProvider, S3Provider}
+var SupportedProviders = []string{GoogleProvider, MicrosoftProvider, DropboxProvider, S3Provider, WebDAVProvider}
 
 // IsSupportedProvider reports whether the provider id can be connected.
 func IsSupportedProvider(provider string) bool {
@@ -158,6 +158,10 @@ func (m *Manager) ProviderConfigured(ctx context.Context, provider string) bool 
 		// Static access keys — always "configured"; validation happens at
 		// connect time (ConnectS3).
 		return true
+	case WebDAVProvider:
+		// Static credentials — always "configured"; validation happens at
+		// connect time (ConnectWebDAV).
+		return true
 	default:
 		return false
 	}
@@ -249,6 +253,8 @@ func (m *Manager) BuildAuthURL(ctx context.Context, provider, baseURL, tenantID,
 		return m.buildDropboxAuthURL(ctx, baseURL, tenantID, userID)
 	case S3Provider:
 		return "", "", "", errors.New("cloud: s3 connects with access keys, not OAuth — use the access-key connect form")
+	case WebDAVProvider:
+		return "", "", "", errors.New("cloud: webdav connects with username/password, not OAuth — use the credential connect form")
 	default:
 		return "", "", "", fmt.Errorf("cloud: unsupported provider %q", provider)
 	}
@@ -626,6 +632,8 @@ func (m *Manager) TokenSource(ctx context.Context, accountID string) (oauth2.Tok
 		cfg = NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, "")
 	case S3Provider:
 		return nil, errors.New("cloud: s3 accounts use static access keys — no token source")
+	case WebDAVProvider:
+		return nil, errors.New("cloud: webdav accounts use static credentials — no token source")
 	default:
 		return nil, fmt.Errorf("cloud: unsupported provider %q", acct.Provider)
 	}

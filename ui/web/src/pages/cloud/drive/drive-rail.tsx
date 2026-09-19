@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Building2, ChevronDown, Clock, Cloud, Database, HardDrive, Inbox, LayoutDashboard, Loader2, Search, Star } from "lucide-react";
+import { Building2, ChevronDown, Clock, Cloud, Database, HardDrive, Inbox, LayoutDashboard, Loader2, Search, Server, Star } from "lucide-react";
 import { DropboxIcon } from "@/components/icons/dropbox-icon";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useHttp } from "@/hooks/use-ws";
@@ -32,6 +32,7 @@ export const CLOUD_PROVIDERS: {
   { id: "onedrive", name: "Microsoft OneDrive", icon: HardDrive },
   { id: "dropbox", name: "Dropbox", icon: DropboxIcon },
   { id: "s3", name: "S3 Compatible", icon: Database },
+  { id: "webdav", name: "WebDAV", icon: Server },
 ];
 
 /** rclone quota for one account (GET /v1/cloud/accounts/{id}/about). */

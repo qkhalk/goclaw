@@ -104,6 +104,7 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /v1/cloud/bindings", requireAuth("", h.handleUpsertBinding))
 	mux.HandleFunc("DELETE /v1/cloud/bindings/{id}", requireAuth("", h.handleDeleteBinding))
 	mux.HandleFunc("POST /v1/cloud/accounts/s3", requireAuth("", h.handleConnectS3))
+	mux.HandleFunc("POST /v1/cloud/accounts/webdav", requireAuth("", h.handleConnectWebDAV))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/start", requireAuth("", h.handleStart))
 	mux.HandleFunc("POST /v1/cloud/oauth/{provider}/complete", requireAuth("", h.handleComplete))
 	mux.HandleFunc("GET /v1/cloud/oauth/callback", h.handleCallback)
@@ -148,10 +149,11 @@ func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 	googleConfigured := h.manager != nil && h.manager.GoogleConfigured(r.Context())
 	microsoftConfigured := h.manager != nil && h.manager.MicrosoftConfigured(r.Context())
 	dropboxConfigured := h.manager != nil && h.manager.DropboxConfigured(r.Context())
-	// s3 uses static access keys — the connect form is always available.
+	// s3/webdav use static credentials — the connect form is always available.
 	s3Configured := h.manager != nil
+	webdavConfigured := h.manager != nil
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled": h.enabled && (googleConfigured || microsoftConfigured || dropboxConfigured || s3Configured),
+		"enabled": h.enabled && (googleConfigured || microsoftConfigured || dropboxConfigured || s3Configured || webdavConfigured),
 		"edition": h.editionName(),
 		"providers": map[string]any{
 			"google": map[string]bool{
@@ -165,6 +167,9 @@ func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 			},
 			"s3": map[string]bool{
 				"configured": s3Configured,
+			},
+			"webdav": map[string]bool{
+				"configured": webdavConfigured,
 			},
 		},
 	})
@@ -1720,6 +1725,48 @@ func (h *CloudHandler) handleConnectS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("cloud: s3 account connected", "bucket", in.Bucket)
+	writeJSON(w, http.StatusOK, cloudAccountView{CloudAccount: *acct, CanWrite: true})
+}
+
+// --- POST /v1/cloud/accounts/webdav (credential connect — no OAuth flow) ---
+
+type cloudWebDAVConnectInput struct {
+	Label    string `json:"label"`
+	Endpoint string `json:"endpoint"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// handleConnectWebDAV validates and stores a WebDAV account (Nextcloud,
+// ownCloud, Synology, ...). The credentials never round-trip back to the
+// client — the response is the same account view the list endpoint returns.
+func (h *CloudHandler) handleConnectWebDAV(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	var in cloudWebDAVConnectInput
+	locale := store.LocaleFromContext(r.Context())
+	if !bindJSON(w, r, locale, &in) {
+		return
+	}
+	tenantID := store.TenantIDFromContext(r.Context())
+	userID := store.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing user identity"})
+		return
+	}
+	acct, err := h.manager.ConnectWebDAV(r.Context(), tenantID.String(), userID, cloudmgr.WebDAVConnectInput{
+		Label:    in.Label,
+		Endpoint: in.Endpoint,
+		Username: in.Username,
+		Password: in.Password,
+	})
+	if err != nil {
+		slog.Warn("cloud: webdav connect failed", "error", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	slog.Info("cloud: webdav account connected", "endpoint", in.Endpoint)
 	writeJSON(w, http.StatusOK, cloudAccountView{CloudAccount: *acct, CanWrite: true})
 }
 

@@ -161,6 +161,8 @@ nó). Nếu token trong GoClaw hết hiệu lực (đổi mật khẩu Google, t
 | `PUT /v1/cloud/settings` | Admin: lưu OAuth client từ form Web UI (mã hóa) |
 | `GET /v1/cloud/accounts` | Danh sách tài khoản của user (không trả token) |
 | `DELETE /v1/cloud/accounts/{id}` | Ngắt kết nối |
+| `POST /v1/cloud/accounts/s3` | Kết nối S3-compatible (R2/B2/Wasabi/MinIO/DO/AWS): `endpoint,region,bucket,access_key,secret_key` — probe trước khi lưu |
+| `POST /v1/cloud/accounts/webdav` | Kết nối WebDAV (Nextcloud/Synology/...): `endpoint,username,password` — PROPFIND probe trước khi lưu |
 | `POST /v1/cloud/oauth/google/start` | Lấy `auth_url` + `redirect_uri` |
 | `GET /v1/cloud/oauth/callback` | Redirect target của Google (state ký HMAC) |
 
