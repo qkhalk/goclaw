@@ -22,6 +22,11 @@ import { accountCanMail, MailboxPreview } from "./mailbox-preview";
 const RAIL_ROW =
   "flex min-h-11 min-w-0 items-center gap-2 rounded-md py-1.5 text-left text-sm transition-colors hover:bg-muted/60";
 
+/** Only render the account filter once a provider has enough accounts that
+ * scanning them by eye becomes work — below this the list is its own index
+ * and the search box is just noise. */
+const ACCOUNT_SEARCH_THRESHOLD = 5;
+
 /** Connectable providers (backend mirror: cloud.SupportedProviders). */
 export const CLOUD_PROVIDERS: {
   id: CloudProvider;
@@ -201,16 +206,18 @@ export function DriveRail({
               </div>
               {items.length > 0 && !isCollapsed && (
                 <>
-                  <div className="relative px-1 pb-1 pt-0.5">
-                    <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3 w-3 -translate-y-[calc(50%+2px)] text-muted-foreground" />
-                    <input
-                      value={rawQuery}
-                      onChange={(e) => setAccountQueries((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                      placeholder={t("drive.search_accounts")}
-                      autoComplete="off"
-                      className="h-8 w-full rounded-md border bg-background pl-7 pr-2 text-base outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring md:text-sm"
-                    />
-                  </div>
+                  {items.length >= ACCOUNT_SEARCH_THRESHOLD && (
+                    <div className="relative px-1 pb-1 pt-0.5">
+                      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3 w-3 -translate-y-[calc(50%+2px)] text-muted-foreground" />
+                      <input
+                        value={rawQuery}
+                        onChange={(e) => setAccountQueries((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                        placeholder={t("drive.search_accounts")}
+                        autoComplete="off"
+                        className="h-8 w-full rounded-md border bg-background pl-7 pr-2 text-base outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring md:text-sm"
+                      />
+                    </div>
+                  )}
                   <ul className="flex w-full flex-col gap-0.5">
                     {visible.map((a) => {
                       const active = a.id === accountId;
