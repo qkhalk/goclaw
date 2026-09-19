@@ -19,19 +19,26 @@ interface StatCardProps {
   value: string;
   trend: number | null;
   hint?: string;
+  /** When true, an increase renders red and a decrease green (errors, cost).
+   * Default: increase = green (requests, tokens, users). */
+  invertTrend?: boolean;
 }
 
-function StatCard({ label, value, trend, hint }: StatCardProps) {
+function StatCard({ label, value, trend, hint, invertTrend }: StatCardProps) {
   const { t } = useTranslation("usage");
   const isUp = trend !== null && trend > 0;
   const isDown = trend !== null && trend < 0;
+  // Color encodes GOOD/BAD, not the direction: an errors or cost surge is
+  // bad news and must not glow green.
+  const good = (isUp && !invertTrend) || (isDown && invertTrend);
+  const bad = (isUp && invertTrend) || (isDown && !invertTrend);
 
   return (
     <div className="rounded-lg border bg-card p-4">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold" title={hint}>{value}</p>
       {trend !== null ? (
-        <div className={`mt-1 flex items-center gap-1 text-xs ${isUp ? "text-green-600" : isDown ? "text-red-500" : "text-muted-foreground"}`}>
+        <div className={`mt-1 flex items-center gap-1 text-xs ${good ? "text-green-600" : bad ? "text-red-500" : "text-muted-foreground"}`}>
           {isUp ? <TrendingUp className="h-3 w-3" /> : isDown ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
           <span>
             {isUp
@@ -85,11 +92,13 @@ export function SummaryCards({ current, previous, loading }: SummaryCardsProps) 
       value: formatApiCost(current.cost),
       trend: trendPercent(current.cost, previous.cost),
       hint: allCostZero ? t("analytics.configurePricing") : undefined,
+      invertTrend: true,
     },
     {
       label: t("analytics.errors"),
       value: current.errors.toLocaleString(),
       trend: trendPercent(current.errors, previous.errors),
+      invertTrend: true,
     },
     {
       label: t("analytics.uniqueUsers"),

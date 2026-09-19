@@ -147,5 +147,13 @@
   },
   "errors": {
     "serverError": "Something went wrong. Please try again later."
-  }
+  },
+  "update.available": "Update to {{version}} — click to install",
+  "update.applying": "Updating… the gateway will restart automatically.",
+  "update.applying_short": "Updating, waiting for restart…",
+  "update.confirm_title": "Install update {{version}}?",
+  "update.confirm_desc": "The gateway downloads the new release, replaces its binary and restarts automatically. Active sessions reconnect on their own; this takes about a minute.",
+  "update.confirm_label": "Update & restart",
+  "update.success": "Updated to {{version}} 🎉",
+  "update.timeout": "The gateway has not come back yet — it may still be restarting. Reload the page in a moment."
 }
