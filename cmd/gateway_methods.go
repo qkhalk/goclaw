@@ -93,6 +93,9 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	// a browser.panel.invoke it received (web_browse tool correlation), and
 	// navigates its own panel via browser.panel.open (web_browse pipeline).
 	methods.NewBrowserPanelMethods(server.BrowserPanelBridge(), webBrowseTool).Register(router)
+	// Scheduled periodic cloud backup: WS surface (owner+master scope) and
+	// the 30s scheduler tick both live behind this registration.
+	methods.NewBackupScheduleMethods(cfg, cfg.Database.PostgresDSN, Version, configSecretsStore, msgBus).Register(router)
 	configMethods := methods.NewConfigMethods(cfg, cfgPath, configSecretsStore, msgBus)
 	if sysConfigStore != nil {
 		configMethods.SetSystemConfigSync(func(ctx context.Context, c *config.Config) {

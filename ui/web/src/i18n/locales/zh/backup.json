@@ -92,6 +92,48 @@
     "saveSuccess": "S3 配置已保存并验证连接",
     "saveError": "保存 S3 配置失败"
   },
+  "schedule": {
+    "title": "定期备份",
+    "description": "按计划自动创建备份并上传到 S3",
+    "enable": "启用计划",
+    "frequency": {
+      "label": "频率",
+      "daily": "每天",
+      "weekly": "每周",
+      "hours": "每 N 小时"
+    },
+    "everyHours": "间隔",
+    "hourValue": "每 {{hours}} 小时",
+    "hour": "运行时间",
+    "weekday": "星期",
+    "weekdays": {
+      "sun": "周日",
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六"
+    },
+    "retention": "保留备份数",
+    "retentionHint": "0 表示保留所有备份",
+    "nextRun": "下次运行",
+    "lastRun": "上次运行",
+    "never": "从未",
+    "status": {
+      "ok": "成功",
+      "error": "失败",
+      "running": "运行中"
+    },
+    "runNow": "立即运行",
+    "save": "保存计划",
+    "toast": {
+      "saved": "备份计划已保存",
+      "saveFailed": "保存备份计划失败",
+      "runStarted": "备份已开始",
+      "runFailed": "无法启动备份"
+    }
+  },
   "tenant": {
     "title": "租户备份与恢复",
     "description": "备份或恢复单个租户数据",

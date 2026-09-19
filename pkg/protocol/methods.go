@@ -183,6 +183,11 @@ const (
 	MethodCronRun    = "cron.run"
 	MethodCronRuns   = "cron.runs"
 
+	// Backup schedule (periodic backup-to-cloud, user item 18)
+	MethodBackupScheduleGet = "backup.schedule.get"
+	MethodBackupScheduleSet = "backup.schedule.set"
+	MethodBackupScheduleRun = "backup.schedule.run"
+
 	MethodChannelsList   = "channels.list"
 	MethodChannelsStatus = "channels.status"
 	MethodChannelsToggle = "channels.toggle"

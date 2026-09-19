@@ -141,6 +141,11 @@ export const Methods = {
   CRON_RUN: "cron.run",
   CRON_RUNS: "cron.runs",
 
+  // Scheduled periodic backup to cloud (user item 18)
+  BACKUP_SCHEDULE_GET: "backup.schedule.get",
+  BACKUP_SCHEDULE_SET: "backup.schedule.set",
+  BACKUP_SCHEDULE_RUN: "backup.schedule.run",
+
   CHANNELS_LIST: "channels.list",
   CHANNELS_STATUS: "channels.status",
   CHANNELS_TOGGLE: "channels.toggle",

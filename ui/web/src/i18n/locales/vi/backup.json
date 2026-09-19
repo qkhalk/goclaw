@@ -92,6 +92,48 @@
     "saveSuccess": "Cấu hình S3 đã lưu và kết nối đã xác minh",
     "saveError": "Lưu cấu hình S3 thất bại"
   },
+  "schedule": {
+    "title": "Sao lưu định kỳ",
+    "description": "Tự động tạo bản sao lưu và tải lên S3 theo lịch",
+    "enable": "Bật lịch",
+    "frequency": {
+      "label": "Tần suất",
+      "daily": "Hàng ngày",
+      "weekly": "Hàng tuần",
+      "hours": "Mỗi N giờ"
+    },
+    "everyHours": "Chu kỳ",
+    "hourValue": "Mỗi {{hours}} giờ",
+    "hour": "Chạy lúc",
+    "weekday": "Ngày trong tuần",
+    "weekdays": {
+      "sun": "Chủ nhật",
+      "mon": "Thứ hai",
+      "tue": "Thứ ba",
+      "wed": "Thứ tư",
+      "thu": "Thứ năm",
+      "fri": "Thứ sáu",
+      "sat": "Thứ bảy"
+    },
+    "retention": "Số bản sao lưu giữ lại",
+    "retentionHint": "0 giữ lại tất cả",
+    "nextRun": "Lần chạy tiếp theo",
+    "lastRun": "Lần chạy gần nhất",
+    "never": "Chưa bao giờ",
+    "status": {
+      "ok": "Thành công",
+      "error": "Thất bại",
+      "running": "Đang chạy"
+    },
+    "runNow": "Chạy ngay",
+    "save": "Lưu lịch",
+    "toast": {
+      "saved": "Đã lưu lịch sao lưu",
+      "saveFailed": "Lưu lịch sao lưu thất bại",
+      "runStarted": "Đã bắt đầu sao lưu",
+      "runFailed": "Không thể bắt đầu sao lưu"
+    }
+  },
   "tenant": {
     "title": "Sao lưu & Khôi phục Tenant",
     "description": "Sao lưu hoặc khôi phục dữ liệu từng tenant",

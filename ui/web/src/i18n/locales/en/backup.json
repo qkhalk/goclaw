@@ -92,6 +92,48 @@
     "saveSuccess": "S3 configuration saved and connection verified",
     "saveError": "Failed to save S3 configuration"
   },
+  "schedule": {
+    "title": "Scheduled Backup",
+    "description": "Automatically create a backup and upload it to S3 on a schedule",
+    "enable": "Enable schedule",
+    "frequency": {
+      "label": "Frequency",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "hours": "Every N hours"
+    },
+    "everyHours": "Interval",
+    "hourValue": "Every {{hours}} hours",
+    "hour": "Run at",
+    "weekday": "Day of week",
+    "weekdays": {
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
+    },
+    "retention": "Retention (backups to keep)",
+    "retentionHint": "0 keeps all backups",
+    "nextRun": "Next run",
+    "lastRun": "Last run",
+    "never": "Never",
+    "status": {
+      "ok": "Success",
+      "error": "Failed",
+      "running": "Running"
+    },
+    "runNow": "Run Now",
+    "save": "Save Schedule",
+    "toast": {
+      "saved": "Backup schedule saved",
+      "saveFailed": "Failed to save backup schedule",
+      "runStarted": "Backup run started",
+      "runFailed": "Failed to start backup run"
+    }
+  },
   "tenant": {
     "title": "Tenant Backup & Restore",
     "description": "Backup or restore individual tenant data",
