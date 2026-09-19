@@ -411,9 +411,43 @@ var designerIdentityCaptionZone = func() string {
 		1)
 }()
 
+// designerMultiFormBullet is the multi-form persona addition (v9, 2026-09-19):
+// style packs plus the motion-layer primitive catalog, with a hard variation
+// mandate — one look across a whole storyboard reads as a template, and the
+// whole point of the agent is that no two videos (and no two neighbouring
+// scenes) need to look alike. Every field name and range below mirrors
+// contract.Validate exactly; the validator rejects anything else.
+const designerMultiFormBullet = `- Vary the composition: consecutive scenes must not reuse the same
+  layout — alternate headline frames, icon+badge frames and data frames,
+  and shift the look with "style_pack": "tech_dark" (the default dark
+  developer look), "neon_lab", "paper_light" (light backdrop, dark text)
+  or "bold_red". A pack colors the scene only where the scene leaves
+  color/color2/glow unset.
+- Motion layers pick the form that fits the beat: "counter" counts a
+  number up (text is the prefix, "to" the target with 0 <= "from" < "to",
+  "suffix" like " tỷ", "decimals" 0-2); "toggle_grid" flips cols×rows
+  switches (1-4 each) every "cadence" 0.2-2s; "compare_bars" grows two
+  labeled bars ("label_a"/"label_b", "width_a"/"width_b" 0-1); "stack"
+  slides in 1-6 labeled slabs ("n", "labels"); "stamp" pops a rotated
+  bordered word ("angle" -30..30); "cta" lands a gradient pill
+  call-to-action ("fill"/"fill_b"). Text layers accept "highlights" to
+  color keywords: [{"word":"CPU","color":"#22D3EE"}] — at most 6, exact
+  word match.
+`
+
+// designerIdentityMultiForm is the multi-form persona (v9, 2026-09-19):
+// style packs + the motion-primitive catalog + the variation mandate,
+// appended after the color bullet.
+var designerIdentityMultiForm = func() string {
+	return strings.Replace(designerIdentityCaptionZone,
+		"  tech/developer topics.\n",
+		"  tech/developer topics.\n"+designerMultiFormBullet,
+		1)
+}()
+
 // designerIdentity is the IDENTITY.md persona (English, LLM consumption).
 // Contract mirrors internal/video/types.go Storyboard.Validate.
-var designerIdentity = designerIdentityCaptionZone
+var designerIdentity = designerIdentityMultiForm
 
 // designerIdentityHistory lists every system-authored persona version, oldest
 // first. A boot-time migration upgrades an existing agent's IDENTITY.md only
@@ -435,6 +469,8 @@ var designerIdentityHistory = []string{
 	designerIdentityPolish,
 	// transitions era (2026-09-19): valid transition enum in the persona.
 	designerIdentityTransitions,
+	// caption-zone era (2026-09-19): centered caption vs composed content.
+	designerIdentityCaptionZone,
 }
 
 // EnsureDesignerAgent creates the video-designer predefined agent when the
