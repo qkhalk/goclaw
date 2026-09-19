@@ -96,6 +96,11 @@ export function useCanvasPlayer(
   // Thaw the frame identity so callbacks below don't rebuild per keystroke.
   const scenesRef = useRef(storyboard.scenes);
   scenesRef.current = storyboard.scenes;
+  // Server render width for font normalization: storyboard font_size is
+  // absolute pixels on the output-size render (output.height is the short
+  // side = the render width for 9:16).
+  const renderWidthRef = useRef(storyboard.output?.height ?? 720);
+  renderWidthRef.current = storyboard.output?.height ?? 720;
 
   // Preload images (scene sources + image-layer sources)
   useEffect(() => {
@@ -236,6 +241,7 @@ export function useCanvasPlayer(
       scratchARef.current,
       scratchBRef.current,
       narrProgress,
+      canvas.width / renderWidthRef.current,
     );
 
     setState((prev) => ({

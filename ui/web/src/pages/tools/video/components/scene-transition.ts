@@ -20,12 +20,15 @@ type DrawScene = (
   localTime: number,
   imageCache: Map<string, HTMLImageElement>,
   narrProgress?: number,
+  fontScale?: number,
 ) => void;
 
 /** Draw scenes[index] at localTime, applying its enter transition (blending
  * over the previous scene's final frame) when inside the transition window.
  * narrProgress (0..1) is the narration-audio progress of scenes[index]; the
  * outgoing scene draws with progress 1 (its narration is over).
+ * fontScale maps the storyboard's render-space font pixels onto this canvas
+ * (canvasWidth / render width) so preview text matches the server burn-in.
  * scratchA/scratchB are reused offscreen buffers sized to `canvas` to avoid
  * per-frame allocations; they are resized here if the canvas changed. */
 export function renderSceneWithTransition(
@@ -39,12 +42,13 @@ export function renderSceneWithTransition(
   scratchA: HTMLCanvasElement,
   scratchB: HTMLCanvasElement,
   narrProgress?: number,
+  fontScale: number = 1,
 ): void {
   const scene = scenes[index];
   if (!scene) return;
 
   // Incoming frame, drawn normally first.
-  drawScene(ctx, canvas, scene, localTime, imageCache, narrProgress);
+  drawScene(ctx, canvas, scene, localTime, imageCache, narrProgress, fontScale);
 
   const type: SceneTransition = scene.transition ?? "none";
   if (index <= 0 || type === "none" || localTime >= TRANSITION_SEC) return;
@@ -63,7 +67,7 @@ export function renderSceneWithTransition(
   const aCtx = scratchA.getContext("2d");
   if (!aCtx) return;
   aCtx.clearRect(0, 0, width, height);
-  drawScene(aCtx, scratchA, prev, Math.max(0, prev.duration_sec - 1 / 60), imageCache, 1);
+  drawScene(aCtx, scratchA, prev, Math.max(0, prev.duration_sec - 1 / 60), imageCache, 1, fontScale);
 
   // Scratch B: copy of the already-drawn incoming frame.
   if (scratchB.width !== width || scratchB.height !== height) {

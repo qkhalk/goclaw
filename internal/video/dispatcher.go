@@ -208,6 +208,13 @@ func (d *Dispatcher) pollSingleJob(ctx context.Context, job *store.VideoRenderJo
 	if job.StartedAt != nil && now.Sub(*job.StartedAt) > timeout {
 		slog.Warn("video.dispatcher: job timed out",
 			"job_id", job.ID, "elapsed", now.Sub(*job.StartedAt))
+		// Best-effort cancel on the worker — a timed-out job must not keep
+		// burning the box's CPU (and holding its temp dir) for hours after
+		// the gateway has already failed it.
+		if _, err := d.worker.CancelJob(ctx, job.ID); err != nil {
+			slog.Warn("video.dispatcher: cancel after timeout failed",
+				"job_id", job.ID, "error", err)
+		}
 		d.failJob(ctx, job.ID, "render timed out")
 		return
 	}

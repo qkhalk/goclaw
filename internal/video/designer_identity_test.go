@@ -24,6 +24,10 @@ func TestDesignerIdentityLayerContract(t *testing.T) {
 		`"border": true`,
 		`"font":"display"`,
 		"14 characters per line",
+		// Transitions era (v7): valid transition enum in the motion bullet.
+		`"fade", "crossfade", "slide_left", "slide_up"`,
+		// Caption-zone era (v8): centered caption vs composed-frame content.
+		"fills y = 0.36-0.64",
 	} {
 		if !strings.Contains(designerIdentity, want) {
 			t.Errorf("designerIdentity missing layers contract fragment: %q", want)
@@ -39,6 +43,22 @@ func TestDesignerIdentityLayerContract(t *testing.T) {
 	}
 	if strings.Contains(designerIdentityFrames, `"font": "body"`) {
 		t.Error("designerIdentityFrames must stay the pre-polish persona")
+	}
+	if strings.Contains(designerIdentityPolish, `"slide_left"`) {
+		t.Error("designerIdentityPolish must stay the pre-transitions persona")
+	}
+	if strings.Contains(designerIdentityTransitions, "fills y = 0.36-0.64") {
+		t.Error("designerIdentityTransitions must stay the pre-caption-zone persona")
+	}
+	// v6 must sit in the history so v6 deployments migrate to v7.
+	foundPolish := false
+	for _, v := range designerIdentityHistory {
+		if v == designerIdentityPolish {
+			foundPolish = true
+		}
+	}
+	if !foundPolish {
+		t.Error("designerIdentityPolish missing from history — v6 deployments would never migrate")
 	}
 	for _, v := range designerIdentityHistory {
 		if v == "" {

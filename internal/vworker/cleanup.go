@@ -17,9 +17,16 @@ const (
 
 // CleanupSweep removes orphaned temp directories older than ttl.
 // Called at startup and periodically. Safe to call concurrently.
-func CleanupSweep(workDir string, ttl time.Duration) {
+// Protected dirs (typically the in-flight jobs' work dirs, from
+// Runner.ActiveWorkDirs) are never removed — an age-based sweep alone
+// deletes a long-running job's working set out from under it.
+func CleanupSweep(workDir string, ttl time.Duration, protected ...string) {
 	if ttl <= 0 {
 		ttl = defaultTTL
+	}
+	keep := make(map[string]bool, len(protected))
+	for _, p := range protected {
+		keep[p] = true
 	}
 
 	entries, err := os.ReadDir(workDir)
@@ -36,6 +43,11 @@ func CleanupSweep(workDir string, ttl time.Duration) {
 			continue
 		}
 
+		dirPath := filepath.Join(workDir, entry.Name())
+		if keep[dirPath] {
+			continue
+		}
+
 		info, err := entry.Info()
 		if err != nil {
 			continue
@@ -43,7 +55,6 @@ func CleanupSweep(workDir string, ttl time.Duration) {
 
 		age := now.Sub(info.ModTime())
 		if age > ttl {
-			dirPath := filepath.Join(workDir, entry.Name())
 			if err := os.RemoveAll(dirPath); err != nil {
 				slog.Warn("cleanup: remove orphan dir failed", "path", dirPath, "err", err)
 			} else {

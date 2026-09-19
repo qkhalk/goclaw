@@ -377,9 +377,30 @@ var designerIdentityPolish = func() string {
 	return s
 }()
 
+// designerIdentityTransitions is the transition-contract persona (v7,
+// 2026-09-19): the motion bullet enumerates the actual transition values.
+// "slide" alone is not a valid enum and produced rejected storyboards.
+var designerIdentityTransitions = func() string {
+	return strings.Replace(designerIdentityPolish,
+		"transitions fade/slide between scenes, matched to mood.",
+		`transitions between scenes, matched to mood: "fade", "crossfade", "slide_left", "slide_up" — these four only ("slide" alone is invalid).`,
+		1)
+}()
+
+// designerIdentityCaptionZone is the caption-zone persona (v8, 2026-09-19):
+// a centered caption occupies y ≈ 0.36-0.64 — composed-frame content must
+// start below it or the caption chip sits on the headline (seen in the
+// first real renders).
+var designerIdentityCaptionZone = func() string {
+	return strings.Replace(designerIdentityTransitions,
+		"- Captions: short and punchy, at most 8 words, written in the user's\n  language. One idea per scene.",
+		"- Captions: short and punchy, at most 8 words, written in the user's\n  language. One idea per scene. A centered caption fills y = 0.36-0.64:\n  place composed-frame content (accent bar, icon, headline) at y >= 0.66,\n  or set the caption position to \"bottom\" when the frame's content lives\n  in the middle.",
+		1)
+}()
+
 // designerIdentity is the IDENTITY.md persona (English, LLM consumption).
 // Contract mirrors internal/video/types.go Storyboard.Validate.
-var designerIdentity = designerIdentityPolish
+var designerIdentity = designerIdentityCaptionZone
 
 // designerIdentityHistory lists every system-authored persona version, oldest
 // first. A boot-time migration upgrades an existing agent's IDENTITY.md only
@@ -397,6 +418,10 @@ var designerIdentityHistory = []string{
 	designerIdentityVisuals,
 	// frames era (2026-09-18): icon/card layers + entrance animations.
 	designerIdentityFrames,
+	// polish era (2026-09-18): typography hierarchy, icon chips, borders.
+	designerIdentityPolish,
+	// transitions era (2026-09-19): valid transition enum in the persona.
+	designerIdentityTransitions,
 }
 
 // EnsureDesignerAgent creates the video-designer predefined agent when the
