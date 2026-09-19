@@ -42,12 +42,24 @@ type WebDAVCreds struct {
 }
 
 // NewWebDAVBackend builds a WebDAV backend rooted at the endpoint collection.
+//
+// Endpoint posture: a WebDAV account's endpoint is USER-CONFIGURED standing
+// storage — like the S3 endpoint field, it may legitimately point at a LAN
+// host (Synology/Nextcloud on RFC1918), so private ranges are NOT blocked
+// here (deviation from safeGet, which guards fetch-arbitrary-URL flows).
+// What IS enforced: redirects are refused (a public endpoint cannot bounce
+// requests at internal hosts) and every request is time-bounded.
 func NewWebDAVBackend(_ context.Context, creds WebDAVCreds) *WebDAVBackend {
 	return &WebDAVBackend{
 		endpoint: strings.TrimRight(creds.Endpoint, "/"),
 		username: creds.Username,
 		password: creds.Password,
-		client:   &http.Client{},
+		client: &http.Client{
+			Timeout: 60 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 	}
 }
 
