@@ -144,5 +144,18 @@
   },
   "errors": {
     "serverError": "오류가 발생했습니다. 나중에 다시 시도해 주세요."
+  },
+  "systemUpdate": {
+    "available": "{{version}} 버전으로 업데이트",
+    "currentVersion": "현재 버전: {{version}}",
+    "confirm": "설치 및 재시작",
+    "confirmBody": "게이트웨이가 재시작되며 약 15초간 오프라인 상태가 됩니다.",
+    "installing": "업데이트 다운로드 중...",
+    "restarting": "재시작 중...",
+    "success": "{{version}} 버전으로 업데이트됨",
+    "failed": "업데이트 실패",
+    "noRestart": "게이트웨이가 다시 온라인입니다",
+    "restartTimeout": "재시작이 아직 감지되지 않았습니다",
+    "restartTimeoutBody": "게이트웨이가 아직 재시작 중일 수 있습니다. 잠시 후 새로고침하세요."
   }
 }
