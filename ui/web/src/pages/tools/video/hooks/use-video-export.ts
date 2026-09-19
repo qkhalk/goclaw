@@ -153,7 +153,9 @@ async function exportWithMediaRecorder(
 
   const drawFrame = (time: number) => {
     const { index, localTime } = sceneAtTime(storyboard.scenes, time);
-    drawStoryboardFrame(ctx, canvas, storyboard.scenes, index, localTime, imageCache, scratchA, scratchB);
+    // Font sizes are absolute on the server's output-size render — mirror
+    // that even when the export canvas is bigger than the delivery width.
+    drawStoryboardFrame(ctx, canvas, storyboard.scenes, index, localTime, imageCache, scratchA, scratchB, undefined, canvas.width / (storyboard.output?.height ?? 720));
   };
 
   // Manual frame capture: captureStream(0) + requestFrame() per drawn frame.

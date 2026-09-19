@@ -38,7 +38,7 @@ function ColorSceneThumb({ scene }: { scene: Scene }) {
     const paint = () => {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      renderSceneBase(ctx, canvas, scene, 0.7, new Map());
+      renderSceneBase(ctx, canvas, scene, 0.7, new Map(), undefined, canvas.width / 720);
     };
     paint();
     // Repaint once the bundled caption fonts arrive (canvas falls back to a

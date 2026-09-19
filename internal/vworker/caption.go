@@ -351,11 +351,25 @@ func renderGlowPNG(tempDir, hexColor string, sceneIdx int) (string, error) {
 			if d >= 1 {
 				continue
 			}
-			a := uint8(float64(peak) * (1 - d) * (1 - d))
-			if a == 0 {
+			af := float64(peak) * (1 - d) * (1 - d)
+			// Deterministic ±2 dither: without it the (1-d)² curve quantizes
+			// into visible concentric rings on dark backgrounds.
+			af += float64((x*7+y*13)%5) - 2
+			if af <= 0 {
 				continue
 			}
-			img.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
+			if af > 255 {
+				af = 255
+			}
+			a := uint8(af + 0.5)
+			// image.RGBA stores premultiplied channels — writing the raw
+			// color here oversaturated the core and amplified the rings.
+			img.SetRGBA(x, y, color.RGBA{
+				R: uint8(uint16(r) * uint16(a) / 255),
+				G: uint8(uint16(g) * uint16(a) / 255),
+				B: uint8(uint16(b) * uint16(a) / 255),
+				A: a,
+			})
 		}
 	}
 	p := filepath.Join(tempDir, fmt.Sprintf("glow_%03d.png", sceneIdx))

@@ -104,6 +104,7 @@ export function renderSceneBase(
   localTime: number,
   imageCache: Map<string, HTMLImageElement>,
   narrProgress?: number,
+  fontScale: number = 1,
 ) {
   const { width, height } = canvas;
   ctx.clearRect(0, 0, width, height);
@@ -112,8 +113,8 @@ export function renderSceneBase(
     drawColorBackdrop(ctx, width, height, scene, localTime);
     if (scene.glow) drawGlowOrbs(ctx, width, height, scene.glow, localTime);
     if (scene.vignette) drawVignette(ctx, width, height);
-    drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-    drawCaption(ctx, width, height, scene, localTime, narrProgress);
+    drawSceneLayers(ctx, width, height, scene, localTime, imageCache, fontScale);
+    drawCaption(ctx, width, height, scene, localTime, narrProgress, fontScale);
     return;
   }
 
@@ -123,8 +124,8 @@ export function renderSceneBase(
     ctx.fillRect(0, 0, width, height);
     if (scene.glow) drawGlowOrbs(ctx, width, height, scene.glow, localTime);
     if (scene.vignette) drawVignette(ctx, width, height);
-    drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-    drawCaption(ctx, width, height, scene, localTime, narrProgress);
+    drawSceneLayers(ctx, width, height, scene, localTime, imageCache, fontScale);
+    drawCaption(ctx, width, height, scene, localTime, narrProgress, fontScale);
     return;
   }
 
@@ -197,13 +198,17 @@ export function renderSceneBase(
 
   if (scene.vignette) drawVignette(ctx, width, height);
   if (scene.glow) drawGlowOrbs(ctx, width, height, scene.glow, localTime);
-  drawSceneLayers(ctx, width, height, scene, localTime, imageCache);
-  drawCaption(ctx, width, height, scene, localTime, narrProgress);
+  drawSceneLayers(ctx, width, height, scene, localTime, imageCache, fontScale);
+  drawCaption(ctx, width, height, scene, localTime, narrProgress, fontScale);
 }
 
 /** Paint the scene's timed overlay layers (under the caption), in array
  * order — mirrors the worker's ffmpeg layer filters (drawtext/drawbox/
- * overlay + entrance anims) so preview matches the server render. */
+ * overlay + entrance anims) so preview matches the server render.
+ * fontScale maps render-space font pixels (the storyboard's font_size is
+ * absolute on the server's output-size render, e.g. 720px wide) onto this
+ * canvas — the preview canvas is container-sized, so text must shrink with
+ * it or it wraps and stacks twice as large as the burn-in. */
 export function drawSceneLayers(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -211,6 +216,7 @@ export function drawSceneLayers(
   scene: Scene,
   localTime: number,
   imageCache: Map<string, HTMLImageElement>,
+  fontScale: number = 1,
 ) {
   if (!scene.layers?.length) return;
   for (const layer of scene.layers) {
@@ -230,7 +236,7 @@ export function drawSceneLayers(
     const fadeD = layer.anim === "pop" ? 0.2 : 0.3;
     const fade = layer.anim === "fade" || layer.anim === "pop" ? Math.min(1, Math.max(0, (localTime - start) / fadeD)) : 1;
     if (layer.kind === "text") {
-      const fontSize = layer.font_size || 48;
+      const fontSize = (layer.font_size || 48) * fontScale;
       const align = layer.align || "center";
       ctx.save();
       // 0.3s fade at the layer's start — mirrors the worker's drawtext alpha
@@ -398,11 +404,14 @@ function drawCaption(
   scene: Scene,
   localTime: number,
   narrProgress?: number,
+  fontScale: number = 1,
 ) {
   const cap = scene.caption;
   if (!cap?.text) return;
   const style = cap.style ?? "";
-  const fontSize = cap.font_size || Math.round(Math.min(width, height) * 0.035);
+  // Explicit font_size is absolute on the server's render (like layers);
+  // the fallback is already canvas-relative — don't scale it twice.
+  const fontSize = cap.font_size ? cap.font_size * fontScale : Math.round(Math.min(width, height) * 0.035);
   ctx.font =
     style === "mono"
       ? `500 ${fontSize}px ${CAPTION_MONO_FONT}`
@@ -517,6 +526,7 @@ export function drawStoryboardFrame(
   scratchA: HTMLCanvasElement,
   scratchB: HTMLCanvasElement,
   narrProgress?: number,
+  fontScale: number = 1,
 ): void {
   renderSceneWithTransition(
     ctx,
@@ -529,6 +539,7 @@ export function drawStoryboardFrame(
     scratchA,
     scratchB,
     narrProgress,
+    fontScale,
   );
 }
 

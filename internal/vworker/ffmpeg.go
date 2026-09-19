@@ -295,10 +295,26 @@ func layerOverlayPos(l contract.Layer, x0, y0, bw, canvasW, canvasH int) (string
 // must match appendLayerSteps' input numbering). Inputs are looped for the
 // scene duration: a single-frame input can't animate (fade/scale need a
 // timeline), and repeating frames cost nothing.
+//
+// The loop rate is deliberately far below the output fps: these are still
+// images, and a 30fps loop pushes a full RGBA frame per tick into the
+// filtergraph queues — on 512MB boxes that buffering alone exhausted swap
+// and pushed renders into multi-minute thrash. 12fps keeps the pop scale
+// and fades visually smooth while cutting queue growth ~3x; overlay x/y
+// expressions are evaluated per output frame either way.
+const pngLayerInputRate = 12
+
+// glowInputRate applies to full-canvas glow PNGs — their drift is entirely
+// overlay-expression-driven (per output frame), so they can loop far slower.
+const glowInputRate = 2
+
+// captionInputRate keeps caption fade steps smooth on small strip PNGs.
+const captionInputRate = 10
+
 func appendImageLayerInputs(args []string, sc contract.Scene, fps int, dur float64) []string {
 	for j := range sc.Layers {
 		if isPNGLayer(sc.Layers[j].Kind) {
-			args = append(args, "-loop", "1", "-framerate", fmt.Sprint(fps),
+			args = append(args, "-loop", "1", "-framerate", fmt.Sprint(pngLayerInputRate),
 				"-t", fmt.Sprintf("%.3f", dur), "-i", sc.Layers[j].Source)
 		}
 	}
@@ -334,7 +350,7 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	plan := sceneCaptionPlan(cfg, sc, canvasW, canvasH, narrSec, tempDir, sceneIdx)
 	glowPath := sceneGlowPath(tempDir, sc, sceneIdx)
 	if glowPath != "" {
-		args = append(args, "-loop", "1", "-framerate", fmt.Sprint(fps),
+		args = append(args, "-loop", "1", "-framerate", fmt.Sprint(glowInputRate),
 			"-t", fmt.Sprintf("%.3f", dur), "-i", glowPath)
 	}
 	args = appendCaptionInputs(args, plan, dur, fps)
@@ -472,7 +488,7 @@ func buildVideoSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	plan := sceneCaptionPlan(cfg, sc, canvasW, canvasH, narrSec, tempDir, sceneIdx)
 	glowPath := sceneGlowPath(tempDir, sc, sceneIdx)
 	if glowPath != "" {
-		args = append(args, "-loop", "1", "-framerate", fmt.Sprint(fps),
+		args = append(args, "-loop", "1", "-framerate", fmt.Sprint(glowInputRate),
 			"-t", fmt.Sprintf("%.3f", dur), "-i", glowPath)
 	}
 	args = appendCaptionInputs(args, plan, dur, fps)
@@ -601,7 +617,7 @@ func appendCaptionInputs(args []string, plan *captionPlan, dur float64, fps int)
 		return args
 	}
 	for _, ov := range plan.Overlays {
-		args = append(args, "-loop", "1", "-framerate", fmt.Sprint(fps),
+		args = append(args, "-loop", "1", "-framerate", fmt.Sprint(captionInputRate),
 			"-t", fmt.Sprintf("%.3f", dur), "-i", ov.Path)
 	}
 	return args
