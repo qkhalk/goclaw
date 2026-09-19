@@ -14,7 +14,8 @@
       "skills": "Skill",
       "subagents": "Agent",
       "teams": "Team",
-      "web": "网页"
+      "web": "网页",
+      "studio": "Studio（工具商店）"
     },
     "categoryCount": "{{count}} 个分类",
     "configuredVia": "通过配置页面配置",
@@ -283,6 +284,32 @@
       "failedDelete": "删除工具失败",
       "failedUpdate": "更新工具失败",
       "updated": "工具已更新"
+    }
+  },
+  "store": {
+    "title": "工具商店",
+    "subtitle": "按需安装、随手移除——工具仅在安装期间出现在菜单和 agent 中。移除不会删除你的项目数据。",
+    "install": "安装",
+    "uninstall": "移除",
+    "confirm_uninstall": "确认移除",
+    "installed": "已安装",
+    "not_installed": "未安装",
+    "open": "打开",
+    "admin_required": "请联系管理员安装此工具",
+    "not_installed_title": "{{name}} 未安装",
+    "not_installed_desc": "从工具商店安装后即可使用此页面。",
+    "install_now": "立即安装",
+    "agent_tools_title": "Agent 工具",
+    "agent_tools_desc": "细粒度控制 agent 可调用的内置工具（搜索、执行、记忆、媒体等）。",
+    "manage_agent_tools": "管理 Agent 工具",
+    "video_studio": {
+      "desc": "设计与渲染 MP4 视频——分镜场景、动效图层、配音与声音克隆。"
+    },
+    "watermark_studio": {
+      "desc": "去除图片和视频水印——在浏览器中处理。"
+    },
+    "pptx_studio": {
+      "desc": "制作 PowerPoint 演示文稿——自由画布、主题、图表与 pptx 导出。"
     }
   }
 }

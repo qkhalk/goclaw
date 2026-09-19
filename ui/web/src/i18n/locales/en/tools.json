@@ -105,7 +105,8 @@
       "subagents": "Agents",
       "skills": "Skills",
       "delegation": "Delegation",
-      "teams": "Teams"
+      "teams": "Teams",
+      "studio": "Studio (Tool Store)"
     },
     "settingsDialog": {
       "title": "Settings — {{name}}",
@@ -283,6 +284,32 @@
       "skill_search": "Search for available skills by keyword or description to find relevant capabilities",
       "use_skill": "Activate a skill to use its specialized capabilities (tracing marker)",
       "team_tasks": "View, create, update, and complete tasks on the team task board"
+    }
+  },
+  "store": {
+    "title": "Tool Store",
+    "subtitle": "Install what you need, remove what you don't — tools appear in the menu and for your agents only while installed. Your projects are kept when removing.",
+    "install": "Install",
+    "uninstall": "Remove",
+    "confirm_uninstall": "Confirm remove",
+    "installed": "Installed",
+    "not_installed": "Not installed",
+    "open": "Open",
+    "admin_required": "Ask an admin to install this tool",
+    "not_installed_title": "{{name}} is not installed",
+    "not_installed_desc": "Install it from the Tool Store to use this page.",
+    "install_now": "Install now",
+    "agent_tools_title": "Agent tools",
+    "agent_tools_desc": "Fine-grained control over the built-in tools your agents can call (search, exec, memory, media…).",
+    "manage_agent_tools": "Manage agent tools",
+    "video_studio": {
+      "desc": "Design and render MP4 videos — storyboard scenes, motion layers, narration and cloned voices."
+    },
+    "watermark_studio": {
+      "desc": "Remove watermarks from images and videos — processing happens in the browser."
+    },
+    "pptx_studio": {
+      "desc": "Build PowerPoint decks — free-canvas slides, themes, charts and pptx export."
     }
   }
 }

@@ -7,6 +7,7 @@ import { RequireSetup } from "@/components/shared/require-setup";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
 import { ROUTES } from "@/lib/constants";
 import { lazyWithRetry } from "@/lib/lazy-with-retry";
+import { StudioGate } from "@/pages/store/studio-gate";
 
 // Lazy-loaded pages
 const LoginPage = lazyWithRetry(() =>
@@ -71,6 +72,9 @@ const WatermarkToolPage = lazyWithRetry(() =>
 );
 const PptxToolPage = lazyWithRetry(() =>
   import("@/pages/tools/pptx/pptx-tool-page").then((m) => ({ default: m.PptxToolPage })),
+);
+const StorePage = lazyWithRetry(() =>
+  import("@/pages/store/store-page").then((m) => ({ default: m.StorePage })),
 );
 const ProvidersPage = lazyWithRetry(() =>
   import("@/pages/providers/providers-page").then((m) => ({ default: m.ProvidersPage })),
@@ -209,11 +213,34 @@ export function AppRoutes() {
           <Route path={ROUTES.CLOUD} element={<CloudPage />} />
           <Route path={ROUTES.CLOUD_PROVIDER} element={<CloudPage />} />
           <Route path={ROUTES.CLOUD_ACCOUNT} element={<CloudPage />} />
-          {/* Tools hub retired — both tools have direct sidebar entries. */}
+          {/* Tools hub retired — each tool has a direct sidebar entry,
+              filtered by its Tool Store install state. */}
           <Route path={ROUTES.TOOLS} element={<Navigate to={ROUTES.TOOLS_VIDEO} replace />} />
-          <Route path={ROUTES.TOOLS_VIDEO} element={<VideoToolPage />} />
-          <Route path={ROUTES.TOOLS_WATERMARK} element={<WatermarkToolPage />} />
-          <Route path={ROUTES.TOOLS_PPTX} element={<PptxToolPage />} />
+          <Route path={ROUTES.STORE} element={<StorePage />} />
+          <Route
+            path={ROUTES.TOOLS_VIDEO}
+            element={
+              <StudioGate module="video_studio">
+                <VideoToolPage />
+              </StudioGate>
+            }
+          />
+          <Route
+            path={ROUTES.TOOLS_WATERMARK}
+            element={
+              <StudioGate module="watermark_studio">
+                <WatermarkToolPage />
+              </StudioGate>
+            }
+          />
+          <Route
+            path={ROUTES.TOOLS_PPTX}
+            element={
+              <StudioGate module="pptx_studio">
+                <PptxToolPage />
+              </StudioGate>
+            }
+          />
           <Route path={ROUTES.WEBHOOKS} element={<RequireAdmin><WebhooksPage /></RequireAdmin>} />
           <Route path={ROUTES.NODES} element={<RequireAdmin><NodesPage /></RequireAdmin>} />
           <Route path={ROUTES.WORKSTATIONS} element={<RequireAdmin><WorkstationsPage /></RequireAdmin>} />
