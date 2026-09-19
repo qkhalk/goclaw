@@ -57,6 +57,10 @@ type WorkerConfig struct {
 	MaxSceneSec   float64
 	MaxQueue      int
 	NarratorVoice string
+	// CloneEndpoint enables the voice-clone narrator (contrib/voiceclone
+	// worker). Empty = "clone:*" narration voices fall back to edge.
+	CloneEndpoint string
+	CloneAPIKey   string
 	// Fonts carries the extracted bundled font paths (display/body/mono) used
 	// by the caption compositor and text layers. Empty = legacy drawtext only.
 	Fonts FontSet
@@ -245,6 +249,10 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 	js.mu.Unlock()
 
 	narrator := NarratorFromName("edge", r.cfg.NarratorVoice)
+	var cloneNar Narrator
+	if r.cfg.CloneEndpoint != "" {
+		cloneNar = NewCloneNarrator(r.cfg.CloneEndpoint, r.cfg.CloneAPIKey, r.cfg.NarratorVoice)
+	}
 
 	// Build narration map from submitted pre-synthesized files
 	narrMap := make(map[int]string)
@@ -278,9 +286,15 @@ func (r *Runner) runJob(job contract.SubmitJob, js *jobState) {
 				narrPath = resolved
 			}
 		} else if sc.Narration != nil && sc.Narration.Text != "" {
+			nar, voice := pickNarrator(sc.Narration.Voice, narrator, cloneNar)
+			if nar != narrator {
+				slog.Info("scene uses clone voice", "scene", i, "voice", voice)
+			} else if IsCloneVoice(sc.Narration.Voice) {
+				slog.Warn("clone voice requested but no clone endpoint configured, falling back to edge", "scene", i)
+			}
 			var narrErr error
-			narrPath, narrErr = SynthesizeScene(ctx, narrator, i,
-				sc.Narration.Text, sc.Narration.Voice, tempDir)
+			narrPath, narrErr = SynthesizeScene(ctx, nar, i,
+				sc.Narration.Text, voice, tempDir)
 			if narrErr != nil {
 				slog.Warn("narration synth failed, skipping", "scene", i, "err", narrErr)
 			}
