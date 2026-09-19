@@ -21,10 +21,14 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CloneVoiceDialog } from "./clone-voice-dialog";
 import { useTtsCapabilities } from "@/api/tts-capabilities";
 import { toast } from "@/stores/use-toast-store";
 import { TRANSITION_TYPES } from "./scene-transition";
@@ -82,6 +86,7 @@ export function SceneCard({
   const { t } = useTranslation("toolbox");
   const [selLayer, setSelLayer] = useState(0);
   const [previewing, setPreviewing] = useState(false);
+  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
   const previewElRef = useRef<HTMLAudioElement | null>(null);
 
   const { data: capabilities } = useTtsCapabilities();
@@ -89,6 +94,10 @@ export function SceneCard({
     const fromApi = capabilities?.find((p) => p.provider === "edge")?.voices ?? [];
     return fromApi.length > 0 ? fromApi : FALLBACK_EDGE_VOICES;
   }, [capabilities]);
+  const cloneVoices = useMemo(
+    () => capabilities?.find((p) => p.provider === "clone")?.voices ?? [],
+    [capabilities],
+  );
 
   /** Play the scene's narration through real TTS (shared cache with the
    * player preview); second click stops. */
@@ -729,7 +738,15 @@ export function SceneCard({
           <Label className="text-xs">{t("video.scene.voice")}</Label>
           <Select
             value={scene.narration_voice ?? "default"}
-            onValueChange={(v) => onUpdate({ narration_voice: v === "default" ? undefined : v })}
+            onValueChange={(v) => {
+              // The register entry is an action, not a voice — open the
+              // dialog and keep the current selection.
+              if (v === "__register__") {
+                setCloneDialogOpen(true);
+                return;
+              }
+              onUpdate({ narration_voice: v === "default" ? undefined : v });
+            }}
           >
             <SelectTrigger className="text-base md:text-sm" aria-label={t("video.scene.voice")}>
               <SelectValue />
@@ -741,6 +758,23 @@ export function SceneCard({
                   {v.name || v.voice_id}
                 </SelectItem>
               ))}
+              {cloneVoices.length > 0 && (
+                <>
+                  <SelectSeparator />
+                  <SelectGroup>
+                    <SelectLabel>{t("video.clone_voice.group")}</SelectLabel>
+                    {cloneVoices.map((v) => (
+                      <SelectItem key={v.voice_id} value={`clone:${v.voice_id}`}>
+                        {v.name || v.voice_id}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </>
+              )}
+              <SelectSeparator />
+              <SelectItem value="__register__" className="text-primary">
+                {t("video.clone_voice.add_item")}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -775,6 +809,11 @@ export function SceneCard({
           )}
         </div>
       </div>
+      <CloneVoiceDialog
+        open={cloneDialogOpen}
+        onOpenChange={setCloneDialogOpen}
+        onRegistered={(voiceId) => onUpdate({ narration_voice: voiceId })}
+      />
     </div>
   );
 }

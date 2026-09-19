@@ -12,9 +12,22 @@ import { useHttp } from "@/hooks/use-ws";
 
 const MAX_SYNTH_CHARS = 500;
 
+/** Voices registered on the self-hosted clone worker carry this prefix —
+ * synthesize goes through the clone provider, voice_id without it. */
+const CLONE_VOICE_PREFIX = "clone:";
+
 function clipText(text: string): string {
   const t = text.trim();
   return t.length > MAX_SYNTH_CHARS ? t.slice(0, MAX_SYNTH_CHARS) : t;
+}
+
+/** Resolve the synthesize provider + wire voice id from a narration voice. */
+function resolveProviderVoice(voiceId: string): { provider: string; voice_id?: string } {
+  if (voiceId.startsWith(CLONE_VOICE_PREFIX)) {
+    const id = voiceId.slice(CLONE_VOICE_PREFIX.length);
+    return { provider: "clone", ...(id ? { voice_id: id } : {}) };
+  }
+  return { provider: "edge", ...(voiceId ? { voice_id: voiceId } : {}) };
 }
 
 export interface NarrationAudioController {
@@ -71,8 +84,7 @@ export function useNarrationAudio(defaultVoice?: string): NarrationAudioControll
             headers: { "Content-Type": "application/json", ...http.getAuthHeaders() },
             body: JSON.stringify({
               text: clipped,
-              provider: "edge",
-              ...(voiceId ? { voice_id: voiceId } : {}),
+              ...resolveProviderVoice(voiceId),
             }),
           });
           if (!res.ok) {
