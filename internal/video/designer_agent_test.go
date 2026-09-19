@@ -2,6 +2,7 @@ package video
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -20,9 +21,9 @@ import (
 // the nil embedded value, which is exactly what we want in a unit test.
 type fakeAgentStore struct {
 	store.AgentStore
-	byKey      map[string]*store.AgentData
-	created    int
-	files      map[uuid.UUID]map[string]string
+	byKey   map[string]*store.AgentData
+	created int
+	files   map[uuid.UUID]map[string]string
 }
 
 func newFakeAgentStore() *fakeAgentStore {
@@ -61,6 +62,18 @@ func (f *fakeAgentStore) SetAgentContextFile(_ context.Context, agentID uuid.UUI
 	}
 	f.files[agentID][name] = content
 	return nil
+}
+
+func (f *fakeAgentStore) Update(_ context.Context, id uuid.UUID, updates map[string]any) error {
+	for _, a := range f.byKey {
+		if a.ID == id {
+			if tc, ok := updates["tools_config"]; ok {
+				a.ToolsConfig = tc.(json.RawMessage)
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("agent not found: %s", id)
 }
 
 type fakeSkillStore struct {
@@ -145,7 +158,7 @@ func TestEnsureDesignerAgentCreatesWithLockedToolSurface(t *testing.T) {
 	if spec.Profile != "minimal" {
 		t.Errorf("policy profile = %q, want minimal", spec.Profile)
 	}
-	want := []string{"skill_search", "use_skill", "session_status", "web_fetch", "image_search"}
+	want := []string{"skill_search", "use_skill", "read_file", "session_status", "web_fetch", "image_search"}
 	if !reflect.DeepEqual(spec.Allow, want) {
 		t.Errorf("allow = %v, want exactly %v", spec.Allow, want)
 	}
@@ -262,5 +275,41 @@ func TestDesignerSkillSlugsAreCoveredBySeeder(t *testing.T) {
 			t.Errorf("duplicate slug %q", s)
 		}
 		seen[s] = true
+	}
+}
+
+func TestEnsureDesignerAgentUpgradesLegacyToolSurfacesToReadFile(t *testing.T) {
+	for _, legacy := range []string{designerAllowToolsV1, designerAllowToolsV2, designerAllowToolsV3} {
+		agents := newFakeAgentStore()
+		if err := EnsureDesignerAgent(context.Background(), testConfig(), agents, seededSkillStore(), t.TempDir()); err != nil {
+			t.Fatalf("first ensure: %v", err)
+		}
+		agent := agents.byKey[DesignerAgentKey]
+		agent.ToolsConfig = json.RawMessage(legacy)
+		if err := EnsureDesignerAgent(context.Background(), testConfig(), agents, seededSkillStore(), t.TempDir()); err != nil {
+			t.Fatalf("second ensure: %v", err)
+		}
+		spec := agent.ParseToolsConfig()
+		if spec == nil {
+			t.Fatalf("tools_config did not parse (legacy %q)", legacy)
+		}
+		if !reflect.DeepEqual(spec.Allow, []string{"skill_search", "use_skill", "read_file", "session_status", "web_fetch", "image_search"}) {
+			t.Errorf("legacy %q: allow = %v", legacy, spec.Allow)
+		}
+	}
+}
+
+func TestEnsureDesignerAgentLeavesCustomToolSurfaceAlone(t *testing.T) {
+	agents := newFakeAgentStore()
+	if err := EnsureDesignerAgent(context.Background(), testConfig(), agents, seededSkillStore(), t.TempDir()); err != nil {
+		t.Fatalf("first ensure: %v", err)
+	}
+	custom := `{"profile":"minimal","allow":["exec"]}`
+	agents.byKey[DesignerAgentKey].ToolsConfig = json.RawMessage(custom)
+	if err := EnsureDesignerAgent(context.Background(), testConfig(), agents, seededSkillStore(), t.TempDir()); err != nil {
+		t.Fatalf("second ensure: %v", err)
+	}
+	if got := string(agents.byKey[DesignerAgentKey].ToolsConfig); got != custom {
+		t.Errorf("custom policy rewritten: %q", got)
 	}
 }
