@@ -5,6 +5,7 @@ import { Check, Loader2, PackageOpen, Settings2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useBuiltinTools } from "@/pages/builtin-tools/hooks/use-builtin-tools";
+import { McpConnectCard } from "./mcp-connect-card";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useStudioModules, type StudioModule } from "./use-studio-modules";
@@ -143,6 +144,8 @@ export function StorePage() {
           {t("store.manage_agent_tools")}
         </Button>
       </section>
+
+      <McpConnectCard />
     </div>
   );
 }

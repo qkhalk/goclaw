@@ -310,6 +310,13 @@
     },
     "pptx_studio": {
       "desc": "Build PowerPoint decks — free-canvas slides, themes, charts and pptx export."
+    },
+    "mcp": {
+      "title": "Use from external agents (MCP)",
+      "desc": "Install once here, then call these tools from Claude Code, OpenCode, Cursor… Paste the snippet, replace <GATEWAY_TOKEN>, and ask the agent to use the tool — e.g. \"use goclaw to render this video\".",
+      "copy": "Copy snippet",
+      "copy_failed": "Could not copy to clipboard",
+      "token_hint": "<GATEWAY_TOKEN> is the gateway token from your server config (GOCLAW_GATEWAY_TOKEN). Keep it secret — it grants full gateway access. Tools also respect each agent's enabled-tools config."
     }
   }
 }

@@ -39,9 +39,19 @@ var BridgeToolNames = map[string]bool{
 	"memory_get":    true,
 	"skill_search":  true,
 	// Media
-	"read_image":   true,
-	"create_image": true,
-	"tts":          true,
+	"read_image":    true,
+	"create_image":  true,
+	"tts":           true,
+	"stt":           true,
+	"read_document": true,
+	"read_video":    true,
+	"read_audio":    true,
+	// Product rendering (video pipeline: storyboard -> worker -> MP4)
+	"render_video": true,
+	"create_video": true,
+	// Runtime utilities
+	"wait":     true,
+	"datetime": true,
 	// Browser automation
 	"browser": true,
 	// Scheduler

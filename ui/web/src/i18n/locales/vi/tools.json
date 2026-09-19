@@ -310,6 +310,13 @@
     },
     "pptx_studio": {
       "desc": "Dùng làm slide PowerPoint — canvas tự do, theme, biểu đồ và xuất pptx."
+    },
+    "mcp": {
+      "title": "Dùng từ agent ngoài (MCP)",
+      "desc": "Cài một lần ở đây, rồi gọi tool từ Claude Code, OpenCode, Cursor… Dán đoạn lệnh, thay <GATEWAY_TOKEN> và bảo agent dùng tool — ví dụ \"dùng goclaw render video này\".",
+      "copy": "Sao chép lệnh",
+      "copy_failed": "Không thể sao chép vào clipboard",
+      "token_hint": "<GATEWAY_TOKEN> là token gateway trong cấu hình server (GOCLAW_GATEWAY_TOKEN). Giữ kín vì nó có toàn quyền gateway. Tool cũng tuân theo cấu hình bật/tắt của từng agent."
     }
   }
 }

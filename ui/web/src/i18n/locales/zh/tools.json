@@ -310,6 +310,13 @@
     },
     "pptx_studio": {
       "desc": "制作 PowerPoint 演示文稿——自由画布、主题、图表与 pptx 导出。"
+    },
+    "mcp": {
+      "title": "从外部 agent 使用（MCP）",
+      "desc": "在这里安装一次，然后即可在 Claude Code、OpenCode、Cursor… 中调用这些工具。粘贴代码段并替换 <GATEWAY_TOKEN>，然后让 agent 使用工具——例如“用 goclaw 渲染这个视频”。",
+      "copy": "复制代码段",
+      "copy_failed": "无法复制到剪贴板",
+      "token_hint": "<GATEWAY_TOKEN> 是服务器配置中的网关令牌（GOCLAW_GATEWAY_TOKEN）。请妥善保管——它拥有网关全部权限。工具同样遵循各 agent 的启用配置。"
     }
   }
 }
