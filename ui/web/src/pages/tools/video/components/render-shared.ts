@@ -155,6 +155,14 @@ export function effectiveWidthB(l: Layer): number {
   return l.width_b !== undefined && l.width_b > 0 ? Math.min(l.width_b, 1) : 0.38;
 }
 
+/** EffectiveStyle opacity semantics: 0 (and non-finite) means the default 1,
+ * exactly like the worker — `layer.opacity ?? 1` would instead hide a layer
+ * the server renders fully opaque. */
+function effectiveOpacity(l: Layer): number {
+  if (!Number.isFinite(l.opacity) || (l.opacity ?? 0) <= 0) return 1;
+  return Math.min(1, l.opacity as number);
+}
+
 /** EffectiveBox — geometry defaults (x/y 0.1, w 0.8) plus the kind-specific
  * h defaults that keep the motion primitives sensible bare. */
 function effectiveBox(l: Layer): { x: number; y: number; w: number; h: number } {
@@ -516,7 +524,7 @@ export function drawSceneLayers(
     } else if (layer.kind === "stamp") {
       // Stamp/cta ride the worker's PNG-overlay machinery: entrance anims +
       // alpha-reduce, content width-fitted and centered in the box.
-      drawStampLayer(ctx, width, height, layer, slideX, slideY, pop, fade);
+      drawStampLayer(ctx, width, height, layer, fontScale, slideX, slideY, pop, fade);
     } else if (layer.kind === "cta") {
       drawCTALayer(ctx, width, height, layer, fontScale, slideX, slideY, pop, fade);
     }
@@ -557,7 +565,7 @@ function drawCounterLayer(
   const value = from + (to - from) * Math.min(1, Math.max(0, (localTime - start) / win));
   const text = `${layer.text ?? ""}${value.toFixed(decimals)}${layer.suffix ?? ""}`;
   ctx.save();
-  ctx.globalAlpha = (layer.opacity ?? 1) * Math.min(1, Math.max(0, (localTime - start) / 0.3));
+  ctx.globalAlpha = effectiveOpacity(layer) * Math.min(1, Math.max(0, (localTime - start) / 0.3));
   ctx.font = layerFontString(layer, fontSize);
   ctx.fillStyle = packFillOr(pack, layer, "#38BDF8");
   ctx.textBaseline = "top";
@@ -594,7 +602,7 @@ function drawToggleGridLayer(
   const cols = effectiveCols(layer);
   const rows = effectiveRows(layer);
   const cadence = effectiveCadence(layer);
-  const opacity = layer.opacity ?? 1;
+  const opacity = effectiveOpacity(layer);
   const onColor = packFillOr(pack, layer, "#22C55E");
   const offColor = layer.fill_b || "#334155";
   const gap = Math.max(2, Math.round(bw * 0.012));
@@ -638,7 +646,7 @@ function drawCompareBarsLayer(
   const y0 = Math.round(y * height);
   const bw = Math.round(w * width);
   const bh = Math.round(h * height);
-  const opacity = Math.min(1, layer.opacity ?? 1);
+  const opacity = effectiveOpacity(layer);
   const fontSize = (layer.font_size || 48) * fontScale;
   const grow = Math.min(0.8, win * 0.6);
   const p = grow > 0 ? Math.min(1, Math.max(0, (localTime - start) / grow)) : 1;
@@ -725,7 +733,7 @@ function drawStackLayer(
   const bw = Math.round(w * width);
   const bh = Math.round(h * height);
   const n = effectiveN(layer);
-  const opacity = Math.min(1, layer.opacity ?? 1);
+  const opacity = effectiveOpacity(layer);
   const fontSize = (layer.font_size || 48) * fontScale;
   const slideSec = Math.min(0.27, win * 0.35);
   const stagSec = n > 1 ? Math.min(0.18, ((win - slideSec) / (n - 1)) * 0.8) : 0;
@@ -738,9 +746,6 @@ function drawStackLayer(
   ctx.font = layerFontString(layer, fontSize);
   ctx.textBaseline = "top";
   ctx.textAlign = "left";
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = fontSize * 0.22;
-  ctx.shadowOffsetY = 2;
   for (let k = 0; k < n; k++) {
     const enterAt = start + stagSec * k;
     if (localTime < enterAt) continue;
@@ -748,6 +753,8 @@ function drawStackLayer(
     const p = slideSec > 0 ? Math.min(1, Math.max(0, (localTime - enterAt) / slideSec)) : 1;
     const ease = 1 - (1 - p) * (1 - p); // ease-out-quad
     const off = Math.round(slideMax * (1 - ease));
+    // Slabs draw flat — the burn-in's drawbox has no shadow (shadow is for
+    // labels only, scoped like drawCompareBarsLayer).
     ctx.globalAlpha = opacity;
     ctx.fillStyle = stackSlabColor(c0, c1, k, n);
     ctx.fillRect(x0, slabY + off, bw, slabH);
@@ -755,8 +762,14 @@ function drawStackLayer(
     if (label && label.trim() && localTime >= enterAt + slideSec) {
       ctx.globalAlpha = opacity;
       ctx.fillStyle = pack.text || "#FFFFFF";
+      ctx.shadowColor = "rgba(0,0,0,0.5)";
+      ctx.shadowBlur = fontSize * 0.22;
+      ctx.shadowOffsetY = 2;
       const labelY = slabY + Math.max(2, Math.floor((slabH - Math.floor(fontSize * 1.1)) / 2));
       ctx.fillText(label, x0 + Math.floor((slabH * 35) / 100), labelY);
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
     }
   }
   ctx.restore();
@@ -772,6 +785,7 @@ function drawStampLayer(
   width: number,
   height: number,
   layer: Layer,
+  fontScale: number,
   slideX: number,
   slideY: number,
   pop: number,
@@ -785,8 +799,9 @@ function drawStampLayer(
   const cx = x * width + bw / 2 + slideX;
   const cy = y * height + bh / 2 + slideY;
   const fill = layer.fill || "#FFFFFF";
-  // Shrink-to-fit — stampFaceSize: start at bh·0.38, step ×0.9 down to 10.
-  let fontSize = Math.floor(bh * 0.38);
+  // Shrink-to-fit — stampFaceSize: explicit font_size wins (render-space, so
+  // scale like drawCTALayer), otherwise start at bh·0.38, step ×0.9 to 10.
+  let fontSize = layer.font_size ? Math.floor(layer.font_size * fontScale) : Math.floor(bh * 0.38);
   const maxTextW = Math.floor((bw * 62) / 100);
   ctx.font = boldFontString(fontSize);
   let textW = ctx.measureText(text).width;
@@ -816,7 +831,7 @@ function drawStampLayer(
   ctx.translate(cx, cy);
   ctx.rotate(rad);
   ctx.scale(pop * fit, pop * fit);
-  ctx.globalAlpha = fade * (layer.opacity ?? 1);
+  ctx.globalAlpha = fade * effectiveOpacity(layer);
   // Border ring (evenodd: outer rect minus the inner punch-out).
   ctx.fillStyle = fill;
   ctx.beginPath();
@@ -873,7 +888,7 @@ function drawCTALayer(
   ctx.translate(bx + bw / 2, by + bh / 2);
   ctx.scale(pop, pop);
   ctx.translate(-(bx + bw / 2), -(by + bh / 2));
-  ctx.globalAlpha = fade * (layer.opacity ?? 1);
+  ctx.globalAlpha = fade * effectiveOpacity(layer);
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.roundRect(bx, by, bw, bh, bh / 2);
@@ -964,7 +979,7 @@ function drawHighlightTextLayer(
   ctx.translate(cx, cy);
   ctx.scale(pop, pop);
   ctx.translate(-cx, -cy);
-  ctx.globalAlpha = fade * (layer.opacity ?? 1);
+  ctx.globalAlpha = fade * effectiveOpacity(layer);
   ctx.font = layerFontString(layer, fontSize);
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";

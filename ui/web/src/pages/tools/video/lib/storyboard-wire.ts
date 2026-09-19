@@ -35,9 +35,17 @@ function clampNum(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
+/** Server validate.go accepts "" (default) or #RRGGBB for fill/fill_b on the
+ * motion kinds — anything else 400s, so drop it here instead. */
+function hexOrUndefined(v: string | undefined): string | undefined {
+  return typeof v === "string" && HEX_COLOR.test(v) ? v : undefined;
+}
+
 /** Clamp one layer's motion fields to the server contract. Only new-field
- * kinds/entries are touched; plain legacy layers return unchanged. */
-function sanitizeLayer(l: Layer): Layer {
+ * kinds/entries are touched; plain legacy layers return unchanged. Returns
+ * null for new-kind layers whose required content is missing (empty
+ * stamp/cta text would 400 the whole submit). */
+function sanitizeLayer(l: Layer): Layer | null {
   let next = l;
   if (next.highlights) {
     const highlights = next.highlights
@@ -53,15 +61,22 @@ function sanitizeLayer(l: Layer): Layer {
     next = { ...next, highlights: highlights.length > 0 ? highlights : undefined };
   }
   switch (next.kind) {
-    case "counter":
-      next = { ...next, decimals: clampInt(next.decimals ?? 0, 0, 2) };
+    case "counter": {
+      // validate.go: to > 0 and 0 <= from < to — hard 400 otherwise.
+      const from = Number.isFinite(next.from) ? Math.max(0, next.from ?? 0) : 0;
+      let to = Number.isFinite(next.to) && (next.to ?? 0) > 0 ? (next.to as number) : 20;
+      if (to <= from) to = from + 1;
+      next = { ...next, from, to, decimals: clampInt(next.decimals ?? 0, 0, 2) };
       break;
+    }
     case "toggle_grid":
       next = {
         ...next,
         cols: clampInt(next.cols ?? 0, 0, 4),
         rows: clampInt(next.rows ?? 0, 0, 4),
         cadence: clampNum(next.cadence ?? 0, 0, 2),
+        fill: hexOrUndefined(next.fill),
+        fill_b: hexOrUndefined(next.fill_b),
       };
       break;
     case "compare_bars":
@@ -69,10 +84,17 @@ function sanitizeLayer(l: Layer): Layer {
         ...next,
         width_a: clampNum(next.width_a ?? 0, 0, 1),
         width_b: clampNum(next.width_b ?? 0, 0, 1),
+        fill: hexOrUndefined(next.fill),
+        fill_b: hexOrUndefined(next.fill_b),
       };
       break;
     case "stack": {
-      next = { ...next, n: clampInt(next.n ?? 0, 0, 6) };
+      next = {
+        ...next,
+        n: clampInt(next.n ?? 0, 0, 6),
+        fill: hexOrUndefined(next.fill),
+        fill_b: hexOrUndefined(next.fill_b),
+      };
       if (next.labels) {
         const labels = next.labels.slice(0, 6);
         next = { ...next, labels: labels.length > 0 ? labels : undefined };
@@ -80,7 +102,16 @@ function sanitizeLayer(l: Layer): Layer {
       break;
     }
     case "stamp":
+      if (!next.text || !next.text.trim()) return null;
       next = { ...next, angle: clampNum(next.angle ?? -8, -30, 30) };
+      break;
+    case "cta":
+      if (!next.text || !next.text.trim()) return null;
+      next = {
+        ...next,
+        fill: hexOrUndefined(next.fill),
+        fill_b: hexOrUndefined(next.fill_b),
+      };
       break;
     default:
       break;
@@ -97,7 +128,7 @@ function sanitizeScene(sc: Scene): Scene {
     next = { ...next, style_pack: undefined };
   }
   if (next.layers && next.layers.length > 0) {
-    next = { ...next, layers: next.layers.map(sanitizeLayer) };
+    next = { ...next, layers: next.layers.map(sanitizeLayer).filter((l): l is Layer => l !== null) };
   }
   return next;
 }
