@@ -95,12 +95,13 @@ func main() {
 	runner := vworker.NewRunner(cfg)
 	srv := vworker.NewServer(runner, token)
 
-	// Periodic cleanup ticker
+	// Periodic cleanup ticker — protected dirs keep in-flight jobs safe
+	// from the age-based sweep.
 	go func() {
 		ticker := time.NewTicker(15 * time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
-			vworker.CleanupSweep(workDir, ttl)
+			vworker.CleanupSweep(workDir, ttl, runner.ActiveWorkDirs()...)
 		}
 	}()
 
