@@ -282,6 +282,9 @@ func init() {
 		MsgTtsParamOutOfRange:     "tham số TTS %q có giá trị %v nằm ngoài phạm vi [%v, %v]",
 		MsgTtsParamUnknownKey:     "tham số TTS %q không được nhà cung cấp này hỗ trợ",
 		MsgTtsMiniMaxVoicesFailed: "không tải được danh sách giọng đọc MiniMax: %s",
+		MsgTtsCloneNotConfigured:  "worker nhân bản giọng nói chưa được cấu hình (đặt tts.clone.endpoint)",
+		MsgTtsCloneNameInvalid:    "tên giọng đọc là bắt buộc (tối đa %d ký tự)",
+		MsgTtsCloneIDInvalid:      "mã giọng đọc không hợp lệ (chỉ cho phép chữ cái, chữ số, dấu gạch ngang và gạch dưới)",
 
 		// STT
 		MsgSTTAllProvidersFailed:     "Tất cả nhà cung cấp STT đều thất bại",

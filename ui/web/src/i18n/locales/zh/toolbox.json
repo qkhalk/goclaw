@@ -254,7 +254,20 @@
     "job_edit_loaded": "分镜已载入编辑器",
     "job_edit_failed": "无法读取此任务的分镜",
     "layers_add_icon": "图标",
-    "layers_add_card": "卡片"
+    "layers_add_card": "卡片",
+    "clone_voice": {
+      "group": "我的声音",
+      "add_item": "＋ 注册我的声音…",
+      "title": "注册我的声音",
+      "description": "上传 30–60 秒你自己的语音（安静环境，靠近麦克风）。克隆工作器会提取说话人嵌入；网关本身不运行模型。",
+      "name": "声音名称",
+      "name_placeholder": "例如：我的声音",
+      "file": "参考音频",
+      "hint": "WAV、MP3、M4A… — 至少 5 秒，建议 30–60 秒，最大 16MB。",
+      "submit": "注册声音",
+      "success": "声音已注册 — 请在声音列表中选择",
+      "failed": "注册声音失败：{{msg}}"
+    }
   },
   "watermark": {
     "title": "水印移除",

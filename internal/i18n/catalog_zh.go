@@ -282,6 +282,9 @@ func init() {
 		MsgTtsParamOutOfRange:     "TTS 参数 %q 的值 %v 超出范围 [%v, %v]",
 		MsgTtsParamUnknownKey:     "TTS 参数 %q 不受此提供商支持",
 		MsgTtsMiniMaxVoicesFailed: "获取 MiniMax 声音列表失败：%s",
+		MsgTtsCloneNotConfigured:  "语音克隆工作进程未配置（请设置 tts.clone.endpoint）",
+		MsgTtsCloneNameInvalid:    "声音名称为必填项（最多 %d 个字符）",
+		MsgTtsCloneIDInvalid:      "声音 ID 无效（仅允许字母、数字、连字符和下划线）",
 
 		// STT
 		MsgSTTAllProvidersFailed:     "所有 STT 提供商均失败",

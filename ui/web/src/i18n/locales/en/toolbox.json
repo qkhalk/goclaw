@@ -254,7 +254,20 @@
     "job_edit_loaded": "Storyboard loaded into the editor",
     "job_edit_failed": "Could not read this job's storyboard",
     "layers_add_icon": "Icon",
-    "layers_add_card": "Card"
+    "layers_add_card": "Card",
+    "clone_voice": {
+      "group": "My voices",
+      "add_item": "＋ Register my voice…",
+      "title": "Register my voice",
+      "description": "Upload 30–60 seconds of your voice (quiet room, close mic). The clone worker extracts a speaker embedding from it; the gateway never runs the model itself.",
+      "name": "Voice name",
+      "name_placeholder": "e.g. My voice",
+      "file": "Reference audio",
+      "hint": "WAV, MP3, M4A… — at least 5 seconds, 30–60s recommended, max 16MB.",
+      "submit": "Register voice",
+      "success": "Voice registered — pick it from the voice list",
+      "failed": "Could not register voice: {{msg}}"
+    }
   },
   "watermark": {
     "title": "Watermark Remover",

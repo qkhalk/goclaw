@@ -282,6 +282,9 @@ func init() {
 		MsgTtsParamOutOfRange:     "TTS param %q value %v is out of range [%v, %v]",
 		MsgTtsParamUnknownKey:     "TTS param %q is not supported by this provider",
 		MsgTtsMiniMaxVoicesFailed: "failed to fetch MiniMax voices: %s",
+		MsgTtsCloneNotConfigured:  "voice clone worker is not configured (set tts.clone.endpoint)",
+		MsgTtsCloneNameInvalid:    "voice name is required (max %d characters)",
+		MsgTtsCloneIDInvalid:      "invalid voice id (allowed: letters, digits, dash, underscore)",
 
 		// STT
 		MsgSTTAllProvidersFailed:     "All STT providers failed",

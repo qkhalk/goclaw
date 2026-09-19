@@ -1,0 +1,13 @@
+# CPU-only installs: install torch from the CPU wheel index first so the
+# full CUDA runtime (several GB) is never pulled:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# then install the rest:
+#   pip install -r requirements.txt
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+edge-tts>=6.1
+huggingface_hub>=0.23
+# OpenVoice v2 (tone-color conversion). Installs from the official repo —
+# it is not published on PyPI. Pulls librosa/soundfile/etc. itself.
+openvoice @ https://github.com/myshell-ai/OpenVoice/archive/refs/heads/main.zip
