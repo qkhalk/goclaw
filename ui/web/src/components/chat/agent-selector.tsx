@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronDown } from "lucide-react";
-import { GoclawAvatar } from "@/components/chat/goclaw-avatar";
-import { isSystemAgent } from "@/lib/system-agents";
+import { Bot, ChevronDown } from "lucide-react";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
 import { useAgents } from "@/hooks/use-agents";
 import { stripLeadingEmoji } from "@/lib/agent-emoji";
+import { isSystemAgent } from "@/lib/system-agents";
 import type { AgentData } from "@/types/agent";
 
 interface AgentSelectorProps {
@@ -24,7 +23,15 @@ function agentEmoji(agent: AgentData): string | undefined {
 export function AgentSelector({ value, onChange, openSignal }: AgentSelectorProps) {
   const { t } = useTranslation("common");
   const { data: allAgents = [] } = useAgents();
-  const agents = allAgents.filter((a) => a.status === "active" && !isSystemAgent(a.agent_key));
+  // Only active, non-designer agents are selectable in /chat. The system
+  // designer agents (video-designer, pptx-designer) are studio-only workers
+  // addressed directly by session key from the tools pages — excluding them
+  // here keeps their session history out of the chat selector. Exact-match
+  // on SYSTEM_AGENT_KEYS so user-created agents like "logo-designer" stay
+  // visible.
+  const agents = allAgents.filter(
+    (a) => a.status === "active" && !isSystemAgent(a.agent_key),
+  );
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -67,7 +74,7 @@ export function AgentSelector({ value, onChange, openSignal }: AgentSelectorProp
         {selectedEmoji ? (
           <span className="text-base shrink-0">{selectedEmoji}</span>
         ) : (
-          <GoclawAvatar />
+          <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
         )}
         <span className="flex-1 truncate text-left font-medium">
           {stripLeadingEmoji(selectedEmoji, selected?.display_name ?? selected?.agent_key ?? (value || t("selectAgent")))}
@@ -101,7 +108,7 @@ export function AgentSelector({ value, onChange, openSignal }: AgentSelectorProp
                 {emoji ? (
                   <span className="text-base shrink-0">{emoji}</span>
                 ) : (
-                  <GoclawAvatar />
+                  <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}
                 <span className="flex-1 truncate text-left">
                   {stripLeadingEmoji(emoji, agent.display_name || agent.agent_key)}

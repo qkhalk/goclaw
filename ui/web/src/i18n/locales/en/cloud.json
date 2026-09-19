@@ -154,7 +154,10 @@
     "col_actions": "Actions",
     "scope_type": "Scope type",
     "rule_added": "Rule added",
-    "table_empty": "No rules yet"
+    "table_empty": "No rules yet",
+    "personal_accounts": "Personal accounts",
+    "shared_accounts": "Shared (business) accounts",
+    "accounts_explainer": "Personal = your own cloud accounts. Shared (business) = tenant-wide accounts, bound to groups/users with priority."
   },
   "detail": {
     "mail_btn": "Mailbox",
@@ -353,5 +356,19 @@
     "select_all": "Select all",
     "search": "Focus search",
     "help": "Shortcut help"
+  },
+  "webdav": {
+    "title": "Connect WebDAV storage",
+    "description": "Works with Nextcloud, ownCloud, Synology and any WebDAV server. Credentials are validated against the endpoint before being saved.",
+    "label": "Label (optional)",
+    "label_placeholder": "Team archive",
+    "endpoint": "WebDAV URL",
+    "endpoint_hint": "The collection that acts as the account root, e.g. the Nextcloud remote.php/dav/files/<user> URL.",
+    "username": "Username",
+    "password": "Password",
+    "password_hint": "Encrypted at rest; the API never returns credentials after saving.",
+    "cancel": "Cancel",
+    "connecting": "Connecting…",
+    "connect": "Connect"
   }
 }

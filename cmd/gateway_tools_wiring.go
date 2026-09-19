@@ -34,6 +34,21 @@ func wireExtraTools(
 	builtinSkillsDir string,
 	cronCommandEnabled bool,
 ) (heartbeatTool *tools.HeartbeatTool, hasMemory bool) {
+	// Per-agent file/cloud capability policy (agents.other_config.file_policy).
+	// The registry-level guard covers read tools, edit and cloud read tools;
+	// write_file additionally receives the guard for its precise
+	// write-vs-create split (target existence).
+	if pgStores.Agents != nil {
+		fileGuard := tools.NewFilePolicyGuard(pgStores.Agents)
+		toolsReg.SetFilePolicyGuard(fileGuard)
+		if wt, ok := toolsReg.Get("write_file"); ok {
+			if aware, ok := wt.(tools.FilePolicyAware); ok {
+				aware.SetFilePolicyGuard(fileGuard)
+			}
+		}
+		slog.Info("file policy guard wired (per-agent file/cloud capabilities)")
+	}
+
 	// web_search: tenant-scoped resolve requires stores + msgBus — register here.
 	toolsReg.Register(tools.NewWebSearchTool(pgStores.ConfigSecrets, msgBus))
 	slog.Info("web_search tool registered (tenant-scoped resolve)")

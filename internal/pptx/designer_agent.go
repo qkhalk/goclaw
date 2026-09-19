@@ -29,10 +29,25 @@ var designerSkillSlugs = []string{
 }
 
 // designerAllowTools is the complete tool surface of the designer agent:
-// knowledge lookup only. No exec, no write_file, no delegate, no cron — the
-// enforcement is the fail-closed execution gate that intersects the registry
-// with this allowlist.
-const designerAllowTools = `{"profile":"minimal","allow":["skill_search","use_skill","session_status"]}`
+// skill discovery, read-only skill loading, session introspection.
+//
+// read_file is NOT optional: the platform skill protocol (injected into every
+// agent's system prompt) is use_skill → read_file the SKILL.md <location>,
+// and the use_skill tool itself is a deliberate no-op that answers "Proceed
+// to read the skill's SKILL.md with read_file." Without read_file in this
+// allowlist the fail-closed execution gate denies that read every time, so
+// the designer can never actually load the design skills granted exclusively
+// to it and errors through its opening turns retrying. read_file is
+// workspace-restricted (RestrictToWs) and read-only. No exec, no write_file,
+// no delegate, no cron — the enforcement is the fail-closed execution gate
+// that intersects the registry with this allowlist.
+const designerAllowTools = `{"profile":"minimal","allow":["skill_search","use_skill","read_file","session_status"]}`
+
+// designerAllowToolsV1 is the pre-read_file surface. Kept verbatim so
+// upgradeDesignerTools can recognize agents seeded by earlier builds and
+// bring them to the current surface (admin-customized configs are left
+// alone, mirroring the identity migration rule).
+const designerAllowToolsV1 = `{"profile":"minimal","allow":["skill_search","use_skill","session_status"]}`
 
 // DesignerToolPolicy returns the parsed tool policy of the designer agent.
 // Single source of truth for the designer's tool surface: the loop's
@@ -120,6 +135,9 @@ func EnsureDesignerAgent(ctx context.Context, cfg *config.Config, agentStore sto
 		if err := upgradeDesignerIdentity(ctx, agentStore, agentID); err != nil {
 			slog.Warn("pptx: designer agent identity upgrade failed", "error", err)
 		}
+		if err := upgradeDesignerTools(ctx, agentStore, existing); err != nil {
+			slog.Warn("pptx: designer agent tools upgrade failed", "error", err)
+		}
 	} else {
 		provider := cfg.Agents.Defaults.Provider
 		model := cfg.Agents.Defaults.Model
@@ -190,6 +208,29 @@ func upgradeDesignerIdentity(ctx context.Context, agentStore store.AgentStore, a
 		}
 	}
 	return nil // custom content — leave it alone
+}
+
+// upgradeDesignerTools brings an existing agent's tools_config to the
+// current allowlist, but only when the stored value still matches a known
+// system version (JSON-semantic compare). An admin-customized policy stays
+// untouched.
+func upgradeDesignerTools(ctx context.Context, agentStore store.AgentStore, existing *store.AgentData) error {
+	equal := func(a, b string) bool {
+		var ja, jb any
+		return json.Unmarshal([]byte(a), &ja) == nil &&
+			json.Unmarshal([]byte(b), &jb) == nil &&
+			fmt.Sprintf("%v", ja) == fmt.Sprintf("%v", jb)
+	}
+	if equal(string(existing.ToolsConfig), designerAllowTools) {
+		return nil // already current
+	}
+	if equal(string(existing.ToolsConfig), designerAllowToolsV1) {
+		if err := agentStore.Update(ctx, existing.ID, map[string]any{"tools_config": json.RawMessage(designerAllowTools)}); err != nil {
+			return fmt.Errorf("write tools_config: %w", err)
+		}
+		slog.Info("pptx: designer agent tools_config upgraded (read_file granted)", "agent_id", existing.ID)
+	}
+	return nil
 }
 
 // grantDesignerSkills scopes the bundled design skills to the designer agent

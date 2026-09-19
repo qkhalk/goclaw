@@ -182,7 +182,8 @@
       "skills": "스킬",
       "instances": "인스턴스",
       "permissions": "권한",
-      "evolution": "진화"
+      "evolution": "진화",
+      "subagentDefs": "서브에이전트"
     },
     "summonFailed": "소환 실패",
     "evolving": "진화 중",
@@ -1090,5 +1091,69 @@
     "skillGrantFailed": "스킬 부여 실패",
     "skillRevoked": "스킬 취소됨",
     "skillRevokeFailed": "스킬 취소 실패"
+  },
+  "subagentDefs": {
+    "tab": "서브에이전트",
+    "title": "서브에이전트 정의",
+    "description": "에이전트가 spawn 도구로 실행할 수 있는 이름 있는 생성 템플릿입니다. 각 정의는 자체 모델, 허용 도구, 시스템 프롬프트, 워크스페이스 지침을 지정합니다.",
+    "add": "정의 추가",
+    "loading": "정의를 불러오는 중...",
+    "emptyTitle": "서브에이전트 정의 없음",
+    "emptyDescription": "재사용 가능한 템플릿을 만들어 에이전트가 이름으로 전문 서브에이전트를 실행하도록 하세요.",
+    "badgeAgentsMd": "AGENTS.md",
+    "badgeTools": "도구 {{count}}개",
+    "dialog": {
+      "editTitle": "서브에이전트 정의 편집",
+      "createTitle": "새 서브에이전트 정의",
+      "description": "에이전트의 LLM이 spawn 도구(definition 파라미터)로 이 서브에이전트를 이름으로 실행할 수 있습니다."
+    },
+    "form": {
+      "name": "이름",
+      "nameInvalid": "이름은 소문자, 숫자, 하이픈 또는 밑줄만 사용할 수 있습니다",
+      "nameTaken": "같은 이름의 정의가 이미 존재합니다",
+      "model": "모델",
+      "provider": "공급자",
+      "modelInherit": "(에이전트 상속)",
+      "loadingModels": "모델을 불러오는 중...",
+      "description": "설명",
+      "descriptionPlaceholder": "이 서브에이전트의 용도는 무엇인가요?",
+      "allowedTools": "허용된 도구",
+      "allowedToolsHint": "이 서브에이전트가 사용할 수 있는 도구를 제한합니다. 비우면 모든 도구가 허용됩니다.",
+      "noToolsLoaded": "도구 목록을 사용할 수 없습니다 — 직접 추가하지 않는 한 제한되지 않습니다.",
+      "systemPrompt": "시스템 프롬프트",
+      "systemPromptPlaceholder": "서브에이전트의 지침입니다. 기본 서브에이전트 프롬프트를 대체합니다.",
+      "injectAgentsMd": "AGENTS.md 주입",
+      "injectAgentsMdHint": "워크스페이스 AGENTS.md 내용을 서브에이전트 시스템 프롬프트 앞에 추가합니다.",
+      "cancel": "취소",
+      "save": "저장",
+      "saving": "저장 중...",
+      "nameLocked": "이름은 생성 후 고정됩니다(변경하려면 삭제 후 다시 만드세요)."
+    },
+    "toast": {
+      "created": "서브에이전트 정의가 생성되었습니다",
+      "createFailed": "서브에이전트 정의 생성 실패",
+      "updated": "서브에이전트 정의가 업데이트되었습니다",
+      "updateFailed": "서브에이전트 정의 업데이트 실패",
+      "deleted": "서브에이전트 정의가 삭제되었습니다",
+      "deleteFailed": "서브에이전트 정의 삭제 실패"
+    },
+    "delete": {
+      "title": "서브에이전트 정의 삭제",
+      "description": "에이전트가 더 이상 \"{{name}}\"을(를) 실행할 수 없습니다. 되돌릴 수 없습니다."
+    },
+    "badgeTools_other": "도구 {{count}}개"
+  },
+  "fileCloudPermissions": {
+    "title": "파일 및 클라우드 권한",
+    "description": "이 에이전트가 파일로 수행할 수 있는 작업을 선택하세요. 클라우드 드라이브 도구도 같은 스위치를 따릅니다. 탐색/읽기는 읽기, 덮어쓰기·삭제·이름 바꾸기·공유는 쓰기, 새 폴더와 복사는 만들기가 필요합니다.",
+    "read": "파일 읽기",
+    "readDesc": "워크스페이스 파일 및 연결된 클라우드 드라이브 목록 조회/읽기 (read_file, list_files, 클라우드 탐색).",
+    "write": "파일 쓰기",
+    "writeDesc": "기존 내용 수정 — 워크스페이스 파일(기존 경로 대상 write_file, edit) 및 클라우드 드라이브(cloud_write, cloud_delete, cloud_move, cloud_share).",
+    "create": "파일 만들기",
+    "createDesc": "새 파일 및 폴더 생성 — 워크스페이스(새 경로 대상 write_file) 및 클라우드 드라이브(cloud_mkdir, cloud_copy).",
+    "save": "권한 저장",
+    "saving": "저장 중…",
+    "saved": "파일 및 클라우드 권한이 업데이트되었습니다"
   }
 }

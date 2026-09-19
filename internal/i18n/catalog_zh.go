@@ -457,5 +457,10 @@ func init() {
 		MsgVideoJobDone:      "视频渲染任务 %s 已完成",
 		MsgVideoDisabled:     "此网关未启用视频渲染",
 		MsgVideoWorkerUnavail: "视频工作进程不可达",
+
+		// Per-agent file/cloud capability policy
+		MsgFileReadDenied:   "该 Agent 的文件策略已禁用读取文件。管理员可在 Agent 设置 → 文件与云权限中重新开启。",
+		MsgFileWriteDenied:  "该 Agent 的文件策略已禁用写入文件。管理员可在 Agent 设置 → 文件与云权限中重新开启。",
+		MsgFileCreateDenied: "该 Agent 的文件策略已禁用创建新文件。管理员可在 Agent 设置 → 文件与云权限中重新开启。",
 	})
 }

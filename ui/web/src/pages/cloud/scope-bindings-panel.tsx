@@ -8,7 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -65,21 +67,40 @@ function AccountSelect({
 }: {
   value: string;
   onChange: (v: string) => void;
-  options: { id: string; label: string }[];
+  options: { id: string; label: string; shared?: boolean }[];
   placeholder: string;
   className?: string;
 }) {
+  const { t: tScope } = useTranslation("cloud");
+  // Business story: personal (own clouds) vs shared tenant-wide accounts.
+  const personal = options.filter((o) => !o.shared);
+  const shared = options.filter((o) => o.shared);
   return (
     <Select value={value || undefined} onValueChange={onChange}>
       <SelectTrigger className={className ?? "w-full min-w-0"} dir="ltr">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="max-h-64">
-        {options.map((o) => (
-          <SelectItem key={o.id} value={o.id}>
-            {o.label}
-          </SelectItem>
-        ))}
+        {personal.length > 0 && (
+          <SelectGroup>
+            <SelectLabel>{tScope("scope.personal_accounts")}</SelectLabel>
+            {personal.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        )}
+        {shared.length > 0 && (
+          <SelectGroup>
+            <SelectLabel>{tScope("scope.shared_accounts")}</SelectLabel>
+            {shared.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        )}
       </SelectContent>
     </Select>
   );
@@ -115,7 +136,8 @@ export function ScopeBindingsPanel({ provider }: { provider: CloudProvider }) {
   const providerAccounts = accounts.filter((a) => a.provider === provider);
   const accountOptions = providerAccounts.map((a) => ({
     id: a.id,
-    label: a.shared ? `🏢 ${a.email}` : a.email,
+    label: a.email,
+    shared: a.shared,
   }));
 
   const providerBindings = bindings.filter((b) => b.provider === provider);
@@ -184,6 +206,7 @@ export function ScopeBindingsPanel({ provider }: { provider: CloudProvider }) {
     <div className="rounded-lg border p-4">
       <p className="text-sm font-medium">{t("scope.title")}</p>
       <p className="mt-1 text-xs text-muted-foreground">{t("scope.description")}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("scope.accounts_explainer")}</p>
 
       {/* Tenant default (single rule, separate row — NONE unbinds) */}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">

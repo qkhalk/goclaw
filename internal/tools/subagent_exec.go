@@ -210,18 +210,26 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 	toolsReg := sm.createTools()
 	toolsReg.Register(NewSpawnTool(sm, task.RootAgentKey, task.Depth))
 	sm.applyDenyList(toolsReg, task.Depth, task.spawnConfig)
+	// Definition allow list narrows further (deny lists already applied above).
+	if def := task.definition; def != nil {
+		sm.applyDefinitionAllowList(toolsReg, def.AllowedTools)
+	}
 
 	// Determine model (cascading priority):
 	// 1. Per-task model override (highest — LLM specified model in spawn call)
-	// 2. SubagentConfig.Model (agent-level subagent override)
-	// 3. Parent agent's model (inherit from the agent that spawned us)
-	// 4. SubagentManager default model (system-wide fallback)
+	// 2. Subagent definition model (named spawn template)
+	// 3. SubagentConfig.Model (agent-level subagent override)
+	// 4. Parent agent's model (inherit from the agent that spawned us)
+	// 5. SubagentManager default model (system-wide fallback)
 	model = sm.model
 	if parentModel := ParentModelFromCtx(ctx); parentModel != "" {
 		model = parentModel
 	}
 	if task.spawnConfig.Model != "" {
 		model = task.spawnConfig.Model
+	}
+	if def := task.definition; def != nil && def.Model != "" {
+		model = def.Model
 	}
 	if task.Model != "" {
 		model = task.Model
@@ -248,7 +256,9 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 	if IsDelegationArtifactRun(ctx) {
 		promptWorkspace = "outputs/"
 	}
-	systemPrompt := tracing.RedactText(ctx, sm.buildSubagentSystemPrompt(task, task.spawnConfig, promptWorkspace))
+	// AGENTS.md injection must read the real workspace root — the
+	// "outputs/" label above is display-only and is not a readable path.
+	systemPrompt := tracing.RedactText(ctx, sm.buildSubagentSystemPrompt(task, task.spawnConfig, promptWorkspace, workspace))
 
 	messages := []providers.Message{
 		{Role: "system", Content: systemPrompt},

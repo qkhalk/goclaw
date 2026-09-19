@@ -102,11 +102,11 @@ export function CloudPage() {
   const isAdmin = role === "admin" || role === "owner";
 
   const { data: cloudStatus, isLoading: cloudStatusLoading } = useCloudStatus();
-  const { accounts, loading, refresh, disconnect, startConnect, completeConnect, connectS3, setShared, setAgentAccess } = useCloudAccounts();
+  const { accounts, loading, refresh, disconnect, startConnect, completeConnect, connectS3, connectWebDAV, setShared, setAgentAccess } = useCloudAccounts();
 
   // URL-derived view state (never duplicated into useState).
   const activeProvider: CloudProvider | null =
-    provider === "google" || provider === "onedrive" || provider === "dropbox" || provider === "s3" ? provider : null;
+    provider === "google" || provider === "onedrive" || provider === "dropbox" || provider === "s3" || provider === "webdav" ? provider : null;
   const path = normalizePath(params.get("path"));
   const view: "home" | "provider" | "account" = accountId ? "account" : provider ? "provider" : "home";
   /** Cross-account pseudo-views on /cloud itself (?view=starred|recent). */
@@ -150,6 +150,7 @@ export function CloudPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsProvider, setSettingsProvider] = useState<CloudProvider>("google");
   const [s3Open, setS3Open] = useState(false);
+  const [webdavOpen, setWebdavOpen] = useState(false);
 
   const account = accountId ? accounts.find((a) => a.id === accountId) : undefined;
   const providerMeta = activeProvider ? CLOUD_PROVIDERS.find((p) => p.id === activeProvider) : null;
@@ -172,9 +173,13 @@ export function CloudPage() {
   }
 
   async function handleConnect(p: CloudProvider) {
-    // s3 skips OAuth entirely — open the access-key connect dialog.
+    // s3/webdav skip OAuth entirely — open the credential connect dialog.
     if (p === "s3") {
       setS3Open(true);
+      return;
+    }
+    if (p === "webdav") {
+      setWebdavOpen(true);
       return;
     }
     setConnecting(true);
@@ -553,6 +558,12 @@ export function CloudPage() {
         onConnect={connectS3}
       />
 
+      <WebDAVConnectDialog
+        open={webdavOpen}
+        onOpenChange={setWebdavOpen}
+        onConnect={connectWebDAV}
+      />
+
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
@@ -670,6 +681,97 @@ function S3ConnectDialog({
           </Button>
           <Button size="sm" onClick={submit} disabled={saving || !bucket.trim() || !accessKey.trim() || !secretKey.trim()} className="min-h-11 sm:min-h-9">
             {saving ? t("s3.connecting") : t("s3.connect")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Credential connect dialog for WebDAV servers (Nextcloud, Synology, ...).
+ * The server validates the login with one PROPFIND before persisting — a bad
+ * field fails here, not on first use. */
+function WebDAVConnectDialog({
+  open,
+  onOpenChange,
+  onConnect,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConnect: (input: { label?: string; endpoint: string; username: string; password: string }) => Promise<unknown>;
+}) {
+  const { t } = useTranslation("cloud");
+  const [label, setLabel] = useState("");
+  const [endpoint, setEndpoint] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function close() {
+    onOpenChange(false);
+    setLabel("");
+    setEndpoint("");
+    setUsername("");
+    setPassword("");
+    setError("");
+  }
+
+  async function submit() {
+    if (!endpoint.trim() || !username.trim() || !password.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onConnect({
+        label: label.trim() || undefined,
+        endpoint: endpoint.trim(),
+        username: username.trim(),
+        password,
+      });
+      close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const field =
+    "w-full text-base md:text-sm";
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && close()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("webdav.title")}</DialogTitle>
+          <DialogDescription>{t("webdav.description")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="webdav-label">{t("webdav.label")}</Label>
+            <Input id="webdav-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("webdav.label_placeholder")} className={field} autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="webdav-endpoint">{t("webdav.endpoint")}</Label>
+            <Input id="webdav-endpoint" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://cloud.example.com/remote.php/dav/files/alice" className={field} autoComplete="url" />
+            <p className="text-xs text-muted-foreground">{t("webdav.endpoint_hint")}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="webdav-username">{t("webdav.username")}</Label>
+            <Input id="webdav-username" value={username} onChange={(e) => setUsername(e.target.value)} className={field} autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="webdav-password">{t("webdav.password")}</Label>
+            <Input id="webdav-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={field} autoComplete="new-password" />
+            <p className="text-xs text-muted-foreground">{t("webdav.password_hint")}</p>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={close} disabled={saving} className="min-h-11 sm:min-h-9">
+            {t("webdav.cancel")}
+          </Button>
+          <Button size="sm" onClick={submit} disabled={saving || !endpoint.trim() || !username.trim() || !password.trim()} className="min-h-11 sm:min-h-9">
+            {saving ? t("webdav.connecting") : t("webdav.connect")}
           </Button>
         </div>
       </DialogContent>

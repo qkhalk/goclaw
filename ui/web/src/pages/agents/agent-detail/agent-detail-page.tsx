@@ -13,6 +13,7 @@ import { AgentPermissionsTab } from "./agent-permissions-tab";
 import { AgentSharesTab } from "./agent-shares-tab";
 import { AgentEvolutionTab } from "./evolution-tab/agent-evolution-tab";
 import { AgentHooksTab } from "./agent-hooks-tab";
+import { SubagentDefinitionsSection } from "./subagent-definitions-section";
 import { SummoningModal } from "../summoning-modal";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { DetailPageSkeleton } from "@/components/shared/loading-skeleton";
@@ -84,6 +85,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
               <TabsTrigger value="shares">{t("detail.tabs.shares")}</TabsTrigger>
               <TabsTrigger value="evolution">{t("detail.tabs.evolution")}</TabsTrigger>
               <TabsTrigger value="hooks">{t("detail.tabs.hooks")}</TabsTrigger>
+              <TabsTrigger value="subagentDefs">{t("detail.tabs.subagentDefs")}</TabsTrigger>
               {agent.agent_type === "predefined" && (
                 <TabsTrigger value="instances">{t("detail.tabs.instances")}</TabsTrigger>
               )}
@@ -137,6 +139,10 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
                 initialCreateOpen={hooksCreateOpen}
                 onCreateOpenChange={setHooksCreateOpen}
               />
+            </TabsContent>
+
+            <TabsContent value="subagentDefs" className="mt-4">
+              <SubagentDefinitionsSection agentId={agentId} />
             </TabsContent>
 
             {agent.agent_type === "predefined" && (

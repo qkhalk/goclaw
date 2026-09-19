@@ -154,7 +154,10 @@
     "col_actions": "操作",
     "scope_type": "范围类型",
     "rule_added": "规则已添加",
-    "table_empty": "暂无规则"
+    "table_empty": "暂无规则",
+    "personal_accounts": "个人账户",
+    "shared_accounts": "共享（企业）账户",
+    "accounts_explainer": "个人 = 你自己的云账户。共享（企业）= 租户级账户，按优先级绑定到组/用户。"
   },
   "detail": {
     "mail_btn": "邮箱",
@@ -353,5 +356,19 @@
     "select_all": "全选",
     "search": "聚焦搜索",
     "help": "快捷键帮助"
+  },
+  "webdav": {
+    "title": "连接 WebDAV 存储",
+    "description": "支持 Nextcloud、ownCloud、群晖及任何 WebDAV 服务器。保存前会先对 endpoint 验证凭据。",
+    "label": "标签(可选)",
+    "label_placeholder": "团队归档",
+    "endpoint": "WebDAV URL",
+    "endpoint_hint": "作为账户根目录的集合，例如 Nextcloud 的 remote.php/dav/files/<用户> URL。",
+    "username": "用户名",
+    "password": "密码",
+    "password_hint": "保存时加密存储；API 不会再次返回凭据。",
+    "cancel": "取消",
+    "connecting": "连接中…",
+    "connect": "连接"
   }
 }

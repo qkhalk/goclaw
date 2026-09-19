@@ -984,6 +984,20 @@ type SubagentsConfig struct {
 	ArchiveAfterMinutes int    `json:"archiveAfterMinutes,omitempty"` // default 60
 	MaxRetries          int    `json:"maxRetries,omitempty"`          // max LLM retries on error (default 2)
 	Model               string `json:"model,omitempty"`               // model override for subagents
+	Definitions         []SubagentDefinition `json:"definitions,omitempty"` // named reusable spawn templates
+}
+
+// SubagentDefinition is a named, reusable spawn template persisted in the
+// agent's subagents_config JSONB. The LLM selects one by name via the spawn
+// tool's "definition" parameter; the exec layer then applies its model,
+// allowed-tools restriction, system prompt, and optional AGENTS.md injection.
+type SubagentDefinition struct {
+	Name           string   `json:"name"`                     // unique per agent, slug-style
+	Model          string   `json:"model,omitempty"`          // model override (empty = inherit)
+	Description    string   `json:"description,omitempty"`    // what this subagent is for (shown to the LLM)
+	AllowedTools   []string `json:"allowedTools,omitempty"`   // exact tool names; empty = all (deny lists still apply)
+	SystemPrompt   string   `json:"systemPrompt,omitempty"`   // replaces the default subagent context prompt
+	InjectAgentsMd bool     `json:"injectAgentsMd,omitempty"` // prepend the workspace AGENTS.md content
 }
 
 // AgentSpec is the per-agent configuration override.

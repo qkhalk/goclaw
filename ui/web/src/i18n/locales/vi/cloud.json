@@ -154,7 +154,10 @@
     "col_actions": "Thao tác",
     "scope_type": "Loại phạm vi",
     "rule_added": "Đã thêm quy tắc",
-    "table_empty": "Chưa có quy tắc nào"
+    "table_empty": "Chưa có quy tắc nào",
+    "personal_accounts": "Tài khoản cá nhân",
+    "shared_accounts": "Tài khoản dùng chung (doanh nghiệp)",
+    "accounts_explainer": "Cá nhân = tài khoản cloud của riêng bạn. Dùng chung (doanh nghiệp) = tài khoản toàn tenant, gán cho nhóm/người dùng theo độ ưu tiên."
   },
   "detail": {
     "mail_btn": "Hộp thư",
@@ -353,5 +356,19 @@
     "select_all": "Chọn tất cả",
     "search": "Tới ô tìm kiếm",
     "help": "Trợ giúp phím tắt"
+  },
+  "webdav": {
+    "title": "Kết nối lưu trữ WebDAV",
+    "description": "Hỗ trợ Nextcloud, ownCloud, Synology và mọi máy chủ WebDAV. Thông tin đăng nhập sẽ được kiểm tra với endpoint trước khi lưu.",
+    "label": "Nhãn (tuỳ chọn)",
+    "label_placeholder": "Kho lưu trữ nhóm",
+    "endpoint": "URL WebDAV",
+    "endpoint_hint": "Thư mục gốc của tài khoản, ví dụ URL remote.php/dav/files/<người dùng> của Nextcloud.",
+    "username": "Tên đăng nhập",
+    "password": "Mật khẩu",
+    "password_hint": "Được mã hoá khi lưu; API không bao giờ trả lại thông tin đăng nhập.",
+    "cancel": "Huỷ",
+    "connecting": "Đang kết nối…",
+    "connect": "Kết nối"
   }
 }

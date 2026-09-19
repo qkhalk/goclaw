@@ -20,6 +20,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	orchestration "github.com/nextlevelbuilder/goclaw/internal/childrun"
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
@@ -80,11 +81,12 @@ type SubagentTask struct {
 	OriginTraceID     uuid.UUID       `json:"-"` // parent trace for announce linking
 	OriginRootSpanID  uuid.UUID       `json:"-"` // parent agent's root span ID
 	// Capture caller-specific budgets because one process manager serves many agents.
-	OriginContextWindow int                `json:"-"`
-	OriginMaxTokens     int                `json:"-"`
-	cancelFunc          context.CancelFunc `json:"-"` // per-task context cancel
-	spawnConfig         SubagentConfig     `json:"-"` // resolved config at spawn time (per-agent override merged)
-	dbID                uuid.UUID          `json:"-"` // persistent DB UUID (zero if not persisted)
+	OriginContextWindow int                        `json:"-"`
+	OriginMaxTokens     int                        `json:"-"`
+	cancelFunc          context.CancelFunc         `json:"-"` // per-task context cancel
+	spawnConfig         SubagentConfig             `json:"-"` // resolved config at spawn time (per-agent override merged)
+	definition          *config.SubagentDefinition `json:"-"` // named spawn template applied at exec time (nil = default self-clone)
+	dbID                uuid.UUID                  `json:"-"` // persistent DB UUID (zero if not persisted)
 	admissionTicket     *orchestration.ChildRunTicket
 }
 

@@ -46,6 +46,10 @@ func withSubagentExecution(ctx context.Context, scope TaskScope, taskID string, 
 	ctx = context.WithValue(ctx, ctxSubagentScope, scope)
 	ctx = context.WithValue(ctx, ctxSubagentTaskID, taskID)
 	ctx = context.WithValue(ctx, ctxSubagentDepth, depth)
+	// Clear any inherited spawn definition: only the spawn that resolved it
+	// should run under it, otherwise grandchild spawns (depth >= 2) would
+	// silently reuse the parent's model/system prompt/tool allow-list.
+	ctx = clearSubagentDefinition(ctx)
 	return context.WithValue(ctx, ctxChildRunLease, lease)
 }
 

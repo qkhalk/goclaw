@@ -481,4 +481,9 @@ const (
 	MsgVideoJobDone      = "video.job_done"      // "video render job %s completed"
 	MsgVideoDisabled     = "video.disabled"      // "video rendering is not enabled on this gateway"
 	MsgVideoWorkerUnavail = "video.worker_unavailable" // "video worker is not reachable"
+
+	// --- Per-agent file/cloud capability policy (tool execution denials) ---
+	MsgFileReadDenied   = "error.file_read_denied"   // "file read is disabled for this agent by its file policy"
+	MsgFileWriteDenied  = "error.file_write_denied"  // "file writes are disabled for this agent by its file policy"
+	MsgFileCreateDenied = "error.file_create_denied" // "creating new files is disabled for this agent by its file policy"
 )

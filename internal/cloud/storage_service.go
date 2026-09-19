@@ -93,6 +93,13 @@ func (s *StorageService) backendFor(ctx context.Context, acct *store.CloudAccoun
 			return nil, err
 		}
 		backend = storage.NewS3Backend(ctx, creds)
+	case WebDAVProvider:
+		// Static credentials — same shape as s3 (webdav.go).
+		creds, err := webdavAccountCreds(acct)
+		if err != nil {
+			return nil, err
+		}
+		backend = storage.NewWebDAVBackend(ctx, creds)
 	default:
 		ts, err := s.manager.TokenSource(ctx, acct.ID)
 		if err != nil {
@@ -157,7 +164,7 @@ func (s *StorageService) AgentAccount(ctx context.Context, name string, min Agen
 // isStorageProvider gates which connected accounts the storage layer may use.
 func isStorageProvider(provider string) bool {
 	switch provider {
-	case GoogleProvider, MicrosoftProvider, S3Provider:
+	case GoogleProvider, MicrosoftProvider, DropboxProvider, S3Provider, WebDAVProvider:
 		return true
 	default:
 		return false
@@ -167,7 +174,7 @@ func isStorageProvider(provider string) bool {
 // storageCapableProviders is the resolution candidate list for the storage
 // surface (must stay in sync with isStorageProvider).
 func storageCapableProviders() []string {
-	return []string{GoogleProvider, MicrosoftProvider, DropboxProvider, S3Provider}
+	return []string{GoogleProvider, MicrosoftProvider, DropboxProvider, S3Provider, WebDAVProvider}
 }
 
 // IsStorageProvider reports whether the provider is usable by the storage

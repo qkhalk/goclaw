@@ -89,6 +89,9 @@ func AccountCanWrite(acct *store.CloudAccount) bool {
 	case S3Provider:
 		// Access keys are inherently readwrite on the target bucket.
 		return true
+	case WebDAVProvider:
+		// WebDAV credentials are inherently readwrite on the collection.
+		return true
 	default:
 		return false
 	}

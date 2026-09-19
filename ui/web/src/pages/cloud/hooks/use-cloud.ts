@@ -44,7 +44,7 @@ export interface CloudBinding {
   priority: number;
 }
 
-export type CloudProvider = "google" | "onedrive" | "dropbox" | "s3";
+export type CloudProvider = "google" | "onedrive" | "dropbox" | "s3" | "webdav";
 
 /** One tenant-level one-way folder sync pair (source → target, additive
  * mirror — files deleted at the source are never deleted at the target). */
@@ -95,6 +95,7 @@ export interface CloudStatus {
     onedrive?: { configured: boolean };
     dropbox?: { configured: boolean };
     s3?: { configured: boolean };
+    webdav?: { configured: boolean };
   };
 }
 
@@ -181,6 +182,17 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
+  /** WebDAV connect (Nextcloud/Synology/...): static credentials, validated
+   * server-side with one PROPFIND — no OAuth round trip. */
+  const connectWebDAV = useCallback(
+    async (input: { label?: string; endpoint: string; username: string; password: string }) => {
+      const res = await http.post<CloudAccount>("/v1/cloud/accounts/webdav", input);
+      await invalidate();
+      return res;
+    },
+    [http, invalidate],
+  );
+
   /** Finish the paste-back flow: submit the address-bar URL the browser
    * landed on after consent (loopback redirect, nothing listening). */
   const completeConnect = useCallback(
@@ -210,7 +222,7 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
-  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, connectS3, setShared, setAgentAccess };
+  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, connectS3, connectWebDAV, setShared, setAgentAccess };
 }
 
 export function useCloudBindings(enabled: boolean) {
