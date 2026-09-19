@@ -69,11 +69,14 @@ func NewFilePolicyGuard(lookup AgentFilePolicyLookup) *FilePolicyGuard {
 }
 
 // policyFor returns the agent's file policy; known=false when the calling
-// agent has no resolvable policy row (fail-open).
+// agent has no resolvable policy row (fail-open). The cache is keyed by
+// tenant + agent key: GetByKey is tenant-scoped, so the same agent_key can
+// exist in different tenants with different policies.
 func (g *FilePolicyGuard) policyFor(ctx context.Context, agentKey string) (config.FilePolicy, bool) {
 	now := time.Now()
+	cacheKey := store.TenantIDFromContext(ctx).String() + "\x00" + agentKey
 	g.mu.Lock()
-	entry, ok := g.cache[agentKey]
+	entry, ok := g.cache[cacheKey]
 	if ok && now.Before(entry.expires) {
 		g.mu.Unlock()
 		return entry.policy, entry.known
@@ -91,7 +94,7 @@ func (g *FilePolicyGuard) policyFor(ctx context.Context, agentKey string) (confi
 	}
 
 	g.mu.Lock()
-	g.cache[agentKey] = filePolicyCacheEntry{policy: policy, known: known, expires: now.Add(g.ttl)}
+	g.cache[cacheKey] = filePolicyCacheEntry{policy: policy, known: known, expires: now.Add(g.ttl)}
 	g.mu.Unlock()
 	return policy, known
 }
@@ -168,17 +171,25 @@ func (g *FilePolicyGuard) CheckAny(ctx context.Context, actions ...FileAction) e
 // requires. write_file is intentionally absent — it needs the write/create
 // split done by the tool itself (target existence), gated coarsely via
 // CheckAny(write, create) in the registry.
+//
+// Cloud drive mutation tools are classified alongside their filesystem
+// counterparts: overwrite/delete/rename/share mutate existing drive content
+// (write), mkdir/copy create new drive entries (create). Shell/exec tools
+// remain outside this policy by design (documented gap).
 func filePolicyAction(name string) (FileAction, bool) {
 	switch name {
 	case "read_file", "list_files",
 		"read_image", "read_audio", "read_video", "read_document",
 		"cloud_ls", "cloud_read", "cloud_fetch", "cloud_about":
 		return FileActionRead, true
-	case "edit":
+	case "edit",
+		"cloud_write", "cloud_delete", "cloud_move", "cloud_share":
 		return FileActionWrite, true
-	case "create_audio", "create_image", "create_video", "tts":
+	case "create_audio", "create_image", "create_video", "tts",
+		"cloud_mkdir", "cloud_copy":
 		// Media creators mkdir + os.WriteFile into the workspace — that is
-		// unambiguously file creation.
+		// unambiguously file creation. cloud_mkdir/cloud_copy likewise add
+		// new entries on the drive.
 		return FileActionCreate, true
 	}
 	return "", false
