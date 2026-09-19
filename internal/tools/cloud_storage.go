@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/cloud"
@@ -25,6 +27,7 @@ type CloudStorageProvider interface {
 	FetchAccount(ctx context.Context, acct *store.CloudAccount, remotePath, workspaceDir string, sizeCapMB int64) (string, error)
 	MkdirAccount(ctx context.Context, acct *store.CloudAccount, dir string) error
 	WriteAccount(ctx context.Context, acct *store.CloudAccount, remotePath, content string) error
+	UploadAccount(ctx context.Context, acct *store.CloudAccount, localDir, localName, remotePath string) error
 	CopyAccount(ctx context.Context, acct *store.CloudAccount, from, to string) error
 	MoveAccount(ctx context.Context, acct *store.CloudAccount, from, to string) error
 	DeleteAccount(ctx context.Context, acct *store.CloudAccount, path string, isDir bool) error
@@ -64,6 +67,7 @@ func (t *CloudStorageTools) Tools() []Tool {
 		&cloudFetchTool{parent: t},
 		&cloudAboutTool{parent: t},
 		&cloudWriteTool{parent: t},
+		&cloudUploadTool{parent: t},
 		&cloudMkdirTool{parent: t},
 		&cloudCopyTool{parent: t},
 		&cloudMoveTool{parent: t},
@@ -257,6 +261,64 @@ func (t *cloudWriteTool) Execute(ctx context.Context, args map[string]any) *Resu
 		return ErrorResult(err.Error())
 	}
 	return NewResult(fmt.Sprintf("wrote %d bytes to %s", len(content), path))
+}
+
+// --- cloud_upload (write; binary-safe) ---
+
+type cloudUploadTool struct{ parent *CloudStorageTools }
+
+func (t *cloudUploadTool) Name() string { return "cloud_upload" }
+func (t *cloudUploadTool) Description() string {
+	return "Upload a local workspace file to a connected cloud drive — binary-safe " +
+		"(videos, images, audio, archives, PDFs; anything, not just text). " +
+		"Requires write agent access on the account. The full destination path " +
+		"including the file name is required."
+}
+func (t *cloudUploadTool) Parameters() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"path":        map[string]any{"type": "string", "description": "Workspace path of the local file to upload."},
+			"remote_path": map[string]any{"type": "string", "description": "Full destination path on the drive (folder + name)."},
+			"account":     map[string]any{"type": "string", "description": "Account email (optional with one account)."},
+		},
+		"required": []string{"path", "remote_path"},
+	}
+}
+
+func (t *cloudUploadTool) Execute(ctx context.Context, args map[string]any) *Result {
+	path, _ := args["path"].(string)
+	remotePath, _ := args["remote_path"].(string)
+	account, _ := args["account"].(string)
+	if strings.TrimSpace(path) == "" {
+		return ErrorResult("path is required")
+	}
+	if strings.TrimSpace(remotePath) == "" {
+		return ErrorResult("remote_path is required")
+	}
+	// Workspace-boundary safe: reject symlink/traversal escapes before any I/O.
+	localPath, err := resolvePath(path, t.parent.callerWorkspace(ctx), true)
+	if err != nil {
+		return ErrorResult(err.Error())
+	}
+	info, err := os.Stat(localPath)
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("local file not found: %s", path))
+	}
+	if !info.Mode().IsRegular() {
+		return ErrorResult(fmt.Sprintf("%s is not a regular file", path))
+	}
+	if t.parent.fetchCapMB > 0 && info.Size() > t.parent.fetchCapMB<<20 {
+		return ErrorResult(fmt.Sprintf("file is %d MB — over the %d MB upload cap", info.Size()>>20, t.parent.fetchCapMB))
+	}
+	acct, errResult := t.parent.resolve(ctx, account, cloud.AgentAccessWrite)
+	if errResult != nil {
+		return errResult
+	}
+	if err := t.parent.provider.UploadAccount(ctx, acct, filepath.Dir(localPath), filepath.Base(localPath), remotePath); err != nil {
+		return ErrorResult(err.Error())
+	}
+	return NewResult(fmt.Sprintf("uploaded %s (%d bytes) to %s", filepath.Base(localPath), info.Size(), remotePath))
 }
 
 // --- cloud_mkdir (write) ---
