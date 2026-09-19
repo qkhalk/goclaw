@@ -186,10 +186,10 @@ func filePolicyAction(name string) (FileAction, bool) {
 		"cloud_write", "cloud_delete", "cloud_move", "cloud_share":
 		return FileActionWrite, true
 	case "create_audio", "create_image", "create_video", "tts",
-		"cloud_mkdir", "cloud_copy":
+		"cloud_mkdir", "cloud_copy", "cloud_upload":
 		// Media creators mkdir + os.WriteFile into the workspace — that is
-		// unambiguously file creation. cloud_mkdir/cloud_copy likewise add
-		// new entries on the drive.
+		// unambiguously file creation. cloud_mkdir/cloud_copy/cloud_upload
+		// likewise add new entries on the drive.
 		return FileActionCreate, true
 	}
 	return "", false

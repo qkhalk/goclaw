@@ -7,6 +7,7 @@ import {
 import { formatTokens, formatBucketTz } from "@/lib/format";
 import { useUiStore } from "@/stores/use-ui-store";
 import { ChartWrapper } from "./chart-wrapper";
+import { chartTooltipProps } from "@/components/charts/chart-theme";
 import type { SnapshotTimeSeries } from "../hooks/use-usage-analytics";
 
 interface TokenAreaChartProps {
@@ -52,7 +53,7 @@ export function TokenAreaChart({ data, loading, granularity }: TokenAreaChartPro
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
           <YAxis tickFormatter={(v) => formatTokens(v)} tick={{ fontSize: 11 }} width={52} />
-          <Tooltip
+          <Tooltip {...chartTooltipProps}
             formatter={(value, name) => [formatTokens(typeof value === "number" ? value : Number(value)), String(name)]}
             labelFormatter={(label) => `${t("analytics.tooltip.date")}: ${label}`}
           />

@@ -208,6 +208,7 @@ type authResult struct {
 	KeyData       *store.APIKeyData // non-nil when authenticated via API key
 	TenantID      uuid.UUID         // resolved tenant; always concrete after resolution
 	TenantSlug    string            // resolved tenant slug for filesystem paths
+	SystemOwner   bool              // gateway token + configured owner ID (never set for pairing sessions)
 }
 
 // resolveAuth determines the caller's role from the request.
@@ -229,7 +230,7 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 		if isOwner {
 			role = permissions.RoleOwner
 		}
-		res := authResult{Role: role, Authenticated: true}
+		res := authResult{Role: role, Authenticated: true, SystemOwner: isOwner}
 		tenantVal := r.Header.Get("X-GoClaw-Tenant-Id")
 		if isOwner {
 			res.TenantID = resolveScopedTenant(r.Context(), tenantVal)
@@ -413,6 +414,12 @@ func enrichContext(ctx context.Context, r *http.Request, auth authResult) contex
 	ctx = store.WithTenantID(ctx, tenantID)
 	if auth.TenantSlug != "" {
 		ctx = store.WithTenantSlug(ctx, auth.TenantSlug)
+	}
+	// System-owner credential flag (gateway token + configured owner ID).
+	// Deliberately NOT derived from RoleOwner: tenant owners reach RoleOwner
+	// through browser pairing with a client-controlled user-ID header.
+	if auth.SystemOwner {
+		ctx = store.WithSystemOwner(ctx)
 	}
 	slog.Debug("security.http_auth_resolved",
 		"path", r.URL.Path,

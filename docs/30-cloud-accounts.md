@@ -12,7 +12,11 @@ mỗi thành viên tự kết nối tài khoản của mình trên trang **Cloud
    hóa AES-256-GCM** trước khi lưu vào DB (`cloud_accounts`).
 3. Agent dùng tool `cloud_accounts` → `mail_search` / `mail_read` /
    `mail_archive` / `mail_unsubscribe` và `cloud_ls` / `cloud_read` /
-   `cloud_fetch` / `cloud_about` để thao tác.
+   `cloud_fetch` / `cloud_about` / `cloud_write` / `cloud_upload` /
+   `cloud_mkdir` / `cloud_copy` / `cloud_move` / `cloud_delete` /
+   `cloud_share` để thao tác. `cloud_write` ghi **text**; `cloud_upload`
+   đẩy file workspace lên drive **binary-safe** (video, ảnh, archive —
+   giới hạn theo `cloud.fetch_size_cap_mb`, cần quyền ghi trên account).
 
 Bảo mật:
 

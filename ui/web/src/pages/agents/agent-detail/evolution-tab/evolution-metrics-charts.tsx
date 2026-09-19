@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { chartTooltipProps } from "@/components/charts/chart-theme";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -35,7 +36,7 @@ export function EvolutionMetricsCharts({ toolAggs, retrievalAggs, loading }: Evo
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="tool_name" tick={{ fontSize: 11 }} tickLine={false} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} width={36} tickFormatter={(v) => `${v}%`} />
-              <Tooltip
+              <Tooltip {...chartTooltipProps}
                 formatter={(value, _name, props) => {
                   const v = Number(value ?? 0);
                   const p = props?.payload as ToolAggregate | undefined;
@@ -65,7 +66,7 @@ export function EvolutionMetricsCharts({ toolAggs, retrievalAggs, loading }: Evo
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="source" tick={{ fontSize: 11 }} tickLine={false} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} width={36} tickFormatter={(v) => `${v}%`} />
-              <Tooltip
+              <Tooltip {...chartTooltipProps}
                 formatter={(value, _name, props) => {
                   const v = Number(value ?? 0);
                   const p = props?.payload as RetrievalAggregate | undefined;

@@ -147,5 +147,13 @@
   },
   "errors": {
     "serverError": "出了点问题，请稍后重试。"
-  }
+  },
+  "update.available": "有新版本 {{version}} — 点击安装",
+  "update.applying": "正在更新… 网关将自动重启。",
+  "update.applying_short": "更新中，等待重启…",
+  "update.confirm_title": "安装更新 {{version}}？",
+  "update.confirm_desc": "网关将下载新版本、替换二进制文件并自动重启。已打开的会话会自动重连；大约需要一分钟。",
+  "update.confirm_label": "更新并重启",
+  "update.success": "已更新到 {{version}} 🎉",
+  "update.timeout": "网关尚未恢复 — 可能仍在重启。请稍后刷新页面。"
 }

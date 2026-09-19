@@ -1244,7 +1244,7 @@
     "write": "Запись файлов",
     "writeDesc": "Изменение существующего содержимого — файлы рабочей области (write_file по существующему пути, edit) и облачные диски (cloud_write, cloud_delete, cloud_move, cloud_share).",
     "create": "Создание файлов",
-    "createDesc": "Создание новых файлов и папок — рабочая область (write_file по новому пути) и облачные диски (cloud_mkdir, cloud_copy).",
+    "createDesc": "Создание новых файлов и папок — рабочая область (write_file по новому пути) и облачные диски (cloud_mkdir, cloud_copy, cloud_upload).",
     "save": "Сохранить права",
     "saving": "Сохранение…",
     "saved": "Права доступа к файлам и облакам обновлены"

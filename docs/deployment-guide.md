@@ -188,6 +188,16 @@ Keep upgrade tokens in server env files or secret managers. Do not put real toke
 
 The remote trigger endpoint fails closed unless `GOCLAW_UPGRADE_TRIGGER_TOKEN` is configured in the gateway environment.
 
+Exceptions:
+- **System-owner sessions** (gateway token + configured owner user ID) may call
+  `POST /v1/system/gateway/upgrade` without the trigger token — the sidebar
+  footer's "update available" button uses this path. Browser pairing sessions
+  are never treated as system owners, even for tenant owners. The trigger
+  still only reaches the fixed upgrade script with a validated tag.
+- `GET /v1/system/gateway/upgrade/check` is read-only (GitHub releases lookup
+  against the running version; repo via `GOCLAW_UPGRADE_REPO`, default
+  `qkhalk/goclaw`) and needs no trigger token.
+
 ### Automatic Beta Deploy From `dev`
 
 Pushing or merging into `dev` runs `.github/workflows/dev-beta-release.yaml`. After Go/Web checks pass, the workflow creates the next semantic beta tag, publishes the linux amd64 prerelease asset and checksum, then deploys that exact beta tag to the zuey VPS through the gateway upgrade endpoint.

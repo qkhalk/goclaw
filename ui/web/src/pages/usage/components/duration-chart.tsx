@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { chartTooltipProps } from "@/components/charts/chart-theme";
 import { useTranslation } from "react-i18next";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -39,7 +40,7 @@ export function DurationChart({ data, loading, granularity }: DurationChartProps
           <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
           <YAxis yAxisId="left" tickFormatter={(v) => formatDuration(v)} tick={{ fontSize: 11 }} width={56} />
           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} width={36} tickFormatter={(v) => `${v}%`} />
-          <Tooltip
+          <Tooltip {...chartTooltipProps}
             formatter={(value, name) => {
               const v = typeof value === "number" ? value : Number(value);
               const n = String(name);

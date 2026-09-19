@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { chartTooltipProps } from "@/components/charts/chart-theme";
 import { useTranslation } from "react-i18next";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -45,7 +46,7 @@ export function KnowledgeChart({ data, loading, granularity }: KnowledgeChartPro
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
           <YAxis tick={{ fontSize: 11 }} width={40} />
-          <Tooltip />
+          <Tooltip {...chartTooltipProps} />
           <Legend />
           <Line type="monotone" dataKey="memory_docs" name={t("analytics.knowledgeChart.memoryDocs")} stroke="#E85D24" strokeWidth={2} dot={false} isAnimationActive={false} />
           <Line type="monotone" dataKey="memory_chunks" name={t("analytics.knowledgeChart.memoryChunks")} stroke="#F8D080" strokeWidth={2} dot={false} isAnimationActive={false} />

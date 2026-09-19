@@ -1,4 +1,8 @@
 export const queryKeys = {
+  system: {
+    gatewayUpdateCheck: ["system", "gateway-update-check"] as const,
+    gatewayUpgradeStatus: ["system", "gateway-upgrade-status"] as const,
+  },
   cloud: {
     all: ["cloud"] as const,
     status: ["cloud", "status"] as const,

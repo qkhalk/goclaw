@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { chartTooltipProps } from "@/components/charts/chart-theme";
 import { useTranslation } from "react-i18next";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -40,7 +41,7 @@ export function RequestVolumeChart({ data, loading, granularity }: RequestVolume
           <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
           <YAxis yAxisId="left" tick={{ fontSize: 11 }} width={40} />
           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} width={40} tickFormatter={(v) => `${v}`} />
-          <Tooltip
+          <Tooltip {...chartTooltipProps}
             formatter={(value, name, props) => {
               const v = typeof value === "number" ? value : Number(value);
               const n = String(name);

@@ -1228,7 +1228,7 @@
     "write": "写入文件",
     "writeDesc": "修改现有内容 — 工作区文件（write_file 到已有路径、edit）和云盘（cloud_write、cloud_delete、cloud_move、cloud_share）。",
     "create": "创建文件",
-    "createDesc": "创建新文件和文件夹 — 工作区（write_file 到新路径）和云盘（cloud_mkdir、cloud_copy）。",
+    "createDesc": "创建新文件和文件夹 — 工作区（write_file 到新路径）和云盘（cloud_mkdir、cloud_copy、cloud_upload）。",
     "save": "保存权限",
     "saving": "保存中…",
     "saved": "文件与云权限已更新"

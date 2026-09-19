@@ -58,6 +58,12 @@ const (
 	ChannelContextScopeKey contextKey = "goclaw_channel_context_scope"
 	// AgentAudioKey carries the immutable agent audio snapshot for TTS tool dispatch.
 	AgentAudioKey contextKey = "goclaw_agent_audio"
+	// SystemOwnerKey marks a request that authenticated through the system-owner
+	// credential path: gateway token match plus a configured owner user ID.
+	// Browser pairing sessions never carry this flag — their claimed user ID
+	// arrives via a client-controlled header, so a tenant "owner" role must not
+	// be mistaken for the system owner in security-sensitive bypasses.
+	SystemOwnerKey contextKey = "goclaw_system_owner"
 )
 
 // AgentAudioSnapshot is an immutable snapshot of agent audio config carried through
@@ -459,6 +465,23 @@ func IsCrossTenant(ctx context.Context) bool {
 // Replaces IsCrossTenant for permission guards.
 func IsOwnerRole(ctx context.Context) bool {
 	return RoleFromContext(ctx) == string(RoleOwner)
+}
+
+// WithSystemOwner flags a context as authenticated via the system-owner
+// credential path: gateway token match plus a configured owner user ID.
+// Only the HTTP/WS auth layers set this — never derive it from RoleOwner,
+// which a tenant owner's browser pairing session also satisfies.
+func WithSystemOwner(ctx context.Context) context.Context {
+	return context.WithValue(ctx, SystemOwnerKey, true)
+}
+
+// IsSystemOwner reports whether the request authenticated through the
+// system-owner credential path — stronger than IsOwnerRole, which tenant
+// owners also satisfy via browser pairing. Use this (not IsOwnerRole) for
+// bypasses that must be limited to the configured system owner.
+func IsSystemOwner(ctx context.Context) bool {
+	v, _ := ctx.Value(SystemOwnerKey).(bool)
+	return v
 }
 
 // IsMasterScope reports whether ctx should be treated as master-scope:

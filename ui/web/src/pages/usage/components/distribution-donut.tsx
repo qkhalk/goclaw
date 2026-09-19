@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { chartTooltipProps } from "@/components/charts/chart-theme";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import type { PieSectorDataItem } from "recharts/types/polar/Pie";
 import { ChartWrapper } from "./chart-wrapper";
@@ -90,7 +91,7 @@ export function DistributionDonut({
           <text x="50%" y="52%" textAnchor="middle" dominantBaseline="middle" className="fill-muted-foreground text-xs">
             {t("analytics.distribution.calls")}
           </text>
-          <Tooltip
+          <Tooltip {...chartTooltipProps}
             formatter={(value, name) => {
               try {
                 const v = typeof value === "number" ? value : Number(value) || 0;

@@ -147,5 +147,13 @@
   },
   "errors": {
     "serverError": "Đã xảy ra lỗi. Vui lòng thử lại sau."
-  }
+  },
+  "update.available": "Có bản mới {{version}} — nhấn để cập nhật",
+  "update.applying": "Đang cập nhật… gateway sẽ tự khởi động lại.",
+  "update.applying_short": "Đang cập nhật, chờ khởi động lại…",
+  "update.confirm_title": "Cài bản cập nhật {{version}}?",
+  "update.confirm_desc": "Gateway sẽ tải bản mới, thay file binary và tự khởi động lại. Các phiên bản đang mở tự kết nối lại; mất khoảng một phút.",
+  "update.confirm_label": "Cập nhật & khởi động lại",
+  "update.success": "Đã cập nhật lên {{version}} 🎉",
+  "update.timeout": "Gateway chưa quay lại — có thể vẫn đang khởi động. Tải lại trang sau một chút."
 }
