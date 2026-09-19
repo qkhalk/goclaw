@@ -267,6 +267,49 @@
       "submit": "注册声音",
       "success": "声音已注册 — 请在声音列表中选择",
       "failed": "注册声音失败：{{msg}}"
+    },
+    "studio": {
+      "untitled_project": "未命名项目",
+      "project_title": "项目名称",
+      "export": "导出视频",
+      "inspector": {
+        "scene": "分镜",
+        "layers": "图层",
+        "render": "渲染",
+        "layers_of": "{{n}} 个图层",
+        "no_layers": "还没有图层。在下方添加文字、形状或图标。",
+        "remove_layer": "删除图层",
+        "add_layer": "添加图层",
+        "layers_hint": "每个图层的完整样式设置位于“分镜”标签页。"
+      },
+      "rail": {
+        "label": "插入",
+        "media": "媒体",
+        "voice": "配音",
+        "text": "文字",
+        "transitions": "转场",
+        "effects": "特效",
+        "layers": "图层",
+        "edit_narration": "编辑旁白",
+        "narrated_scenes": "有旁白的分镜：{{n}}",
+        "no_narration": "还没有分镜有旁白。",
+        "add_text_layer": "添加文字",
+        "add_card_layer": "添加卡片",
+        "layers_full": "每个分镜最多 8 个图层。",
+        "text_hint": "文字和卡片图层将添加到所选分镜。",
+        "transitions_hint": "所选分镜的入场转场。",
+        "effects_hint": "应用于所选分镜。",
+        "no_scene": "请先选择一个分镜。",
+        "layer_count": "此分镜有 {{n}} 个图层",
+        "open_layers": "打开图层面板"
+      },
+      "toolbar": {
+        "narration": "旁白",
+        "narration_hint": "跳转到所选分镜的旁白输入框"
+      },
+      "transport": {
+        "fullscreen": "全屏"
+      }
     }
   },
   "watermark": {

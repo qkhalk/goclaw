@@ -267,6 +267,49 @@
       "submit": "Đăng ký giọng",
       "success": "Đã đăng ký giọng — chọn nó trong danh sách giọng",
       "failed": "Không thể đăng ký giọng: {{msg}}"
+    },
+    "studio": {
+      "untitled_project": "Dự án chưa đặt tên",
+      "project_title": "Tên dự án",
+      "export": "Xuất video",
+      "inspector": {
+        "scene": "Phân cảnh",
+        "layers": "Lớp",
+        "render": "Kết xuất",
+        "layers_of": "{{n}} lớp",
+        "no_layers": "Chưa có lớp nào. Thêm chữ, hình khối hoặc biểu tượng bên dưới.",
+        "remove_layer": "Xóa lớp",
+        "add_layer": "Thêm lớp",
+        "layers_hint": "Tùy chỉnh chi tiết từng lớp nằm ở tab Phân cảnh."
+      },
+      "rail": {
+        "label": "Chèn",
+        "media": "Media",
+        "voice": "Giọng đọc",
+        "text": "Chữ",
+        "transitions": "Chuyển cảnh",
+        "effects": "Hiệu ứng",
+        "layers": "Lớp",
+        "edit_narration": "Sửa lời bình",
+        "narrated_scenes": "Phân cảnh có lời bình: {{n}}",
+        "no_narration": "Chưa có phân cảnh nào có lời bình.",
+        "add_text_layer": "Thêm chữ",
+        "add_card_layer": "Thẻ nội dung",
+        "layers_full": "Tối đa 8 lớp mỗi phân cảnh.",
+        "text_hint": "Lớp chữ và thẻ sẽ được thêm vào phân cảnh đang chọn.",
+        "transitions_hint": "Hiệu ứng mở đầu cho phân cảnh đang chọn.",
+        "effects_hint": "Áp dụng cho phân cảnh đang chọn.",
+        "no_scene": "Hãy chọn một phân cảnh trước.",
+        "layer_count": "Phân cảnh này có {{n}} lớp",
+        "open_layers": "Mở bảng lớp"
+      },
+      "toolbar": {
+        "narration": "Lời bình",
+        "narration_hint": "Nhảy tới ô lời bình của phân cảnh đang chọn"
+      },
+      "transport": {
+        "fullscreen": "Toàn màn hình"
+      }
     }
   },
   "watermark": {

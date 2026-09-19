@@ -80,8 +80,8 @@ export function RenderPanel({
   return (
     <div className="flex flex-col gap-4">
       {/* Render Settings */}
-      <div className="rounded-lg border p-4">
-        <p className="mb-3 text-sm font-medium">{t("video.render_panel.title")}</p>
+      <div className="rounded-xl bg-white/[0.04] p-4 ring-1 ring-white/[0.06]">
+        <p className="mb-3 text-sm font-medium text-zinc-200">{t("video.render_panel.title")}</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">{t("video.aspect")}</Label>
@@ -156,9 +156,9 @@ export function RenderPanel({
       </div>
 
       {/* Hardware Detection */}
-      <div className="rounded-lg border p-4">
-        <p className="mb-2 text-sm font-medium">{t("video.render_panel.hardware")}</p>
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+      <div className="rounded-xl bg-white/[0.04] p-4 ring-1 ring-white/[0.06]">
+        <p className="mb-2 text-sm font-medium text-zinc-200">{t("video.render_panel.hardware")}</p>
+        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-400">
           <span>{t("video.render_panel.cores", { n: hardware.cores })}</span>
           {hardware.memoryGB !== null && (
             <>
@@ -188,7 +188,7 @@ export function RenderPanel({
       </div>
 
       {/* Export Actions */}
-      <div className="rounded-lg border p-4">
+      <div className="rounded-xl bg-white/[0.04] p-4 ring-1 ring-white/[0.06]">
         {!isExporting ? (
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-2">
@@ -248,8 +248,8 @@ export function RenderPanel({
       </div>
 
       {/* Audio settings */}
-      <div className="rounded-lg border p-4">
-        <p className="mb-3 text-sm font-medium">{t("video.audio_section")}</p>
+      <div className="rounded-xl bg-white/[0.04] p-4 ring-1 ring-white/[0.06]">
+        <p className="mb-3 text-sm font-medium text-zinc-200">{t("video.audio_section")}</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">{t("video.bgm_path")}</Label>

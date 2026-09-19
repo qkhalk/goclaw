@@ -267,6 +267,49 @@
       "submit": "Register voice",
       "success": "Voice registered — pick it from the voice list",
       "failed": "Could not register voice: {{msg}}"
+    },
+    "studio": {
+      "untitled_project": "Untitled project",
+      "project_title": "Project title",
+      "export": "Export",
+      "inspector": {
+        "scene": "Scene",
+        "layers": "Layers",
+        "render": "Render",
+        "layers_of": "{{n}} layers",
+        "no_layers": "No layers yet. Add text, shapes or icons below.",
+        "remove_layer": "Remove layer",
+        "add_layer": "Add layer",
+        "layers_hint": "Full per-layer styling lives in the Scene tab."
+      },
+      "rail": {
+        "label": "Insert",
+        "media": "Media",
+        "voice": "Voice",
+        "text": "Text",
+        "transitions": "Transitions",
+        "effects": "Effects",
+        "layers": "Layers",
+        "edit_narration": "Edit narration",
+        "narrated_scenes": "Narrated scenes: {{n}}",
+        "no_narration": "No scene has narration yet.",
+        "add_text_layer": "Add text",
+        "add_card_layer": "Add card",
+        "layers_full": "Maximum 8 layers per scene.",
+        "text_hint": "Text and card layers are added to the selected scene.",
+        "transitions_hint": "Enter transition for the selected scene.",
+        "effects_hint": "Applied to the selected scene.",
+        "no_scene": "Select a scene first.",
+        "layer_count": "{{n}} layers on this scene",
+        "open_layers": "Open layers panel"
+      },
+      "toolbar": {
+        "narration": "Narration",
+        "narration_hint": "Jump to the selected scene's narration field"
+      },
+      "transport": {
+        "fullscreen": "Fullscreen"
+      }
     }
   },
   "watermark": {
