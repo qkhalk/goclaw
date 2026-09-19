@@ -240,6 +240,9 @@ func (in *Installer) defaultRef() (string, error) {
 
 var githubRepoRe = regexp.MustCompile(`^/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?$`)
 
+// commitSHARe matches a full 40-char lowercase hex commit SHA.
+var commitSHARe = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 // ValidateRepoURL enforces the github.com-only allowlist (no arbitrary
 // hosts, no userinfo, no query/fragment).
 func ValidateRepoURL(repo string) error {
@@ -276,11 +279,26 @@ func (in *Installer) clone(ctx context.Context, req *Request, pkg *store.MCPInst
 
 	cctx, cancel := context.WithTimeout(ctx, cloneTimeout)
 	defer cancel()
-	steps := [][]string{
-		{"git", "clone", "--depth", "1", "--branch", req.Ref, "--filter=blob:none", "--no-checkout", req.Repo, tmp},
-		{"git", "-C", tmp, "sparse-checkout", "init", "--cone"},
-		{"git", "-C", tmp, "sparse-checkout", "set", req.Subdir},
-		{"git", "-C", tmp, "checkout"},
+
+	// Tags/branches clone directly; raw commit SHAs need init+fetch because
+	// `git clone --branch` rejects them (GitHub allows fetch-by-SHA).
+	var steps [][]string
+	if commitSHARe.MatchString(req.Ref) {
+		steps = [][]string{
+			{"git", "init", "--quiet", tmp},
+			{"git", "-C", tmp, "remote", "add", "origin", req.Repo},
+			{"git", "-C", tmp, "sparse-checkout", "init", "--cone"},
+			{"git", "-C", tmp, "sparse-checkout", "set", req.Subdir},
+			{"git", "-C", tmp, "fetch", "--quiet", "--depth", "1", "--filter=blob:none", "origin", req.Ref},
+			{"git", "-C", tmp, "checkout", "--quiet", "FETCH_HEAD"},
+		}
+	} else {
+		steps = [][]string{
+			{"git", "clone", "--quiet", "--depth", "1", "--branch", req.Ref, "--filter=blob:none", "--no-checkout", req.Repo, tmp},
+			{"git", "-C", tmp, "sparse-checkout", "init", "--cone"},
+			{"git", "-C", tmp, "sparse-checkout", "set", req.Subdir},
+			{"git", "-C", tmp, "checkout", "--quiet"},
+		}
 	}
 	for _, args := range steps {
 		if out, err := runCmd(cctx, args[0], args[1:], ""); err != nil {
