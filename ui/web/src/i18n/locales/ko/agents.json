@@ -1151,7 +1151,7 @@
     "write": "파일 쓰기",
     "writeDesc": "기존 내용 수정 — 워크스페이스 파일(기존 경로 대상 write_file, edit) 및 클라우드 드라이브(cloud_write, cloud_delete, cloud_move, cloud_share).",
     "create": "파일 만들기",
-    "createDesc": "새 파일 및 폴더 생성 — 워크스페이스(새 경로 대상 write_file) 및 클라우드 드라이브(cloud_mkdir, cloud_copy).",
+    "createDesc": "새 파일 및 폴더 생성 — 워크스페이스(새 경로 대상 write_file) 및 클라우드 드라이브(cloud_mkdir, cloud_copy, cloud_upload).",
     "save": "권한 저장",
     "saving": "저장 중…",
     "saved": "파일 및 클라우드 권한이 업데이트되었습니다"

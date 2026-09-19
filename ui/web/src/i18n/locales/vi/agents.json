@@ -1228,7 +1228,7 @@
     "write": "Ghi tệp",
     "writeDesc": "Sửa nội dung hiện có — tệp workspace (write_file vào đường dẫn đã có, edit) và cloud drive (cloud_write, cloud_delete, cloud_move, cloud_share).",
     "create": "Tạo tệp",
-    "createDesc": "Tạo tệp và thư mục mới — workspace (write_file vào đường dẫn mới) và cloud drive (cloud_mkdir, cloud_copy).",
+    "createDesc": "Tạo tệp và thư mục mới — workspace (write_file vào đường dẫn mới) và cloud drive (cloud_mkdir, cloud_copy, cloud_upload).",
     "save": "Lưu quyền",
     "saving": "Đang lưu…",
     "saved": "Đã cập nhật quyền tệp & đám mây"

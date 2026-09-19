@@ -198,9 +198,10 @@ func TestGatewayUpgradeOwnerSessionTriggersWithoutToken(t *testing.T) {
 		TriggerToken: "", // no automation token configured
 		Runner:       runner,
 	}
-	// The web UI flow: an owner session triggers the upgrade directly.
+	// The web UI flow: a system-owner session (gateway token + configured
+	// owner ID) triggers the upgrade directly.
 	req := httptest.NewRequest(http.MethodPost, "/v1/system/gateway/upgrade", bytes.NewBufferString(`{"tag":"v4.9.0"}`))
-	req = req.WithContext(ownerCtx(req.Context(), "gateway-ui-owner"))
+	req = req.WithContext(store.WithSystemOwner(ownerCtx(req.Context(), "gateway-ui-owner")))
 	w := httptest.NewRecorder()
 
 	h.handleStart(w, req)
@@ -250,6 +251,51 @@ func TestGatewayUpgradeStartRunnerError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("want 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestGatewayUpgradeTenantOwnerPairingCannotBypassToken simulates a browser
+// pairing session whose tenant role resolves to "owner" (RoleOwner) scoped to
+// the master tenant — it passes requireMasterScope via IsOwnerRole but must
+// NOT bypass the trigger token, because pairing identity comes from a
+// client-controlled header. Regression for the owner-bypass widening.
+func TestGatewayUpgradeTenantOwnerPairingCannotBypassToken(t *testing.T) {
+	pairingCtx := func(base context.Context) context.Context {
+		ctx := store.WithUserID(base, "tenant-owner-user")
+		ctx = store.WithTenantID(ctx, store.MasterTenantID)
+		ctx = store.WithRole(ctx, store.RoleOwner)
+		return ctx // no store.WithSystemOwner — pairing sessions never set it
+	}
+
+	// Token configured but not provided → 403.
+	runner := &fakeGatewayUpgradeRunner{}
+	h := &GatewayUpgradeHandler{
+		StatusPath:   filepath.Join(t.TempDir(), "status.json"),
+		TriggerToken: "secret-token",
+		Runner:       runner,
+	}
+	req := httptest.NewRequest(http.MethodPost, "/v1/system/gateway/upgrade", bytes.NewBufferString(`{"tag":"v4.9.0"}`))
+	req = req.WithContext(pairingCtx(req.Context()))
+	w := httptest.NewRecorder()
+	h.handleStart(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Token unconfigured → 503 (fail closed), runner never called.
+	h2 := &GatewayUpgradeHandler{
+		StatusPath: filepath.Join(t.TempDir(), "status.json"),
+		Runner:     runner,
+	}
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/system/gateway/upgrade", bytes.NewBufferString(`{"tag":"v4.9.0"}`))
+	req2 = req2.WithContext(pairingCtx(req2.Context()))
+	w2 := httptest.NewRecorder()
+	h2.handleStart(w2, req2)
+	if w2.Code != http.StatusServiceUnavailable {
+		t.Fatalf("want 503, got %d: %s", w2.Code, w2.Body.String())
+	}
+	if len(runner.tags) != 0 {
+		t.Fatalf("runner should not be called, got %#v", runner.tags)
 	}
 }
 

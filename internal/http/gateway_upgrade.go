@@ -184,12 +184,14 @@ func (h *GatewayUpgradeHandler) requireTriggerToken(w http.ResponseWriter, r *ht
 			return true
 		}
 	}
-	// Owner sessions may trigger from the web UI without the automation
-	// token: the owner gateway token already grants the highest trust level,
-	// and the trigger only ever reaches the fixed script with a validated
-	// tag (never a URL or command). Non-owner callers still need the token.
-	if store.IsOwnerRole(r.Context()) {
-		slog.Info("gateway upgrade trigger via owner session", "path", r.URL.Path)
+	// System-owner sessions (gateway token + configured owner ID) may trigger
+	// from the web UI without the automation token; the trigger only ever
+	// reaches the fixed script with a validated tag (never a URL or command).
+	// Deliberately NOT IsOwnerRole: tenant owners also hold RoleOwner via
+	// browser pairing, so that check would widen the bypass beyond the
+	// system-owner credential path. Non-owner callers still need the token.
+	if store.IsSystemOwner(r.Context()) {
+		slog.Info("gateway upgrade trigger via system owner session", "path", r.URL.Path)
 		return true
 	}
 	if h.TriggerToken == "" {

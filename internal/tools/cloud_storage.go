@@ -296,6 +296,12 @@ func (t *cloudUploadTool) Execute(ctx context.Context, args map[string]any) *Res
 	if strings.TrimSpace(remotePath) == "" {
 		return ErrorResult("remote_path is required")
 	}
+	// Account + agent-access check first (before any local file probing),
+	// matching the other cloud_* tools' preflight order.
+	acct, errResult := t.parent.resolve(ctx, account, cloud.AgentAccessWrite)
+	if errResult != nil {
+		return errResult
+	}
 	// Workspace-boundary safe: reject symlink/traversal escapes before any I/O.
 	localPath, err := resolvePath(path, t.parent.callerWorkspace(ctx), true)
 	if err != nil {
@@ -310,10 +316,6 @@ func (t *cloudUploadTool) Execute(ctx context.Context, args map[string]any) *Res
 	}
 	if t.parent.fetchCapMB > 0 && info.Size() > t.parent.fetchCapMB<<20 {
 		return ErrorResult(fmt.Sprintf("file is %d MB — over the %d MB upload cap", info.Size()>>20, t.parent.fetchCapMB))
-	}
-	acct, errResult := t.parent.resolve(ctx, account, cloud.AgentAccessWrite)
-	if errResult != nil {
-		return errResult
 	}
 	if err := t.parent.provider.UploadAccount(ctx, acct, filepath.Dir(localPath), filepath.Base(localPath), remotePath); err != nil {
 		return ErrorResult(err.Error())
