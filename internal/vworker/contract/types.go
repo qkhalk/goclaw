@@ -59,6 +59,11 @@ type Scene struct {
 	// Transition is the scene's enter transition (applied at the junction
 	// with the previous scene): none|fade|crossfade|slide_left|slide_up.
 	Transition string `json:"transition,omitempty"`
+	// StylePack is a scene-level look shorthand: it expands to color/color2/
+	// grid/glow (color scenes) and the default text/accent colors when the
+	// scene doesn't set them individually. Enum: tech_dark (the current
+	// default look), neon_lab, paper_light, bold_red. Empty = no pack.
+	StylePack string `json:"style_pack,omitempty"`
 	// Layers are timed overlays drawn on top of the base visual (and under
 	// the caption), in array order. Optional.
 	Layers []Layer `json:"layers,omitempty"`
@@ -73,7 +78,21 @@ const (
 	LayerImage LayerKind = "image"
 	LayerIcon  LayerKind = "icon"
 	LayerCard  LayerKind = "card"
+	// Motion-layer primitives (multi-form engine): each renders as a small
+	// composed animation. All fields are optional with documented defaults;
+	// scenes without these kinds render exactly as before.
+	LayerCounter     LayerKind = "counter"      // number count-up (e.g. "20 tỷ")
+	LayerToggleGrid  LayerKind = "toggle_grid"  // grid of switches flipping on/off
+	LayerCompareBars LayerKind = "compare_bars" // two labeled bars growing to widths
+	LayerStack       LayerKind = "stack"        // stacked slabs sliding in vertically
+	LayerStamp       LayerKind = "stamp"        // rotated bordered stamp text
+	LayerCTA         LayerKind = "cta"          // gradient pill with centered text at the bottom
 )
+
+// ValidStylePacks enumerates the scene-level look presets ("": none).
+var ValidStylePacks = map[string]bool{
+	"": true, "tech_dark": true, "neon_lab": true, "paper_light": true, "bold_red": true,
+}
 
 // ValidIcons is the canonical set of embedded icon names (Feather-style
 // stroke glyphs, MIT). The worker embeds the SVG bodies under the same
@@ -101,6 +120,13 @@ var ValidFonts = map[string]bool{
 	"": true, "body": true, "display": true, "mono": true,
 }
 
+// TextHighlight colors every case-sensitive occurrence of Word inside a text
+// layer's text with Color.
+type TextHighlight struct {
+	Word  string `json:"word"`
+	Color string `json:"color"` // #RRGGBB
+}
+
 // Layer is one timed overlay inside a scene — copy-shape mirror of
 // internal/video.Layer (drift-guarded by the golden fixture "layers").
 type Layer struct {
@@ -124,6 +150,39 @@ type Layer struct {
 	Border   bool      `json:"border,omitempty"` // card layers: contrast ring on the edge
 	FontSize int       `json:"font_size,omitempty"`
 	Align    string    `json:"align,omitempty"`
+
+	// ── Motion-layer primitives (multi-form engine), all optional ──
+
+	// Highlights color specific words of a text layer (the colored-keyword
+	// headline). Rendered as one PNG overlay server-side, segment drawing in
+	// the browser painter.
+	Highlights []TextHighlight `json:"highlights,omitempty"`
+	// counter: counts from From up to To over the layer window. Text is the
+	// optional prefix, Suffix the optional suffix (e.g. text "▲ ", to 20,
+	// suffix " tỷ"). Decimals 0..2.
+	From     float64 `json:"from,omitempty"`
+	To       float64 `json:"to,omitempty"`
+	Suffix   string  `json:"suffix,omitempty"`
+	Decimals int     `json:"decimals,omitempty"`
+	// toggle_grid: Cols×Rows switches (1..4 each, default 3×3) flipping on/off
+	// every Cadence seconds (0.2..2, default 0.6). Fill = on color, FillB =
+	// off color.
+	Cols    int     `json:"cols,omitempty"`
+	Rows    int     `json:"rows,omitempty"`
+	Cadence float64 `json:"cadence,omitempty"`
+	// compare_bars: two labeled bars growing to WidthA/WidthB (0..1 of the
+	// box width, defaults 0.62/0.38). Fill = bar A, FillB = bar B.
+	LabelA string   `json:"label_a,omitempty"`
+	LabelB string   `json:"label_b,omitempty"`
+	WidthA float64  `json:"width_a,omitempty"`
+	WidthB float64  `json:"width_b,omitempty"`
+	FillB  string   `json:"fill_b,omitempty"` // secondary color (off/bar B/gradient end)
+	// stack: N slabs (1..6, default 3) sliding in vertically, staggered;
+	// Labels are optional per-slab strings. Fill → FillB is the slab gradient.
+	N      int      `json:"n,omitempty"`
+	Labels []string `json:"labels,omitempty"`
+	// stamp: rotation angle in degrees, -30..30 (default -8).
+	Angle float64 `json:"angle,omitempty"`
 }
 
 // EffectiveStart resolves the layer's start (0 default) — mirror of
@@ -161,25 +220,94 @@ func (l *Layer) EffectiveStyle() (fill string, opacity float64, fontSize int, al
 }
 
 // EffectiveBox resolves the geometry defaults (x/y 0.1, w 0.8, h 0.3).
+// Kind-specific h defaults keep the motion primitives sensible bare:
+// toggle_grid derives square cells from cols/rows, compare_bars 0.24,
+// stack 0.44, stamp 0.42·w and cta 0.12 (y defaults 0.8 — the bottom pill).
 func (l *Layer) EffectiveBox() (x, y, w, h float64) {
 	x, y, w, h = l.X, l.Y, l.W, l.H
 	if x == 0 {
 		x = 0.1
 	}
 	if y == 0 {
-		y = 0.1
+		if l.Kind == LayerCTA {
+			y = 0.8
+		} else {
+			y = 0.1
+		}
 	}
 	if w == 0 {
 		w = 0.8
 	}
-	if h == 0 && (l.Kind == LayerShape || l.Kind == LayerCard) {
-		h = 0.3
+	if h == 0 {
+		switch l.Kind {
+		case LayerShape, LayerCard:
+			h = 0.3
+		case LayerToggleGrid:
+			h = w * (float64(l.EffectiveRows()) / float64(l.EffectiveCols()))
+		case LayerCompareBars:
+			h = 0.24
+		case LayerStack:
+			h = 0.44
+		case LayerStamp:
+			h = w * 0.42
+		case LayerCTA:
+			h = 0.12
+		}
 	}
 	// Icons default to a square box — their SVG source is square.
 	if h == 0 && l.Kind == LayerIcon {
 		h = w
 	}
 	return x, y, w, h
+}
+
+// EffectiveCols/EffectiveRows resolve the toggle_grid grid size (default and
+// cap 3×3 .. 4×4). Mirrored by internal/video and the browser painter.
+func (l *Layer) EffectiveCols() int {
+	if l.Cols < 1 {
+		return 3
+	}
+	return min(l.Cols, 4)
+}
+
+func (l *Layer) EffectiveRows() int {
+	if l.Rows < 1 {
+		return 3
+	}
+	return min(l.Rows, 4)
+}
+
+// EffectiveCadence resolves the toggle flip period (default 0.6s, clamped
+// 0.2..2 so a scene can't machine-gun the cells).
+func (l *Layer) EffectiveCadence() float64 {
+	if l.Cadence <= 0 {
+		return 0.6
+	}
+	return min(max(l.Cadence, 0.2), 2)
+}
+
+// EffectiveN resolves the stack slab count (default 3, cap 6).
+func (l *Layer) EffectiveN() int {
+	if l.N < 1 {
+		return 3
+	}
+	return min(l.N, 6)
+}
+
+// EffectiveWidthA/EffectiveWidthB resolve the compare_bars bar widths as
+// fractions of the box width (defaults 0.62 / 0.38).
+func (l *Layer) EffectiveWidthA() float64 {
+	if l.WidthA <= 0 {
+		return 0.62
+	}
+	return min(l.WidthA, 1)
+}
+
+func (l *Layer) EffectiveWidthB() float64 {
+	if l.WidthB <= 0 {
+		return 0.38
+	}
+	return min(l.WidthB, 1)
 }
 
 // KenBurns animates a slow zoom/pan on image scenes.

@@ -158,6 +158,30 @@ var goldenFixtures = []struct {
 			]
 		}`,
 	},
+	{
+		// Motion primitives (multi-form engine): style packs, highlighted
+		// text, counter, toggle_grid, compare_bars, stack, stamp and cta
+		// layers must survive both parsers identically.
+		name: "motion_v3",
+		json: `{
+			"version": 1,
+			"scenes": [
+				{
+					"type": "color", "style_pack": "neon_lab", "duration_sec": 6,
+					"layers": [
+						{ "kind": "text", "text": "Chip giảm 30 giá", "y": 0.2, "font_size": 64, "highlights": [{"word": "30", "color": "#F97316"}] },
+						{ "kind": "counter", "text": "▲ ", "to": 20, "suffix": " tỷ", "from": 0, "decimals": 0, "y": 0.35, "font_size": 96, "start": 0.5, "duration": 3 },
+						{ "kind": "toggle_grid", "cols": 3, "rows": 3, "cadence": 0.6, "y": 0.55, "w": 0.5, "start": 0.8 },
+						{ "kind": "compare_bars", "label_a": "CPU", "label_b": "GPU", "width_a": 0.7, "width_b": 0.4, "y": 0.62, "start": 1, "duration": 3 },
+						{ "kind": "stack", "n": 3, "labels": ["L1", "L2", "L3"], "y": 0.3, "start": 0.4 },
+						{ "kind": "stamp", "text": "MỚI", "angle": -8, "y": 0.15, "w": 0.4, "fill": "#F87171" },
+						{ "kind": "cta", "text": "Xem ngay", "y": 0.82, "start": 2 }
+					]
+				},
+				{ "type": "color", "style_pack": "paper_light", "duration_sec": 3 }
+			]
+		}`,
+	},
 }
 
 // TestGoldenParseMatchGateway verifies that the worker contract parser

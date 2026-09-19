@@ -91,6 +91,53 @@ worker and the preview player route them to this pipeline.
 | DELETE | `/v1/voices/{id}` | remove a voice + its embedding |
 | POST | `/v1/tts` | JSON `{text, voice_id?, base_voice?, speed?}` → `audio/wav` / `audio/mpeg` |
 
+## Browser-side cloning (no worker at all)
+
+The studio can also clone **entirely in the browser** — the speaker embedding
+and tone conversion run client-side via onnxruntime-web (WASM), so preview
+narration in your cloned voice works even with no clone worker deployed and
+never sends reference audio anywhere.
+
+```
+edge-tts (gateway, text→base audio) ──▶ ToneColorConverter ONNX (in WASM) ──▶ WAV in your voice
+                                                  ▲
+                    speaker embedding from your sample (browser, on registration)
+```
+
+Pipeline pieces (`ui/web/src/lib/voice-clone/`):
+
+| File | Role |
+|---|---|
+| `spectrogram.ts` | torch-exact linear spectrogram (reflect pad + periodic Hann + `sqrt(re²+im²+1e-6)`) |
+| `runtime.ts` | lazy onnxruntime-web loader; model bytes cached in Cache Storage; `VOICE_CLONE_MODEL_BASE_URL` points at the published ONNX assets |
+| `index.ts` | public API: `registerVoiceFromBlob` / `convertUtterance` / voice store access |
+| `store.ts` | IndexedDB voice registry (embeddings never leave the device) |
+
+The ONNX graphs are produced once by `export_onnx.py` (this directory):
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work python:3.11-slim bash -c "
+  apt-get update -qq && apt-get install -y -qq git > /dev/null
+  pip install --index-url https://download.pytorch.org/whl/cpu torch
+  pip install onnx onnxruntime librosa soundfile huggingface_hub
+  python contrib/voiceclone/export_onnx.py --out contrib/voiceclone/onnx
+"
+```
+
+The script clones OpenVoice, downloads the `myshell-ai/OpenVoiceV2` converter
+checkpoints from HuggingFace, exports two graphs — `speaker_encoder.onnx`
+(spec `(1,513,T)` → embedding `(1,256)`) and `converter.onnx` (deterministic
+`voice_conversion`: spec + source/target embeddings + zero noise + tau →
+waveform `(1,1,T·256)`) — validates torch-vs-onnxruntime (max abs diff must
+be `< 1e-3`), and writes `manifest.json` (I/O shapes, 22050 Hz, n_fft 1024,
+hop 256) plus a spectrogram golden for the browser DSP tests. Host the
+resulting `onnx/` directory (e.g. as a GitHub release asset) and point
+`VOICE_CLONE_MODEL_BASE_URL` at it; until then the UI falls back to plain
+edge audio.
+
+The gateway-worker path (this sidecar) remains the backend for **server-side
+renders** — the browser path covers interactive preview.
+
 ## Security notes
 
 - Set `VOICECLONE_TOKEN` whenever the worker listens beyond `127.0.0.1` — the
