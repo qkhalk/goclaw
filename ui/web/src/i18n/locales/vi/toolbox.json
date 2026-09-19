@@ -310,7 +310,19 @@
       "transport": {
         "fullscreen": "Toàn màn hình"
       }
-    }
+    },
+    "style_pack": "Gói phong cách",
+    "pack_none": "Không (tùy chỉnh)",
+    "pack_tech_dark": "Tech Dark",
+    "pack_neon_lab": "Neon Lab",
+    "pack_paper_light": "Giấy sáng",
+    "pack_bold_red": "Đỏ đậm",
+    "layers_add_counter": "Bộ đếm",
+    "layers_add_toggle_grid": "Lưới công tắc",
+    "layers_add_compare_bars": "Thanh so sánh",
+    "layers_add_stack": "Ngăn xếp",
+    "layers_add_stamp": "Con dấu",
+    "layers_add_cta": "Kêu gọi hành động"
   },
   "watermark": {
     "title": "Xóa watermark",

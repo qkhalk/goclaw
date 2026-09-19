@@ -12,6 +12,13 @@ import {
   StopCircle,
   Zap,
   PanelTop,
+  Hash,
+  ToggleLeft,
+  ChartColumn,
+  Layers,
+  Stamp,
+  Megaphone,
+  Highlighter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +39,7 @@ import { CloneVoiceDialog } from "./clone-voice-dialog";
 import { useTtsCapabilities } from "@/api/tts-capabilities";
 import { toast } from "@/stores/use-toast-store";
 import { TRANSITION_TYPES } from "./scene-transition";
+import { STYLE_PACKS } from "./render-shared";
 import { LayerTimeline } from "./layer-timeline";
 import { cn } from "@/lib/utils";
 import type { NarrationAudioController } from "../hooks/use-narration-audio";
@@ -60,6 +68,33 @@ const COLOR_PRESETS: { key: string; color: string; color2: string; grid: boolean
   { key: "violet_night", color: "#1E1B2E", color2: "#6D28D9", grid: false, glow: "#8B5CF6" },
   { key: "plain", color: "#000000", color2: "#000000", grid: false },
 ];
+
+/** Kinds whose h has no contract default shown in the geometry grid — their
+ * h defaults are kind-specific (effectiveBox in render-shared), so the
+ * inspector surfaces the resolved default instead of a hard-coded 0.3. */
+const BOXED_MOTION_KINDS = new Set<Layer["kind"]>(["toggle_grid", "compare_bars", "stack", "stamp", "cta"]);
+
+/** Kind-specific h defaults — mirror of effectiveBox in render-shared.ts. */
+function defaultHeight(layer: Layer): number {
+  const w = layer.w ?? 0.8;
+  switch (layer.kind) {
+    case "toggle_grid": {
+      const cols = layer.cols !== undefined && layer.cols >= 1 ? Math.min(layer.cols, 4) : 3;
+      const rows = layer.rows !== undefined && layer.rows >= 1 ? Math.min(layer.rows, 4) : 3;
+      return w * (rows / cols);
+    }
+    case "compare_bars":
+      return 0.24;
+    case "stack":
+      return 0.44;
+    case "stamp":
+      return w * 0.42;
+    case "cta":
+      return 0.12;
+    default:
+      return 0.3;
+  }
+}
 
 interface SceneCardProps {
   scene: Scene;
@@ -138,6 +173,14 @@ export function SceneCard({
     if (kind === "image") Object.assign(layer, { y: 0.55, w: 0.3 });
     if (kind === "icon") Object.assign(layer, { icon: "check", w: 0.12, y: 0.3, fill: "#22C55E", chip: true, anim: "pop", start: 0.4 });
     if (kind === "card") Object.assign(layer, { y: 0.3, w: 0.8, h: 0.18, fill: "#1E293B", opacity: 0.45, radius: 0.03, border: true, anim: "up", start: 0.3 });
+    // Motion primitives — sensible bare defaults; the painters' effectiveBox
+    // fills any geometry the user leaves unset.
+    if (kind === "counter") Object.assign(layer, { from: 0, to: 20, suffix: "", decimals: 0, y: 0.22, font_size: 96, fill: "#38BDF8" });
+    if (kind === "toggle_grid") Object.assign(layer, { cols: 3, rows: 3, cadence: 0.6, fill: "#22C55E", fill_b: "#334155", y: 0.3 });
+    if (kind === "compare_bars") Object.assign(layer, { label_a: t("video.layer.preset_compare_a"), label_b: t("video.layer.preset_compare_b"), width_a: 0.62, width_b: 0.38, fill: "#38BDF8", fill_b: "#F97316", y: 0.38, font_size: 40 });
+    if (kind === "stack") Object.assign(layer, { n: 3, fill: "#38BDF8", fill_b: "#8B5CF6", y: 0.28 });
+    if (kind === "stamp") Object.assign(layer, { text: t("video.layer.preset_stamp"), angle: -8, w: 0.5, y: 0.35, fill: "#F87171" });
+    if (kind === "cta") Object.assign(layer, { text: t("video.layer.preset_cta"), fill: "#38BDF8", fill_b: "#8B5CF6" });
     setLayers([...layers, layer]);
     setSelLayer(layers.length);
   }
@@ -208,6 +251,30 @@ export function SceneCard({
           <Label className="text-xs">{t("video.scene.duration")}</Label>
           <Input type="number" min={1} max={30} value={scene.duration_sec} onChange={(e) => onUpdate({ duration_sec: Number(e.target.value) || 1 })} className="text-base md:text-sm" />
         </div>
+      </div>
+
+      {/* Style pack — scene-level look preset (multi-form engine): expands to
+          color/color2/grid on color scenes, glow on any scene, and themes the
+          default text/accent colors of layers that don't set fill. Mirrors
+          the worker's stylePacks table. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">{t("video.style_pack")}</span>
+        <Select
+          value={scene.style_pack || "none"}
+          onValueChange={(v) => onUpdate({ style_pack: v === "none" ? undefined : (v as Scene["style_pack"]) })}
+        >
+          <SelectTrigger className="h-8 w-48 text-base md:text-sm" aria-label={t("video.style_pack")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">{t("video.pack_none")}</SelectItem>
+            {Object.keys(STYLE_PACKS).map((p) => (
+              <SelectItem key={p} value={p}>
+                {t(`video.pack_${p}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Color-scene backdrop: animated-gradient presets + blueprint grid.
@@ -484,6 +551,30 @@ export function SceneCard({
               <PanelTop className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_card")}
             </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("counter")} disabled={layers.length >= 8}>
+              <Hash className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_counter")}
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("toggle_grid")} disabled={layers.length >= 8}>
+              <ToggleLeft className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_toggle_grid")}
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("compare_bars")} disabled={layers.length >= 8}>
+              <ChartColumn className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_compare_bars")}
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("stack")} disabled={layers.length >= 8}>
+              <Layers className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_stack")}
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("stamp")} disabled={layers.length >= 8}>
+              <Stamp className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_stamp")}
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("cta")} disabled={layers.length >= 8}>
+              <Megaphone className="mr-1.5 h-3.5 w-3.5" />
+              {t("video.layers_add_cta")}
+            </Button>
           </div>
 
           <LayerTimeline
@@ -538,6 +629,65 @@ export function SceneCard({
                   <Textarea rows={2} value={activeLayer.text ?? ""} onChange={(e) => patchLayer({ text: e.target.value })} className="text-base md:text-sm" />
                 </div>
               )}
+              {activeLayer.kind === "text" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">{t("video.layer.highlights")}</Label>
+                  {(activeLayer.highlights ?? []).map((hl, hi) => (
+                    <div key={hi} className="flex items-center gap-1.5">
+                      <Input
+                        value={hl.word}
+                        onChange={(e) => {
+                          const hs = [...(activeLayer.highlights ?? [])];
+                          const cur = hs[hi];
+                          if (!cur) return;
+                          hs[hi] = { ...cur, word: e.target.value };
+                          patchLayer({ highlights: hs });
+                        }}
+                        placeholder={t("video.layer.highlight_word")}
+                        className="h-8 flex-1 text-base md:text-sm"
+                      />
+                      <input
+                        type="color"
+                        aria-label={t("video.layer.highlight_color")}
+                        value={hl.color}
+                        onChange={(e) => {
+                          const hs = [...(activeLayer.highlights ?? [])];
+                          const cur = hs[hi];
+                          if (!cur) return;
+                          hs[hi] = { ...cur, color: e.target.value.toUpperCase() };
+                          patchLayer({ highlights: hs });
+                        }}
+                        className="h-8 w-10 cursor-pointer rounded border bg-transparent p-0.5"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("video.layer.highlight_remove")}
+                        onClick={() => {
+                          const hs = (activeLayer.highlights ?? []).filter((_, k) => k !== hi);
+                          patchLayer({ highlights: hs.length > 0 ? hs : undefined });
+                        }}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  {(activeLayer.highlights?.length ?? 0) < 6 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-11 sm:min-h-8 self-start"
+                      onClick={() =>
+                        patchLayer({ highlights: [...(activeLayer.highlights ?? []), { word: "", color: "#38BDF8" }] })
+                      }
+                    >
+                      <Highlighter className="mr-1.5 h-3.5 w-3.5" />
+                      {t("video.layer.highlight_add")}
+                    </Button>
+                  )}
+                </div>
+              )}
               {activeLayer.kind === "image" && (
                 <div className="flex flex-col gap-1.5">
                   <Label className="text-xs">{t("video.layer.source")}</Label>
@@ -579,6 +729,112 @@ export function SceneCard({
                   </div>
                 </div>
               )}
+              {activeLayer.kind === "counter" && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.prefix")}</Label>
+                    <Input value={activeLayer.text ?? ""} onChange={(e) => patchLayer({ text: e.target.value })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.from")}</Label>
+                    <Input type="number" min={0} step={1} value={activeLayer.from ?? 0} onChange={(e) => patchLayer({ from: num(e.target.value, 0) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.to")}</Label>
+                    <Input type="number" min={0} step={1} value={activeLayer.to ?? 20} onChange={(e) => patchLayer({ to: num(e.target.value, 20) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.decimals")}</Label>
+                    <Input type="number" min={0} max={2} step={1} value={activeLayer.decimals ?? 0} onChange={(e) => patchLayer({ decimals: Math.max(0, Math.min(2, Math.round(Number(e.target.value) || 0))) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.suffix")}</Label>
+                    <Input value={activeLayer.suffix ?? ""} onChange={(e) => patchLayer({ suffix: e.target.value })} placeholder="%" className="h-8 text-base md:text-sm" />
+                  </div>
+                </div>
+              )}
+              {activeLayer.kind === "toggle_grid" && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.cols")}</Label>
+                    <Input type="number" min={1} max={4} step={1} value={activeLayer.cols ?? 3} onChange={(e) => patchLayer({ cols: Math.max(1, Math.min(4, Math.round(Number(e.target.value) || 3))) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.rows")}</Label>
+                    <Input type="number" min={1} max={4} step={1} value={activeLayer.rows ?? 3} onChange={(e) => patchLayer({ rows: Math.max(1, Math.min(4, Math.round(Number(e.target.value) || 3))) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.cadence")}</Label>
+                    <Input type="number" min={0.2} max={2} step={0.1} value={activeLayer.cadence ?? 0.6} onChange={(e) => patchLayer({ cadence: Math.max(0.2, Math.min(2, Number(e.target.value) || 0.6)) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                </div>
+              )}
+              {activeLayer.kind === "compare_bars" && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.label_a")}</Label>
+                    <Input value={activeLayer.label_a ?? ""} onChange={(e) => patchLayer({ label_a: e.target.value })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.label_b")}</Label>
+                    <Input value={activeLayer.label_b ?? ""} onChange={(e) => patchLayer({ label_b: e.target.value })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.width_a")}</Label>
+                    <Input type="number" min={0} max={1} step={0.01} value={activeLayer.width_a ?? 0.62} onChange={(e) => patchLayer({ width_a: Math.max(0, Math.min(1, Number(e.target.value) || 0.62)) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.width_b")}</Label>
+                    <Input type="number" min={0} max={1} step={0.01} value={activeLayer.width_b ?? 0.38} onChange={(e) => patchLayer({ width_b: Math.max(0, Math.min(1, Number(e.target.value) || 0.38)) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                </div>
+              )}
+              {activeLayer.kind === "stack" && (
+                <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.slab_count")}</Label>
+                    <Input type="number" min={1} max={6} step={1} value={activeLayer.n ?? 3} onChange={(e) => patchLayer({ n: Math.max(1, Math.min(6, Math.round(Number(e.target.value) || 3))) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.slab_labels")}</Label>
+                    <Input
+                      value={(activeLayer.labels ?? []).join(", ")}
+                      onChange={(e) => {
+                        // Keep empty segments while typing — the painter and
+                        // the server both skip empty slab labels.
+                        const labels = e.target.value.split(",").map((s) => s.trim());
+                        patchLayer({ labels: labels.some((s) => s !== "") ? labels : undefined });
+                      }}
+                      placeholder="A, B, C"
+                      className="h-8 text-base md:text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+              {activeLayer.kind === "stamp" && (
+                <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.text")}</Label>
+                    <Input value={activeLayer.text ?? ""} onChange={(e) => patchLayer({ text: e.target.value })} className="h-8 text-base md:text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="w-16 shrink-0 text-xs">{t("video.layer.angle")}</Label>
+                    <Input type="number" min={-30} max={30} step={1} value={activeLayer.angle ?? -8} onChange={(e) => patchLayer({ angle: Math.max(-30, Math.min(30, num(e.target.value, -8))) })} className="h-8 text-base md:text-sm" />
+                  </div>
+                </div>
+              )}
+              {activeLayer.kind === "cta" && (
+                <div className="flex items-center gap-1.5">
+                  <Label className="w-16 shrink-0 text-xs">{t("video.layer.text")}</Label>
+                  <Input value={activeLayer.text ?? ""} onChange={(e) => patchLayer({ text: e.target.value })} className="h-8 flex-1 text-base md:text-sm" />
+                </div>
+              )}
+              {(activeLayer.kind === "toggle_grid" || activeLayer.kind === "compare_bars" || activeLayer.kind === "stack" || activeLayer.kind === "cta") && (
+                <div className="flex items-center gap-1.5">
+                  <Label className="w-16 shrink-0 text-xs">{t("video.layer.fill_b")}</Label>
+                  <Input value={activeLayer.fill_b ?? ""} onChange={(e) => patchLayer({ fill_b: e.target.value })} placeholder="#8B5CF6" className="h-8 text-base md:text-sm" />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
                 {([
@@ -587,7 +843,9 @@ export function SceneCard({
                   ["video.layer.x", "x", activeLayer.x ?? 0.1],
                   ["video.layer.y", "y", activeLayer.y ?? 0.1],
                   ...(activeLayer.kind === "shape" || activeLayer.kind === "card" ? [["video.layer.w", "w", activeLayer.w ?? 0.8], ["video.layer.h", "h", activeLayer.h ?? 0.3]] : []),
+                  ...(BOXED_MOTION_KINDS.has(activeLayer.kind) ? [["video.layer.w", "w", activeLayer.w ?? 0.8], ["video.layer.h", "h", defaultHeight(activeLayer)]] : []),
                   ...(activeLayer.kind === "icon" ? [["video.layer.w", "w", activeLayer.w ?? 0.12]] : []),
+                  ...(activeLayer.kind === "counter" ? [["video.layer.w", "w", activeLayer.w ?? 0.8]] : []),
                 ] as [string, "start" | "duration" | "x" | "y" | "w" | "h", number][]).map(([labelKey, key, value]) => (
                   <div key={key} className="flex items-center gap-1.5">
                     <Label className="w-16 shrink-0 text-xs">{t(labelKey)}</Label>

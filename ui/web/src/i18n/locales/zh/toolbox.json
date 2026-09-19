@@ -310,7 +310,19 @@
       "transport": {
         "fullscreen": "全屏"
       }
-    }
+    },
+    "style_pack": "风格包",
+    "pack_none": "无（自定义）",
+    "pack_tech_dark": "科技暗色",
+    "pack_neon_lab": "霓虹实验室",
+    "pack_paper_light": "纸白",
+    "pack_bold_red": "浓红",
+    "layers_add_counter": "计数器",
+    "layers_add_toggle_grid": "开关网格",
+    "layers_add_compare_bars": "对比条",
+    "layers_add_stack": "层叠",
+    "layers_add_stamp": "印章",
+    "layers_add_cta": "行动号召"
   },
   "watermark": {
     "title": "水印移除",

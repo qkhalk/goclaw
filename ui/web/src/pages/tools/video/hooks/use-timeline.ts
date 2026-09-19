@@ -17,9 +17,23 @@ interface Caption {
 }
 /** One timed overlay inside a scene — mirrors internal/video.Layer (Go).
  * Geometry is normalized 0..1 (top-left origin); a layer is visible while
- * start <= t < start+duration (duration 0 = until the scene ends). */
+ * start <= t < start+duration (duration 0 = until the scene ends).
+ * The motion kinds (counter/toggle_grid/compare_bars/stack/stamp/cta) and
+ * their fields mirror contract.Layer in the worker — the same formulas run
+ * in the browser painter (render-shared.ts) and the ffmpeg burn-in. */
 export interface Layer {
-  kind: "text" | "shape" | "image" | "icon" | "card";
+  kind:
+    | "text"
+    | "shape"
+    | "image"
+    | "icon"
+    | "card"
+    | "counter"
+    | "toggle_grid"
+    | "compare_bars"
+    | "stack"
+    | "stamp"
+    | "cta";
   text?: string;
   source?: string;
   shape?: string; // "rect"
@@ -39,6 +53,23 @@ export interface Layer {
   opacity?: number;
   font_size?: number;
   align?: "left" | "center" | "right";
+  // ── Motion-layer primitives (multi-form engine), all optional ──
+  highlights?: { word: string; color: string }[]; // text layers: colored keywords (case-sensitive)
+  from?: number; // counter: start value
+  to?: number; // counter: count-up target (> from)
+  suffix?: string; // counter: appended after the animated value
+  decimals?: number; // counter: 0..2 decimal places
+  cols?: number; // toggle_grid: 1..4 (default 3)
+  rows?: number; // toggle_grid: 1..4 (default 3)
+  cadence?: number; // toggle_grid: flip period seconds, 0.2..2 (default 0.6)
+  label_a?: string; // compare_bars: first row label
+  label_b?: string; // compare_bars: second row label
+  width_a?: number; // compare_bars: bar A width 0..1 (default 0.62)
+  width_b?: number; // compare_bars: bar B width 0..1 (default 0.38)
+  fill_b?: string; // secondary color (off cells / bar B / stack gradient end / cta end)
+  n?: number; // stack: slab count 1..6 (default 3)
+  labels?: string[]; // stack: optional per-slab labels
+  angle?: number; // stamp: rotation degrees -30..30 (default -8)
 }
 
 /** The embedded icon set — mirrors contract.ValidIcons in the worker (the
@@ -68,6 +99,11 @@ export interface Scene {
   vignette?: boolean;
   /** Subtle animated film grain — server render only, preview skips. */
   grain?: boolean;
+  /** Scene-level look preset: tech_dark (the default dark look), neon_lab,
+   * paper_light, bold_red. Expands to color/color2/grid (color scenes) and
+   * glow (all scenes), plus the default text/accent colors of layers that
+   * don't set fill. Empty = no pack. */
+  style_pack?: "" | "tech_dark" | "neon_lab" | "paper_light" | "bold_red";
   duration_sec: number;
   fit?: "cover" | "contain";
   mute?: boolean;

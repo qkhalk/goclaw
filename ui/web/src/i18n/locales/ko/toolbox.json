@@ -310,7 +310,19 @@
       "transport": {
         "fullscreen": "전체 화면"
       }
-    }
+    },
+    "style_pack": "스타일 팩",
+    "pack_none": "없음(사용자 지정)",
+    "pack_tech_dark": "테크 다크",
+    "pack_neon_lab": "네온 랩",
+    "pack_paper_light": "페이퍼 라이트",
+    "pack_bold_red": "볼드 레드",
+    "layers_add_counter": "카운터",
+    "layers_add_toggle_grid": "토글 그리드",
+    "layers_add_compare_bars": "비교 막대",
+    "layers_add_stack": "스택",
+    "layers_add_stamp": "스탬프",
+    "layers_add_cta": "행동 유도"
   },
   "watermark": {
     "title": "워터마크 제거",

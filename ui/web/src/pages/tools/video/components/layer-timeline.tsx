@@ -14,6 +14,12 @@ const KIND_BAR: Record<Layer["kind"], string> = {
   image: "bg-emerald-500/70 border-emerald-300/60",
   icon: "bg-violet-500/70 border-violet-300/60",
   card: "bg-slate-500/70 border-slate-300/60",
+  counter: "bg-cyan-500/70 border-cyan-300/60",
+  toggle_grid: "bg-lime-500/70 border-lime-300/60",
+  compare_bars: "bg-orange-500/70 border-orange-300/60",
+  stack: "bg-indigo-500/70 border-indigo-300/60",
+  stamp: "bg-rose-500/70 border-rose-300/60",
+  cta: "bg-fuchsia-500/70 border-fuchsia-300/60",
 };
 
 type DragMode = "move" | "trim-start" | "trim-end";

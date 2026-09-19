@@ -310,7 +310,19 @@
       "transport": {
         "fullscreen": "Fullscreen"
       }
-    }
+    },
+    "style_pack": "Style pack",
+    "pack_none": "None (custom)",
+    "pack_tech_dark": "Tech Dark",
+    "pack_neon_lab": "Neon Lab",
+    "pack_paper_light": "Paper Light",
+    "pack_bold_red": "Bold Red",
+    "layers_add_counter": "Counter",
+    "layers_add_toggle_grid": "Toggle grid",
+    "layers_add_compare_bars": "Compare bars",
+    "layers_add_stack": "Stack",
+    "layers_add_stamp": "Stamp",
+    "layers_add_cta": "Call to action"
   },
   "watermark": {
     "title": "Watermark Remover",

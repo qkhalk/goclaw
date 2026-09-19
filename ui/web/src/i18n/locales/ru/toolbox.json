@@ -310,7 +310,19 @@
       "transport": {
         "fullscreen": "Во весь экран"
       }
-    }
+    },
+    "style_pack": "Стиль",
+    "pack_none": "Нет (свой)",
+    "pack_tech_dark": "Tech Dark",
+    "pack_neon_lab": "Neon Lab",
+    "pack_paper_light": "Бумага",
+    "pack_bold_red": "Красный",
+    "layers_add_counter": "Счётчик",
+    "layers_add_toggle_grid": "Тумблеры",
+    "layers_add_compare_bars": "Столбцы",
+    "layers_add_stack": "Стопка",
+    "layers_add_stamp": "Штамп",
+    "layers_add_cta": "Призыв"
   },
   "watermark": {
     "title": "Удаление водяных знаков",
