@@ -159,6 +159,18 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		{Name: "team_tasks", DisplayName: "Team Tasks", Description: "View, create, update, and complete tasks on the team task board", Category: "teams", Enabled: true,
 			Requires: []string{"managed_mode", "teams"},
 		},
+
+		// studio — product tool pages, not agent tools. These defs are the
+		// installable modules of the Tool Store: installing/uninstalling flips
+		// the per-tenant override (PUT /v1/tools/builtin/{name}/tenant-config)
+		// which drives the sidebar entries, the route gate, and later the MCP
+		// hub exposure. Enabled by default so existing installs keep their nav.
+		{Name: "video_studio", DisplayName: "Video Studio", Description: "Design and render MP4 videos — storyboard scenes, motion layers, narration and cloned voices", Category: "studio", Enabled: true,
+			Metadata: json.RawMessage(`{"route":"/tools/video","ram_note":"render worker runs on demand"}`)},
+		{Name: "watermark_studio", DisplayName: "Watermark Remover", Description: "Remove watermarks from images and videos — processing happens in the browser", Category: "studio", Enabled: true,
+			Metadata: json.RawMessage(`{"route":"/tools/watermark","ram_note":"client-side"}`)},
+		{Name: "pptx_studio", DisplayName: "PPTX Studio", Description: "Build PowerPoint decks — free-canvas slides, themes, charts and pptx export", Category: "studio", Enabled: true,
+			Metadata: json.RawMessage(`{"route":"/tools/pptx","ram_note":"client-side"}`)},
 	}
 
 	// Lite edition: remove skill management tools — not available on desktop.

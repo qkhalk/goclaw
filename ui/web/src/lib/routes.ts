@@ -26,6 +26,7 @@ export const ROUTES = {
   CLOUD_PROVIDER: "/cloud/:provider",
   CLOUD_ACCOUNT: "/cloud/:provider/:accountId",
   TOOLS: "/tools",
+  STORE: "/store",
   TOOLS_VIDEO: "/tools/video",
   TOOLS_WATERMARK: "/tools/watermark",
   TOOLS_PPTX: "/tools/pptx",
