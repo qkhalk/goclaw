@@ -56,12 +56,44 @@ func TestCounterFilterArgs(t *testing.T) {
 	for _, want := range []string{
 		"▲ ",                       // prefix
 		"%{eif:",                   // expansion function
-		":0}",                      // integer digits
+		":d}",                      // eif decimal format (d/u/x/X are the only valid formats)
 		" tỷ",                      // suffix
 		"min(1,max(0,(t-0.500)/3.000))", // linear count window
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("counter textfile missing %q in %q", want, content)
+		}
+	}
+}
+
+// TestCounterValueExpansionDecimalFormats pins the eif digit-splitting: the
+// eif format only accepts d/u/x/X on every ffmpeg we deploy (no decimal
+// count), so decimals come from scale+split expansions.
+func TestCounterValueExpansionDecimalFormats(t *testing.T) {
+	expr := "0.5000+(20.0000-0.5000)*min(1,max(0,(t-0.500)/3.000))"
+	cases := []struct {
+		decimals int
+		count    int // number of eif expansions in the output
+		want     string
+	}{
+		{0, 1, "%{eif:round(" + expr + "):d}"},
+		{1, 2, ""},
+		{2, 3, ""},
+		{5, 3, ""}, // clamped to 2
+	}
+	for _, tc := range cases {
+		got := counterValueExpansion(expr, tc.decimals)
+		if n := strings.Count(got, "%{eif:"); n != tc.count {
+			t.Errorf("decimals=%d: %d eif expansions, want %d: %s", tc.decimals, n, tc.count, got)
+		}
+		if strings.Count(got, ":d}") != tc.count {
+			t.Errorf("decimals=%d: every expansion must use :d — %s", tc.decimals, got)
+		}
+		if tc.want != "" && got != tc.want {
+			t.Errorf("decimals=0 mismatch: %s", got)
+		}
+		if tc.decimals >= 1 && !strings.Contains(got, "*10") {
+			t.Errorf("decimals=%d must scale by a power of ten: %s", tc.decimals, got)
 		}
 	}
 }

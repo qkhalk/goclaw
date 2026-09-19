@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"golang.org/x/image/font"
@@ -508,16 +509,17 @@ func counterFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int, te
 	}
 	expr := fmt.Sprintf("%.4f+(%.4f-%.4f)*min(1,max(0,(t-%.3f)/%.3f))",
 		l.From, l.To, l.From, l.Start, win)
+	value := counterValueExpansion(expr, l.Decimals)
 	var tv string
 	if tempDir == "" {
 		// Inline text: escapeDrawText performs the single option-level
 		// escape pass (colons inside the %{...} block included) — pre-escaping
 		// here would double-escape backslashes and break the expansion.
-		text := escapeExpansionText(l.Text) + "%{eif:" + expr + ":" + fmt.Sprint(l.Decimals) + "}" + escapeExpansionText(l.Suffix)
+		text := escapeExpansionText(l.Text) + value + escapeExpansionText(l.Suffix)
 		tv = "text='" + escapeDrawText(text) + "'"
 	} else {
 		// File mode: colons inside the expansion block need no escaping.
-		content := escapeExpansionText(l.Text) + "%{eif:" + expr + ":" + fmt.Sprint(l.Decimals) + "}" + escapeExpansionText(l.Suffix)
+		content := escapeExpansionText(l.Text) + value + escapeExpansionText(l.Suffix)
 		p := filepath.Join(tempDir, fmt.Sprintf("layer_%03d_%02d_counter.txt", sceneIdx, layerIdx))
 		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
 			return "", fmt.Errorf("write counter text file: %w", err)
@@ -531,6 +533,40 @@ func counterFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int, te
 	}
 	return fmt.Sprintf("%s%s:fontsize=%d:fontcolor=0x%s@%.2f:borderw=2:bordercolor=black@0.5:shadowcolor=black@0.35:shadowx=0:shadowy=2:x='%s':y=%d:alpha='min(1,(t-%.2f)/0.30)':%s",
 		head, tv, fontSize, hex, opacity, layerXExpr(align, x0, bw), y0, l.Start, en), nil
+}
+
+// counterValueExpansion renders the animated count-up value as drawtext eif
+// expansions. The eif format parameter only accepts d/u/x/X — no decimal
+// count ("expr:1" fails on ffmpeg ≥6 with "Invalid format '1'"), so the value
+// is scaled by 10^decimals, rounded, and split into digit groups by pure
+// expressions (sub-expressions are duplicated — drawtext's expression eval
+// has no usable temp-store inside %{eif}).
+func counterValueExpansion(expr string, decimals int) string {
+	if decimals < 0 {
+		decimals = 0
+	}
+	if decimals > 2 {
+		decimals = 2
+	}
+	if decimals == 0 {
+		return "%{eif:round(" + expr + "):d}"
+	}
+	scale := 1
+	for i := 0; i < decimals; i++ {
+		scale *= 10
+	}
+	s := strconv.Itoa(scale)
+	r := fmt.Sprintf("round((%s)*%d)", expr, scale)
+	intPart := "%{eif:floor(" + r + "/" + s + "):d}"
+	frac := r + "-floor(" + r + "/" + s + ")*" + s
+	if decimals == 1 {
+		return intPart + ".%{eif:" + frac + ":d}"
+	}
+	// decimals == 2: split the two fractional digits — eif has no zero-
+	// padding, so "05" must be emitted as separate tens/units expansions.
+	tens := "%{eif:floor((" + frac + ")/10):d}"
+	units := "%{eif:" + frac + "-10*floor((" + frac + ")/10):d}"
+	return intPart + "." + tens + units
 }
 
 // toggleOnExpr is the shared on/off schedule of a toggle cell — mirrored
