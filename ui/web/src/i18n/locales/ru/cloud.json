@@ -310,5 +310,62 @@
     "select_all": "Выделить всё",
     "search": "Перейти к поиску",
     "help": "Справка по клавишам"
+  },
+  "credentials": {
+    "section_title": "{{provider}} — подключение по ключам",
+    "section_description": "Регистрация OAuth-приложения не нужна: введите ключи — они будут проверены через rclone перед сохранением аккаунта.",
+    "section_connect": "Подключить {{provider}}",
+    "title": "Подключить {{provider}}",
+    "description": "Введите учётные данные {{provider}} — они будут проверены перед сохранением аккаунта. Регистрация OAuth-приложения не нужна.",
+    "display_name": "Название аккаунта",
+    "display_name_placeholder": "Моё хранилище {{provider}}",
+    "display_name_hint": "Отображается в списке дисков; двум аккаунтам одного провайдера нужны разные имена.",
+    "connect": "Подключить",
+    "verifying": "Проверка учётных данных…",
+    "connected": "{{name}} подключён",
+    "probe_failed": "Не удалось подключиться: {{error}}",
+    "cancel": "Отмена",
+    "fields": {
+      "s3": {
+        "access_key_id": "ID ключа доступа",
+        "access_key_id_hint": "Ключ доступа вашего пользователя или корзины S3.",
+        "secret_access_key": "Секретный ключ доступа",
+        "secret_access_key_hint": "Секрет, парный к ID ключа доступа.",
+        "region": "Регион",
+        "region_hint": "напр. us-east-1 — для R2 / MinIO не обязательно.",
+        "endpoint": "Endpoint",
+        "endpoint_hint": "https://… — обязателен для R2, Spaces, MinIO; для AWS оставьте пустым.",
+        "provider": "Тип сервиса",
+        "provider_hint": "aws | cloudflare_r2 | digitalocean | other (автоопределение)."
+      },
+      "b2": {
+        "account": "ID ключа",
+        "account_hint": "ID ключа приложения Backblaze.",
+        "key": "Ключ приложения",
+        "key_hint": "Секрет ключа приложения, парный к ID ключа."
+      },
+      "pcloud": {
+        "username": "Имя пользователя",
+        "username_hint": "Email вашего аккаунта pCloud.",
+        "password": "Пароль",
+        "password_hint": "Пароль вашего аккаунта pCloud."
+      },
+      "webdav": {
+        "url": "URL сервера",
+        "url_hint": "напр. https://cloud.example.com/remote.php/dav",
+        "vendor": "Тип сервера",
+        "vendor_hint": "nextcloud | owncloud | other.",
+        "user": "Имя пользователя",
+        "user_hint": "Ваш логин WebDAV.",
+        "pass": "Пароль",
+        "pass_hint": "Ваш пароль WebDAV или пароль приложения."
+      }
+    },
+    "providers": {
+      "s3": "Amazon S3 / совместимые",
+      "b2": "Backblaze B2",
+      "pcloud": "pCloud",
+      "webdav": "WebDAV"
+    }
   }
 }

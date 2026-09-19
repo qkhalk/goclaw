@@ -23,7 +23,7 @@ import (
 type Manager struct {
 	cfg      CloudProviderConfig
 	store    store.CloudAccountStore
-	bindings store.CloudBindingStore // optional per-scope account bindings
+	bindings store.CloudBindingStore  // optional per-scope account bindings
 	secrets  store.ConfigSecretsStore // optional dynamic provider credentials (saved from the web UI)
 	encKey   string
 	storage  *StorageService // optional; deletes rclone remotes on disconnect
@@ -49,8 +49,12 @@ const (
 )
 
 // SupportedProviders lists the storage providers the manager can connect,
-// in UI display order.
-var SupportedProviders = []string{GoogleProvider, MicrosoftProvider}
+// in UI display order: the OAuth providers (google, onedrive) followed by
+// the credential-based ones (s3, b2, pcloud, webdav — keys/passwords typed
+// by the user, no OAuth app; see providers.go). Credential providers have
+// no OAuth client, so ProviderConfigured answers them from the registry
+// (always true — they need zero server-side setup).
+var SupportedProviders = append([]string{GoogleProvider, MicrosoftProvider}, CredentialProviderIDs()...)
 
 // IsSupportedProvider reports whether the provider id can be connected.
 func IsSupportedProvider(provider string) bool {
@@ -118,6 +122,8 @@ func (m *Manager) MicrosoftConfigured(ctx context.Context) bool {
 }
 
 // ProviderConfigured dispatches the per-provider OAuth client check.
+// Credential-based providers (s3, b2, pcloud, webdav) need no OAuth client —
+// the user supplies keys per account — so they are always "configured".
 func (m *Manager) ProviderConfigured(ctx context.Context, provider string) bool {
 	switch provider {
 	case GoogleProvider:
@@ -125,7 +131,7 @@ func (m *Manager) ProviderConfigured(ctx context.Context, provider string) bool 
 	case MicrosoftProvider:
 		return m.MicrosoftConfigured(ctx)
 	default:
-		return false
+		return IsCredentialProvider(provider)
 	}
 }
 

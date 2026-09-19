@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Cloud, HardDrive, Settings2 } from "lucide-react";
+import { Cloud, Cloudy, Database, Globe, HardDrive, KeyRound, Server, Settings2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -21,8 +22,9 @@ import { Switch } from "@/components/ui/switch";
 import { ProviderClientSetup } from "./provider-client-setup";
 import { ScopeBindingsPanel } from "./scope-bindings-panel";
 import { SyncSection } from "./sync-section";
+import { CredentialsConnectDialog } from "./credentials-connect-dialog";
 import { useAuthStore } from "@/stores/use-auth-store";
-import type { CloudProvider } from "./hooks/use-cloud";
+import { isCredentialProvider, type CloudProvider } from "./hooks/use-cloud";
 
 const CLOUD_THUMB_SIZE_KEY = "cloud.thumbnail_size";
 const CLOUD_SHOW_HIDDEN_KEY = "cloud.show_hidden";
@@ -51,6 +53,10 @@ export function getShowHiddenFiles(): boolean {
 const PROVIDER_OPTIONS: { id: CloudProvider; label: string; icon: typeof Cloud }[] = [
   { id: "google", label: "Google Drive", icon: Cloud },
   { id: "onedrive", label: "Microsoft OneDrive", icon: HardDrive },
+  { id: "s3", label: "Amazon S3 / compatible", icon: Database },
+  { id: "b2", label: "Backblaze B2", icon: Server },
+  { id: "pcloud", label: "pCloud", icon: Cloudy },
+  { id: "webdav", label: "WebDAV", icon: Globe },
 ];
 
 /** Cloud settings modal — centered dialog in the same style as the Overview
@@ -74,6 +80,7 @@ export function SettingsModal({
 
   const [thumbSize, setThumbSize] = useState<ThumbnailSize>(getThumbnailSize);
   const [showHidden, setShowHidden] = useState(getShowHiddenFiles);
+  const [credOpen, setCredOpen] = useState(false);
 
   function handleThumbSizeChange(v: string) {
     const val = v as ThumbnailSize;
@@ -119,7 +126,27 @@ export function SettingsModal({
             </Select>
           </div>
 
-          {isAdmin && <ProviderClientSetup provider={provider} />}
+          {isCredentialProvider(provider) ? (
+            <div className="rounded-lg border p-4 text-sm">
+              <p className="font-medium">
+                {t("credentials.section_title", { provider: t(`credentials.providers.${provider}`) })}
+              </p>
+              <p className="mt-1 text-muted-foreground">{t("credentials.section_description")}</p>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCredOpen(true)}
+                  className="min-h-11 sm:min-h-9"
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  {t("credentials.section_connect", { provider: t(`credentials.providers.${provider}`) })}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            isAdmin && <ProviderClientSetup provider={provider} />
+          )}
           {isAdmin && <ScopeBindingsPanel provider={provider} />}
           {isAdmin && <SyncSection />}
 
@@ -151,6 +178,10 @@ export function SettingsModal({
           </div>
         </div>
       </DialogContent>
+
+      {isCredentialProvider(provider) && (
+        <CredentialsConnectDialog open={credOpen} onOpenChange={setCredOpen} provider={provider} />
+      )}
     </Dialog>
   );
 }

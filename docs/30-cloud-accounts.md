@@ -163,6 +163,7 @@ nó). Nếu token trong GoClaw hết hiệu lực (đổi mật khẩu Google, t
 | `DELETE /v1/cloud/accounts/{id}` | Ngắt kết nối |
 | `POST /v1/cloud/oauth/google/start` | Lấy `auth_url` + `redirect_uri` |
 | `GET /v1/cloud/oauth/callback` | Redirect target của Google (state ký HMAC) |
+| `POST /v1/cloud/connect` | Kết nối provider dùng key/token (s3, b2, pcloud, webdav): `{"provider","displayName","params"}` — params lọc theo whitelist từng provider, secret lưu mã hóa; probe rclone trước khi lưu, sai key → `400` kèm lỗi rclone |
 
 ### File operations (ghi trên Drive)
 

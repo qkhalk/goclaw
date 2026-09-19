@@ -95,9 +95,13 @@ export function CloudPage() {
   const { data: cloudStatus, isLoading: cloudStatusLoading } = useCloudStatus();
   const { accounts, loading, refresh, disconnect, startConnect, completeConnect, setShared } = useCloudAccounts();
 
-  // URL-derived view state (never duplicated into useState).
+  // URL-derived view state (never duplicated into useState). Credential
+  // providers (s3/b2/pcloud/webdav) are first-class routing targets too.
+  const CREDENTIAL_PROVIDERS: readonly string[] = ["s3", "b2", "pcloud", "webdav"];
   const activeProvider: CloudProvider | null =
-    provider === "google" || provider === "onedrive" ? provider : null;
+    provider === "google" || provider === "onedrive" || (provider ? CREDENTIAL_PROVIDERS.includes(provider) : false)
+      ? (provider as CloudProvider)
+      : null;
   const path = normalizePath(params.get("path"));
   const view: "home" | "provider" | "account" = accountId ? "account" : provider ? "provider" : "home";
   /** Cross-account pseudo-views on /cloud itself (?view=starred|recent). */
@@ -144,9 +148,9 @@ export function CloudPage() {
   const account = accountId ? accounts.find((a) => a.id === accountId) : undefined;
   const providerMeta = activeProvider ? CLOUD_PROVIDERS.find((p) => p.id === activeProvider) : null;
 
-  const googleConfigured = cloudStatus?.providers?.google?.configured ?? false;
-  const onedriveConfigured = cloudStatus?.providers?.onedrive?.configured ?? false;
-  const isConfigured = (p: CloudProvider) => (p === "google" ? googleConfigured : onedriveConfigured);
+  // Credential providers are always "configured" server-side (no app
+  // registration); OAuth providers report their credential state.
+  const isConfigured = (p: CloudProvider) => cloudStatus?.providers?.[p]?.configured ?? false;
   const providersReady = CLOUD_PROVIDERS.filter((p) => isConfigured(p.id)).length;
   const activeAccounts = accounts.filter((a) => a.status === "active").length;
 

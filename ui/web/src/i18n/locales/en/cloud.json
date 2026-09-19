@@ -310,5 +310,62 @@
     "select_all": "Select all",
     "search": "Focus search",
     "help": "Shortcut help"
+  },
+  "credentials": {
+    "section_title": "{{provider}} — connect with keys",
+    "section_description": "No OAuth app registration needed: enter your keys and they are verified with rclone before the account is saved.",
+    "section_connect": "Connect {{provider}}",
+    "title": "Connect {{provider}}",
+    "description": "Enter your {{provider}} credentials — they are verified before the account is saved. No OAuth app registration needed.",
+    "display_name": "Account name",
+    "display_name_placeholder": "My {{provider}} storage",
+    "display_name_hint": "Shown in your drives list; two accounts of the same provider need different names.",
+    "connect": "Connect",
+    "verifying": "Verifying credentials…",
+    "connected": "{{name}} connected",
+    "probe_failed": "Connection failed: {{error}}",
+    "cancel": "Cancel",
+    "fields": {
+      "s3": {
+        "access_key_id": "Access key ID",
+        "access_key_id_hint": "The access key of your S3 user or bucket.",
+        "secret_access_key": "Secret access key",
+        "secret_access_key_hint": "The secret that pairs with the access key ID.",
+        "region": "Region",
+        "region_hint": "e.g. us-east-1 — optional for R2 / MinIO.",
+        "endpoint": "Endpoint",
+        "endpoint_hint": "https://… — required for R2, Spaces, MinIO; leave empty for AWS.",
+        "provider": "Service type",
+        "provider_hint": "aws | cloudflare_r2 | digitalocean | other (auto-detect)."
+      },
+      "b2": {
+        "account": "Key ID",
+        "account_hint": "Backblaze application key ID.",
+        "key": "Application key",
+        "key_hint": "The application key secret that pairs with the key ID."
+      },
+      "pcloud": {
+        "username": "Username",
+        "username_hint": "Your pCloud account email.",
+        "password": "Password",
+        "password_hint": "Your pCloud account password."
+      },
+      "webdav": {
+        "url": "Server URL",
+        "url_hint": "e.g. https://cloud.example.com/remote.php/dav",
+        "vendor": "Server type",
+        "vendor_hint": "nextcloud | owncloud | other.",
+        "user": "Username",
+        "user_hint": "Your WebDAV login.",
+        "pass": "Password",
+        "pass_hint": "Your WebDAV password or app password."
+      }
+    },
+    "providers": {
+      "s3": "Amazon S3 / compatible",
+      "b2": "Backblaze B2",
+      "pcloud": "pCloud",
+      "webdav": "WebDAV"
+    }
   }
 }

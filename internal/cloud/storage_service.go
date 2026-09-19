@@ -66,19 +66,23 @@ func (s *StorageService) RemoveRemote(ctx context.Context, accountID string) {
 // resolveAccount picks by email/ID when given, else per-scope bindings
 // (group → user → tenant default) and finally the caller's own accounts —
 // including tenant-shared ones (the enterprise "company drive" pattern).
+// Credential-based providers (s3, b2, pcloud, webdav) are appended to the
+// binding preference order so per-scope rules can pin them too.
 func (s *StorageService) resolveAccount(ctx context.Context, name string) (*store.CloudAccount, error) {
-	return s.manager.ResolveAccount(ctx, name, []string{GoogleProvider, MicrosoftProvider}, func(a *store.CloudAccount) bool {
+	providers := append([]string{GoogleProvider, MicrosoftProvider}, CredentialProviderIDs()...)
+	return s.manager.ResolveAccount(ctx, name, providers, func(a *store.CloudAccount) bool {
 		return isStorageProvider(a.Provider)
 	})
 }
 
-// isStorageProvider gates which connected accounts the rclone layer may use.
+// isStorageProvider gates which connected accounts the rclone layer may use:
+// the OAuth providers plus every credential-based provider in the registry.
 func isStorageProvider(provider string) bool {
 	switch provider {
 	case GoogleProvider, MicrosoftProvider:
 		return true
 	default:
-		return false
+		return IsCredentialProvider(provider)
 	}
 }
 
@@ -105,6 +109,23 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 	}
 	if slices.Contains(remotes, remote) {
 		return remote, nil // rclone owns token refresh from here
+	}
+	// Credential-based providers (s3, b2, pcloud, webdav): build the remote
+	// from the whitelisted params stored at connect time — there is no OAuth
+	// token to bootstrap, no TokenSource call, and no token JSON. Everything
+	// below (token injection, client pinning) is OAuth-only.
+	if IsCredentialProvider(acct.Provider) {
+		params, perr := credentialRemoteParams(acct)
+		if perr != nil {
+			return "", perr
+		}
+		if spec, ok := CredentialProviderByID(acct.Provider); ok {
+			if err := rc.ConfigCreate(ctx, remote, spec.RemoteType, params); err != nil {
+				return "", fmt.Errorf("cloud storage: create remote: %w", err)
+			}
+			return remote, nil
+		}
+		return "", fmt.Errorf("cloud storage: %q is not a credential provider", acct.Provider)
 	}
 	// Inject (bootstrap) the remote from a live token: the TokenSource
 	// auto-refreshes (this also proves the grant works for this account's
@@ -454,9 +475,9 @@ func (s *StorageService) PublicLinkAccount(ctx context.Context, acct *store.Clou
 // streamed to the client. The caller owns Dir and must remove it after
 // serving.
 type DownloadedFile struct {
-	Dir  string             // temp dir — caller removes it
-	Name string             // file name inside Dir
-	Stat *storage.StatInfo  // remote stat (size, mime) captured before the copy
+	Dir  string            // temp dir — caller removes it
+	Name string            // file name inside Dir
+	Stat *storage.StatInfo // remote stat (size, mime) captured before the copy
 }
 
 // DownloadAccount copies one remote file into a fresh temp dir (after stat +

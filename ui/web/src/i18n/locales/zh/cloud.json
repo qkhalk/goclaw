@@ -310,5 +310,62 @@
     "select_all": "全选",
     "search": "聚焦搜索",
     "help": "快捷键帮助"
+  },
+  "credentials": {
+    "section_title": "{{provider}} — 使用密钥连接",
+    "section_description": "无需注册 OAuth 应用：输入密钥，保存前会先用 rclone 验证。",
+    "section_connect": "连接 {{provider}}",
+    "title": "连接 {{provider}}",
+    "description": "输入你的 {{provider}} 凭据 — 保存前会先验证。无需注册 OAuth 应用。",
+    "display_name": "账户名称",
+    "display_name_placeholder": "我的 {{provider}} 存储",
+    "display_name_hint": "显示在云盘列表中；同一服务的两个账户需要不同的名称。",
+    "connect": "连接",
+    "verifying": "正在验证凭据…",
+    "connected": "已连接 {{name}}",
+    "probe_failed": "连接失败：{{error}}",
+    "cancel": "取消",
+    "fields": {
+      "s3": {
+        "access_key_id": "访问密钥 ID",
+        "access_key_id_hint": "你的 S3 用户或存储桶的访问密钥。",
+        "secret_access_key": "秘密访问密钥",
+        "secret_access_key_hint": "与访问密钥 ID 配对的密钥。",
+        "region": "区域",
+        "region_hint": "例如 us-east-1 — R2 / MinIO 可留空。",
+        "endpoint": "端点",
+        "endpoint_hint": "https://… — R2、Spaces、MinIO 必填；AWS 留空。",
+        "provider": "服务类型",
+        "provider_hint": "aws | cloudflare_r2 | digitalocean | other（自动检测）。"
+      },
+      "b2": {
+        "account": "密钥 ID",
+        "account_hint": "Backblaze 应用密钥 ID。",
+        "key": "应用密钥",
+        "key_hint": "与密钥 ID 配对的应用密钥。"
+      },
+      "pcloud": {
+        "username": "用户名",
+        "username_hint": "你的 pCloud 账户邮箱。",
+        "password": "密码",
+        "password_hint": "你的 pCloud 账户密码。"
+      },
+      "webdav": {
+        "url": "服务器 URL",
+        "url_hint": "例如 https://cloud.example.com/remote.php/dav",
+        "vendor": "服务器类型",
+        "vendor_hint": "nextcloud | owncloud | other。",
+        "user": "用户名",
+        "user_hint": "你的 WebDAV 登录名。",
+        "pass": "密码",
+        "pass_hint": "你的 WebDAV 密码或应用密码。"
+      }
+    },
+    "providers": {
+      "s3": "Amazon S3 / 兼容存储",
+      "b2": "Backblaze B2",
+      "pcloud": "pCloud",
+      "webdav": "WebDAV"
+    }
   }
 }

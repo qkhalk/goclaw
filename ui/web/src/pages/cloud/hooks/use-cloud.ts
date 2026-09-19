@@ -41,7 +41,50 @@ export interface CloudBinding {
   priority: number;
 }
 
-export type CloudProvider = "google" | "onedrive";
+export type CloudProvider = "google" | "onedrive" | "s3" | "b2" | "pcloud" | "webdav";
+
+/** Credential-based provider ids (typed keys/passwords — no OAuth flow).
+ * KEEP IN SYNC with the backend registry in internal/cloud/providers.go:
+ * same ids, same field keys (they are the API param names), same required /
+ * password flags. Field labels/hints live in i18n (cloud:credentials.fields). */
+export type CredentialProviderId = "s3" | "b2" | "pcloud" | "webdav";
+
+export const CREDENTIAL_PROVIDER_IDS: CredentialProviderId[] = ["s3", "b2", "pcloud", "webdav"];
+
+export function isCredentialProvider(p: CloudProvider): p is CredentialProviderId {
+  return (CREDENTIAL_PROVIDER_IDS as string[]).includes(p);
+}
+
+/** Frontend copy of one credential field spec (mirror of FieldSpec). */
+export interface CredentialFieldSpec {
+  key: string;
+  type: "text" | "password";
+  required: boolean;
+}
+
+export const CREDENTIAL_PROVIDER_FIELDS: Record<CredentialProviderId, CredentialFieldSpec[]> = {
+  s3: [
+    { key: "access_key_id", type: "text", required: true },
+    { key: "secret_access_key", type: "password", required: true },
+    { key: "region", type: "text", required: false },
+    { key: "endpoint", type: "text", required: false },
+    { key: "provider", type: "text", required: false },
+  ],
+  b2: [
+    { key: "account", type: "text", required: true },
+    { key: "key", type: "password", required: true },
+  ],
+  pcloud: [
+    { key: "username", type: "text", required: true },
+    { key: "password", type: "password", required: true },
+  ],
+  webdav: [
+    { key: "url", type: "text", required: true },
+    { key: "vendor", type: "text", required: false },
+    { key: "user", type: "text", required: true },
+    { key: "pass", type: "password", required: true },
+  ],
+};
 
 /** One tenant-level one-way folder sync pair (source → target, additive
  * mirror — files deleted at the source are never deleted at the target). */
@@ -87,7 +130,7 @@ export interface CloudFileEntry {
 export interface CloudStatus {
   enabled: boolean;
   edition: string;
-  providers: { google?: { configured: boolean }; onedrive?: { configured: boolean } };
+  providers: Partial<Record<CloudProvider, { configured: boolean }>>;
 }
 
 export interface CloudStartResponse {
@@ -173,6 +216,23 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
+  /** Connect a credential-based provider (s3/b2/pcloud/webdav): the server
+   * validates the params against its whitelist, probes the credentials with
+   * rclone, and only persists on success — a rejected probe throws with
+   * rclone's own error text. */
+  const connectCredentials = useCallback(
+    async (provider: CredentialProviderId, displayName: string, params: Record<string, string>) => {
+      const res = await http.post<{ email: string }>("/v1/cloud/connect", {
+        provider,
+        display_name: displayName,
+        params,
+      });
+      await invalidate();
+      return res;
+    },
+    [http, invalidate],
+  );
+
   /** Toggle the tenant-wide shared flag (admin). */
   const setShared = useCallback(
     async (id: string, shared: boolean) => {
@@ -182,7 +242,7 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
-  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, setShared };
+  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, connectCredentials, setShared };
 }
 
 export function useCloudBindings(enabled: boolean) {

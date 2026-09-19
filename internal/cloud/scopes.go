@@ -73,6 +73,12 @@ func HasMicrosoftWriteScopes(scopesJSON string) bool {
 // AccountCanWrite reports whether the account's stored OAuth grant includes
 // the provider's write scope. Accounts connected before the write upgrade
 // report false until their owner re-grants; every read path stays usable.
+//
+// Credential-based providers (s3, b2, pcloud, webdav) are inherently
+// full-access: the user typed the key/password themselves and there is no
+// scope grant that could be narrower, so they always report true. Rows carry
+// the CredentialScopesMarker ("credentials") in the scopes column for
+// observability; the authoritative check is the provider registry.
 func AccountCanWrite(acct *store.CloudAccount) bool {
 	if acct == nil {
 		return false
@@ -83,7 +89,7 @@ func AccountCanWrite(acct *store.CloudAccount) bool {
 	case MicrosoftProvider:
 		return HasMicrosoftWriteScopes(acct.Scopes)
 	default:
-		return false
+		return IsCredentialProvider(acct.Provider)
 	}
 }
 

@@ -133,6 +133,11 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/cloud/starred", requireAuth("", h.handleListStarred))
 	mux.HandleFunc("PUT /v1/cloud/starred", requireAuth("", h.handleAddStarred))
 	mux.HandleFunc("DELETE /v1/cloud/starred/{id}", requireAuth("", h.handleRemoveStarred))
+
+	// Credential-based providers (s3, b2, pcloud, webdav): connect with
+	// typed keys/passwords — same auth level as the OAuth /start endpoint
+	// (any authenticated user connects their own account).
+	mux.HandleFunc("POST /v1/cloud/connect", requireAuth("", h.handleConnectCredentials))
 }
 
 // --- GET /v1/cloud/status ---
@@ -1126,7 +1131,7 @@ type cloudSyncPairInput struct {
 	TargetAccountID string `json:"target_account_id"`
 	TargetPath      string `json:"target_path"`
 	// IntervalMinutes: 0 = manual only; nil = keep/create with 0.
-	IntervalMinutes *int `json:"interval_minutes,omitempty"`
+	IntervalMinutes *int  `json:"interval_minutes,omitempty"`
 	Enabled         *bool `json:"enabled,omitempty"`
 }
 
@@ -1463,7 +1468,8 @@ func pathDisplayName(path string) string {
 }
 
 // storageError maps rclone-layer failures to status codes.
-func (h *CloudHandler) storageError(w http.ResponseWriter, err error) {	if errors.Is(err, cloudmgr.ErrRCloneMissing) {
+func (h *CloudHandler) storageError(w http.ResponseWriter, err error) {
+	if errors.Is(err, cloudmgr.ErrRCloneMissing) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 		return
 	}
@@ -1640,4 +1646,100 @@ func trimRightS(s, cut string) string {
 		s = s[:len(s)-len(cut)]
 	}
 	return s
+}
+
+// --- POST /v1/cloud/connect (credential-based providers) ---
+
+// cloudConnectInput is the credential-connection payload: provider id from
+// the registry, a display name, and the whitelisted credential params
+// (unknown keys are rejected by the registry — no arbitrary rclone options).
+type cloudConnectInput struct {
+	Provider    string            `json:"provider"`
+	DisplayName string            `json:"display_name"`
+	Params      map[string]string `json:"params"`
+}
+
+// handleConnectCredentials connects a credential-based provider (s3, b2,
+// pcloud, webdav): registry validation → rclone probe (ensureRemote +
+// operations/about) → persist. A failed probe answers 400 with rclone's own
+// error text and NOTHING is persisted; the just-created remote is deleted so
+// bad credentials never linger in rclone.conf.
+func (h *CloudHandler) handleConnectCredentials(w http.ResponseWriter, r *http.Request) {
+	if !h.available(w, r) {
+		return
+	}
+	if h.manager == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "cloud manager unavailable"})
+		return
+	}
+	var in cloudConnectInput
+	locale := store.LocaleFromContext(r.Context())
+	if !bindJSON(w, r, locale, &in) {
+		return
+	}
+	in.Provider = strings.TrimSpace(in.Provider)
+	if _, ok := cloudmgr.CredentialProviderByID(in.Provider); !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
+		return
+	}
+	userID := store.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing user identity"})
+		return
+	}
+	st := h.storageLayer(w)
+	if st == nil {
+		return
+	}
+
+	acct, err := h.manager.NewCredentialAccount(r.Context(), in.Provider, in.DisplayName, in.Params,
+		store.TenantIDFromContext(r.Context()).String(), userID)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Probe before persisting: proves the typed credentials actually work.
+	// aboutUnsupported falls back to a root listing for backends without a
+	// quota endpoint (auth is still proven).
+	if _, perr := st.AboutAccount(r.Context(), acct); perr != nil {
+		if errors.Is(perr, cloudmgr.ErrRCloneMissing) {
+			h.storageError(w, perr)
+			return
+		}
+		if !aboutUnsupported(perr) {
+			st.RemoveRemote(r.Context(), acct.ID)
+			slog.Warn("cloud: credential probe failed", "provider", acct.Provider, "error", perr)
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": perr.Error()})
+			return
+		}
+		if _, lerr := st.ListAccount(r.Context(), acct, "/", 1); lerr != nil {
+			st.RemoveRemote(r.Context(), acct.ID)
+			slog.Warn("cloud: credential probe failed", "provider", acct.Provider, "error", lerr)
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": lerr.Error()})
+			return
+		}
+	}
+
+	if err := h.accounts.Upsert(r.Context(), acct); err != nil {
+		slog.Error("cloud: persist credential account failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save account"})
+		return
+	}
+	slog.Info("cloud: account connected (credentials)", "provider", acct.Provider, "account_id", acct.ID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"email":   acct.Email,
+		"account": cloudAccountView{CloudAccount: *acct, CanWrite: cloudmgr.AccountCanWrite(acct)},
+	})
+}
+
+// aboutUnsupported reports whether an rclone error means the backend has no
+// operations/about (quota) support — the probe then falls back to a listing.
+func aboutUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "about") &&
+		(strings.Contains(msg, "not supported") || strings.Contains(msg, "unsupported") || strings.Contains(msg, "didn't find"))
 }

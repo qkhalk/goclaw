@@ -310,5 +310,62 @@
     "select_all": "전체 선택",
     "search": "검색으로 이동",
     "help": "단축키 도움말"
+  },
+  "credentials": {
+    "section_title": "{{provider}} — 키로 연결",
+    "section_description": "OAuth 앱 등록이 필요 없습니다: 키를 입력하면 저장 전에 rclone으로 검증합니다.",
+    "section_connect": "{{provider}} 연결",
+    "title": "{{provider}} 연결",
+    "description": "{{provider}} 자격 증명을 입력하세요 — 저장하기 전에 검증됩니다. OAuth 앱 등록이 필요 없습니다.",
+    "display_name": "계정 이름",
+    "display_name_placeholder": "내 {{provider}} 스토리지",
+    "display_name_hint": "드라이브 목록에 표시됩니다. 같은 공급자의 두 계정은 이름이 달라야 합니다.",
+    "connect": "연결",
+    "verifying": "자격 증명 확인 중…",
+    "connected": "{{name}} 연결됨",
+    "probe_failed": "연결 실패: {{error}}",
+    "cancel": "취소",
+    "fields": {
+      "s3": {
+        "access_key_id": "액세스 키 ID",
+        "access_key_id_hint": "S3 사용자 또는 버킷의 액세스 키입니다.",
+        "secret_access_key": "시크릿 액세스 키",
+        "secret_access_key_hint": "액세스 키 ID와 짝이 되는 시크릿 키입니다.",
+        "region": "리전",
+        "region_hint": "예: us-east-1 — R2 / MinIO는 선택 사항.",
+        "endpoint": "엔드포인트",
+        "endpoint_hint": "https://… — R2, Spaces, MinIO에는 필수, AWS는 비워 두세요.",
+        "provider": "서비스 유형",
+        "provider_hint": "aws | cloudflare_r2 | digitalocean | other(자동 감지)."
+      },
+      "b2": {
+        "account": "키 ID",
+        "account_hint": "Backblaze 애플리케이션 키 ID입니다.",
+        "key": "애플리케이션 키",
+        "key_hint": "키 ID와 짝이 되는 애플리케이션 키 시크릿입니다."
+      },
+      "pcloud": {
+        "username": "사용자 이름",
+        "username_hint": "pCloud 계정 이메일입니다.",
+        "password": "비밀번호",
+        "password_hint": "pCloud 계정 비밀번호입니다."
+      },
+      "webdav": {
+        "url": "서버 URL",
+        "url_hint": "예: https://cloud.example.com/remote.php/dav",
+        "vendor": "서버 유형",
+        "vendor_hint": "nextcloud | owncloud | other.",
+        "user": "사용자 이름",
+        "user_hint": "WebDAV 로그인 계정입니다.",
+        "pass": "비밀번호",
+        "pass_hint": "WebDAV 비밀번호 또는 앱 비밀번호입니다."
+      }
+    },
+    "providers": {
+      "s3": "Amazon S3 / 호환",
+      "b2": "Backblaze B2",
+      "pcloud": "pCloud",
+      "webdav": "WebDAV"
+    }
   }
 }

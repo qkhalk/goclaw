@@ -310,5 +310,62 @@
     "select_all": "Chọn tất cả",
     "search": "Tới ô tìm kiếm",
     "help": "Trợ giúp phím tắt"
+  },
+  "credentials": {
+    "section_title": "{{provider}} — kết nối bằng khóa",
+    "section_description": "Không cần đăng ký ứng dụng OAuth: nhập khóa của bạn, chúng sẽ được xác minh qua rclone trước khi tài khoản được lưu.",
+    "section_connect": "Kết nối {{provider}}",
+    "title": "Kết nối {{provider}}",
+    "description": "Nhập thông tin đăng nhập {{provider}} — sẽ được xác minh trước khi tài khoản được lưu. Không cần đăng ký ứng dụng OAuth.",
+    "display_name": "Tên tài khoản",
+    "display_name_placeholder": "Lưu trữ {{provider}} của tôi",
+    "display_name_hint": "Hiển thị trong danh sách ổ đĩa; hai tài khoản cùng nhà cung cấp cần tên khác nhau.",
+    "connect": "Kết nối",
+    "verifying": "Đang xác minh thông tin đăng nhập…",
+    "connected": "Đã kết nối {{name}}",
+    "probe_failed": "Kết nối thất bại: {{error}}",
+    "cancel": "Hủy",
+    "fields": {
+      "s3": {
+        "access_key_id": "ID khóa truy cập",
+        "access_key_id_hint": "Khóa truy cập của người dùng hoặc bucket S3 của bạn.",
+        "secret_access_key": "Khóa truy cập bí mật",
+        "secret_access_key_hint": "Khóa bí mật đi kèm ID khóa truy cập.",
+        "region": "Vùng",
+        "region_hint": "VD: us-east-1 — tùy chọn với R2 / MinIO.",
+        "endpoint": "Endpoint",
+        "endpoint_hint": "https://… — bắt buộc với R2, Spaces, MinIO; để trống cho AWS.",
+        "provider": "Loại dịch vụ",
+        "provider_hint": "aws | cloudflare_r2 | digitalocean | other (tự động nhận diện)."
+      },
+      "b2": {
+        "account": "ID khóa",
+        "account_hint": "ID khóa ứng dụng Backblaze.",
+        "key": "Khóa ứng dụng",
+        "key_hint": "Khóa bí mật của khóa ứng dụng, đi kèm ID khóa."
+      },
+      "pcloud": {
+        "username": "Tên đăng nhập",
+        "username_hint": "Email tài khoản pCloud của bạn.",
+        "password": "Mật khẩu",
+        "password_hint": "Mật khẩu tài khoản pCloud của bạn."
+      },
+      "webdav": {
+        "url": "URL máy chủ",
+        "url_hint": "VD: https://cloud.example.com/remote.php/dav",
+        "vendor": "Loại máy chủ",
+        "vendor_hint": "nextcloud | owncloud | other.",
+        "user": "Tên đăng nhập",
+        "user_hint": "Tài khoản đăng nhập WebDAV của bạn.",
+        "pass": "Mật khẩu",
+        "pass_hint": "Mật khẩu WebDAV hoặc mật khẩu ứng dụng của bạn."
+      }
+    },
+    "providers": {
+      "s3": "Amazon S3 / tương thích",
+      "b2": "Backblaze B2",
+      "pcloud": "pCloud",
+      "webdav": "WebDAV"
+    }
   }
 }
