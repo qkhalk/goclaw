@@ -338,7 +338,13 @@
       "preset_paper": "Бумага",
       "preset_forest": "Лес",
       "preset_plum": "Слива",
-      "preset_ink-teal": "Чернила и бирюза"
+      "preset_ink-teal": "Чернила и бирюза",
+      "background": "Фон",
+      "foreground": "Текст",
+      "accent": "Акцент",
+      "muted": "Приглушённый",
+      "font_heading": "Шрифт заголовков",
+      "font_body": "Шрифт текста"
     },
     "field": {
       "layout": "Макет",
@@ -449,6 +455,36 @@
       "kind_frame": "Рамка",
       "kind_image": "Изображение",
       "layout_hint": "Слайд на основе макета — перетащите, измените размер или добавьте элемент, чтобы перейти к свободному редактированию."
+    },
+    "ribbon": {
+      "tab_home": "Главная",
+      "tab_insert": "Вставка",
+      "tab_design": "Дизайн",
+      "tab_transitions": "Переходы",
+      "tab_slideshow": "Показ слайдов",
+      "tab_view": "Вид",
+      "group_quick": "Действия",
+      "group_slides": "Слайды",
+      "group_elements": "Элементы",
+      "group_arrange": "Формат",
+      "group_themes": "Темы",
+      "group_colors": "Цвета",
+      "group_fonts": "Шрифты",
+      "group_zoom": "Масштаб",
+      "group_panels": "Панели",
+      "group_transition": "Переход для этого слайда",
+      "group_slideshow": "Начать показ",
+      "from_beginning": "С начала",
+      "from_current": "С текущего слайда",
+      "zoom_in": "Увеличить",
+      "zoom_out": "Уменьшить",
+      "fit": "По размеру окна",
+      "thumbnails": "Миниатюры",
+      "notes": "Заметки",
+      "editor": "Редактор слайда"
+    },
+    "status": {
+      "slide_of": "Слайд {{x}} из {{y}}"
     }
   }
 }

@@ -338,7 +338,13 @@
       "preset_paper": "페이퍼",
       "preset_forest": "포레스트",
       "preset_plum": "플럼",
-      "preset_ink-teal": "잉크 틸"
+      "preset_ink-teal": "잉크 틸",
+      "background": "배경",
+      "foreground": "글자",
+      "accent": "강조색",
+      "muted": "보조색",
+      "font_heading": "제목 글꼴",
+      "font_body": "본문 글꼴"
     },
     "field": {
       "layout": "레이아웃",
@@ -449,6 +455,36 @@
       "kind_frame": "프레임",
       "kind_image": "이미지",
       "layout_hint": "레이아웃 기반 슬라이드 — 요소를 이동·크기조정·추가하면 자유 편집 모드로 전환됩니다."
+    },
+    "ribbon": {
+      "tab_home": "홈",
+      "tab_insert": "삽입",
+      "tab_design": "디자인",
+      "tab_transitions": "전환",
+      "tab_slideshow": "슬라이드 쇼",
+      "tab_view": "보기",
+      "group_quick": "작업",
+      "group_slides": "슬라이드",
+      "group_elements": "요소",
+      "group_arrange": "정렬",
+      "group_themes": "테마",
+      "group_colors": "색상",
+      "group_fonts": "글꼴",
+      "group_zoom": "확대/축소",
+      "group_panels": "패널",
+      "group_transition": "이 슬라이드 전환",
+      "group_slideshow": "슬라이드 쇼 시작",
+      "from_beginning": "처음부터",
+      "from_current": "현재 슬라이드부터",
+      "zoom_in": "확대",
+      "zoom_out": "축소",
+      "fit": "창에 맞춤",
+      "thumbnails": "축소판",
+      "notes": "메모",
+      "editor": "슬라이드 편집기"
+    },
+    "status": {
+      "slide_of": "슬라이드 {{x}} / {{y}}"
     }
   }
 }

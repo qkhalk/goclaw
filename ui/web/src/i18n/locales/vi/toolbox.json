@@ -338,7 +338,13 @@
       "preset_paper": "Giấy kem",
       "preset_forest": "Rừng xanh",
       "preset_plum": "Mận tím",
-      "preset_ink-teal": "Mực & ngọc lam"
+      "preset_ink-teal": "Mực & ngọc lam",
+      "background": "Nền",
+      "foreground": "Chữ",
+      "accent": "Màu nhấn",
+      "muted": "Màu phụ",
+      "font_heading": "Phông tiêu đề",
+      "font_body": "Phông nội dung"
     },
     "field": {
       "layout": "Bố cục",
@@ -449,6 +455,36 @@
       "kind_frame": "Khung",
       "kind_image": "Ảnh",
       "layout_hint": "Slide đang theo layout — kéo, resize hoặc thêm phần tử để chuyển sang chế độ tự do."
+    },
+    "ribbon": {
+      "tab_home": "Trang chủ",
+      "tab_insert": "Chèn",
+      "tab_design": "Thiết kế",
+      "tab_transitions": "Chuyển cảnh",
+      "tab_slideshow": "Trình chiếu",
+      "tab_view": "Xem",
+      "group_quick": "Thao tác",
+      "group_slides": "Slide",
+      "group_elements": "Phần tử",
+      "group_arrange": "Sắp xếp",
+      "group_themes": "Chủ đề",
+      "group_colors": "Màu sắc",
+      "group_fonts": "Phông chữ",
+      "group_zoom": "Thu phóng",
+      "group_panels": "Bảng điều khiển",
+      "group_transition": "Chuyển cảnh cho slide này",
+      "group_slideshow": "Bắt đầu trình chiếu",
+      "from_beginning": "Từ đầu",
+      "from_current": "Từ slide hiện tại",
+      "zoom_in": "Phóng to",
+      "zoom_out": "Thu nhỏ",
+      "fit": "Vừa khung",
+      "thumbnails": "Ảnh thu nhỏ",
+      "notes": "Ghi chú",
+      "editor": "Trình soạn slide"
+    },
+    "status": {
+      "slide_of": "Slide {{x}} / {{y}}"
     }
   }
 }

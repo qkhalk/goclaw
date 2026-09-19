@@ -338,7 +338,13 @@
       "preset_paper": "纸白",
       "preset_forest": "森林",
       "preset_plum": "紫李",
-      "preset_ink-teal": "墨青"
+      "preset_ink-teal": "墨青",
+      "background": "背景",
+      "foreground": "文字",
+      "accent": "强调色",
+      "muted": "辅助色",
+      "font_heading": "标题字体",
+      "font_body": "正文字体"
     },
     "field": {
       "layout": "版式",
@@ -449,6 +455,36 @@
       "kind_frame": "边框",
       "kind_image": "图片",
       "layout_hint": "布局驱动的幻灯片 — 拖动、缩放或添加元素即可转换为自由编辑。"
+    },
+    "ribbon": {
+      "tab_home": "主页",
+      "tab_insert": "插入",
+      "tab_design": "设计",
+      "tab_transitions": "切换",
+      "tab_slideshow": "放映",
+      "tab_view": "视图",
+      "group_quick": "操作",
+      "group_slides": "幻灯片",
+      "group_elements": "元素",
+      "group_arrange": "排列",
+      "group_themes": "主题",
+      "group_colors": "颜色",
+      "group_fonts": "字体",
+      "group_zoom": "缩放",
+      "group_panels": "面板",
+      "group_transition": "此幻灯片的切换效果",
+      "group_slideshow": "开始放映",
+      "from_beginning": "从头开始",
+      "from_current": "从当前幻灯片开始",
+      "zoom_in": "放大",
+      "zoom_out": "缩小",
+      "fit": "适应窗口",
+      "thumbnails": "缩略图",
+      "notes": "备注",
+      "editor": "幻灯片编辑器"
+    },
+    "status": {
+      "slide_of": "第 {{x}} / {{y}} 张"
     }
   }
 }

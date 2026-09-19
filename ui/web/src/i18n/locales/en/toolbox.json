@@ -338,7 +338,13 @@
       "preset_paper": "Paper",
       "preset_forest": "Forest",
       "preset_plum": "Plum",
-      "preset_ink-teal": "Ink & teal"
+      "preset_ink-teal": "Ink & teal",
+      "background": "Background",
+      "foreground": "Foreground",
+      "accent": "Accent",
+      "muted": "Muted",
+      "font_heading": "Heading font",
+      "font_body": "Body font"
     },
     "field": {
       "layout": "Layout",
@@ -449,6 +455,36 @@
       "kind_frame": "Frame",
       "kind_image": "Image",
       "layout_hint": "Layout-driven slide — move, resize or add an element to convert it to free-form editing."
+    },
+    "ribbon": {
+      "tab_home": "Home",
+      "tab_insert": "Insert",
+      "tab_design": "Design",
+      "tab_transitions": "Transitions",
+      "tab_slideshow": "Slide Show",
+      "tab_view": "View",
+      "group_quick": "Actions",
+      "group_slides": "Slides",
+      "group_elements": "Elements",
+      "group_arrange": "Arrange",
+      "group_themes": "Themes",
+      "group_colors": "Colors",
+      "group_fonts": "Fonts",
+      "group_zoom": "Zoom",
+      "group_panels": "Panels",
+      "group_transition": "Transition to this slide",
+      "group_slideshow": "Start Slide Show",
+      "from_beginning": "From Beginning",
+      "from_current": "From Current Slide",
+      "zoom_in": "Zoom In",
+      "zoom_out": "Zoom Out",
+      "fit": "Fit to Window",
+      "thumbnails": "Thumbnails",
+      "notes": "Notes",
+      "editor": "Slide editor"
+    },
+    "status": {
+      "slide_of": "Slide {{x}} of {{y}}"
     }
   }
 }
