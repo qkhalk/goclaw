@@ -217,7 +217,7 @@ export function SceneCard({
   const num = (v: string, fallback: number) => (v === "" ? fallback : Number(v) || fallback);
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border p-3">
+    <div className="flex flex-col gap-3 rounded-md border border-white/10 p-3">
       {/* Header row */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">
@@ -360,7 +360,7 @@ export function SceneCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="min-h-9 px-2 text-xs"
+                className="min-h-11 px-2 text-xs sm:min-h-9"
                 onClick={() => onUpdate({ glow: undefined })}
               >
                 {t("video.glow_off")}
@@ -472,7 +472,7 @@ export function SceneCard({
 
       {/* OpenCut-style transform + color grading (image/video scenes only) */}
       {(scene.type === "image" || scene.type === "video") && (
-        <details className="rounded-md border p-3">
+        <details className="rounded-md bg-white/[0.03] p-3">
           <summary className="cursor-pointer text-sm font-medium">{t("video.advanced")}</summary>
           <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             {([
@@ -545,7 +545,7 @@ export function SceneCard({
 
       {/* Timed overlay layers — drawn by the browser preview AND the server
           renderer (drawtext/drawbox/overlay with enable windows). */}
-      <details className="rounded-md border p-3" open={layers.length > 0}>
+      <details className="rounded-md bg-white/[0.03] p-3" open={layers.length > 0}>
         <summary className="cursor-pointer text-sm font-medium">
           {t("video.layers_title")}
           {layers.length > 0 && (
@@ -554,47 +554,47 @@ export function SceneCard({
         </summary>
         <div className="mt-3 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("text")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("text")} disabled={layers.length >= 8}>
               <Type className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_text")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("shape")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("shape")} disabled={layers.length >= 8}>
               <Square className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_shape")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("image")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("image")} disabled={layers.length >= 8}>
               <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_image")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("icon")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("icon")} disabled={layers.length >= 8}>
               <Zap className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_icon")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("card")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("card")} disabled={layers.length >= 8}>
               <PanelTop className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_card")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("counter")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("counter")} disabled={layers.length >= 8}>
               <Hash className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_counter")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("toggle_grid")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("toggle_grid")} disabled={layers.length >= 8}>
               <ToggleLeft className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_toggle_grid")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("compare_bars")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("compare_bars")} disabled={layers.length >= 8}>
               <ChartColumn className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_compare_bars")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("stack")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("stack")} disabled={layers.length >= 8}>
               <Layers className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_stack")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("stamp")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("stamp")} disabled={layers.length >= 8}>
               <Stamp className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_stamp")}
             </Button>
-            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => addLayer("cta")} disabled={layers.length >= 8}>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={() => addLayer("cta")} disabled={layers.length >= 8}>
               <Megaphone className="mr-1.5 h-3.5 w-3.5" />
               {t("video.layers_add_cta")}
             </Button>
@@ -609,13 +609,13 @@ export function SceneCard({
           />
 
           {activeLayer && (
-            <div className="flex flex-col gap-3 rounded-md border bg-muted/20 p-2.5">
+            <div className="flex flex-col gap-3 rounded-md bg-muted/20 p-2.5">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {t(`video.layer.kind_${activeLayer.kind}`)}
                 </span>
                 <div className="ml-auto flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon-sm" aria-label={t("video.layer_move_up")} disabled={activeIdx === 0} onClick={() => {
+                  <Button variant="ghost" size="icon-sm" aria-label={t("video.layer_move_up")} className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9" disabled={activeIdx === 0} onClick={() => {
                     const to = activeIdx - 1;
                     const next = [...layers];
                     const [m] = next.splice(activeIdx, 1);
@@ -626,7 +626,7 @@ export function SceneCard({
                   }}>
                     <ArrowUp className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon-sm" aria-label={t("video.layer_move_down")} disabled={activeIdx === layers.length - 1} onClick={() => {
+                  <Button variant="ghost" size="icon-sm" aria-label={t("video.layer_move_down")} className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9" disabled={activeIdx === layers.length - 1} onClick={() => {
                     const to = activeIdx + 1;
                     const next = [...layers];
                     const [m] = next.splice(activeIdx, 1);
@@ -640,7 +640,7 @@ export function SceneCard({
                   <Button variant="ghost" size="icon-sm" aria-label={t("video.layer_delete")} onClick={() => {
                     setLayers(layers.filter((_, j) => j !== activeIdx));
                     setSelLayer(0);
-                  }} className="text-destructive hover:text-destructive">
+                  }} className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -690,7 +690,7 @@ export function SceneCard({
                           const hs = (activeLayer.highlights ?? []).filter((_, k) => k !== hi);
                           patchLayer({ highlights: hs.length > 0 ? hs : undefined });
                         }}
-                        className="text-destructive hover:text-destructive"
+                        className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -700,7 +700,7 @@ export function SceneCard({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="min-h-11 sm:min-h-8 self-start"
+                      className="min-h-11 sm:min-h-9 self-start"
                       onClick={() =>
                         patchLayer({ highlights: [...(activeLayer.highlights ?? []), { word: "", color: "#38BDF8" }] })
                       }
@@ -1001,7 +1001,7 @@ export function SceneCard({
                   ? onUpdate({ duration_sec: Math.ceil(audioDur + 0.35) })
                   : onUpdate({ duration_sec: Math.ceil(est) })
               }
-              className="ml-auto rounded border border-amber-500/50 px-1.5 py-0.5 font-medium transition-colors hover:bg-amber-500/10"
+              className="ml-auto inline-flex min-h-11 items-center rounded border border-amber-500/50 px-2 font-medium transition-colors hover:bg-amber-500/10 sm:min-h-9"
             >
               {t("video.narration_fit_apply", { est: Math.ceil(est) })}
             </button>
