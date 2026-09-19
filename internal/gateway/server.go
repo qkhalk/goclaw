@@ -516,6 +516,14 @@ func bridgeContextMiddleware(gatewayToken string, agentStore store.AgentStore, n
 		if sessionKey != "" {
 			ctx = tools.WithToolSessionKey(ctx, sessionKey)
 		}
+		// Callers without an HMAC-verified tenant header (plain gateway-token
+		// clients like external MCP agents) get the master tenant — the same
+		// fallback the HTTP auth path applies. Without this, tenant-scoped
+		// writes inside tools (e.g. render_video creating its job row) insert
+		// uuid.Nil and die on the tenants FK.
+		if store.TenantIDFromContext(ctx) == uuid.Nil {
+			ctx = store.WithTenantID(ctx, store.MasterTenantID)
+		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
