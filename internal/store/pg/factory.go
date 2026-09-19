@@ -96,6 +96,7 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 		CloudSyncPairs:         NewPGCloudSyncPairStore(db),
 		CloudStarred:           NewPGCloudStarredStore(db),
 		VideoJobs:              NewPGVideoJobStore(db),
+		MCPInstalls:            NewPGMCPInstallStore(db),
 	}
 	// Wire permStore into WorkstationStore so Create seeds allowlist atomically (H5 fix).
 	// Must happen after both stores are constructed.
