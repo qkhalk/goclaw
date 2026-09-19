@@ -79,18 +79,26 @@ func fontFileArg(fontFile string) string {
 
 // hasImageLayers reports whether any layer needs its own ffmpeg input.
 // isPNGLayer reports whether a layer is composited from an extra image
-// input (photo, embedded icon, or card panel).
-func isPNGLayer(k contract.LayerKind) bool {
-	switch k {
-	case contract.LayerImage, contract.LayerIcon, contract.LayerCard:
+// input (photo, embedded icon, card panel, stamp/cta pill, or a highlighted
+// text rendered to PNG). The Source must already be materialized — an empty
+// Source skips the layer instead of feeding ffmpeg a broken "-i ''".
+func isPNGLayer(l contract.Layer) bool {
+	if l.Source == "" {
+		return false
+	}
+	switch l.Kind {
+	case contract.LayerImage, contract.LayerIcon, contract.LayerCard,
+		contract.LayerStamp, contract.LayerCTA:
 		return true
+	case contract.LayerText:
+		return len(l.Highlights) > 0
 	}
 	return false
 }
 
 func hasImageLayers(sc contract.Scene) bool {
 	for j := range sc.Layers {
-		if isPNGLayer(sc.Layers[j].Kind) {
+		if isPNGLayer(sc.Layers[j]) {
 			return true
 		}
 	}
@@ -168,6 +176,11 @@ func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int
 		}
 		hex := strings.ToUpper(strings.TrimPrefix(l.Fill, "#"))
 		if hex == "" {
+			// Style packs retheme the default text color (e.g. dark text on
+			// paper_light); plain scenes keep white.
+			hex = strings.ToUpper(strings.TrimPrefix(sceneTextColor(sc), "#"))
+		}
+		if hex == "" {
 			hex = "FFFFFF"
 		}
 		// 0.3s alpha fade at the layer's start — text stops popping in.
@@ -199,6 +212,18 @@ func layerInlineFilter(sc contract.Scene, l contract.Layer, canvasW, canvasH int
 		bh := int(math.Round(h * float64(canvasH)))
 		return fmt.Sprintf("drawbox=x=%d:y=%d:w=%d:h=%d:color=0x%s@%.2f:t=fill:%s",
 			x0, y0, bw, bh, hex, opacity, en), nil
+	case contract.LayerCounter:
+		return counterFilter(sc, l, canvasW, canvasH, tempDir, sceneIdx, layerIdx, fonts, fontFile)
+	case contract.LayerToggleGrid:
+		return toggleGridFilters(sc, l, canvasW, canvasH), nil
+	case contract.LayerCompareBars:
+		return compareBarsFilters(sc, l, canvasW, canvasH, tempDir, sceneIdx, layerIdx, fonts, fontFile)
+	case contract.LayerStack:
+		return stackFilters(sc, l, canvasW, canvasH, tempDir, sceneIdx, layerIdx, fonts, fontFile)
+	case contract.LayerStamp, contract.LayerCTA:
+		// PNG-overlay kinds — composited by appendLayerSteps after
+		// prepareMotionAssets; nothing inline.
+		return "", nil
 	default:
 		return "", fmt.Errorf("layer %d: kind %q has no inline filter", layerIdx, l.Kind)
 	}
@@ -214,7 +239,7 @@ func appendLayerSteps(fc *strings.Builder, sc contract.Scene, canvasW, canvasH i
 		l := sc.Layers[j]
 		en := layerEnableExpr(l, sc.DurationSec)
 		out := fmt.Sprintf("ly%d", j)
-		if isPNGLayer(l.Kind) {
+		if isPNGLayer(l) {
 			_, opacity, _, _ := l.EffectiveStyle()
 			x, y, w, _ := l.EffectiveBox()
 			x0 := int(math.Round(x * float64(canvasW)))
@@ -313,7 +338,7 @@ const captionInputRate = 10
 
 func appendImageLayerInputs(args []string, sc contract.Scene, fps int, dur float64) []string {
 	for j := range sc.Layers {
-		if isPNGLayer(sc.Layers[j].Kind) {
+		if isPNGLayer(sc.Layers[j]) {
 			args = append(args, "-loop", "1", "-framerate", fmt.Sprint(pngLayerInputRate),
 				"-t", fmt.Sprintf("%.3f", dur), "-i", sc.Layers[j].Source)
 		}
@@ -330,6 +355,8 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	if err := prepareLayerAssets(&sc, canvasW, canvasH, tempDir, sceneIdx); err != nil {
 		return nil, err
 	}
+	sc = resolveStylePack(sc)
+	prepareMotionAssets(&sc, canvasW, canvasH, tempDir, sceneIdx, cfg.Fonts, layerFontFile(cfg))
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 
 	// Input: still image looped for duration_sec
@@ -453,7 +480,7 @@ func buildImageSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 func countImageLayers(sc contract.Scene) int {
 	n := 0
 	for j := range sc.Layers {
-		if isPNGLayer(sc.Layers[j].Kind) {
+		if isPNGLayer(sc.Layers[j]) {
 			n++
 		}
 	}
@@ -474,6 +501,8 @@ func buildVideoSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	if err := prepareLayerAssets(&sc, canvasW, canvasH, tempDir, sceneIdx); err != nil {
 		slog.Warn("video layer assets failed", "scene", sceneIdx, "err", err)
 	}
+	sc = resolveStylePack(sc)
+	prepareMotionAssets(&sc, canvasW, canvasH, tempDir, sceneIdx, cfg.Fonts, layerFontFile(cfg))
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 	args = append(args, "-i", sc.Source)
 
@@ -703,6 +732,8 @@ func buildColorSceneArgs(cfg FFmpegConfig, sc contract.Scene, canvasW, canvasH, 
 	if err := prepareLayerAssets(&sc, canvasW, canvasH, tempDir, sceneIdx); err != nil {
 		return nil, err
 	}
+	sc = resolveStylePack(sc)
+	prepareMotionAssets(&sc, canvasW, canvasH, tempDir, sceneIdx, cfg.Fonts, layerFontFile(cfg))
 	args := []string{"-hide_banner", "-loglevel", "warning"}
 
 	dur := sc.DurationSec

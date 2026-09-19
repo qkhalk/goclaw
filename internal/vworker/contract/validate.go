@@ -14,6 +14,8 @@ const (
 	defaultHeight  = 720
 	allowedHeights = "480, 720 or 1080"
 	maxLayers      = 8
+	// maxHighlights caps colored-keyword entries on one text layer.
+	maxHighlights = 6
 )
 
 // Validate checks the storyboard against v1 constraints.
@@ -62,7 +64,12 @@ func (sc *Scene) validate() error {
 			return fmt.Errorf("source is required for %s scenes", sc.Type)
 		}
 	case SceneColor:
-		if !hexColor(sc.Color) {
+		// An explicit color/color2/glow must be #RRGGBB; with a style_pack an
+		// unset color is fine — the pack supplies the backdrop.
+		if sc.Color == "" && sc.StylePack == "" {
+			return fmt.Errorf("color scenes need a #RRGGBB color (or a style_pack)")
+		}
+		if sc.Color != "" && !hexColor(sc.Color) {
 			return fmt.Errorf("color scenes need a #RRGGBB color, got %q", sc.Color)
 		}
 		if sc.Color2 != "" && !hexColor(sc.Color2) {
@@ -73,6 +80,9 @@ func (sc *Scene) validate() error {
 		}
 	default:
 		return fmt.Errorf("unknown scene type %q", sc.Type)
+	}
+	if !ValidStylePacks[sc.StylePack] {
+		return fmt.Errorf("unknown style_pack %q (tech_dark, neon_lab, paper_light, bold_red)", sc.StylePack)
 	}
 	if sc.Caption != nil {
 		switch sc.Caption.Style {
@@ -110,6 +120,17 @@ func (l *Layer) validate(sceneSec float64) error {
 		if strings.TrimSpace(l.Text) == "" {
 			return fmt.Errorf("text layers need text")
 		}
+		if len(l.Highlights) > maxHighlights {
+			return fmt.Errorf("at most %d highlights per text layer, got %d", maxHighlights, len(l.Highlights))
+		}
+		for k, hl := range l.Highlights {
+			if strings.TrimSpace(hl.Word) == "" {
+				return fmt.Errorf("highlight %d needs a word", k)
+			}
+			if !hexColor(hl.Color) {
+				return fmt.Errorf("highlight %d color must be #RRGGBB, got %q", k, hl.Color)
+			}
+		}
 	case LayerShape:
 		if l.Shape == "" {
 			l.Shape = "rect"
@@ -132,8 +153,74 @@ func (l *Layer) validate(sceneSec float64) error {
 		if !hexColor(l.Fill) {
 			return fmt.Errorf("card layers need a #RRGGBB fill, got %q", l.Fill)
 		}
+	case LayerCounter:
+		if l.To <= 0 {
+			return fmt.Errorf("counter layers need to > 0 (count-up target)")
+		}
+		if l.From < 0 || l.From >= l.To {
+			return fmt.Errorf("counter from must satisfy 0 <= from < to (got from=%.3g, to=%.3g)", l.From, l.To)
+		}
+		if l.Decimals < 0 || l.Decimals > 2 {
+			return fmt.Errorf("counter decimals %d out of range 0..2", l.Decimals)
+		}
+	case LayerToggleGrid:
+		if l.Cols < 0 || l.Cols > 4 || l.Rows < 0 || l.Rows > 4 {
+			return fmt.Errorf("toggle_grid cols/rows must be 0 (default 3) or 1..4, got %d×%d", l.Cols, l.Rows)
+		}
+		if l.Cadence < 0 || l.Cadence > 2 {
+			return fmt.Errorf("toggle_grid cadence must be 0 (default 0.6) or 0.2..2, got %g", l.Cadence)
+		}
+		if l.Fill != "" && !hexColor(l.Fill) {
+			return fmt.Errorf("toggle_grid fill must be #RRGGBB, got %q", l.Fill)
+		}
+		if l.FillB != "" && !hexColor(l.FillB) {
+			return fmt.Errorf("toggle_grid fill_b must be #RRGGBB, got %q", l.FillB)
+		}
+	case LayerCompareBars:
+		if l.WidthA < 0 || l.WidthA > 1 {
+			return fmt.Errorf("compare_bars width_a must be within 0..1 (0 = default), got %g", l.WidthA)
+		}
+		if l.WidthB < 0 || l.WidthB > 1 {
+			return fmt.Errorf("compare_bars width_b must be within 0..1 (0 = default), got %g", l.WidthB)
+		}
+		if l.Fill != "" && !hexColor(l.Fill) {
+			return fmt.Errorf("compare_bars fill must be #RRGGBB, got %q", l.Fill)
+		}
+		if l.FillB != "" && !hexColor(l.FillB) {
+			return fmt.Errorf("compare_bars fill_b must be #RRGGBB, got %q", l.FillB)
+		}
+	case LayerStack:
+		if l.N < 0 || l.N > 6 {
+			return fmt.Errorf("stack n must be 0 (default 3) or 1..6, got %d", l.N)
+		}
+		if len(l.Labels) > 6 {
+			return fmt.Errorf("at most 6 stack labels, got %d", len(l.Labels))
+		}
+		if l.Fill != "" && !hexColor(l.Fill) {
+			return fmt.Errorf("stack fill must be #RRGGBB, got %q", l.Fill)
+		}
+		if l.FillB != "" && !hexColor(l.FillB) {
+			return fmt.Errorf("stack fill_b must be #RRGGBB, got %q", l.FillB)
+		}
+	case LayerStamp:
+		if strings.TrimSpace(l.Text) == "" {
+			return fmt.Errorf("stamp layers need text")
+		}
+		if l.Angle < -30 || l.Angle > 30 {
+			return fmt.Errorf("stamp angle %.1f out of range -30..30", l.Angle)
+		}
+	case LayerCTA:
+		if strings.TrimSpace(l.Text) == "" {
+			return fmt.Errorf("cta layers need text")
+		}
+		if l.Fill != "" && !hexColor(l.Fill) {
+			return fmt.Errorf("cta fill must be #RRGGBB, got %q", l.Fill)
+		}
+		if l.FillB != "" && !hexColor(l.FillB) {
+			return fmt.Errorf("cta fill_b must be #RRGGBB, got %q", l.FillB)
+		}
 	default:
-		return fmt.Errorf("unknown layer kind %q (text, shape, image, icon, card)", l.Kind)
+		return fmt.Errorf("unknown layer kind %q (text, shape, image, icon, card, counter, toggle_grid, compare_bars, stack, stamp, cta)", l.Kind)
 	}
 	if !ValidAnims[l.Anim] {
 		return fmt.Errorf("unknown anim %q (fade, up, down, left, right, pop)", l.Anim)
