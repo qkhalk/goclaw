@@ -164,12 +164,15 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		// installable modules of the Tool Store: installing/uninstalling flips
 		// the per-tenant override (PUT /v1/tools/builtin/{name}/tenant-config)
 		// which drives the sidebar entries, the route gate, and later the MCP
-		// hub exposure. Enabled by default so existing installs keep their nav.
-		{Name: "video_studio", DisplayName: "Video Studio", Description: "Design and render MP4 videos — storyboard scenes, motion layers, narration and cloned voices", Category: "studio", Enabled: true,
+		// hub exposure. Disabled by default: fresh installs start with an empty
+		// Tools nav and add modules from the Store on demand. Seed never
+		// overwrites `enabled` on conflict, so installs that already enabled
+		// them keep their nav.
+		{Name: "video_studio", DisplayName: "Video Studio", Description: "Design and render MP4 videos — storyboard scenes, motion layers, narration and cloned voices", Category: "studio", Enabled: false,
 			Metadata: json.RawMessage(`{"route":"/tools/video","ram_note":"render worker runs on demand"}`)},
-		{Name: "watermark_studio", DisplayName: "Watermark Remover", Description: "Remove watermarks from images and videos — processing happens in the browser", Category: "studio", Enabled: true,
+		{Name: "watermark_studio", DisplayName: "Watermark Remover", Description: "Remove watermarks from images and videos — processing happens in the browser", Category: "studio", Enabled: false,
 			Metadata: json.RawMessage(`{"route":"/tools/watermark","ram_note":"client-side"}`)},
-		{Name: "pptx_studio", DisplayName: "PPTX Studio", Description: "Build PowerPoint decks — free-canvas slides, themes, charts and pptx export", Category: "studio", Enabled: true,
+		{Name: "pptx_studio", DisplayName: "PPTX Studio", Description: "Build PowerPoint decks — free-canvas slides, themes, charts and pptx export", Category: "studio", Enabled: false,
 			Metadata: json.RawMessage(`{"route":"/tools/pptx","ram_note":"client-side"}`)},
 	}
 
