@@ -10,7 +10,6 @@ import {
   Circle,
   CirclePlay,
   CircleSlash,
-  ClipboardList,
   Columns2,
   Copy,
   Download,
@@ -64,7 +63,6 @@ export type RibbonTabId = "home" | "insert" | "design" | "transitions" | "slides
 export interface RibbonViewToggles {
   thumbs: boolean;
   notes: boolean;
-  editor: boolean;
   json: boolean;
 }
 
@@ -646,12 +644,6 @@ function ViewStrip(p: RibbonProps) {
           label={t("pptx.ribbon.notes")}
           active={p.view.notes}
           onClick={() => p.onViewToggle("notes")}
-        />
-        <RibbonButton
-          icon={ClipboardList}
-          label={t("pptx.ribbon.editor")}
-          active={p.view.editor}
-          onClick={() => p.onViewToggle("editor")}
         />
         <RibbonButton
           icon={Braces}

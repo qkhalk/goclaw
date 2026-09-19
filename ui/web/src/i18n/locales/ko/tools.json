@@ -242,5 +242,22 @@
       "copy_failed": "클립보드에 복사할 수 없습니다",
       "token_hint": "<GATEWAY_TOKEN>은 서버 구성의 게이트웨이 토큰(GOCLAW_GATEWAY_TOKEN)입니다. 전체 권한을 가지므로 비밀로 유지하세요. 도구는 각 에이전트의 활성화 설정도 따릅니다."
     }
+  },
+  "pptx": {
+    "insert": "삽입",
+    "slide_settings": "슬라이드",
+    "slide_settings_layout_hint": "레이아웃을 적용하면 슬라이드 내용이 해당 레이아웃으로 재설정됩니다.",
+    "slide_settings_done": "완료"
+  },
+  "video": {
+    "studio": {
+      "rail": {
+        "collapse_panel": "미디어 패널 접기",
+        "expand_panel": "미디어 패널 펼치기"
+      },
+      "inspector": {
+        "empty": "장면 또는 레이어 선택"
+      }
+    }
   }
 }

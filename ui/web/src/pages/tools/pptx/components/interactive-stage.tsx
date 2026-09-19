@@ -3,63 +3,54 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ArrowDown,
-  ArrowUp,
-  Bold,
-  Copy,
-  Italic,
-  Lock,
-  LockOpen,
-  RotateCw,
-  Trash2,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cssFont, SAFE_FONTS, newElementId, type DeckTheme, type Slide, type SlideElement } from "../types";
-import { elementsOf, freeSlide, isFreeForm, MAX_ELEMENTS, patchElement } from "../lib/elements";
+import { cssFont, newElementId, type DeckTheme, type Slide, type SlideElement } from "../types";
+import { elementsOf, materialize, isFreeForm, MAX_ELEMENTS, patchElement } from "../lib/elements";
 import { STAGE_H, STAGE_W } from "../lib/slide-spec";
+import { ElementToolbar } from "./element-toolbar";
 
 /**
- * Canva-style direct-manipulation stage for one slide, presented as the
- * PowerPoint-like editing canvas: a scrollable neutral surface holding the
- * 16:9 slide box, plus the contextual element toolbar/inspector below.
- * Supports click-select, drag-move, 8-handle resize, rotate, double-click
- * inline text editing, and a style inspector (font/size/bold/italic/color/
- * align).
+ * Canva-style direct-manipulation stage for one slide: a scrollable neutral
+ * surface holding the 16:9 slide box. Everything happens on the canvas —
+ * click-select (with outline + 8 resize handles + rotate handle), drag to
+ * move, corner/edge resize (images keep their aspect on corners), and
+ * double-click inline text editing. A floating one-row context toolbar
+ * (element-toolbar.tsx) anchors to the selection; there is no inspector
+ * panel.
  *
- * The old add/undo toolbar moved into the ribbon header — the page drives
- * element ops through the {@link InteractiveStageHandle} ref and mirrors
- * selection/history state back via callbacks for ribbon disabled states.
- *
- * Structural edits materialize the compiled prims into an explicit element
- * list on first touch (freeSlide) — the slide then stops following theme
- * recoloring, which the hint line under the canvas surfaces.
+ * Works on every slide: layout-driven (v1) slides are edited through the
+ * compiled prims shown on screen and are promoted to an explicit element
+ * list on first edit (materialize keeps the on-screen ids stable, so an
+ * in-flight drag survives the promotion). The page drives element ops
+ * through the {@link InteractiveStageHandle} ref and mirrors selection and
+ * history depths back via callbacks for ribbon disabled states.
  */
 
 const HANDLE = 8; // handle hit size in stage px
 const ROT_HANDLE_DIST = 30;
 /** Padding around the slide box inside the scrollable canvas area. */
 const CANVAS_PAD = 20;
+/** Gap between the selection and the floating toolbar. */
+const TOOLBAR_GAP = 8;
 /** Zoom multiplier bounds (1 = fit to canvas area). */
 export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 2;
 
 type DragMode =
-  | { type: "move"; id: string; startX: number; startY: number; orig: { x: number; y: number } }
+  | {
+      type: "move";
+      id: string;
+      startX: number;
+      startY: number;
+      orig: { x: number; y: number };
+      snapshot: Slide;
+      undoPushed: boolean;
+    }
   | {
       type: "resize";
       id: string;
@@ -67,6 +58,8 @@ type DragMode =
       startX: number;
       startY: number;
       orig: { x: number; y: number; w: number; h: number };
+      snapshot: Slide;
+      undoPushed: boolean;
     }
   | {
       type: "rotate";
@@ -75,6 +68,8 @@ type DragMode =
       cy: number;
       startAngle: number;
       origRotate: number;
+      snapshot: Slide;
+      undoPushed: boolean;
     }
   | null;
 
@@ -111,13 +106,19 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
     const { t } = useTranslation("toolbox");
     const areaRef = useRef<HTMLDivElement>(null);
     const wrapRef = useRef<HTMLDivElement>(null);
+    const centerRef = useRef<HTMLDivElement>(null);
+    const toolbarRef = useRef<HTMLDivElement>(null);
     const [fit, setFit] = useState(1);
     const [histLen, setHistLen] = useState({ undo: 0, redo: 0 });
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [tbPos, setTbPos] = useState<{ left: number; top: number } | null>(null);
     const dragRef = useRef<DragMode>(null);
     const undoStack = useRef<Slide[]>([]);
     const redoStack = useRef<Slide[]>([]);
+    /** Set when the editor closes via Escape so the trailing blur commit
+     * knows to discard the draft instead of applying it. */
+    const cancelEditRef = useRef(false);
 
     const elements = useMemo(() => elementsOf(slide, theme), [slide, theme]);
     const freeForm = isFreeForm(slide);
@@ -153,8 +154,8 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
       onScaleChange?.(eff);
     }, [eff, onScaleChange]);
     useEffect(() => {
-      onSelectionChange?.(selectedId !== null && freeForm);
-    }, [selectedId, freeForm, onSelectionChange]);
+      onSelectionChange?.(selectedId !== null);
+    }, [selectedId, onSelectionChange]);
     useEffect(() => {
       onHistoryChange?.(histLen);
     }, [histLen, onHistoryChange]);
@@ -169,29 +170,29 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
       [],
     );
 
-    /** Apply an element patch; frees the slide first when needed. */
+    /** Apply an element patch, promoting a layout-driven slide to free-form
+     * with its on-screen ids so in-flight interactions survive. */
     const applyPatch = useCallback(
       (id: string, patch: Partial<SlideElement>, recordHistory = true) => {
         const snapshot = slide;
-        const freed = freeSlide(slide, theme);
-        const next = patchElement(freed, id, patch);
+        const base = materialize(slide, elements);
+        const next = patchElement(base, id, patch);
         if (!next) return;
         if (recordHistory) pushUndo(snapshot);
         onChange(next);
       },
-      [slide, theme, onChange, pushUndo],
+      [slide, elements, onChange, pushUndo],
     );
 
-    /** Replace the whole element list (frees the slide first). */
+    /** Replace the whole element list (promotes layout-driven slides too). */
     const applyElements = useCallback(
-      (elements: SlideElement[], recordHistory = true) => {
+      (nextElements: SlideElement[], recordHistory = true) => {
         const snapshot = slide;
-        const freed = freeSlide(slide, theme);
-        const next = { ...freed, elements };
+        const next = { ...materialize(slide, elements), elements: nextElements };
         if (recordHistory) pushUndo(snapshot);
         onChange(next);
       },
-      [slide, theme, onChange, pushUndo],
+      [slide, elements, onChange, pushUndo],
     );
 
     const undo = useCallback(() => {
@@ -226,13 +227,14 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
       e.stopPropagation();
       setSelectedId(el.id);
       const pt = stagePoint(e);
-      pushUndo(slide);
       dragRef.current = {
         type: "move",
         id: el.id,
         startX: pt.x,
         startY: pt.y,
         orig: { x: el.x, y: el.y },
+        snapshot: slide,
+        undoPushed: false,
       };
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     };
@@ -240,7 +242,6 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
     const onHandlePointerDown = (e: React.PointerEvent, el: SlideElement, handle: string) => {
       e.stopPropagation();
       const pt = stagePoint(e);
-      pushUndo(slide);
       dragRef.current = {
         type: "resize",
         id: el.id,
@@ -248,6 +249,8 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
         startX: pt.x,
         startY: pt.y,
         orig: { x: el.x, y: el.y, w: el.w, h: el.h },
+        snapshot: slide,
+        undoPushed: false,
       };
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     };
@@ -257,7 +260,6 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
       const pt = stagePoint(e);
       const cx = el.x + el.w / 2;
       const cy = el.y + el.h / 2;
-      pushUndo(slide);
       dragRef.current = {
         type: "rotate",
         id: el.id,
@@ -265,6 +267,8 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
         cy,
         startAngle: (Math.atan2(pt.y - cy, pt.x - cx) * 180) / Math.PI,
         origRotate: el.rotate ?? 0,
+        snapshot: slide,
+        undoPushed: false,
       };
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     };
@@ -276,6 +280,12 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
         const pt = stagePoint(e);
         const el = elements.find((x) => x.id === drag.id);
         if (!el) return;
+        // History is recorded lazily: a plain click never pollutes the undo
+        // stack (and never clears redo), only the first real change does.
+        if (!drag.undoPushed) {
+          pushUndo(drag.snapshot);
+          drag.undoPushed = true;
+        }
 
         if (drag.type === "move") {
           const dx = pt.x - drag.startX;
@@ -288,15 +298,38 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
           const dx = pt.x - drag.startX;
           const dy = pt.y - drag.startY;
           let { x, y, w, h } = drag.orig;
-          if (drag.handle.includes("e")) w = drag.orig.w + dx;
-          if (drag.handle.includes("s")) h = drag.orig.h + dy;
-          if (drag.handle.includes("w")) {
-            w = drag.orig.w - dx;
-            x = drag.orig.x + dx;
-          }
-          if (drag.handle.includes("n")) {
-            h = drag.orig.h - dy;
-            y = drag.orig.y + dy;
+          const corner = drag.handle.length === 2;
+          if (corner && el.kind === "image" && drag.orig.w > 0 && drag.orig.h > 0) {
+            // Corner handles keep the image's aspect ratio (dominant axis wins).
+            const ratio = drag.orig.w / drag.orig.h;
+            if (Math.abs(dx) * drag.orig.h >= Math.abs(dy) * drag.orig.w) {
+              w = drag.orig.w + (drag.handle.includes("w") ? -dx : dx);
+              h = w / ratio;
+            } else {
+              h = drag.orig.h + (drag.handle.includes("n") ? -dy : dy);
+              w = h * ratio;
+            }
+            if (w < 24) {
+              w = 24;
+              h = w / ratio;
+            }
+            if (h < 20) {
+              h = 20;
+              w = h * ratio;
+            }
+            if (drag.handle.includes("w")) x = drag.orig.x + (drag.orig.w - w);
+            if (drag.handle.includes("n")) y = drag.orig.y + (drag.orig.h - h);
+          } else {
+            if (drag.handle.includes("e")) w = drag.orig.w + dx;
+            if (drag.handle.includes("s")) h = drag.orig.h + dy;
+            if (drag.handle.includes("w")) {
+              w = drag.orig.w - dx;
+              x = drag.orig.x + dx;
+            }
+            if (drag.handle.includes("n")) {
+              h = drag.orig.h - dy;
+              y = drag.orig.y + dy;
+            }
           }
           applyPatch(
             drag.id,
@@ -316,17 +349,17 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
           applyPatch(drag.id, { rotate: ((deg % 360) + 360) % 360 }, false);
         }
       },
-      [elements, stagePoint, applyPatch],
+      [elements, stagePoint, applyPatch, pushUndo],
     );
 
     const onPointerUp = useCallback(() => {
       dragRef.current = null;
     }, []);
 
-    // ── Element ops (ribbon drives these through the imperative handle) ──
+    // ── Element ops (ribbon/page drives these through the imperative handle) ──
 
     const addElement = (partial: Partial<SlideElement> & { kind: SlideElement["kind"] }) => {
-      if ((slide.elements?.length ?? 0) >= MAX_ELEMENTS && freeForm) {
+      if (elements.length >= MAX_ELEMENTS) {
         return;
       }
       const base = { id: newElementId(), x: STAGE_W / 2 - 180, y: STAGE_H / 2 - 60, w: 360, h: 120 };
@@ -358,8 +391,8 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
         default:
           return;
       }
-      const freed = freeSlide(slide, theme);
-      applyElements([...(freed.elements ?? []), el]);
+      const list = materialize(slide, elements).elements ?? [];
+      applyElements([...list, el]);
       setSelectedId(el.id);
     };
 
@@ -370,6 +403,7 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
         if (typeof reader.result !== "string") return;
         const img = new Image();
         img.onload = () => {
+          if (elements.length >= MAX_ELEMENTS) return;
           // Fit inside the stage preserving aspect
           const maxW = STAGE_W * 0.6;
           const maxH = STAGE_H * 0.6;
@@ -386,8 +420,8 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
             source: reader.result as string,
             alt: file.name,
           };
-          const freed = freeSlide(slide, theme);
-          applyElements([...(freed.elements ?? []), el]);
+          const list = materialize(slide, elements).elements ?? [];
+          applyElements([...list, el]);
           setSelectedId(el.id);
         };
         img.src = reader.result;
@@ -403,8 +437,7 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
         x: selected.x + 24,
         y: selected.y + 24,
       } as SlideElement;
-      const freed = freeSlide(slide, theme);
-      const list = freed.elements ?? [];
+      const list = materialize(slide, elements).elements ?? [];
       const idx = list.findIndex((x) => x.id === selected.id);
       const next = [...list];
       next.splice(idx + 1, 0, copy);
@@ -413,16 +446,14 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
     };
 
     const removeElement = () => {
-      if (!selected) return;
-      const freed = freeSlide(slide, theme);
-      applyElements((freed.elements ?? []).filter((x) => x.id !== selected.id));
+      if (!selected || selected.locked) return;
+      applyElements((materialize(slide, elements).elements ?? []).filter((x) => x.id !== selected.id));
       setSelectedId(null);
     };
 
     const moveZ = (dir: -1 | 1) => {
       if (!selected) return;
-      const freed = freeSlide(slide, theme);
-      const list = [...(freed.elements ?? [])];
+      const list = [...(materialize(slide, elements).elements ?? [])];
       const idx = list.findIndex((x) => x.id === selected.id);
       const to = idx + dir;
       if (to < 0 || to >= list.length) return;
@@ -431,7 +462,7 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
       applyElements(list);
     };
 
-    // Ribbon access to the element ops (refreshed every render so the
+    // Ribbon/page access to the element ops (refreshed every render so the
     // closures always see the latest slide/selection).
     useImperativeHandle(ref, () => ({
       addElement,
@@ -443,9 +474,13 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
       redo,
     }));
 
-    /** Inline text commit (blur / Escape). */
+    /** Inline text commit (blur / Enter). Esc cancels instead. */
     const commitText = (el: SlideElement & { text: string }, value: string) => {
       setEditingId(null);
+      if (cancelEditRef.current) {
+        cancelEditRef.current = false;
+        return; // cancelled — discard the draft
+      }
       if (value !== el.text) applyPatch(el.id, { text: value } as Partial<SlideElement>);
     };
 
@@ -466,15 +501,19 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
             }
             break;
           case "ArrowLeft":
+            e.preventDefault();
             applyPatch(selected.id, { x: selected.x - (e.shiftKey ? 10 : 1) });
             break;
           case "ArrowRight":
+            e.preventDefault();
             applyPatch(selected.id, { x: selected.x + (e.shiftKey ? 10 : 1) });
             break;
           case "ArrowUp":
+            e.preventDefault();
             applyPatch(selected.id, { y: selected.y - (e.shiftKey ? 10 : 1) });
             break;
           case "ArrowDown":
+            e.preventDefault();
             applyPatch(selected.id, { y: selected.y + (e.shiftKey ? 10 : 1) });
             break;
           case "Escape":
@@ -484,7 +523,7 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
       };
       window.addEventListener("keydown", handler);
       return () => window.removeEventListener("keydown", handler);
-    }, [selected, editingId, applyPatch]);
+    }, [selected, editingId, applyPatch, removeElement]);
 
     const handles = ["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const;
     const handleFrac: Record<string, { fx: number; fy: number; cursor: string }> = {
@@ -498,6 +537,39 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
       w: { fx: 0, fy: 0.5, cursor: "ew-resize" },
     };
 
+    // ── Floating toolbar anchoring ──
+    // Measured after layout, positioned inside the centering wrapper so it
+    // can overhang the slide box without being clipped by it. It scrolls
+    // with the canvas (both rects move together).
+
+    const selectedKey = selected?.id ?? null;
+    useEffect(() => {
+      setTbPos(null);
+    }, [selectedKey]);
+
+    useLayoutEffect(() => {
+      const tb = toolbarRef.current;
+      const center = centerRef.current;
+      const wrap = wrapRef.current;
+      if (!tb || !center || !wrap || !selected) return;
+      const centerRect = center.getBoundingClientRect();
+      const wrapRect = wrap.getBoundingClientRect();
+      const ox = wrapRect.left - centerRect.left;
+      const oy = wrapRect.top - centerRect.top;
+      const tw = tb.offsetWidth;
+      const th = tb.offsetHeight;
+      const above = oy + selected.y * eff - th - TOOLBAR_GAP;
+      const below = oy + (selected.y + selected.h) * eff + TOOLBAR_GAP;
+      const top = above >= 0
+        ? above
+        : Math.max(2, Math.min(below, center.clientHeight - th - 2));
+      const left = Math.min(
+        Math.max(2, ox + (selected.x + selected.w / 2) * eff - tw / 2),
+        Math.max(2, center.clientWidth - tw - 2),
+      );
+      setTbPos((prev) => (prev && prev.left === left && prev.top === top ? prev : { left, top }));
+    }, [selected, eff]);
+
     return (
       <div className="flex h-full min-h-0 flex-col">
         {/* Canvas area: scrollable neutral surface, slide box centered at
@@ -507,7 +579,8 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
           className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-lg border bg-muted/30"
         >
           <div
-            className="flex min-h-full min-w-full items-center justify-center"
+            ref={centerRef}
+            className="relative flex min-h-full min-w-full items-center justify-center"
             style={{ padding: CANVAS_PAD }}
           >
             <div
@@ -532,7 +605,7 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
                 }}
               >
                 {elements.map((el) => {
-                  const isSelected = el.id === selectedId && freeForm;
+                  const isSelected = el.id === selectedId;
                   return (
                     <div
                       key={el.id}
@@ -549,7 +622,10 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
                         onPointerDown={(e) => onElementPointerDown(e, el)}
                         onDoubleClick={(e) => {
                           e.stopPropagation();
-                          if (el.kind === "text" && freeForm && !el.locked) setEditingId(el.id);
+                          if (el.kind === "text" && !el.locked) {
+                            cancelEditRef.current = false;
+                            setEditingId(el.id);
+                          }
                         }}
                         style={{
                           position: "absolute",
@@ -570,7 +646,16 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
                             defaultValue={el.text}
                             onBlur={(e) => commitText(el, e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === "Escape") commitText(el, (e.target as HTMLTextAreaElement).value);
+                              e.stopPropagation();
+                              if (e.key === "Escape") {
+                                // Cancel: drop the draft without patching.
+                                e.preventDefault();
+                                cancelEditRef.current = true;
+                                setEditingId(null);
+                              } else if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                commitText(el, (e.target as HTMLTextAreaElement).value);
+                              }
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
                             style={{
@@ -643,179 +728,37 @@ export const InteractiveStage = forwardRef<InteractiveStageHandle, InteractiveSt
                 })}
               </div>
             </div>
+
+            {/* Floating context toolbar: hidden until measured so it never
+                flashes at the origin; the wrapper owns anchoring + clamping. */}
+            {selected && !editingId && (
+              <div
+                className="absolute z-10 max-w-[calc(100%-8px)] overflow-x-auto"
+                style={{
+                  left: tbPos?.left ?? 0,
+                  top: tbPos?.top ?? 0,
+                  visibility: tbPos ? "visible" : "hidden",
+                }}
+              >
+                <ElementToolbar
+                  ref={toolbarRef}
+                  el={selected}
+                  theme={theme}
+                  onPatch={(patch) => applyPatch(selected.id, patch)}
+                  onMoveZ={moveZ}
+                  onDuplicate={duplicateElement}
+                  onDelete={removeElement}
+                />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Contextual hint for the slide's editing mode */}
-        <p className="shrink-0 px-2 pt-1.5 text-center text-xs text-muted-foreground">
-          {freeForm ? t("pptx.freeform_hint") : t("pptx.stage.layout_hint")}
-        </p>
-
-        {/* Element toolbar + inspector */}
-        {selected && freeForm && (
-          <div className="mt-1.5 max-h-[45%] shrink-0 overflow-y-auto overscroll-contain rounded-md border bg-muted/20 p-3">
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {t(`pptx.stage.kind_${selected.kind}`)}
-              </span>
-              <Button variant="ghost" size="icon-sm" aria-label={t("pptx.stage.z_up")} onClick={() => moveZ(1)} className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8">
-                <ArrowUp className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon-sm" aria-label={t("pptx.stage.z_down")} onClick={() => moveZ(-1)} className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8">
-                <ArrowDown className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon-sm" aria-label={t("pptx.duplicate")} onClick={duplicateElement} className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8">
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={selected.locked ? t("pptx.stage.unlock") : t("pptx.stage.lock")}
-                onClick={() => applyPatch(selected.id, { locked: !selected.locked })}
-                className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
-              >
-                {selected.locked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("pptx.stage.delete")}
-                onClick={removeElement}
-                disabled={selected.locked}
-                className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-8 sm:min-w-8"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-              {selected.kind === "text" && (
-                <div className="ml-2 flex items-center gap-1">
-                  <Button
-                    variant={selected.bold ? "secondary" : "ghost"}
-                    size="icon-sm"
-                    aria-label={t("pptx.stage.bold")}
-                    onClick={() => applyPatch(selected.id, { bold: !selected.bold } as Partial<SlideElement>)}
-                    className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
-                  >
-                    <Bold className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant={selected.italic ? "secondary" : "ghost"}
-                    size="icon-sm"
-                    aria-label={t("pptx.stage.italic")}
-                    onClick={() => applyPatch(selected.id, { italic: !selected.italic } as Partial<SlideElement>)}
-                    className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
-                  >
-                    <Italic className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Inspector grid */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-              <NumField label={t("pptx.stage.x")}>
-                <Input type="number" value={Math.round(selected.x)} onChange={(e) => applyPatch(selected.id, { x: Number(e.target.value) || 0 })} className="h-8 text-base md:text-sm" />
-              </NumField>
-              <NumField label={t("pptx.stage.y")}>
-                <Input type="number" value={Math.round(selected.y)} onChange={(e) => applyPatch(selected.id, { y: Number(e.target.value) || 0 })} className="h-8 text-base md:text-sm" />
-              </NumField>
-              <NumField label={t("pptx.stage.w")}>
-                <Input type="number" value={Math.round(selected.w)} min={24} onChange={(e) => applyPatch(selected.id, { w: Math.max(24, Number(e.target.value) || 24) })} className="h-8 text-base md:text-sm" />
-              </NumField>
-              <NumField label={t("pptx.stage.h")}>
-                <Input type="number" value={Math.round(selected.h)} min={20} onChange={(e) => applyPatch(selected.id, { h: Math.max(20, Number(e.target.value) || 20) })} className="h-8 text-base md:text-sm" />
-              </NumField>
-
-              {selected.kind === "text" && (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <Label className="w-16 shrink-0 text-xs">{t("pptx.stage.font")}</Label>
-                    <Select
-                      value={selected.fontFamily ?? (selected.font === "heading" ? "__heading" : "__body")}
-                      onValueChange={(v) =>
-                        applyPatch(selected.id, {
-                          ...(v === "__heading" || v === "__body"
-                            ? { font: v === "__heading" ? "heading" : "body", fontFamily: undefined }
-                            : { fontFamily: v }),
-                        } as Partial<SlideElement>)
-                      }
-                    >
-                      <SelectTrigger className="h-8 text-base md:text-sm" aria-label={t("pptx.stage.font")}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__heading">{t("pptx.stage.font_heading")}</SelectItem>
-                        <SelectItem value="__body">{t("pptx.stage.font_body")}</SelectItem>
-                        {SAFE_FONTS.map((f) => (
-                          <SelectItem key={f} value={f}>
-                            {f}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <NumField label={t("pptx.stage.size")}>
-                    <Input
-                      type="number"
-                      value={selected.size}
-                      min={8}
-                      max={300}
-                      onChange={(e) => applyPatch(selected.id, { size: Math.max(8, Number(e.target.value) || 8) } as Partial<SlideElement>)}
-                      className="h-8 text-base md:text-sm"
-                    />
-                  </NumField>
-                  <div className="flex items-center gap-1.5">
-                    <Label className="w-16 shrink-0 text-xs">{t("pptx.stage.color")}</Label>
-                    <Input
-                      type="color"
-                      value={selected.color}
-                      onChange={(e) => applyPatch(selected.id, { color: e.target.value } as Partial<SlideElement>)}
-                      className="h-8 w-12 cursor-pointer p-0.5"
-                      aria-label={t("pptx.stage.color")}
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Label className="w-16 shrink-0 text-xs">{t("pptx.stage.align")}</Label>
-                    <Select value={selected.align ?? "left"} onValueChange={(v) => applyPatch(selected.id, { align: v } as Partial<SlideElement>)}>
-                      <SelectTrigger className="h-8 text-base md:text-sm" aria-label={t("pptx.stage.align")}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="left">{t("pptx.stage.align_left")}</SelectItem>
-                        <SelectItem value="center">{t("pptx.stage.align_center")}</SelectItem>
-                        <SelectItem value="right">{t("pptx.stage.align_right")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-
-              {(selected.kind === "rect" || selected.kind === "ellipse") && (
-                <div className="flex items-center gap-1.5">
-                  <Label className="w-16 shrink-0 text-xs">{t("pptx.stage.fill")}</Label>
-                  <Input
-                    type="color"
-                    value={selected.fill}
-                    onChange={(e) => applyPatch(selected.id, { fill: e.target.value } as Partial<SlideElement>)}
-                    className="h-8 w-12 cursor-pointer p-0.5"
-                    aria-label={t("pptx.stage.fill")}
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center gap-1.5">
-                <Label className="w-16 shrink-0 text-xs">{t("pptx.stage.rotation")}</Label>
-                <Input
-                  type="number"
-                  value={selected.rotate ?? 0}
-                  min={0}
-                  max={359}
-                  onChange={(e) => applyPatch(selected.id, { rotate: ((Number(e.target.value) || 0) % 360 + 360) % 360 })}
-                  className="h-8 text-base md:text-sm"
-                />
-                <RotateCw className="h-3 w-3 shrink-0 text-muted-foreground" />
-              </div>
-            </div>
-          </div>
+        {/* Contextual hint while the slide still follows its layout template */}
+        {!freeForm && (
+          <p className="shrink-0 px-2 pt-1.5 text-center text-xs text-muted-foreground">
+            {t("pptx.stage.layout_hint")}
+          </p>
         )}
       </div>
     );
@@ -872,13 +815,4 @@ function PrimStatic({ prim, theme }: { prim: SlideElement; theme: DeckTheme }) {
         />
       );
   }
-}
-
-function NumField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <Label className="w-16 shrink-0 text-xs">{label}</Label>
-      {children}
-    </div>
-  );
 }

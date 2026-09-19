@@ -34,14 +34,20 @@ export function compileElements(slide: Slide, theme: DeckTheme): SlideElement[] 
   }) as SlideElement);
 }
 
-/** Free a slide: bake the current compiled look into explicit elements. */
-export function freeSlide(slide: Slide, theme: DeckTheme): Slide {
+/**
+ * Attach an explicit element list to a layout-driven slide WITHOUT
+ * regenerating ids. The list is normally the compiled prims currently on
+ * screen, so in-flight interactions (a drag or an inline text edit that
+ * started on a v1 slide) keep pointing at live ids and land on the promoted
+ * slide. Returns the slide unchanged when it already carries elements.
+ */
+export function materialize(slide: Slide, elements: SlideElement[]): Slide {
   if (slide.elements) return slide;
-  return { ...slide, elements: compileElements(slide, theme) };
+  return { ...slide, elements };
 }
 
 /** Patch one element of a slide's explicit list (no-op on compiled slides —
- * callers must freeSlide first; the stage enforces that). */
+ * callers must materialize first; the stage enforces that). */
 export function patchElement(
   slide: Slide,
   id: string,

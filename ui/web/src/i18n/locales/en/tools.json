@@ -318,5 +318,22 @@
       "copy_failed": "Could not copy to clipboard",
       "token_hint": "<GATEWAY_TOKEN> is the gateway token from your server config (GOCLAW_GATEWAY_TOKEN). Keep it secret — it grants full gateway access. Tools also respect each agent's enabled-tools config."
     }
+  },
+  "pptx": {
+    "insert": "Insert",
+    "slide_settings": "Slide",
+    "slide_settings_layout_hint": "Applying a template resets the slide content to that layout.",
+    "slide_settings_done": "Done"
+  },
+  "video": {
+    "studio": {
+      "rail": {
+        "collapse_panel": "Collapse media panel",
+        "expand_panel": "Expand media panel"
+      },
+      "inspector": {
+        "empty": "Select a scene or layer"
+      }
+    }
   }
 }
