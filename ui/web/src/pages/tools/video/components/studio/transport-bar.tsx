@@ -69,8 +69,12 @@ export function TransportBar({
   const { isPlaying, currentTime, totalDuration, currentSceneIndex } = player.state;
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl bg-[#1b1d23] p-2 ring-1 ring-white/[0.06]">
-      {/* Primary transport row */}
+    // One flat wrapping row (no boxed panel): transport cluster, seek,
+    // timecode, fullscreen, then the playback-info cluster (scene indicator,
+    // TTS status, default voice) pushed right; it wraps below on narrow
+    // stages instead of occupying a permanent second chrome row.
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Primary transport cluster */}
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
@@ -78,7 +82,7 @@ export function TransportBar({
           onClick={() => player.seek(0)}
           aria-label={t("video.canvas.start")}
           title={t("video.canvas.start")}
-          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-8 sm:min-w-8"
+          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-9 sm:min-w-9"
         >
           <SkipBack className="h-4 w-4" />
         </Button>
@@ -89,7 +93,7 @@ export function TransportBar({
           onClick={() => player.stepFrame(-1)}
           aria-label={t("video.canvas.prev_frame")}
           title={t("video.canvas.prev_frame")}
-          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-8 sm:min-w-8"
+          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-9 sm:min-w-9"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -99,7 +103,7 @@ export function TransportBar({
           onClick={() => (isPlaying ? player.pause() : player.play())}
           aria-label={isPlaying ? t("video.canvas.pause") : t("video.canvas.play")}
           title={isPlaying ? t("video.canvas.pause") : t("video.canvas.play")}
-          className="min-h-11 min-w-11 rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 sm:h-9 sm:w-9"
+          className="min-h-11 min-w-11 rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 sm:min-h-9 sm:min-w-9"
         >
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
@@ -110,7 +114,7 @@ export function TransportBar({
           onClick={() => player.stepFrame(1)}
           aria-label={t("video.canvas.next_frame")}
           title={t("video.canvas.next_frame")}
-          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-8 sm:min-w-8"
+          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-9 sm:min-w-9"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -121,44 +125,45 @@ export function TransportBar({
           onClick={() => player.seek(totalDuration)}
           aria-label={t("video.canvas.end")}
           title={t("video.canvas.end")}
-          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-8 sm:min-w-8"
+          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-9 sm:min-w-9"
         >
           <SkipForward className="h-4 w-4" />
         </Button>
-
-        {/* Seek bar — thin visually, padded wrapper for a touch-sized hit area */}
-        <div className="mx-2 flex min-w-0 flex-1 items-center py-2.5">
-          <input
-            type="range"
-            min={0}
-            max={totalDuration * 100 || 1}
-            value={currentTime * 100}
-            onChange={(e) => player.seek(Number(e.target.value) / 100)}
-            aria-label={t("video.canvas.play")}
-            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-primary [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
-          />
-        </div>
-
-        {/* Timecode */}
-        <span className="whitespace-nowrap rounded-md bg-black/40 px-2 py-1 font-mono text-[11px] tabular-nums text-zinc-300 ring-1 ring-white/[0.06]">
-          {formatTime(currentTime)} / {formatTime(totalDuration)}
-        </span>
-
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onToggleFullscreen}
-          aria-label={t("video.studio.transport.fullscreen")}
-          title={t("video.studio.transport.fullscreen")}
-          className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-8 sm:min-w-8"
-        >
-          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-        </Button>
       </div>
 
-      {/* Scene indicator + narration synth status + default voice */}
-      <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-zinc-500">
-        <span className="tabular-nums">
+      {/* Seek bar — thin visually, padded wrapper for a touch-sized hit area */}
+      <div className="flex min-w-[140px] flex-1 items-center py-2.5">
+        <input
+          type="range"
+          min={0}
+          max={totalDuration * 100 || 1}
+          value={currentTime * 100}
+          onChange={(e) => player.seek(Number(e.target.value) / 100)}
+          aria-label={t("video.canvas.play")}
+          className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-primary [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+        />
+      </div>
+
+      {/* Timecode */}
+      <span className="whitespace-nowrap rounded-md bg-black/40 px-2 py-1 font-mono text-[11px] tabular-nums text-zinc-300">
+        {formatTime(currentTime)} / {formatTime(totalDuration)}
+      </span>
+
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={onToggleFullscreen}
+        aria-label={t("video.studio.transport.fullscreen")}
+        title={t("video.studio.transport.fullscreen")}
+        className="min-h-11 min-w-11 text-zinc-300 hover:bg-white/5 hover:text-white sm:min-h-9 sm:min-w-9"
+      >
+        {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+      </Button>
+
+      {/* Playback-info cluster: scene position, narration synth status and
+          the storyboard default voice. */}
+      <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-zinc-500">
+        <span className="whitespace-nowrap tabular-nums">
           {t("video.scene_n", { n: currentSceneIndex + 1 })} / {sceneCount}
         </span>
         {narration && narration.pendingCount > 0 && (
@@ -168,21 +173,21 @@ export function TransportBar({
           </span>
         )}
         {onDefaultVoiceChange && (
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5">
             <Volume2 className="h-3.5 w-3.5 shrink-0" />
             <Select value={defaultVoice ?? ""} onValueChange={onDefaultVoiceChange}>
               <SelectTrigger
-                className="h-8 w-auto max-w-[220px] text-xs"
+                className="h-9 w-auto max-w-[220px] text-base md:text-sm"
                 aria-label={t("video.voice_global")}
               >
                 <SelectValue placeholder={t("video.voice_global")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto" className="text-xs">
+                <SelectItem value="auto">
                   {t("video.voice_auto")}
                 </SelectItem>
                 {edgeVoices.map((v) => (
-                  <SelectItem key={v.voice_id} value={v.voice_id} className="text-xs">
+                  <SelectItem key={v.voice_id} value={v.voice_id}>
                     {v.name || v.voice_id}
                   </SelectItem>
                 ))}

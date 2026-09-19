@@ -39,6 +39,7 @@ import { useTranslation } from "react-i18next";
 import { SidebarGroup } from "./sidebar-group";
 import { SidebarItem } from "./sidebar-item";
 import { ConnectionStatus } from "./connection-status";
+import { UpdateBadge } from "@/components/update/update-badge";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useStudioModules } from "@/pages/store/use-studio-modules";
@@ -193,8 +194,9 @@ export function Sidebar({ collapsed, width, onNavItemClick }: SidebarProps) {
         )}
       </nav>
 
-      {/* Footer: connection status */}
-      <div className={cn("shrink-0 overscroll-none border-t py-3", collapsed ? "px-2 flex justify-center" : "px-4")}>
+      {/* Footer: connection status + self-hosted gateway update badge */}
+      <div className={cn("shrink-0 overscroll-none space-y-2 border-t py-3", collapsed ? "px-2" : "px-4")}>
+        <UpdateBadge collapsed={collapsed} />
         <ConnectionStatus collapsed={collapsed} />
       </div>
     </aside>

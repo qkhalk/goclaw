@@ -318,5 +318,22 @@
       "copy_failed": "Không thể sao chép vào clipboard",
       "token_hint": "<GATEWAY_TOKEN> là token gateway trong cấu hình server (GOCLAW_GATEWAY_TOKEN). Giữ kín vì nó có toàn quyền gateway. Tool cũng tuân theo cấu hình bật/tắt của từng agent."
     }
+  },
+  "pptx": {
+    "insert": "Chèn",
+    "slide_settings": "Trang trình bày",
+    "slide_settings_layout_hint": "Áp dụng bố cục sẽ đặt lại nội dung trang theo bố cục đó.",
+    "slide_settings_done": "Xong"
+  },
+  "video": {
+    "studio": {
+      "rail": {
+        "collapse_panel": "Thu gọn khung media",
+        "expand_panel": "Mở rộng khung media"
+      },
+      "inspector": {
+        "empty": "Chọn một cảnh hoặc lớp"
+      }
+    }
   }
 }

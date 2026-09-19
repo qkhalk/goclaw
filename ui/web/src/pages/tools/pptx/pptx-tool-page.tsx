@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ImagePlus, SlidersHorizontal, Square, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/stores/use-toast-store";
 import { cn } from "@/lib/utils";
@@ -19,7 +21,7 @@ import {
 import { exportDeckPptx } from "./lib/pptx-export";
 import { parseDeck } from "./lib/parse-deck-blocks";
 import { InteractiveStage, type InteractiveStageHandle } from "./components/interactive-stage";
-import { SlideEditor } from "./components/slide-editor";
+import { SlideDrawer } from "./components/slide-drawer";
 import { Presentation } from "./components/presentation";
 import { DesignerColumn } from "./components/designer-column";
 import { Ribbon, type RibbonViewToggles } from "./components/ribbon";
@@ -46,8 +48,10 @@ const DRAFT_KEY = "goclaw:pptx-draft:v1";
 /**
  * PPTX Studio, presented as a PowerPoint-like shell: ribbon header on top,
  * slide thumbnail rail on the left, the interactive canvas in the middle on
- * a neutral surface, the designer chat as a collapsible right column, and a
- * status bar (slide position + notes toggle + zoom) at the bottom.
+ * a neutral surface (all element editing happens directly on it, with a
+ * compact Insert/Slide toolbar row above), the designer chat as a collapsible
+ * right column, and a status bar (slide position + notes toggle + zoom) at
+ * the bottom. Slide-level settings live in a drawer, not a permanent panel.
  */
 export function PptxToolPage() {
   const { t } = useTranslation("toolbox");
@@ -58,13 +62,12 @@ export function PptxToolPage() {
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [presenting, setPresenting] = useState(false);
+  const [slideSettingsOpen, setSlideSettingsOpen] = useState(false);
 
-  // Panel visibility (View ribbon + status bar toggles). The slide editor
-  // form defaults open on real desktops, collapsed where space is tight.
+  // Panel visibility (View ribbon + status bar toggles).
   const [view, setView] = useState<RibbonViewToggles>(() => ({
     thumbs: true,
     notes: false,
-    editor: typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
     json: false,
   }));
 
@@ -337,8 +340,64 @@ export function PptxToolPage() {
           open={view.thumbs}
         />
 
-        {/* Center: canvas + optional notes/editor panels */}
+        {/* Center: insert/slide toolbar row + canvas + optional notes strip */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col px-2 pb-1 pt-2 sm:px-3">
+          {current && (
+            <div className="mb-1.5 flex shrink-0 items-center gap-0.5">
+              <span className="mr-1 hidden text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70 sm:inline">
+                {t("pptx.insert", { defaultValue: "Insert" })}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => stageRef.current?.addElement({ kind: "text" })}
+                title={t("pptx.stage.add_text")}
+                className="min-h-11 sm:min-h-8"
+              >
+                <Type className="h-4 w-4" />
+                <span className="hidden md:inline">{t("pptx.stage.add_text")}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => stageRef.current?.addElement({ kind: "rect" })}
+                title={t("pptx.stage.add_shape")}
+                className="min-h-11 sm:min-h-8"
+              >
+                <Square className="h-4 w-4" />
+                <span className="hidden md:inline">{t("pptx.stage.add_shape")}</span>
+              </Button>
+              <label
+                title={t("pptx.stage.add_image")}
+                className="flex h-11 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8"
+              >
+                <ImagePlus className="h-4 w-4 shrink-0" />
+                <span className="hidden md:inline">{t("pptx.stage.add_image")}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  aria-label={t("pptx.stage.add_image")}
+                  onChange={(e) => {
+                    stageRef.current?.addImageFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <Separator orientation="vertical" className="mx-1.5 h-6" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSlideSettingsOpen(true)}
+                title={t("pptx.slide_settings", { defaultValue: "Slide" })}
+                className="min-h-11 sm:min-h-8"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span className="hidden md:inline">{t("pptx.slide_settings", { defaultValue: "Slide" })}</span>
+              </Button>
+            </div>
+          )}
+
           {current && (
             // key={selected}: soft crossfade + fresh stage state per slide
             <div key={selected} className="pptx-enter-soft min-h-0 flex-1">
@@ -372,23 +431,6 @@ export function PptxToolPage() {
               />
             </div>
           )}
-
-          {view.editor && current && (
-            <div
-              key={`editor-${selected}`}
-              className="mt-1.5 max-h-[45%] shrink-0 overflow-y-auto overscroll-contain rounded-md border bg-card/30"
-            >
-              <div className="pptx-enter-soft p-3 sm:p-4">
-                <SlideEditor
-                  slide={current}
-                  index={selected}
-                  total={deck.slides.length}
-                  onChange={patchSlide}
-                  onLayoutChange={changeLayout}
-                />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Designer column: full-height chat rail on desktop; on compact
@@ -410,6 +452,20 @@ export function PptxToolPage() {
         onZoomChange={setZoom}
         scalePct={scalePct}
       />
+
+      {/* Slide-level settings drawer: layout template, transition, notes */}
+      {current && (
+        <SlideDrawer
+          open={slideSettingsOpen}
+          onOpenChange={setSlideSettingsOpen}
+          slide={current}
+          index={selected}
+          total={deck.slides.length}
+          onLayoutChange={changeLayout}
+          onTransitionChange={changeTransition}
+          onPatch={patchSlide}
+        />
+      )}
 
       {/* Fullscreen presentation overlay */}
       {presenting && (

@@ -70,6 +70,8 @@ export interface Storyboard extends StoryboardMeta {
 const DRAFT_KEY = "goclaw:video-draft:v1";
 /** Client-only project title (never sent to the server). */
 const TITLE_KEY = "goclaw:video-project-title:v1";
+/** Client-only rail state: full quick panel vs icon-only strip. */
+const RAIL_EXPANDED_KEY = "goclaw:video-rail-expanded:v1";
 
 const ASPECTS = {
   "9:16": { width: 1080, height: 1920 },
@@ -127,6 +129,24 @@ export function VideoToolPage() {
   const [deleteTarget, setDeleteTarget] = useState<VideoRenderJob | null>(null);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("scene");
   const [railSection, setRailSection] = useState<RailSection>("media");
+  const [railExpanded, setRailExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(RAIL_EXPANDED_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const toggleRailExpanded = useCallback(() => {
+    setRailExpanded((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(RAIL_EXPANDED_KEY, next ? "1" : "0");
+      } catch {
+        // Best-effort persistence — the default (expanded) is fine.
+      }
+      return next;
+    });
+  }, []);
   const [selectedLayer, setSelectedLayer] = useState(0);
   const [projectTitle, setProjectTitle] = useState(() => {
     try {
@@ -425,8 +445,6 @@ export function VideoToolPage() {
             onRedo={timeline.redo}
             onAddScene={() => timeline.addScene()}
             onScrollToNarration={scrollToNarration}
-            sceneCount={sb.scenes.length}
-            totalSec={totalSec}
           />
           <Timeline
             scenes={timeline.state.scenes}
@@ -436,11 +454,17 @@ export function VideoToolPage() {
           />
         </section>
 
-        {/* Right: inspector (Scene | Layers | Render) */}
+        {/* Right: inspector (Scene | Layers | Render). With no scene to edit
+            (only reachable via an empty JSON load) it collapses to a one-line
+            empty state instead of three empty tab groups. */}
         <section
           ref={inspectorRef}
-          className="order-3 flex min-h-0 flex-col border-white/[0.06] max-lg:min-h-[320px] max-lg:border-t lg:col-start-3 lg:row-start-1 lg:max-h-full lg:overflow-hidden lg:border-l"
+          className={cn(
+            "order-3 flex min-h-0 flex-col border-white/[0.06] max-lg:border-t lg:col-start-3 lg:row-start-1 lg:max-h-full lg:overflow-hidden lg:border-l",
+            selectedScene ? "max-lg:min-h-[320px]" : "max-lg:min-h-[120px]",
+          )}
         >
+          {selectedScene ? (
           <InspectorPanel
             tab={inspectorTab}
             onTabChange={setInspectorTab}
@@ -493,6 +517,13 @@ export function VideoToolPage() {
               </div>
             }
           />
+          ) : (
+            <div className="flex flex-1 items-center justify-center p-4">
+              <p className="text-sm text-zinc-500">
+                {t("video.studio.inspector.empty", "Select a scene or layer")}
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Left: quick-insert rail (vertical on desktop, strip on mobile) */}
@@ -502,6 +533,8 @@ export function VideoToolPage() {
             selectedIndex={selectedIndex}
             active={railSection}
             onActiveChange={setRailSection}
+            expanded={railExpanded}
+            onToggleExpanded={toggleRailExpanded}
             onSelectScene={timeline.selectScene}
             onAddScene={() => timeline.addScene()}
             onUpdateScene={(patch) => timeline.updateScene(selectedIndex, patch)}
@@ -509,7 +542,6 @@ export function VideoToolPage() {
             layerCount={selectedLayerCount}
             onOpenLayersTab={openLayersTab}
             onOpenJson={() => setJsonOpen(true)}
-            onScrollToNarration={scrollToNarration}
           />
         </section>
       </div>

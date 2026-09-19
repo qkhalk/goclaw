@@ -318,5 +318,22 @@
       "copy_failed": "无法复制到剪贴板",
       "token_hint": "<GATEWAY_TOKEN> 是服务器配置中的网关令牌（GOCLAW_GATEWAY_TOKEN）。请妥善保管——它拥有网关全部权限。工具同样遵循各 agent 的启用配置。"
     }
+  },
+  "pptx": {
+    "insert": "插入",
+    "slide_settings": "幻灯片",
+    "slide_settings_layout_hint": "应用版式会将该页内容重置为对应版式。",
+    "slide_settings_done": "完成"
+  },
+  "video": {
+    "studio": {
+      "rail": {
+        "collapse_panel": "收起媒体面板",
+        "expand_panel": "展开媒体面板"
+      },
+      "inspector": {
+        "empty": "选择一个场景或图层"
+      }
+    }
   }
 }

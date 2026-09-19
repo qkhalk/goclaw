@@ -139,13 +139,6 @@ export function LayersQuickPanel({
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <div className="flex items-center gap-2">
-        <LayersIcon className="h-4 w-4 shrink-0 text-zinc-500" />
-        <span className="text-xs uppercase tracking-wider text-zinc-500">
-          {t("video.studio.inspector.layers_of", { n: layers.length })}
-        </span>
-      </div>
-
       {layers.length === 0 ? (
         <p className="rounded-lg bg-white/[0.04] p-3 text-xs text-zinc-400">
           {t("video.studio.inspector.no_layers")}
@@ -201,7 +194,6 @@ export function LayersQuickPanel({
         {layers.length >= MAX_LAYERS && (
           <p className="text-xs text-zinc-500">{t("video.studio.rail.layers_full")}</p>
         )}
-        <p className="text-xs text-zinc-500">{t("video.studio.inspector.layers_hint")}</p>
       </div>
     </div>
   );

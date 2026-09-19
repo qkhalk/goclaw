@@ -5,6 +5,8 @@ import {
   Film,
   Layers,
   Mic,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Sparkles,
   Type,
@@ -54,8 +56,9 @@ interface MediaRailProps {
   /** Switch the inspector to its Layers tab. */
   onOpenLayersTab: () => void;
   onOpenJson: () => void;
-  /** Scroll the scene editor to the narration field. */
-  onScrollToNarration: () => void;
+  /** Icon-only strip vs full quick panel (persisted by the page). */
+  expanded: boolean;
+  onToggleExpanded: () => void;
 }
 
 /**
@@ -75,7 +78,8 @@ export function MediaRail({
   layerCount,
   onOpenLayersTab,
   onOpenJson,
-  onScrollToNarration,
+  expanded,
+  onToggleExpanded,
 }: MediaRailProps) {
   const { t } = useTranslation("toolbox");
   const scene = scenes[selectedIndex];
@@ -115,15 +119,35 @@ export function MediaRail({
         >
           <Braces className="h-[18px] w-[18px]" />
         </button>
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          aria-expanded={expanded}
+          title={
+            expanded
+              ? t("video.studio.rail.collapse_panel", "Collapse media panel")
+              : t("video.studio.rail.expand_panel", "Expand media panel")
+          }
+          aria-label={
+            expanded
+              ? t("video.studio.rail.collapse_panel", "Collapse media panel")
+              : t("video.studio.rail.expand_panel", "Expand media panel")
+          }
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-100 lg:h-10 lg:w-10"
+        >
+          {expanded ? (
+            <PanelLeftClose className="h-[18px] w-[18px]" />
+          ) : (
+            <PanelLeftOpen className="h-[18px] w-[18px]" />
+          )}
+        </button>
       </nav>
 
-      {/* Quick panel */}
-      <div className="min-w-0 overflow-y-auto overscroll-contain border-white/[0.06] max-lg:border-t lg:h-full lg:w-60 lg:shrink-0 lg:border-l">
-        <div className="p-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-            {t(SECTIONS.find((s) => s.id === active)?.labelKey ?? "video.studio.rail.media")}
-          </p>
-          {active === "media" && (
+      {/* Quick panel — hidden while collapsed so the rail stays icon-width */}
+      {expanded && (
+        <div className="min-w-0 overflow-y-auto overscroll-contain border-white/[0.06] max-lg:border-t lg:h-full lg:w-60 lg:shrink-0 lg:border-l">
+          <div className="p-3">
+            {active === "media" && (
             <MediaPanel
               scenes={scenes}
               selectedIndex={selectedIndex}
@@ -136,7 +160,6 @@ export function MediaRail({
               scene={scene}
               scenes={scenes}
               onToggleMute={(v) => onUpdateScene({ mute: v })}
-              onEditNarration={onScrollToNarration}
               onSelectScene={onSelectScene}
             />
           )}
@@ -179,8 +202,9 @@ export function MediaRail({
               onOpenLayersTab={onOpenLayersTab}
             />
           )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -247,13 +271,11 @@ function VoicePanel({
   scene,
   scenes,
   onToggleMute,
-  onEditNarration,
   onSelectScene,
 }: {
   scene: Scene | undefined;
   scenes: Scene[];
   onToggleMute: (v: boolean) => void;
-  onEditNarration: () => void;
   onSelectScene: (i: number) => void;
 }) {
   const { t } = useTranslation("toolbox");
@@ -263,17 +285,6 @@ function VoicePanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onEditNarration}
-        disabled={!scene}
-        className="min-h-11 justify-start border-white/15 text-zinc-200 hover:bg-white/5 hover:text-white sm:min-h-9"
-      >
-        <Mic className="h-4 w-4" />
-        {t("video.studio.rail.edit_narration")}
-      </Button>
-
       <div className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.04] px-2.5 py-2">
         <Label className="text-xs text-zinc-300">{t("video.mute")}</Label>
         <Switch
@@ -345,7 +356,6 @@ function TextPanel({
       {disabled && (
         <p className="text-xs text-zinc-500">{t("video.studio.rail.layers_full")}</p>
       )}
-      <p className="text-xs text-zinc-500">{t("video.studio.rail.text_hint")}</p>
     </div>
   );
 }
@@ -381,7 +391,6 @@ function TransitionsPanel({
           {t(`video.transition_${tt}`)}
         </button>
       ))}
-      <p className="mt-1 text-xs text-zinc-500">{t("video.studio.rail.transitions_hint")}</p>
     </div>
   );
 }
@@ -434,7 +443,6 @@ function EffectsPanel({
           isColor ? onUpdate({ grid: v || undefined }) : onUpdate({ mute: v })
         }
       />
-      <p className="mt-1 text-xs text-zinc-500">{t("video.studio.rail.effects_hint")}</p>
     </div>
   );
 }

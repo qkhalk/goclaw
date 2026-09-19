@@ -223,17 +223,14 @@ export function Timeline({
                         : "ring-1 ring-white/10 hover:ring-white/25",
                     )}
                   >
-                    {/* Filmora-style accent edge: brand gradient on the
-                        selected clip, subtle neutral on the rest. */}
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "absolute inset-x-0 top-0 z-10 h-0.5",
-                        isSelected
-                          ? "bg-gradient-to-r from-rose-500 to-orange-400"
-                          : "bg-white/15 group-hover:bg-white/25",
-                      )}
-                    />
+                    {/* Brand gradient accent marks the selected clip only —
+                        unselected clips already read as clips via the ring. */}
+                    {isSelected && (
+                      <span
+                        aria-hidden
+                        className="absolute inset-x-0 top-0 z-10 h-0.5 bg-gradient-to-r from-rose-500 to-orange-400"
+                      />
+                    )}
                     {/* Thumbnail */}
                     <div className="relative h-12 w-full overflow-hidden rounded-[5px] bg-black/40">
                       <SceneThumb scene={scene} index={i} />

@@ -147,5 +147,18 @@
   },
   "errors": {
     "serverError": "Đã xảy ra lỗi. Vui lòng thử lại sau."
+  },
+  "systemUpdate": {
+    "available": "Cập nhật lên {{version}}",
+    "currentVersion": "Phiên bản hiện tại: {{version}}",
+    "confirm": "Cài đặt và khởi động lại",
+    "confirmBody": "Gateway sẽ khởi động lại và ngoại tuyến khoảng 15 giây.",
+    "installing": "Đang tải bản cập nhật...",
+    "restarting": "Đang khởi động lại...",
+    "success": "Đã cập nhật lên {{version}}",
+    "failed": "Cập nhật thất bại",
+    "noRestart": "Gateway đã trực tuyến trở lại",
+    "restartTimeout": "Chưa phát hiện khởi động lại",
+    "restartTimeoutBody": "Gateway có thể vẫn đang khởi động lại. Vui lòng tải lại trang sau."
   }
 }

@@ -147,5 +147,18 @@
   },
   "errors": {
     "serverError": "Something went wrong. Please try again later."
+  },
+  "systemUpdate": {
+    "available": "Update to {{version}}",
+    "currentVersion": "Current: {{version}}",
+    "confirm": "Install and restart",
+    "confirmBody": "The gateway will restart and be offline for about 15 seconds.",
+    "installing": "Downloading update...",
+    "restarting": "Restarting...",
+    "success": "Updated to {{version}}",
+    "failed": "Update failed",
+    "noRestart": "Gateway is back online",
+    "restartTimeout": "Restart not detected yet",
+    "restartTimeoutBody": "The gateway may still be restarting. Reload in a moment."
   }
 }
