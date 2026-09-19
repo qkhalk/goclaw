@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useBuiltinTools } from "@/pages/builtin-tools/hooks/use-builtin-tools";
 import { McpConnectCard } from "./mcp-connect-card";
+import { McpSection } from "./mcp-section";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useStudioModules, type StudioModule } from "./use-studio-modules";
@@ -132,6 +133,8 @@ export function StorePage() {
           );
         })}
       </div>
+
+      <McpSection />
 
       <section className="mt-8 rounded-lg border p-4">
         <div className="flex items-center gap-2">
