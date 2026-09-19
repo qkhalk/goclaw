@@ -159,7 +159,9 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 	initGitHubInstaller()
 	pkgHandler := wirePackagesHandler(d)
 	d.server.SetPackagesHandler(pkgHandler)
-	d.server.SetGatewayUpgradeHandler(httpapi.NewGatewayUpgradeHandlerFromEnv())
+	upgradeHandler := httpapi.NewGatewayUpgradeHandlerFromEnv()
+	upgradeHandler.Version = Version
+	d.server.SetGatewayUpgradeHandler(upgradeHandler)
 
 	// API documentation (OpenAPI spec + Swagger UI at /docs)
 	d.server.SetDocsHandler(httpapi.NewDocsHandler())

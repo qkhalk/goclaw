@@ -2,15 +2,23 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 type fakeGatewayUpgradeRunner struct {
@@ -167,8 +175,10 @@ func TestGatewayUpgradeTriggerTokenGuard(t *testing.T) {
 		TriggerToken: "secret-token",
 		Runner:       runner,
 	}
+	// Non-owner with a WRONG token is rejected even when a token is configured.
 	req := httptest.NewRequest(http.MethodPost, "/v1/system/gateway/upgrade", bytes.NewBufferString(`{"tag":"latest"}`))
-	req = req.WithContext(ownerCtx(req.Context(), "gateway-token-owner"))
+	req.Header.Set(gatewayUpgradeTokenHeader, "wrong-token")
+	req = req.WithContext(tenantAdminCtx(req.Context(), "gateway-tenant-admin"))
 	w := httptest.NewRecorder()
 
 	h.handleStart(w, req)
@@ -178,6 +188,28 @@ func TestGatewayUpgradeTriggerTokenGuard(t *testing.T) {
 	}
 	if len(runner.tags) != 0 {
 		t.Fatalf("runner should not be called, got %#v", runner.tags)
+	}
+}
+
+func TestGatewayUpgradeOwnerSessionTriggersWithoutToken(t *testing.T) {
+	runner := &fakeGatewayUpgradeRunner{}
+	h := &GatewayUpgradeHandler{
+		StatusPath:   filepath.Join(t.TempDir(), "status.json"),
+		TriggerToken: "", // no automation token configured
+		Runner:       runner,
+	}
+	// The web UI flow: an owner session triggers the upgrade directly.
+	req := httptest.NewRequest(http.MethodPost, "/v1/system/gateway/upgrade", bytes.NewBufferString(`{"tag":"v4.9.0"}`))
+	req = req.WithContext(ownerCtx(req.Context(), "gateway-ui-owner"))
+	w := httptest.NewRecorder()
+
+	h.handleStart(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("want 202, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(runner.tags) != 1 || runner.tags[0] != "v4.9.0" {
+		t.Fatalf("runner tags = %#v, want [v4.9.0]", runner.tags)
 	}
 }
 
@@ -227,8 +259,11 @@ func TestGatewayUpgradeFailsClosedWithoutConfiguredTriggerToken(t *testing.T) {
 		StatusPath: filepath.Join(t.TempDir(), "status.json"),
 		Runner:     runner,
 	}
+	// Master scope (uuid.Nil tenant) but NOT owner — the token policy is what
+	// must reject this caller (503 when unconfigured).
+	masterAdminCtx := store.WithRole(store.WithTenantID(context.Background(), uuid.Nil), "admin")
 	req := httptest.NewRequest(http.MethodPost, "/v1/system/gateway/upgrade", bytes.NewBufferString(`{"tag":"latest"}`))
-	req = req.WithContext(ownerCtx(req.Context(), "gateway-no-token-owner"))
+	req = req.WithContext(masterAdminCtx)
 	w := httptest.NewRecorder()
 
 	h.handleStart(w, req)
@@ -301,5 +336,164 @@ func TestGatewayUpgradeStatusRejectsInvalidJSON(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), statusPath) || strings.Contains(w.Body.String(), "decode upgrade status") {
 		t.Fatalf("response leaked internal status details: %s", w.Body.String())
+	}
+}
+
+// --- GET /v1/system/gateway/upgrade/check ---
+
+// stubReleaseTransport serves canned GitHub release listings for the check
+// endpoint without touching the network.
+type stubReleaseTransport struct {
+	body string
+}
+
+func (s stubReleaseTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(s.body)),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func withStubReleases(t *testing.T, body string) {
+	t.Helper()
+	orig := upgradeCheckClient
+	upgradeCheckClient = &http.Client{Transport: stubReleaseTransport{body: body}}
+	t.Cleanup(func() { upgradeCheckClient = orig })
+}
+
+const twoStableReleasesJSON = `[
+  {"tag_name":"v4.9.0","html_url":"https://github.com/qkhalk/goclaw/releases/tag/v4.9.0","draft":false,"prerelease":false,
+   "assets":[{"name":"goclaw-v4.9.0-linux-amd64.tar.gz","browser_download_url":"https://x/1"},
+             {"name":"goclaw-v4.9.0-windows-amd64.zip","browser_download_url":"https://x/2"}]},
+  {"tag_name":"v4.8.0","html_url":"https://github.com/qkhalk/goclaw/releases/tag/v4.8.0","draft":false,"prerelease":false,
+   "assets":[{"name":"goclaw-v4.8.0-linux-amd64.tar.gz","browser_download_url":"https://x/3"}]}
+]`
+
+func TestUpgradeCheckUpdateAvailable(t *testing.T) {
+	withStubReleases(t, twoStableReleasesJSON)
+	h := &GatewayUpgradeHandler{Repo: "qkhalk/goclaw", Version: "4.6.2+444"}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/system/gateway/upgrade/check", nil)
+	req = req.WithContext(ownerCtx(req.Context(), "check-owner"))
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	wantAsset := "goclaw-v4.9.0-linux-amd64.tar.gz"
+	if runtime.GOOS == "windows" {
+		wantAsset = "goclaw-v4.9.0-windows-amd64.zip"
+	}
+	for _, want := range []string{`"available":true`, `"latest":"v4.9.0"`, wantAsset} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body missing %s:\n%s", want, body)
+		}
+	}
+}
+
+func TestUpgradeCheckBuildMetadataStillDetectsNewer(t *testing.T) {
+	withStubReleases(t, twoStableReleasesJSON)
+	// "4.6.2+444" must compare as 4.6.2 — not 4.6.0, which would also be
+	// newer than every release and break the IsNewer short-circuit.
+	h := &GatewayUpgradeHandler{Repo: "qkhalk/goclaw", Version: "4.6.2+444"}
+	req := httptest.NewRequest(http.MethodGet, "/v1/system/gateway/upgrade/check", nil)
+	req = req.WithContext(ownerCtx(req.Context(), "check-owner"))
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.ServeHTTP(w, req)
+
+	if !strings.Contains(w.Body.String(), `"latest":"v4.9.0"`) {
+		t.Errorf("build metadata mishandled: %s", w.Body.String())
+	}
+}
+
+func TestUpgradeCheckUpToDate(t *testing.T) {
+	withStubReleases(t, twoStableReleasesJSON)
+	h := &GatewayUpgradeHandler{Repo: "qkhalk/goclaw", Version: "v4.9.0"}
+	req := httptest.NewRequest(http.MethodGet, "/v1/system/gateway/upgrade/check", nil)
+	req = req.WithContext(ownerCtx(req.Context(), "check-owner"))
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.ServeHTTP(w, req)
+
+	if !strings.Contains(w.Body.String(), `"available":false`) {
+		t.Errorf("expected available=false, got %s", w.Body.String())
+	}
+}
+
+func TestUpgradeCheckSkipsPrereleaseAndForkTags(t *testing.T) {
+	withStubReleases(t, `[
+      {"tag_name":"v4.10.0-beta.1","draft":false,"prerelease":true,"assets":[]},
+      {"tag_name":"v4.9.0-fork.2","draft":false,"prerelease":false,"assets":[]},
+      {"tag_name":"v4.8.0","draft":false,"prerelease":false,
+       "assets":[{"name":"goclaw-v4.8.0-linux-amd64.tar.gz","browser_download_url":"https://x/3"}]}
+    ]`)
+	h := &GatewayUpgradeHandler{Repo: "qkhalk/goclaw", Version: "4.6.2"}
+	req := httptest.NewRequest(http.MethodGet, "/v1/system/gateway/upgrade/check", nil)
+	req = req.WithContext(ownerCtx(req.Context(), "check-owner"))
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.ServeHTTP(w, req)
+
+	if !strings.Contains(w.Body.String(), `"latest":"v4.8.0"`) {
+		t.Errorf("prerelease/fork tags must be skipped: %s", w.Body.String())
+	}
+}
+
+func TestUpgradeCheckNoMatchingAsset(t *testing.T) {
+	withStubReleases(t, `[
+      {"tag_name":"v4.9.0","draft":false,"prerelease":false,
+       "assets":[{"name":"goclaw-v4.9.0-solaris-amd64.tar.gz","browser_download_url":"https://x/2"}]}
+    ]`)
+	h := &GatewayUpgradeHandler{Repo: "qkhalk/goclaw", Version: "4.6.2"}
+	req := httptest.NewRequest(http.MethodGet, "/v1/system/gateway/upgrade/check", nil)
+	req = req.WithContext(ownerCtx(req.Context(), "check-owner"))
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, `"available":false`) ||
+		!strings.Contains(body, fmt.Sprintf("no %s/%s binary archive", runtime.GOOS, runtime.GOARCH)) {
+		t.Errorf("missing-asset case not surfaced: %s", body)
+	}
+}
+
+func TestUpgradeCheckUnknownVersion(t *testing.T) {
+	h := &GatewayUpgradeHandler{Repo: "qkhalk/goclaw", Version: "dev"}
+	req := httptest.NewRequest(http.MethodGet, "/v1/system/gateway/upgrade/check", nil)
+	req = req.WithContext(ownerCtx(req.Context(), "check-owner"))
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"available":false`) {
+		t.Errorf("dev version: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestUpgradeCheckOwnerRoleAllowedByTokenPolicy(t *testing.T) {
+	// The check is read-only — an owner session passes the token policy even
+	// with no automation token configured.
+	h := &GatewayUpgradeHandler{Repo: "qkhalk/goclaw", Version: "dev", TriggerToken: ""}
+	req := httptest.NewRequest(http.MethodGet, "/v1/system/gateway/upgrade/check", nil)
+	req = req.WithContext(ownerCtx(req.Context(), "check-owner"))
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.ServeHTTP(w, req)
+
+	if w.Code == http.StatusForbidden || w.Code == http.StatusServiceUnavailable {
+		t.Fatalf("owner check blocked by token policy: %d %s", w.Code, w.Body.String())
 	}
 }
