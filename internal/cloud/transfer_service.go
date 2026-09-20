@@ -66,7 +66,10 @@ func (r *transferRegistry) register(jobID int64, rec TransferRecord) {
 		var oldest time.Time
 		first := true
 		for id, j := range r.jobs {
-			if first || j.StartedAt.Before(oldest) {
+			// Ties broken by the lower job id: jobs registering within one
+			// clock tick share a StartedAt, and map iteration order must not
+			// decide who gets evicted.
+			if first || j.StartedAt.Before(oldest) || (j.StartedAt.Equal(oldest) && id < oldestID) {
 				oldestID, oldest, first = id, j.StartedAt, false
 			}
 		}
