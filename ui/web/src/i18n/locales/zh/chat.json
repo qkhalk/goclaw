@@ -209,6 +209,8 @@
     "other": "其他…",
     "otherPlaceholder": "输入你自己的回答…",
     "send": "发送回答",
+    "confirm": "✔ 确认",
+    "back": "◀ 返回",
     "recommended": "推荐"
   },
   "devMode": {

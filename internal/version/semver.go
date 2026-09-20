@@ -35,7 +35,11 @@ func Compare(a, b string) int {
 // Strips "v" prefix and pre-release suffixes (e.g. "v1.2.3-5-gabcdef" → [1, 2, 3]).
 func Parse(s string) [3]int {
 	s = strings.TrimPrefix(s, "v")
-	// Strip pre-release suffix: "1.2.3-rc1" → "1.2.3"
+	// Strip build metadata first: "1.2.3+444" → "1.2.3" (build metadata is
+	// ignored for precedence per semver), then the pre-release suffix.
+	if idx := strings.IndexByte(s, '+'); idx >= 0 {
+		s = s[:idx]
+	}
 	if idx := strings.IndexByte(s, '-'); idx >= 0 {
 		s = s[:idx]
 	}
