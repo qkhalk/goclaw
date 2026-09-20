@@ -34,7 +34,6 @@ import {
   MonitorCog,
   CloudCog,
   Store as StoreIcon,
-  Server as ServerIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SidebarGroup } from "./sidebar-group";
@@ -44,7 +43,6 @@ import { UpdateBadge } from "@/components/update/update-badge";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useStudioModules } from "@/pages/store/use-studio-modules";
-import { useMcpCatalog } from "@/pages/store/use-mcp-catalog";
 import { usePendingPairingsCount } from "@/hooks/use-pending-pairings-count";
 import { useEdition } from "@/hooks/use-edition";
 import { useAuthStore } from "@/stores/use-auth-store";
@@ -70,7 +68,6 @@ export function Sidebar({ collapsed, width, onNavItemClick }: SidebarProps) {
   // Studio tools follow their Tool Store install state (tenant override of
   // the "studio" builtin tool defs); uninstalled tools drop out of the nav.
   const { modules: studioModules } = useStudioModules();
-  const { entries: mcpEntries } = useMcpCatalog();
 
   return (
     <aside
@@ -135,19 +132,6 @@ export function Sidebar({ collapsed, width, onNavItemClick }: SidebarProps) {
                 to={m.meta.route}
                 icon={m.meta.icon}
                 label={t(m.meta.labelKey)}
-                collapsed={collapsed}
-              />
-            ))}
-          {/* Installed MCP tool servers (Store tier 3) — each opens the MCP
-           * page focused on that server so its tools can be granted. */}
-          {mcpEntries
-            .filter((e) => e.installed)
-            .map((e) => (
-              <SidebarItem
-                key={`mcp-server-${e.name}`}
-                to={`${ROUTES.MCP}?server=${encodeURIComponent(e.name)}`}
-                icon={ServerIcon}
-                label={e.display_name || e.name}
                 collapsed={collapsed}
               />
             ))}

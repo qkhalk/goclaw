@@ -1,20 +1,18 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { Check, Loader2, PackageOpen, Settings2, Trash2 } from "lucide-react";
+import { Check, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useBuiltinTools } from "@/pages/builtin-tools/hooks/use-builtin-tools";
-import { McpConnectCard } from "./mcp-connect-card";
-import { McpSection } from "./mcp-section";
-import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useStudioModules, type StudioModule } from "./use-studio-modules";
 
 /**
  * Tool Store — installable product tools (studio modules). Install/uninstall
- * flips the per-tenant builtin tool override (existing API); the sidebar, the
- * route gates and later the MCP hub exposure all follow the same state.
+ * flips the per-tenant builtin tool override (existing API); the sidebar and
+ * the route gates follow the same state. MCP server management lives on the
+ * /mcp page, not here.
  */
 export function StorePage() {
   const { t } = useTranslation("tools");
@@ -134,21 +132,6 @@ export function StorePage() {
         })}
       </div>
 
-      <McpSection />
-
-      <section className="mt-8 rounded-lg border p-4">
-        <div className="flex items-center gap-2">
-          <Settings2 className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">{t("store.agent_tools_title")}</h2>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">{t("store.agent_tools_desc")}</p>
-        <Button variant="outline" size="sm" onClick={() => navigate(ROUTES.BUILTIN_TOOLS)} className="mt-3 min-h-11 sm:min-h-9">
-          <PackageOpen className="mr-2 h-3.5 w-3.5" />
-          {t("store.manage_agent_tools")}
-        </Button>
-      </section>
-
-      <McpConnectCard />
     </div>
   );
 }
