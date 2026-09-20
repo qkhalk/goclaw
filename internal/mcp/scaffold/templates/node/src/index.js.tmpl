@@ -1,0 +1,74 @@
+#!/usr/bin/env node
+/**
+ * {{.DisplayName}} — zero-dependency MCP stdio server.
+ *
+ * Replace the example tool below with the real one; the JSON-RPC plumbing
+ * (initialize / tools/list / tools/call / ping over newline-delimited
+ * JSON-RPC 2.0) is complete as-is.
+ */
+"use strict";
+
+const PROTOCOL_VERSION = "2025-06-18";
+
+const TOOLS = [
+  {
+    name: "hello",
+    description: "Example tool — replace it with yours. Echoes a greeting.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        who: { type: "string", description: "Who to greet (default: world)." },
+      },
+    },
+  },
+];
+
+function textResult(text) {
+  return { content: [{ type: "text", text }] };
+}
+
+/** Tool implementations. Return plain objects; they are JSON-serialised. */
+async function callTool(name, args) {
+  switch (name) {
+    case "hello":
+      return textResult(`hello, ${args?.who || "world"}!`);
+    default:
+      return { ...textResult(`error: unknown tool ${name}`), isError: true };
+  }
+}
+
+const handlers = {
+  initialize: (req) => ({
+    protocolVersion: req.params?.protocolVersion || PROTOCOL_VERSION,
+    capabilities: { tools: {} },
+    serverInfo: { name: "{{.Name}}", version: "0.1.0" },
+  }),
+  "tools/list": () => ({ tools: TOOLS }),
+  "tools/call": (req) => callTool(req.params?.name, req.params?.arguments),
+  ping: () => ({}),
+};
+
+const readline = require("readline");
+const rl = readline.createInterface({ input: process.stdin });
+rl.on("line", (line) => {
+  line = line.trim();
+  if (!line) return;
+  let msg;
+  try {
+    msg = JSON.parse(line);
+  } catch {
+    return; // not JSON-RPC — ignore
+  }
+  if (msg.id === undefined || msg.id === null) return; // notification (incl. initialized)
+  const handler = handlers[msg.method];
+  Promise.resolve(handler ? handler(msg) : { error: { code: -32601, message: `unknown method: ${msg.method}` } })
+    .then((result) => {
+      if (process.stdout.writable) process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\n");
+    })
+    .catch((e) => {
+      if (process.stdout.writable)
+        process.stdout.write(
+          JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: { code: -32603, message: String(e && e.message || e) } }) + "\n"
+        );
+    });
+});

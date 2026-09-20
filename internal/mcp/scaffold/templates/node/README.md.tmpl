@@ -1,0 +1,23 @@
+# {{.DisplayName}}
+
+{{.Description}}
+
+Zero-dependency MCP stdio server (category: {{.Category}}, runtime: {{.Runtime}}).
+
+## Layout
+
+- `manifest.json` — catalog metadata (name, entry, runtime); ships in the Tool Store
+- `{{.Entry}}` — the server; replace the example tool with yours
+- `test/smoke.js` — handshake + tools/list + tools/call check
+
+## Develop
+
+```
+node test/smoke.js          # or: npm run smoke
+```
+
+## Ship
+
+Commit this folder under `mcp/{{.Name}}/` and cut a release tag — the
+dynamic catalog picks it up for every existing install within ~15 minutes,
+no gateway upgrade needed.
