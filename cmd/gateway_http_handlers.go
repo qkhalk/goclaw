@@ -79,6 +79,7 @@ func wireHTTP(stores *store.Stores, defaultWorkspace, dataDir, bundledSkillsDir 
 	// Tool Store tier-3 installer (MCP tool servers from git).
 	if stores != nil && stores.MCP != nil && stores.MCPInstalls != nil {
 		mcpInstallH = httpapi.NewMCPInstallHandler(stores.MCP, stores.MCPInstalls, stores.Tenants, msgBus, dataDir, Version)
+		mcpInstallH.RecoverStaleInstalls()
 	}
 
 	if stores != nil && stores.ChannelInstances != nil {

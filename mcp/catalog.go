@@ -91,11 +91,13 @@ var (
 	parsed      []Manifest
 )
 
-// Find returns the manifest with the given name, or nil.
+// Find returns a copy of the manifest with the given name, or nil. A copy so
+// callers cannot mutate the shared parsed catalog through the pointer.
 func Find(name string) *Manifest {
-	for i, m := range Entries() {
+	for _, m := range Entries() {
 		if m.Name == name {
-			return &Entries()[i]
+			cp := m
+			return &cp
 		}
 	}
 	return nil

@@ -81,7 +81,10 @@ type mcpInstallJobState struct {
 	FinishedAt *time.Time     `json:"finished_at,omitempty"`
 }
 
-const mcpInstallJobLogCap = 40
+const (
+	mcpInstallJobLogCap = 40
+	mcpInstallJobCap    = 40
+)
 
 func (j *mcpInstallJob) snapshot() mcpInstallJobState {
 	j.mu.Lock()
@@ -117,6 +120,34 @@ func (j *mcpInstallJob) status() string {
 	return j.state.Status
 }
 
+// RecoverStaleInstalls marks rows stuck at "installing" as failed. Called
+// once at gateway startup: an install interrupted by a restart or a crashed
+// job would otherwise 409 every retry ("still installing") forever.
+func (h *MCPInstallHandler) RecoverStaleInstalls() {
+	if !h.storesReady() {
+		return
+	}
+	ctx := store.WithCrossTenant(context.Background())
+	pkgs, err := h.installer.Installs.ListPackages(ctx)
+	if err != nil {
+		slog.Warn("mcp_install.recover_stale", "error", err)
+		return
+	}
+	for _, p := range pkgs {
+		if p.Status != store.MCPInstallStatusInstalling {
+			continue
+		}
+		errMsg := "interrupted by gateway restart"
+		p.Status = store.MCPInstallStatusFailed
+		p.Error = &errMsg
+		if err := h.installer.Installs.UpsertPackage(ctx, &p); err != nil {
+			slog.Warn("mcp_install.recover_stale", "name", p.Name, "error", err)
+			continue
+		}
+		slog.Info("mcp_install.recovered_stale", "name", p.Name)
+	}
+}
+
 // RegisterRoutes registers the installer API. Catalog/installed reads are
 // viewer+; install/uninstall are admin+ and tenant-gated (installs register
 // servers into the caller's tenant).
@@ -143,12 +174,6 @@ func (h *MCPInstallHandler) storesReady() bool {
 	return h.installer != nil && h.installer.Installs != nil && h.installer.Servers != nil
 }
 
-func (h *MCPInstallHandler) handleCatalog(w http.ResponseWriter, r *http.Request) {
-	if !h.storesReady() {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "installer not configured"})
-		return
-	}
-
 // catalogEntry merges an embedded manifest with its installed state.
 type catalogEntry struct {
 	mcpcatalog.Manifest
@@ -156,6 +181,12 @@ type catalogEntry struct {
 	Installed bool                       `json:"installed"`
 	Package   *store.MCPInstalledPackage `json:"package,omitempty"`
 }
+
+func (h *MCPInstallHandler) handleCatalog(w http.ResponseWriter, r *http.Request) {
+	if !h.storesReady() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "installer not configured"})
+		return
+	}
 
 	pkgs, err := h.installer.Installs.ListPackages(r.Context())
 	if err != nil {
@@ -315,6 +346,7 @@ func (h *MCPInstallHandler) handleInstall(w http.ResponseWriter, r *http.Request
 
 	go h.runJob(job, ireq, tenantID)
 
+	emitAudit(h.msgBus, r, "mcp_package.install_started", "mcp_package", ireq.Name)
 	slog.Info("mcp_install.started", "name", ireq.Name, "repo", ireq.Repo, "ref", ireq.Ref, "job", job.state.ID)
 	writeJSON(w, http.StatusAccepted, map[string]string{"job_id": job.state.ID})
 }
@@ -325,18 +357,24 @@ func (h *MCPInstallHandler) runJob(job *mcpInstallJob, ireq installer.Request, t
 	defer func() {
 		h.mu.Lock()
 		h.running = false
-		// Opportunistic cleanup: keep recent finished jobs for polling.
-		if len(h.jobs) > 40 {
-			for id := range h.jobs {
-				if len(h.jobs) <= 40 {
-					break
+		// Hard cap: evict the oldest FINISHED jobs until we are back under
+		// the cap, regardless of age — the map must never grow unbounded.
+		for len(h.jobs) > mcpInstallJobCap {
+			oldestID := ""
+			var oldest time.Time
+			for id, j := range h.jobs {
+				if j.status() == "running" {
+					continue
 				}
-				if j := h.jobs[id]; j.status() != "running" {
-					if time.Since(j.snapshot().StartedAt) > 10*time.Minute {
-						delete(h.jobs, id)
-					}
+				st := j.snapshot().StartedAt
+				if oldestID == "" || st.Before(oldest) {
+					oldestID, oldest = id, st
 				}
 			}
+			if oldestID == "" {
+				break // only running jobs left — cannot shrink now
+			}
+			delete(h.jobs, oldestID)
 		}
 		h.mu.Unlock()
 	}()
@@ -376,6 +414,21 @@ func (h *MCPInstallHandler) handleUninstall(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	name := r.PathValue("name")
+
+	// Never race a live pipeline: RemoveAll of the install dir mid-npm, or a
+	// DeletePackage colliding with the final UpsertPackage, corrupts state.
+	h.mu.Lock()
+	running := h.running
+	h.mu.Unlock()
+	if running {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "an install is in progress — try again after it finishes"})
+		return
+	}
+	if pkg, err := h.installer.Installs.GetPackageByName(r.Context(), name); err == nil && pkg.Status == store.MCPInstallStatusInstalling {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": name + " is still installing"})
+		return
+	}
+
 	tenantID := store.TenantIDFromContext(r.Context())
 	if tenantID == uuid.Nil {
 		tenantID = store.MasterTenantID

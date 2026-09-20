@@ -16,6 +16,7 @@ package installer
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -122,7 +123,11 @@ func (in *Installer) Install(ctx context.Context, req Request, progress Progress
 		errMsg := err.Error()
 		pkg.Status = store.MCPInstallStatusFailed
 		pkg.Error = &errMsg
-		_ = in.Installs.UpsertPackage(ctx, &pkg)
+		// The pipeline ctx may be expired (that is often the failure) — the
+		// terminal state must still land or the row sticks at "installing".
+		failCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		_ = in.Installs.UpsertPackage(failCtx, &pkg)
 		return nil, err
 	}
 	return res, nil
@@ -193,8 +198,13 @@ func (in *Installer) preflight(ctx context.Context, req *Request, progress Progr
 		req.Subdir = "mcp/" + req.Name
 	}
 	req.Subdir = filepath.ToSlash(filepath.Clean(req.Subdir))
-	if req.Subdir == "." || strings.HasPrefix(req.Subdir, "../") {
+	if req.Subdir == "." || strings.HasPrefix(req.Subdir, "../") || strings.HasPrefix(req.Subdir, "-") {
 		return fmt.Errorf("invalid subdir %q", req.Subdir)
+	}
+	// Refs must be tags or commits — reject branch-ish/option-shaped values
+	// before any network work (mutable tracking is a deliberate non-goal).
+	if !refRe.MatchString(req.Ref) {
+		return fmt.Errorf("invalid ref %q (use a tag like v1.0.0 or a commit SHA)", req.Ref)
 	}
 
 	var runtimeBin string
@@ -224,9 +234,22 @@ func (in *Installer) preflight(ctx context.Context, req *Request, progress Progr
 		return fmt.Errorf("invalid entry %q", req.Entry)
 	}
 
+	// Fail fast on the exact registration shape the registry will enforce:
+	// command/args land in mcp_servers and are re-validated at smoke and
+	// register time — better to reject before clone+deps burn minutes.
+	probe := store.MCPInstalledPackage{InstallDir: filepath.Join(req.InstallRoot, req.Name)}
+	cmd, args, _ := serverCommand(req, &probe)
+	if err := mcp.ValidateServerConfig("stdio", cmd, args, ""); err != nil {
+		return fmt.Errorf("planned registration rejected: %w", err)
+	}
+
 	progress(StepPreflight, 5, fmt.Sprintf("preflight ok: %s @ %s (%s)", req.Repo, req.Ref, req.Runtime))
 	return nil
 }
+
+// refRe accepts release tags, commit SHAs and simple names — never a leading
+// dash (option injection into git argv).
+var refRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$`)
 
 // defaultRef derives the install ref from the running version so catalog
 // installs always match the manifests shipped in the binary.
@@ -282,27 +305,33 @@ func (in *Installer) clone(ctx context.Context, req *Request, pkg *store.MCPInst
 
 	// Tags/branches clone directly; raw commit SHAs need init+fetch because
 	// `git clone --branch` rejects them (GitHub allows fetch-by-SHA).
-	var steps [][]string
+	// http.followRedirects=0 keeps the github.com allowlist airtight: git
+	// would otherwise follow clones to whatever a redirect points at.
+	type gitStep struct {
+		label string
+		args  []string
+	}
+	var steps []gitStep
 	if commitSHARe.MatchString(req.Ref) {
-		steps = [][]string{
-			{"git", "init", "--quiet", tmp},
-			{"git", "-C", tmp, "remote", "add", "origin", req.Repo},
-			{"git", "-C", tmp, "sparse-checkout", "init", "--cone"},
-			{"git", "-C", tmp, "sparse-checkout", "set", req.Subdir},
-			{"git", "-C", tmp, "fetch", "--quiet", "--depth", "1", "--filter=blob:none", "origin", req.Ref},
-			{"git", "-C", tmp, "checkout", "--quiet", "FETCH_HEAD"},
+		steps = []gitStep{
+			{"init", []string{"git", "init", "--quiet", tmp}},
+			{"remote", []string{"git", "-C", tmp, "remote", "add", "origin", req.Repo}},
+			{"sparse-init", []string{"git", "-C", tmp, "sparse-checkout", "init", "--cone"}},
+			{"sparse-set", []string{"git", "-C", tmp, "sparse-checkout", "set", req.Subdir}},
+			{"fetch", []string{"git", "-c", "http.followRedirects=0", "-C", tmp, "fetch", "--quiet", "--depth", "1", "--filter=blob:none", "origin", req.Ref}},
+			{"checkout", []string{"git", "-C", tmp, "checkout", "--quiet", "FETCH_HEAD"}},
 		}
 	} else {
-		steps = [][]string{
-			{"git", "clone", "--quiet", "--depth", "1", "--branch", req.Ref, "--filter=blob:none", "--no-checkout", req.Repo, tmp},
-			{"git", "-C", tmp, "sparse-checkout", "init", "--cone"},
-			{"git", "-C", tmp, "sparse-checkout", "set", req.Subdir},
-			{"git", "-C", tmp, "checkout", "--quiet"},
+		steps = []gitStep{
+			{"clone", []string{"git", "-c", "http.followRedirects=0", "clone", "--quiet", "--depth", "1", "--branch", req.Ref, "--filter=blob:none", "--no-checkout", req.Repo, tmp}},
+			{"sparse-init", []string{"git", "-C", tmp, "sparse-checkout", "init", "--cone"}},
+			{"sparse-set", []string{"git", "-C", tmp, "sparse-checkout", "set", req.Subdir}},
+			{"checkout", []string{"git", "-C", tmp, "checkout", "--quiet"}},
 		}
 	}
-	for _, args := range steps {
-		if out, err := runCmd(cctx, args[0], args[1:], ""); err != nil {
-			return "", fmt.Errorf("%s: %w: %s", args[1], err, tail(out, 300))
+	for _, st := range steps {
+		if out, err := runCmd(cctx, st.args[0], st.args[1:], ""); err != nil {
+			return "", fmt.Errorf("git %s: %w: %s", st.label, err, tail(out, 300))
 		}
 	}
 
@@ -467,6 +496,9 @@ func (in *Installer) register(ctx context.Context, req *Request, command string,
 
 	progress(StepRegister, 90, "registering MCP server "+req.Name)
 	existing, err := in.Servers.GetServerByName(ctx, req.Name)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("lookup existing server: %w", err)
+	}
 	if err == nil && existing != nil {
 		updates := map[string]any{
 			"display_name": req.DisplayName,
@@ -527,12 +559,29 @@ func (in *Installer) Uninstall(ctx context.Context, tenantID uuid.UUID, name str
 
 // --- helpers ---
 
-// runCmd runs a command with no shell, inheriting the environment (package
-// managers need HOME/PASSWORD etc.), returning combined output.
+// runCmd runs a command with no shell and a MINIMAL environment: the
+// gateway process may carry provider API keys and tokens in its env, and
+// npm/pip execute package install scripts — they must never see those.
+// PATH/HOME keep git, npm cache and node resolution working; proxy vars
+// pass through for egress-restricted hosts.
 func runCmd(ctx context.Context, name string, args []string, dir string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.Env = minimalChildEnv()
+	setProcessGroup(cmd)
 	return cmd.CombinedOutput()
+}
+
+func minimalChildEnv() []string {
+	keep := []string{"PATH", "HOME", "LANG", "LC_ALL", "TZ",
+		"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "no_proxy", "NO_PROXY"}
+	var env []string
+	for _, k := range keep {
+		if v, ok := os.LookupEnv(k); ok && v != "" {
+			env = append(env, k+"="+v)
+		}
+	}
+	return env
 }
 
 func tail(b []byte, n int) string {
