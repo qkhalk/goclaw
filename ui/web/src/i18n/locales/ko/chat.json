@@ -158,6 +158,8 @@
     "other": "기타…",
     "otherPlaceholder": "직접 답변 입력…",
     "send": "답변 보내기",
+    "confirm": "✔ 확인",
+    "back": "◀ 뒤로",
     "recommended": "추천"
   },
   "devMode": {

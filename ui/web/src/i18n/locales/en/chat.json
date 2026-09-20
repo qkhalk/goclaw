@@ -209,6 +209,8 @@
     "other": "Other…",
     "otherPlaceholder": "Type your own answer…",
     "send": "Send answer",
+    "confirm": "✔ Confirm",
+    "back": "◀ Back",
     "recommended": "Recommended"
   },
   "devMode": {

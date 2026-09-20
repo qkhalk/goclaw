@@ -209,6 +209,8 @@
     "other": "Khác…",
     "otherPlaceholder": "Nhập câu trả lời của bạn…",
     "send": "Gửi câu trả lời",
+    "confirm": "✔ Xác nhận",
+    "back": "◀ Quay lại",
     "recommended": "Gợi ý"
   },
   "devMode": {
