@@ -1,0 +1,9 @@
+{
+  "name": "sys-info",
+  "display_name": "System Info",
+  "description": "Read host stats for agents — OS, uptime, load, memory, per-path disk usage — as clean JSON.",
+  "category": "system",
+  "runtime": "node",
+  "entry": "src/index.js",
+  "ram_note": "~50MB when running, lazy-started"
+}
