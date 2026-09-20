@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"strings"
 	"sync"
 )
@@ -102,6 +103,10 @@ func Find(name string) *Manifest {
 	}
 	return nil
 }
+
+// RefPattern accepts release tags, commit SHAs and simple branch-safe
+// names — never a leading dash (option injection into git argv).
+var RefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$`)
 
 // Validate checks fields the installer relies on.
 func (m *Manifest) Validate() error {
