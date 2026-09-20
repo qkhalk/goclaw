@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router";
 import { Plug, Plus, RefreshCw, RotateCcw, Pencil, Trash2, Users, Wrench, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,19 @@ export function MCPPage() {
   const [credentialsServer, setCredentialsServer] = useState<MCPServerData | null>(null);
   const [reconnectingId, setReconnectingId] = useState<string | null>(null);
   const [oauthServer, setOauthServer] = useState<MCPServerData | null>(null);
+
+  // Deep link from the Tool Store sidebar (?server=<name>): open that
+  // server's tools panel once the list is loaded, then strip the param.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const target = params.get("server");
+    if (!target) return;
+    const srv = servers.find((s) => s.name === target);
+    if (srv) {
+      setToolsServer(srv);
+      setParams({}, { replace: true });
+    }
+  }, [params, servers, setParams]);
 
   const filtered = servers.filter(
     (s) =>
