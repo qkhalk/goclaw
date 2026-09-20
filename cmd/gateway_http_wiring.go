@@ -33,6 +33,7 @@ type httpHandlers struct {
 	secureCLI        *httpapi.SecureCLIHandler
 	secureCLIGrant   *httpapi.SecureCLIGrantHandler
 	mcpUserCreds     *httpapi.MCPUserCredentialsHandler
+	mcpInstall       *httpapi.MCPInstallHandler
 	mcpOAuth         *httpapi.MCPOAuthHandler
 }
 
@@ -64,6 +65,12 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 			h.mcp.SetPoolEvictor(mcpPool)
 		}
 		d.server.SetMCPHandler(h.mcp)
+	}
+	if h.mcpInstall != nil {
+		if mcpPool != nil {
+			h.mcpInstall.SetPoolEvictor(mcpPool)
+		}
+		d.server.SetMCPInstallHandler(h.mcpInstall)
 	}
 	if h.mcpUserCreds != nil {
 		d.server.SetMCPUserCredentialsHandler(h.mcpUserCreds)
