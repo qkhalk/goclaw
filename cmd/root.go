@@ -53,6 +53,7 @@ func init() {
 	rootCmd.AddCommand(runsCmd())
 	rootCmd.AddCommand(evalCmd())
 	rootCmd.AddCommand(workflowCmd())
+	rootCmd.AddCommand(mcpCmd())
 	rootCmd.AddCommand(migrateCmd())
 	rootCmd.AddCommand(upgradeCmd())
 	rootCmd.AddCommand(backupCmd())
