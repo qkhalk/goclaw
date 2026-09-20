@@ -41,24 +41,50 @@ export interface CloudBinding {
   priority: number;
 }
 
-export type CloudProvider = "google" | "onedrive" | "s3" | "b2" | "pcloud" | "webdav";
+export type CloudProvider =
+  | "google"
+  | "onedrive"
+  | "dropbox"
+  | "yandex"
+  | "s3"
+  | "b2"
+  | "pcloud"
+  | "webdav"
+  | "azureblob"
+  | "gcs"
+  | "ftp"
+  | "sftp"
+  | "smb";
 
 /** Credential-based provider ids (typed keys/passwords — no OAuth flow).
  * KEEP IN SYNC with the backend registry in internal/cloud/providers.go:
  * same ids, same field keys (they are the API param names), same required /
- * password flags. Field labels/hints live in i18n (cloud:credentials.fields). */
-export type CredentialProviderId = "s3" | "b2" | "pcloud" | "webdav";
+ * secret flags. Field labels/hints live in i18n (cloud:credentials.fields). */
+export type CredentialProviderId = "s3" | "b2" | "pcloud" | "webdav" | "azureblob" | "gcs" | "ftp" | "sftp" | "smb";
 
-export const CREDENTIAL_PROVIDER_IDS: CredentialProviderId[] = ["s3", "b2", "pcloud", "webdav"];
+export const CREDENTIAL_PROVIDER_IDS: CredentialProviderId[] = [
+  "s3",
+  "b2",
+  "pcloud",
+  "webdav",
+  "azureblob",
+  "gcs",
+  "ftp",
+  "sftp",
+  "smb",
+];
 
 export function isCredentialProvider(p: CloudProvider): p is CredentialProviderId {
   return (CREDENTIAL_PROVIDER_IDS as string[]).includes(p);
 }
 
-/** Frontend copy of one credential field spec (mirror of FieldSpec). */
+/** Frontend copy of one credential field spec (mirror of FieldSpec).
+ * "password" = masked single-line input; "secret_textarea" = multi-line
+ * secret (PEM key, service-account JSON) — both are stored server-side in
+ * the encrypted column, never in plaintext settings. */
 export interface CredentialFieldSpec {
   key: string;
-  type: "text" | "password";
+  type: "text" | "password" | "secret_textarea";
   required: boolean;
 }
 
@@ -83,6 +109,37 @@ export const CREDENTIAL_PROVIDER_FIELDS: Record<CredentialProviderId, Credential
     { key: "vendor", type: "text", required: false },
     { key: "user", type: "text", required: true },
     { key: "pass", type: "password", required: true },
+  ],
+  azureblob: [
+    { key: "account", type: "text", required: true },
+    { key: "key", type: "password", required: true },
+    { key: "endpoint", type: "text", required: false },
+  ],
+  gcs: [
+    { key: "service_account_credentials", type: "secret_textarea", required: true },
+    { key: "project_number", type: "text", required: true },
+  ],
+  ftp: [
+    { key: "host", type: "text", required: true },
+    { key: "port", type: "text", required: false },
+    { key: "user", type: "text", required: true },
+    { key: "pass", type: "password", required: true },
+    { key: "explicit_tls", type: "text", required: false },
+  ],
+  sftp: [
+    { key: "host", type: "text", required: true },
+    { key: "port", type: "text", required: false },
+    { key: "user", type: "text", required: true },
+    { key: "pass", type: "password", required: false },
+    { key: "key_pem", type: "secret_textarea", required: false },
+    { key: "key_file_pass", type: "password", required: false },
+  ],
+  smb: [
+    { key: "host", type: "text", required: true },
+    { key: "user", type: "text", required: true },
+    { key: "pass", type: "password", required: true },
+    { key: "domain", type: "text", required: false },
+    { key: "port", type: "text", required: false },
   ],
 };
 

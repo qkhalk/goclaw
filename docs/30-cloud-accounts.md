@@ -1,4 +1,4 @@
-# Clouds — Google Drive / OneDrive / Gmail (OAuth)
+# Clouds — Google Drive / OneDrive / Dropbox / Yandex / Gmail (OAuth) + Drive qua rclone
 
 Kết nối tài khoản cloud của bạn với GoClaw để agent đọc/tìm kiếm/dọn hộp thư
 (Gmail) và duyệt/tải file Drive/OneDrive. Tài khoản thuộc về **mỗi user** —
@@ -46,20 +46,23 @@ thu hồi sẽ tự nhảy xuống phạm vi thấp hơn thay vì chặn cả ph
 Từ v4.0.6, GoClaw nhúng sẵn **OAuth client dùng chung của rclone** (cùng cơ
 chế với rclone CLI). Không cần cấu hình gì:
 
-1. Trang **Clouds** → chọn **Google Drive** hoặc **Microsoft OneDrive** →
-   bấm **Kết nối**.
-2. Trình duyệt mở trang đồng ý của Google/Microsoft (bạn sẽ thấy tên app
-   "rclone" — đúng như vậy, storage đi qua engine rclone).
+1. Trang **Clouds** → chọn provider (Google Drive, Microsoft OneDrive,
+   **Dropbox**, **Yandex Disk**) → bấm **Kết nối**.
+2. Trình duyệt mở trang đồng ý của Google/Microsoft/Dropbox/Yandex (bạn sẽ
+   thấy tên app "rclone" — đúng như vậy, storage đi qua engine rclone).
 3. Sau khi đồng ý, trình duyệt dừng ở một trang **không tải được**
    (`http://127.0.0.1:53682/...`) — đó là bình thường. **Copy toàn bộ URL
    trên thanh địa chỉ**, dán vào ô trên trang Clouds rồi bấm **Hoàn tất**.
 
 Giới hạn của đường zero-config (do dùng client dùng chung):
 
-- **Quota chia sẻ** với toàn bộ người dùng rclone — Google/Microsoft có thể
-  throttle khi quá tải.
+- **Quota chia sẻ** với toàn bộ người dùng rclone — Dropbox throttle mạnh nhất;
+  Google/Microsoft có thể throttle khi quá tải.
 - Google chỉ cấp scope **Drive (đọc)** — **không có Gmail**. Muốn dùng mail
   tools, hãy cấu hình OAuth client riêng (phần dưới).
+- Dropbox cấp scope granular (files.metadata/content/sharing/account_info) —
+  đủ đọc/ghi/đổi tên/tạo link; Yandex cấp quyền **Yandex Disk REST API** ở
+  mức app.
 - rclone có thể rotate secret trong bản phát hành tương lai; khi đó cần cập
   nhật GoClaw.
 - Refresh token gắn với client đã cấp quyền: tài khoản kết nối nhanh luôn
@@ -124,6 +127,9 @@ Biến môi trường (`.env.local`):
 
 ```
 GOCLAW_CLOUD_GOOGLE_CLIENT_SECRET=GOCSPX-...
+# Dropbox / Yandex BYO (tùy chọn — không có thì dùng client nhúng của rclone):
+GOCLAW_CLOUD_DROPBOX_CLIENT_SECRET=...
+GOCLAW_CLOUD_YANDEX_CLIENT_SECRET=...
 ```
 
 Khởi động lại gateway → trang **Cloud** hiện nút **Connect Google**.
@@ -163,7 +169,7 @@ nó). Nếu token trong GoClaw hết hiệu lực (đổi mật khẩu Google, t
 | `DELETE /v1/cloud/accounts/{id}` | Ngắt kết nối |
 | `POST /v1/cloud/oauth/google/start` | Lấy `auth_url` + `redirect_uri` |
 | `GET /v1/cloud/oauth/callback` | Redirect target của Google (state ký HMAC) |
-| `POST /v1/cloud/connect` | Kết nối provider dùng key/token (s3, b2, pcloud, webdav): `{"provider","displayName","params"}` — params lọc theo whitelist từng provider, secret lưu mã hóa; probe rclone trước khi lưu, sai key → `400` kèm lỗi rclone |
+| `POST /v1/cloud/connect` | Kết nối provider dùng key/token (s3, b2, azureblob, gcs, pcloud, webdav, ftp, sftp, smb): `{"provider","displayName","params"}` — params lọc theo whitelist từng provider, secret lưu mã hóa; probe rclone trước khi lưu, sai key → `400` kèm lỗi rclone |
 
 ### File operations (ghi trên Drive)
 

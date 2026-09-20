@@ -207,9 +207,11 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GOCLAW_VERTEX_MODEL", &c.Providers.Vertex.Model)
 	envStr("GOCLAW_GATEWAY_TOKEN", &c.Gateway.Token)
 	envStr("GOCLAW_MCP_SERVER_TOKEN", &c.Gateway.MCPServerToken)
-	// Cloud accounts (Google/Microsoft OAuth client secrets — never in config.json).
+	// Cloud accounts (OAuth client secrets — never in config.json).
 	envStr("GOCLAW_CLOUD_GOOGLE_CLIENT_SECRET", &c.Cloud.Google.ClientSecret)
 	envStr("GOCLAW_CLOUD_MICROSOFT_CLIENT_SECRET", &c.Cloud.Microsoft.ClientSecret)
+	envStr("GOCLAW_CLOUD_DROPBOX_CLIENT_SECRET", &c.Cloud.Dropbox.ClientSecret)
+	envStr("GOCLAW_CLOUD_YANDEX_CLIENT_SECRET", &c.Cloud.Yandex.ClientSecret)
 	// Video render pipeline worker secret (never in config.json).
 	envStr("GOCLAW_VIDEO_WORKER_TOKEN", &c.Video.WorkerToken)
 	// Additional model providers (OpenClaw-parity set).

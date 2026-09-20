@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Cloud, Cloudy, Database, Globe, HardDrive, KeyRound, Server, Settings2 } from "lucide-react";
+import { Archive, ArrowDownUp, Box, Boxes, Cloud, CloudCog, Cloudy, Database, Globe, HardDrive, KeyRound, Network, Server, Settings2, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -53,10 +53,17 @@ export function getShowHiddenFiles(): boolean {
 const PROVIDER_OPTIONS: { id: CloudProvider; label: string; icon: typeof Cloud }[] = [
   { id: "google", label: "Google Drive", icon: Cloud },
   { id: "onedrive", label: "Microsoft OneDrive", icon: HardDrive },
+  { id: "dropbox", label: "Dropbox", icon: Box },
+  { id: "yandex", label: "Yandex Disk", icon: CloudCog },
   { id: "s3", label: "Amazon S3 / compatible", icon: Database },
   { id: "b2", label: "Backblaze B2", icon: Server },
+  { id: "azureblob", label: "Azure Blob Storage", icon: Boxes },
+  { id: "gcs", label: "Google Cloud Storage", icon: Archive },
   { id: "pcloud", label: "pCloud", icon: Cloudy },
   { id: "webdav", label: "WebDAV", icon: Globe },
+  { id: "ftp", label: "FTP", icon: ArrowDownUp },
+  { id: "sftp", label: "SFTP / SSH", icon: Terminal },
+  { id: "smb", label: "SMB", icon: Network },
 ];
 
 /** Cloud settings modal — centered dialog in the same style as the Overview

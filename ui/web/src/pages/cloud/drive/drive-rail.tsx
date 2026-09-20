@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Building2, ChevronDown, Clock, Cloud, HardDrive, Inbox, Loader2, Star } from "lucide-react";
+import { Building2, Box, ChevronDown, Clock, Cloud, CloudCog, HardDrive, Inbox, Loader2, Star } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
@@ -25,6 +25,8 @@ const RAIL_ROW =
 export const CLOUD_PROVIDERS: { id: CloudProvider; name: string; icon: typeof Cloud }[] = [
   { id: "google", name: "Google Drive", icon: Cloud },
   { id: "onedrive", name: "Microsoft OneDrive", icon: HardDrive },
+  { id: "dropbox", name: "Dropbox", icon: Box },
+  { id: "yandex", name: "Yandex Disk", icon: CloudCog },
 ];
 
 /** rclone quota for one account (GET /v1/cloud/accounts/{id}/about). */

@@ -66,10 +66,10 @@ func (s *StorageService) RemoveRemote(ctx context.Context, accountID string) {
 // resolveAccount picks by email/ID when given, else per-scope bindings
 // (group → user → tenant default) and finally the caller's own accounts —
 // including tenant-shared ones (the enterprise "company drive" pattern).
-// Credential-based providers (s3, b2, pcloud, webdav) are appended to the
-// binding preference order so per-scope rules can pin them too.
+// Credential-based providers are appended to the binding preference order so
+// per-scope rules can pin them too.
 func (s *StorageService) resolveAccount(ctx context.Context, name string) (*store.CloudAccount, error) {
-	providers := append([]string{GoogleProvider, MicrosoftProvider}, CredentialProviderIDs()...)
+	providers := append([]string{GoogleProvider, MicrosoftProvider, DropboxProvider, YandexProvider}, CredentialProviderIDs()...)
 	return s.manager.ResolveAccount(ctx, name, providers, func(a *store.CloudAccount) bool {
 		return isStorageProvider(a.Provider)
 	})
@@ -79,7 +79,7 @@ func (s *StorageService) resolveAccount(ctx context.Context, name string) (*stor
 // the OAuth providers plus every credential-based provider in the registry.
 func isStorageProvider(provider string) bool {
 	switch provider {
-	case GoogleProvider, MicrosoftProvider:
+	case GoogleProvider, MicrosoftProvider, DropboxProvider, YandexProvider:
 		return true
 	default:
 		return IsCredentialProvider(provider)
@@ -156,7 +156,12 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 	tokenJSON, _ := json.Marshal(token)
 	params := map[string]any{"token": string(tokenJSON)}
 	remoteType := "drive"
-	if acct.Provider == MicrosoftProvider {
+	switch acct.Provider {
+	case DropboxProvider:
+		remoteType = "dropbox"
+	case YandexProvider:
+		remoteType = "yandex"
+	case MicrosoftProvider:
 		// The onedrive backend refuses to auto-pick a drive non-interactively:
 		// drive_id (resolved at connect time via Graph /me/drives) is required.
 		remoteType = "onedrive"

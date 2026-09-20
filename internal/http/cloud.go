@@ -143,19 +143,22 @@ func (h *CloudHandler) RegisterRoutes(mux *http.ServeMux) {
 // --- GET /v1/cloud/status ---
 
 func (h *CloudHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
-	googleConfigured := h.manager != nil && h.manager.GoogleConfigured(r.Context())
-	microsoftConfigured := h.manager != nil && h.manager.MicrosoftConfigured(r.Context())
+	// Every OAuth provider reports "configured" (the embedded shared clients
+	// are always available); credential providers come from the registry.
+	// No h.available() gate here by design: the status payload is how the UI
+	// learns the surface is disabled — it must answer, not 403.
+	configured := map[string]bool{}
+	if h.manager != nil {
+		for _, p := range cloudmgr.SupportedProviders {
+			configured[p] = h.manager.ProviderConfigured(r.Context(), p)
+		}
+	}
+	enabled := h.enabled && (h.manager != nil && (h.manager.GoogleConfigured(r.Context()) || h.manager.MicrosoftConfigured(r.Context()) ||
+		h.manager.DropboxConfigured(r.Context()) || h.manager.YandexConfigured(r.Context())))
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled": h.enabled && (googleConfigured || microsoftConfigured),
-		"edition": h.editionName(),
-		"providers": map[string]any{
-			"google": map[string]bool{
-				"configured": googleConfigured,
-			},
-			"onedrive": map[string]bool{
-				"configured": microsoftConfigured,
-			},
-		},
+		"enabled":   enabled,
+		"edition":   h.editionName(),
+		"providers": configured,
 	})
 }
 
@@ -181,9 +184,14 @@ func (h *CloudHandler) handleGetSettings(w http.ResponseWriter, r *http.Request)
 	provider := h.requestProvider(r)
 	var clientID string
 	var secretSet bool
-	if provider == cloudmgr.MicrosoftProvider {
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		clientID, secretSet = h.manager.MicrosoftCredentialsStatus(r.Context())
-	} else {
+	case cloudmgr.DropboxProvider:
+		clientID, secretSet = h.manager.DropboxCredentialsStatus(r.Context())
+	case cloudmgr.YandexProvider:
+		clientID, secretSet = h.manager.YandexCredentialsStatus(r.Context())
+	default:
 		clientID, secretSet = h.manager.GoogleCredentialsStatus(r.Context())
 	}
 	writeJSON(w, http.StatusOK, cloudSettingsView{
@@ -221,10 +229,15 @@ func (h *CloudHandler) handlePutSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	// First-time save requires a secret; updates may omit it (keep existing).
-	alreadySet := false
-	if provider == cloudmgr.MicrosoftProvider {
+	var alreadySet bool
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		_, alreadySet = h.manager.MicrosoftCredentialsStatus(r.Context())
-	} else {
+	case cloudmgr.DropboxProvider:
+		_, alreadySet = h.manager.DropboxCredentialsStatus(r.Context())
+	case cloudmgr.YandexProvider:
+		_, alreadySet = h.manager.YandexCredentialsStatus(r.Context())
+	default:
 		_, alreadySet = h.manager.GoogleCredentialsStatus(r.Context())
 	}
 	if !alreadySet && in.ClientSecret == "" {
@@ -232,9 +245,14 @@ func (h *CloudHandler) handlePutSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var err error
-	if provider == cloudmgr.MicrosoftProvider {
+	switch provider {
+	case cloudmgr.MicrosoftProvider:
 		err = h.manager.SaveMicrosoftCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
-	} else {
+	case cloudmgr.DropboxProvider:
+		err = h.manager.SaveDropboxCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
+	case cloudmgr.YandexProvider:
+		err = h.manager.SaveYandexCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
+	default:
 		err = h.manager.SaveGoogleCredentials(r.Context(), in.ClientID, strings.TrimSpace(in.ClientSecret))
 	}
 	if err != nil {
@@ -1660,10 +1678,11 @@ type cloudConnectInput struct {
 }
 
 // handleConnectCredentials connects a credential-based provider (s3, b2,
-// pcloud, webdav): registry validation → rclone probe (ensureRemote +
-// operations/about) → persist. A failed probe answers 400 with rclone's own
-// error text and NOTHING is persisted; the just-created remote is deleted so
-// bad credentials never linger in rclone.conf.
+// pcloud, webdav, azureblob, gcs, ftp, sftp, smb): registry validation →
+// rclone probe (ensureRemote + operations/about, or a root listing for
+// backends declared ProbeViaList) → persist. A failed probe answers 400 with
+// rclone's own error text and NOTHING is persisted; the just-created remote
+// is deleted so bad credentials never linger in rclone.conf.
 func (h *CloudHandler) handleConnectCredentials(w http.ResponseWriter, r *http.Request) {
 	if !h.available(w, r) {
 		return
@@ -1678,7 +1697,8 @@ func (h *CloudHandler) handleConnectCredentials(w http.ResponseWriter, r *http.R
 		return
 	}
 	in.Provider = strings.TrimSpace(in.Provider)
-	if _, ok := cloudmgr.CredentialProviderByID(in.Provider); !ok {
+	spec, ok := cloudmgr.CredentialProviderByID(in.Provider)
+	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
 		return
 	}
@@ -1700,9 +1720,17 @@ func (h *CloudHandler) handleConnectCredentials(w http.ResponseWriter, r *http.R
 	}
 
 	// Probe before persisting: proves the typed credentials actually work.
-	// aboutUnsupported falls back to a root listing for backends without a
-	// quota endpoint (auth is still proven).
-	if _, perr := st.AboutAccount(r.Context(), acct); perr != nil {
+	// Backends declared ProbeViaList have no operations/about in rclone —
+	// a root listing proves auth instead. The aboutUnsupported string-match
+	// fallback stays for the remaining backends' error variants.
+	if spec.ProbeViaList {
+		if _, lerr := st.ListAccount(r.Context(), acct, "/", 1); lerr != nil {
+			st.RemoveRemote(r.Context(), acct.ID)
+			slog.Warn("cloud: credential probe failed", "provider", acct.Provider, "error", lerr)
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": lerr.Error()})
+			return
+		}
+	} else if _, perr := st.AboutAccount(r.Context(), acct); perr != nil {
 		if errors.Is(perr, cloudmgr.ErrRCloneMissing) {
 			h.storageError(w, perr)
 			return

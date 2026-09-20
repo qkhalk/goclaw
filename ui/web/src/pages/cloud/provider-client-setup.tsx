@@ -85,7 +85,9 @@ export function ProviderClientSetup({ provider }: { provider: CloudProvider }) {
 
   const configuredOnce = settings?.secret_set ?? false;
   const stepKey = (n: number) => t(`setup.${provider}_step${n}`);
-  const title = t(provider === "google" ? "setup.title_google" : "setup.title_onedrive");
+  // Per-provider setup guide title (setup.title_google / title_onedrive /
+  // title_dropbox / title_yandex).
+  const title = t(`setup.title_${provider}`);
 
   const header = (
     <button

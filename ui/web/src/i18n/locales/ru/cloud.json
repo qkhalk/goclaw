@@ -5,7 +5,9 @@
   "connect": {
     "google": "Подключить аккаунт Google",
     "onedrive": "Подключить аккаунт OneDrive",
-    "another": "Подключить другой аккаунт"
+    "another": "Подключить другой аккаунт",
+    "dropbox": "Подключить аккаунт Dropbox",
+    "yandex": "Подключить аккаунт Yandex Disk"
   },
   "disconnect": "Отключить",
   "readonly_badge": "Только чтение",
@@ -36,7 +38,9 @@
     "coming_soon": "Скоро",
     "google_desc": "Google Drive через ваш собственный OAuth-клиент GCP. Включая инструменты Gmail.",
     "onedrive_desc": "Microsoft OneDrive (личный или рабочий/учебный) через ваше собственное приложение Azure.",
-    "more_via_rclone": "Больше хранилищ (Dropbox, S3, WebDAV, …) планируется на том же движке rclone"
+    "more_via_rclone": "Больше хранилищ (Dropbox, S3, WebDAV, …) планируется на том же движке rclone",
+    "dropbox_desc": "Dropbox через встроенный клиент rclone — настройка не нужна. Создайте своё приложение для большей квоты.",
+    "yandex_desc": "Yandex Disk через встроенный клиент rclone — настройка не нужна. Создайте своё приложение для большей квоты."
   },
   "provider": {
     "back": "Все провайдеры",
@@ -66,7 +70,19 @@
     "embedded_note": "Быстрое подключение использует общий OAuth-клиент rclone — настройка не нужна, но действуют общие лимиты. Общий клиент теперь выдаёт полный доступ к Drive. Инструментам Gmail по-прежнему нужен собственный OAuth-клиент (см. настройки облаков).",
     "showMore": "Показать настройку",
     "showLess": "Скрыть настройку",
-    "requiredHint": "Требуется настройка"
+    "requiredHint": "Требуется настройка",
+    "title_dropbox": "Dropbox ещё не настроен",
+    "title_yandex": "Yandex Disk ещё не настроен",
+    "dropbox_client_id": "App key приложения Dropbox",
+    "yandex_client_id": "App ID Яндекса (client_id)",
+    "dropbox_step1": "Создайте \"Scoped app\" в консоли Dropbox и включите разрешения: files.metadata.write, files.content.write, files.content.read, sharing.write, account_info.read.",
+    "dropbox_step2": "В Settings → OAuth2 выберите тип доступа (\"Full Dropbox\" — при выборе App folder диск начинается внутри этой папки).",
+    "dropbox_step3": "Введите App key и App secret ниже и нажмите «Сохранить» — учётные данные шифруются, и эта форма больше не появится.",
+    "dropbox_step4": "Зарегистрируйте этот redirect URI в приложении Dropbox (Settings → OAuth2 → Redirect URIs):",
+    "yandex_step1": "Создайте новое приложение на oauth.yandex.com и включите доступ \"Yandex Disk REST API\" (чтение и запись).",
+    "yandex_step2": "На вкладке Platforms выберите «Веб-сервисы», задайте, кому доступно приложение, и подготовьте Callback URI из шага 4.",
+    "yandex_step3": "Введите App ID (client_id) и Client secret ниже и нажмите «Сохранить» — учётные данные шифруются, и эта форма больше не появится.",
+    "yandex_step4": "Зарегистрируйте этот redirect URI в приложении Яндекса (Platforms → Веб-сервисы → Callback URI):"
   },
   "disconnect_confirm": {
     "title": "Отключить аккаунт?",
@@ -359,13 +375,70 @@
         "user_hint": "Ваш логин WebDAV.",
         "pass": "Пароль",
         "pass_hint": "Ваш пароль WebDAV или пароль приложения."
+      },
+      "azureblob": {
+        "account": "Имя учётной записи хранилища",
+        "account_hint": "Имя вашей учётной записи хранилища Azure.",
+        "key": "Ключ учётной записи хранилища",
+        "key_hint": "Ключ доступа учётной записи хранилища (Настройки → Ключи доступа).",
+        "endpoint": "Endpoint",
+        "endpoint_hint": "напр. https://<account>.blob.core.windows.net — необязательно; plain http для Azurite."
+      },
+      "gcs": {
+        "service_account_credentials": "JSON сервисного аккаунта",
+        "service_account_credentials_hint": "Вставьте весь JSON-файл ключа сервисного аккаунта (Google Cloud → IAM и администрирование → Сервисные аккаунты → Ключи).",
+        "project_number": "Номер проекта",
+        "project_number_hint": "Номер вашего проекта Google Cloud — нужен для списка корзин."
+      },
+      "ftp": {
+        "host": "Хост",
+        "host_hint": "Имя хоста или IP-адрес, без схемы.",
+        "port": "Порт",
+        "port_hint": "Пусто — порт по умолчанию 21.",
+        "user": "Имя пользователя",
+        "user_hint": "\"anonymous\" для публичных FTP-серверов.",
+        "pass": "Пароль",
+        "pass_hint": "Ваш пароль FTP.",
+        "explicit_tls": "Явный TLS (FTPS)",
+        "explicit_tls_hint": "true для FTPS, false (или пусто) для обычного FTP."
+      },
+      "sftp": {
+        "host": "Хост",
+        "host_hint": "Имя хоста или IP-адрес, без схемы.",
+        "port": "Порт",
+        "port_hint": "Пусто — порт по умолчанию 22.",
+        "user": "Имя пользователя",
+        "user_hint": "Ваш логин SSH.",
+        "pass": "Пароль",
+        "pass_hint": "Ваш пароль SSH — или оставьте пустым и используйте приватный ключ ниже.",
+        "key_pem": "Приватный ключ (PEM)",
+        "key_pem_hint": "Вставьте незашифрованный приватный ключ (OpenSSH или PEM). Переносы строк обрабатываются автоматически.",
+        "key_file_pass": "Парольная фраза ключа",
+        "key_file_pass_hint": "Только для приватных ключей, защищённых фразой."
+      },
+      "smb": {
+        "host": "Хост",
+        "host_hint": "Имя хоста или IP-адрес NAS/Windows-машины.",
+        "user": "Имя пользователя",
+        "user_hint": "Ваш пользователь SMB — \"guest\" для гостевых ресурсов.",
+        "pass": "Пароль",
+        "pass_hint": "Ваш пароль SMB.",
+        "domain": "Домен",
+        "domain_hint": "Пусто — WORKGROUP по умолчанию.",
+        "port": "Порт",
+        "port_hint": "Пусто — порт по умолчанию 445."
       }
     },
     "providers": {
       "s3": "Amazon S3 / совместимые",
       "b2": "Backblaze B2",
       "pcloud": "pCloud",
-      "webdav": "WebDAV"
+      "webdav": "WebDAV",
+      "azureblob": "Azure Blob Storage",
+      "gcs": "Google Cloud Storage",
+      "ftp": "FTP",
+      "sftp": "SFTP / SSH",
+      "smb": "SMB"
     }
   }
 }
