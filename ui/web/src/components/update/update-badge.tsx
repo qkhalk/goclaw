@@ -100,7 +100,7 @@ export function UpdateBadge({ collapsed }: { collapsed?: boolean }) {
         );
         return;
       }
-      let up = true;
+      let up: boolean;
       try {
         const res = await fetch("/health", { cache: "no-store" });
         up = res.ok;
