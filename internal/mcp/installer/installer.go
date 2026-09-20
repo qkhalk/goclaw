@@ -33,6 +33,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/mcp"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	mcpcatalog "github.com/nextlevelbuilder/goclaw/mcp"
 )
 
 // Step names one pipeline phase; the HTTP job surfaces them as progress.
@@ -203,7 +204,7 @@ func (in *Installer) preflight(ctx context.Context, req *Request, progress Progr
 	}
 	// Refs must be tags or commits — reject branch-ish/option-shaped values
 	// before any network work (mutable tracking is a deliberate non-goal).
-	if !refRe.MatchString(req.Ref) {
+	if !mcpcatalog.RefPattern.MatchString(req.Ref) {
 		return fmt.Errorf("invalid ref %q (use a tag like v1.0.0 or a commit SHA)", req.Ref)
 	}
 
@@ -246,10 +247,6 @@ func (in *Installer) preflight(ctx context.Context, req *Request, progress Progr
 	progress(StepPreflight, 5, fmt.Sprintf("preflight ok: %s @ %s (%s)", req.Repo, req.Ref, req.Runtime))
 	return nil
 }
-
-// refRe accepts release tags, commit SHAs and simple names — never a leading
-// dash (option injection into git argv).
-var refRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$`)
 
 // defaultRef derives the install ref from the running version so catalog
 // installs always match the manifests shipped in the binary.

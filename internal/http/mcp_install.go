@@ -34,6 +34,8 @@ type MCPInstallHandler struct {
 	mu      sync.Mutex
 	jobs    map[string]*mcpInstallJob
 	running bool // single-flight: one install pipeline at a time
+
+	dynCatalog *dynamicCatalogCache // lazily initialized; background-refreshed
 }
 
 // NewMCPInstallHandler wires the installer surface. dataDir is the resolved
@@ -179,6 +181,7 @@ type catalogEntry struct {
 	mcpcatalog.Manifest
 	Repo      string                     `json:"repo"` // resolved (manifest pin or default)
 	Installed bool                       `json:"installed"`
+	Dynamic   bool                       `json:"dynamic"` // discovered from the catalog repo's latest release (not embedded)
 	Package   *store.MCPInstalledPackage `json:"package,omitempty"`
 }
 
@@ -200,8 +203,13 @@ func (h *MCPInstallHandler) handleCatalog(w http.ResponseWriter, r *http.Request
 	}
 
 	entries := make([]catalogEntry, 0)
-	for _, m := range mcpcatalog.Entries() {
-		e := catalogEntry{Manifest: m}
+	seen := map[string]bool{}
+	addEntry := func(m mcpcatalog.Manifest, dynamic bool) {
+		if seen[m.Name] {
+			return
+		}
+		seen[m.Name] = true
+		e := catalogEntry{Manifest: m, Dynamic: dynamic}
 		if m.Repo != "" {
 			e.Repo = m.Repo
 		} else {
@@ -213,6 +221,16 @@ func (h *MCPInstallHandler) handleCatalog(w http.ResponseWriter, r *http.Request
 			e.Package = &pkg
 		}
 		entries = append(entries, e)
+	}
+	for _, m := range mcpcatalog.Entries() {
+		addEntry(m, false)
+	}
+	// Dynamic entries from the catalog repo's latest release tag appear
+	// without a gateway upgrade; embedded curated entries win on conflict.
+	if st := h.dynamicSnapshot(); st != nil {
+		for _, m := range st.entries {
+			addEntry(m, true)
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"entries":      entries,
@@ -269,7 +287,14 @@ func (h *MCPInstallHandler) handleInstall(w http.ResponseWriter, r *http.Request
 	// Resolve catalog entry when only a name is given; otherwise every
 	// custom field must be present and valid on its own.
 	ireq := installer.Request{CreatedBy: store.UserIDFromContext(r.Context())}
-	if m := mcpcatalog.Find(req.Name); req.Repo == "" && m != nil {
+	var catManifest *mcpcatalog.Manifest
+	if m := mcpcatalog.Find(req.Name); m != nil {
+		catManifest = m
+	} else {
+		catManifest = h.findDynamic(req.Name)
+	}
+	if req.Repo == "" && catManifest != nil {
+		m := catManifest
 		ireq.Name = m.Name
 		ireq.DisplayName = m.DisplayName
 		ireq.Source = "catalog"
