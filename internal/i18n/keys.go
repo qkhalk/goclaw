@@ -333,6 +333,9 @@ const (
 	MsgTtsParamOutOfRange     = "error.tts_param_out_of_range"    // "TTS param %q value %v is out of range [%v, %v]"
 	MsgTtsParamUnknownKey     = "error.tts_param_unknown_key"     // "TTS param %q is not supported by this provider"
 	MsgTtsMiniMaxVoicesFailed = "error.tts_minimax_voices_failed" // "failed to fetch MiniMax voices: %s"
+	MsgTtsCloneNotConfigured  = "error.tts_clone_not_configured"  // "voice clone worker is not configured (set tts.clone.endpoint)"
+	MsgTtsCloneNameInvalid    = "error.tts_clone_name_invalid"    // "voice name is required (max %d characters)"
+	MsgTtsCloneIDInvalid      = "error.tts_clone_id_invalid"      // "invalid voice id (allowed: letters, digits, dash, underscore)"
 
 	// --- STT ---
 	MsgSTTAllProvidersFailed     = "error.stt_all_providers_failed"    // "All STT providers failed"
@@ -449,7 +452,9 @@ const (
 	MsgTGAskOther            = "telegram.ask.other"             // "Other"
 	MsgTGAskOtherHint        = "telegram.ask.otherhint"         // "✏️ Reply to this message with your answer."
 	MsgTGAskAnswered         = "telegram.ask.answered"          // "✓ Answered: %s → %s"
-	MsgTGLangTitle           = "telegram.language.title"       // "Language for this chat — pick one:"
+	MsgTGAskConfirm          = "telegram.ask.confirm"           // "Confirm"
+	MsgTGAskBack             = "telegram.ask.back"              // "Back"
+	MsgTGLangTitle           = "telegram.language.title"        // "Language for this chat — pick one:"
 	MsgTGLangUnavailable     = "telegram.language.unavailable"  // "Language preferences are not available (no session store configured)."
 	MsgTGLangCurrent         = "telegram.language.current"      // "🌐 Language: %s"
 	MsgTGLangSetHint         = "telegram.language.sethint"      // "Set: /language %s"
@@ -457,7 +462,7 @@ const (
 	MsgTGLangSet             = "telegram.language.set"          // "🌐 %s ✓"
 	MsgTGStatusUnavailable   = "telegram.status.unavailable"    // "Status is not available (no provider configured)."
 	MsgTGStatusUptime        = "telegram.status.uptime"         // "⏱️ Uptime: gateway %s"
-	MsgTGStatusUptimeUnknown = "telegram.status.uptimeunknown" // "⏱️ Uptime: gateway unknown"
+	MsgTGStatusUptimeUnknown = "telegram.status.uptimeunknown"  // "⏱️ Uptime: gateway unknown"
 	MsgTGStatusSysUptime     = "telegram.status.sysuptime"      // " · system %s"
 	MsgTGStatusAgentModel    = "telegram.status.agentmodel"     // "🤖 Agent: %s · 🧠 Model: %s"
 	MsgTGStatusSessUpdShort  = "telegram.status.sessupdshort"   // "🧵 Session updated %s"
@@ -475,11 +480,11 @@ const (
 	MsgTGStatusFullHint      = "telegram.status.fullhint"       // "/status full — show everything"
 
 	// --- Video render pipeline ---
-	MsgVideoJobCreated   = "video.job_created"   // "video render job %s created"
-	MsgVideoJobFailed    = "video.job_failed"    // "video render job %s failed: %s"
-	MsgVideoJobCancelled = "video.job_cancelled" // "video render job %s cancelled"
-	MsgVideoJobDone      = "video.job_done"      // "video render job %s completed"
-	MsgVideoDisabled     = "video.disabled"      // "video rendering is not enabled on this gateway"
+	MsgVideoJobCreated    = "video.job_created"        // "video render job %s created"
+	MsgVideoJobFailed     = "video.job_failed"         // "video render job %s failed: %s"
+	MsgVideoJobCancelled  = "video.job_cancelled"      // "video render job %s cancelled"
+	MsgVideoJobDone       = "video.job_done"           // "video render job %s completed"
+	MsgVideoDisabled      = "video.disabled"           // "video rendering is not enabled on this gateway"
 	MsgVideoWorkerUnavail = "video.worker_unavailable" // "video worker is not reachable"
 
 	// --- Per-agent file/cloud capability policy (tool execution denials) ---

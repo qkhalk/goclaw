@@ -3063,6 +3063,7 @@ CREATE TABLE IF NOT EXISTS cloud_accounts (
     status_message   TEXT NOT NULL DEFAULT '',
     settings         TEXT NOT NULL DEFAULT '{}',
     shared           INTEGER NOT NULL DEFAULT 0,
+    agent_access     TEXT NOT NULL DEFAULT 'read',
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -3164,3 +3165,26 @@ CREATE INDEX IF NOT EXISTS idx_video_jobs_status
     ON video_render_jobs (status);
 CREATE INDEX IF NOT EXISTS idx_video_jobs_expires
     ON video_render_jobs (expires_at);
+
+CREATE TABLE IF NOT EXISTS mcp_installed_packages (
+    id           TEXT NOT NULL PRIMARY KEY,
+    tenant_id    TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name         TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    source       TEXT NOT NULL DEFAULT 'catalog',
+    repo         TEXT NOT NULL,
+    ref          TEXT NOT NULL,
+    commit_sha   TEXT NOT NULL DEFAULT '',
+    runtime      TEXT NOT NULL,
+    entry        TEXT NOT NULL,
+    install_dir  TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'installing',
+    error        TEXT,
+    tool_count   INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (tenant_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_installed_packages_tenant
+    ON mcp_installed_packages (tenant_id);

@@ -75,6 +75,8 @@ func wireExtraTools(
 	toolsReg.Register(tools.NewSessionStatusTool())
 	toolsReg.Register(tools.NewSessionsHistoryTool())
 	toolsReg.Register(tools.NewSessionsSendTool())
+	// Plan tool (per-session checklist the user watches as a live card)
+	toolsReg.Register(tools.NewPlanTool())
 
 	// Message tool (send to channels)
 	toolsReg.Register(tools.NewMessageTool(workspace, agentCfg.RestrictToWorkspace))
@@ -153,7 +155,7 @@ func wireExtraTools(
 	hasMemory = true
 
 	// Wire SessionStoreAware + BusAware on session tools
-	for _, name := range []string{"sessions_list", "session_status", "sessions_history", "sessions_send"} {
+	for _, name := range []string{"sessions_list", "session_status", "sessions_history", "sessions_send", "plan"} {
 		if t, ok := toolsReg.Get(name); ok {
 			if sa, ok := t.(tools.SessionStoreAware); ok {
 				sa.SetSessionStore(pgStores.Sessions)

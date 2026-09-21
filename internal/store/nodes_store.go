@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -62,12 +63,7 @@ type Node struct {
 
 // HasCapability reports whether the node advertised the given capability.
 func (n *Node) HasCapability(cap string) bool {
-	for _, c := range n.Capabilities {
-		if c == cap {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(n.Capabilities, cap)
 }
 
 // NodeStore persists the compute-node registry. Implementations must scope

@@ -105,6 +105,7 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		{Name: "session_status", DisplayName: "Session Status", Description: "Get the current status and metadata of a specific chat session", Category: "sessions", Enabled: true},
 		{Name: "sessions_history", DisplayName: "Session History", Description: "Retrieve the message history of a specific chat session", Category: "sessions", Enabled: true},
 		{Name: "sessions_send", DisplayName: "Send to Session", Description: "Send a message to an active chat session on behalf of the agent", Category: "sessions", Enabled: true},
+		{Name: "plan", DisplayName: "Plan", Description: "Maintain a visible task plan (checklist) for the current session; persists across turns and renders as a live card in web chat", Category: "sessions", Enabled: true},
 
 		// messaging
 		{Name: "message", DisplayName: "Message", Description: "Send a proactive message to a user on a connected channel (Telegram, Discord, etc.)", Category: "messaging", Enabled: true},
@@ -120,10 +121,16 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		{Name: "mail_read", DisplayName: "Mail Read", Description: "Read one email's content by id from mail_search", Category: "cloud", Enabled: true},
 		{Name: "mail_archive", DisplayName: "Mail Archive", Description: "Archive, trash, mark-read, or label emails by id (no permanent delete)", Category: "cloud", Enabled: true},
 		{Name: "mail_unsubscribe", DisplayName: "Mail Unsubscribe", Description: "Analyze or perform newsletter unsubscription (execution requires explicit user consent)", Category: "cloud", Enabled: true},
-		{Name: "cloud_ls", DisplayName: "Cloud List", Description: "List a folder in the user's connected Google Drive (via rclone)", Category: "cloud", Enabled: true},
-		{Name: "cloud_read", DisplayName: "Cloud Read", Description: "Fetch a small Drive file into the workspace to read", Category: "cloud", Enabled: true},
-		{Name: "cloud_fetch", DisplayName: "Cloud Fetch", Description: "Download a Drive file into the workspace (size-capped)", Category: "cloud", Enabled: true},
-		{Name: "cloud_about", DisplayName: "Cloud About", Description: "Show Google Drive quota for a connected account", Category: "cloud", Enabled: true},
+		{Name: "cloud_ls", DisplayName: "Cloud List", Description: "List a folder in a connected cloud drive (Google Drive / OneDrive)", Category: "cloud", Enabled: true},
+		{Name: "cloud_read", DisplayName: "Cloud Read", Description: "Fetch a small cloud file into the workspace to read", Category: "cloud", Enabled: true},
+		{Name: "cloud_fetch", DisplayName: "Cloud Fetch", Description: "Download a cloud file into the workspace (size-capped)", Category: "cloud", Enabled: true},
+		{Name: "cloud_about", DisplayName: "Cloud About", Description: "Show storage quota for a connected cloud account", Category: "cloud", Enabled: true},
+		{Name: "cloud_write", DisplayName: "Cloud Write", Description: "Create or overwrite a text file in a connected cloud drive (requires write agent access)", Category: "cloud", Enabled: true},
+		{Name: "cloud_mkdir", DisplayName: "Cloud Mkdir", Description: "Create a folder in a connected cloud drive (requires write agent access)", Category: "cloud", Enabled: true},
+		{Name: "cloud_copy", DisplayName: "Cloud Copy", Description: "Copy a file to another path within a connected cloud drive (requires write agent access)", Category: "cloud", Enabled: true},
+		{Name: "cloud_move", DisplayName: "Cloud Move", Description: "Rename or move a file within a connected cloud drive (requires full agent access)", Category: "cloud", Enabled: true},
+		{Name: "cloud_delete", DisplayName: "Cloud Delete", Description: "Delete one file or empty folder in a connected cloud drive, permanent (requires full agent access)", Category: "cloud", Enabled: true},
+		{Name: "cloud_share", DisplayName: "Cloud Share", Description: "Create the public share link for a cloud file (requires full agent access)", Category: "cloud", Enabled: true},
 
 		// scheduling
 		{Name: "cron", DisplayName: "Cron Scheduler", Description: "Schedule or manage recurring tasks using cron expressions, at-times, or intervals", Category: "scheduling", Enabled: true,
@@ -152,6 +159,21 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		{Name: "team_tasks", DisplayName: "Team Tasks", Description: "View, create, update, and complete tasks on the team task board", Category: "teams", Enabled: true,
 			Requires: []string{"managed_mode", "teams"},
 		},
+
+		// studio — product tool pages, not agent tools. These defs are the
+		// installable modules of the Tool Store: installing/uninstalling flips
+		// the per-tenant override (PUT /v1/tools/builtin/{name}/tenant-config)
+		// which drives the sidebar entries, the route gate, and later the MCP
+		// hub exposure. Disabled by default: fresh installs start with an empty
+		// Tools nav and add modules from the Store on demand. Seed never
+		// overwrites `enabled` on conflict, so installs that already enabled
+		// them keep their nav.
+		{Name: "video_studio", DisplayName: "Video Studio", Description: "Design and render MP4 videos — storyboard scenes, motion layers, narration and cloned voices", Category: "studio", Enabled: false,
+			Metadata: json.RawMessage(`{"route":"/tools/video","ram_note":"render worker runs on demand"}`)},
+		{Name: "watermark_studio", DisplayName: "Watermark Remover", Description: "Remove watermarks from images and videos — processing happens in the browser", Category: "studio", Enabled: false,
+			Metadata: json.RawMessage(`{"route":"/tools/watermark","ram_note":"client-side"}`)},
+		{Name: "pptx_studio", DisplayName: "PPTX Studio", Description: "Build PowerPoint decks — free-canvas slides, themes, charts and pptx export", Category: "studio", Enabled: false,
+			Metadata: json.RawMessage(`{"route":"/tools/pptx","ram_note":"client-side"}`)},
 	}
 
 	// Lite edition: remove skill management tools — not available on desktop.

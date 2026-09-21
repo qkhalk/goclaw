@@ -54,10 +54,10 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/pptx"
 	"github.com/nextlevelbuilder/goclaw/internal/browse"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
-	"github.com/nextlevelbuilder/goclaw/internal/video"
 	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
 	usagepricing "github.com/nextlevelbuilder/goclaw/internal/usage/pricing"
 	"github.com/nextlevelbuilder/goclaw/internal/vault"
+	videopkg "github.com/nextlevelbuilder/goclaw/internal/video"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 
 	// Register workstation backend factories via init().
@@ -818,7 +818,7 @@ func runGateway() {
 	httpapi.InitAuditBus(msgBus)
 	exportTokenStore := httpapi.InitExportTokenStore()
 	defer exportTokenStore.Stop()
-	agentsH, skillsH, tracesH, mcpH, channelInstancesH, providersH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH, secureCLIGrantH, mcpUserCredsH := wireHTTP(pgStores, cfg.Agents.Defaults.Workspace, dataDir, bundledSkillsDir, msgBus, domainBus, toolsReg, providerRegistry, modelReg, permPE.IsOwner, gatewayAddr, mcpToolLister, usageCapSvc, cfg, cfg.Skills)
+	agentsH, skillsH, tracesH, mcpH, channelInstancesH, providersH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH, secureCLIGrantH, mcpUserCredsH, mcpInstallH := wireHTTP(pgStores, cfg.Agents.Defaults.Workspace, dataDir, bundledSkillsDir, msgBus, domainBus, toolsReg, providerRegistry, modelReg, permPE.IsOwner, gatewayAddr, mcpToolLister, usageCapSvc, cfg, cfg.Skills)
 	// Wire the resume entrypoint so POST /v1/runs/{runID}/resume drives the
 	// owning agent's Loop.ResumeRun. Nil-safe: when the runs store is absent the
 	// handler reports unavailable, matching the WS runs.resume guard.
@@ -897,6 +897,7 @@ func runGateway() {
 			secureCLI:        secureCLIH,
 			secureCLIGrant:   secureCLIGrantH,
 			mcpUserCreds:     mcpUserCredsH,
+			mcpInstall:       mcpInstallH,
 			mcpOAuth:         mcpOAuthH,
 		},
 		wakeH,
@@ -914,6 +915,7 @@ func runGateway() {
 	// S3 backup integration — admin + owner only.
 	server.SetBackupS3Handler(httpapi.NewBackupS3Handler(cfg, cfg.Database.PostgresDSN, Version, pgStores.ConfigSecrets, permPE.IsOwner))
 
+
 	// Tenant-scoped backup/restore — owner or tenant admin.
 	if pgStores.Tenants != nil {
 		server.SetTenantBackupHandler(httpapi.NewTenantBackupHandler(pgStores.DB, cfg, pgStores.Tenants, Version, permPE.IsOwner))
@@ -929,7 +931,7 @@ func runGateway() {
 	server.SetRuntimeLogsHandler(httpapi.NewRuntimeLogsHandler(logTee))
 	// Node runtime (inheritance plan Phase 2): nodes.* RPC + node_exec tool.
 	wireNodeRuntime(pgStores, toolsReg, server, msgBus)
-	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Tracing, pgStores.RunTimeline, pgStores.Runs, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Approval, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, pgStores.AgentLinks, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc, providerRegistry, pgStores.Providers, teamWorkEmbedder, pgStores.Contracts, pgStores.CheckpointSnapshots, pgStores.Missions, pgStores.TenantPolicies, pgStores.TenantRoles, pgStores.NodeLeases, pgStores.Workspaces, pgStores.AgentJobs, pgStores.TaskGraph, pgStores.MemoryFabric, pgStores.Terminals, pgStores.RoutingRules, webBrowseTool)
+	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Tracing, pgStores.RunTimeline, pgStores.Runs, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Approval, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, pgStores.AgentLinks, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc, providerRegistry, pgStores.Providers, teamWorkEmbedder, pgStores.Contracts, pgStores.CheckpointSnapshots, pgStores.Missions, pgStores.TenantPolicies, pgStores.TenantRoles, pgStores.NodeLeases, pgStores.Workspaces, pgStores.AgentJobs, pgStores.TaskGraph, pgStores.MemoryFabric, pgStores.Terminals, pgStores.RoutingRules, webBrowseTool, browserMgr)
 
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {
@@ -1196,7 +1198,21 @@ func runGateway() {
 
 	go backfillTraceCostsAfterPricingSync(ctx, pgStores, snapshotWorker)
 
-		// PPTX designer agent: same design-only contract for the PPTX Studio.
+	// Video designer agent: ensure the design-only chat agent exists when the
+	// video surface is on. Runs after setupSkillsSystem so the bundled design
+	// skills are already seeded and can be scoped + granted in the same pass.
+	if videoStack != nil {
+		go func() {
+			skillsManage, _ := pgStores.Skills.(store.SkillManageStore)
+			if err := videopkg.EnsureDesignerAgent(ctx, cfg, pgStores.Agents, skillsManage, workspace); err != nil {
+				slog.Warn("video: designer agent ensure failed", "error", err)
+			} else {
+				slog.Info("video: designer agent ensured", "agent_key", videopkg.DesignerAgentKey)
+			}
+		}()
+	}
+
+	// PPTX designer agent: same design-only contract for the PPTX Studio.
 	// The studio renders and exports entirely in the browser, so unlike the
 	// video designer there is no server dependency to gate on.
 	go func() {
@@ -1205,16 +1221,6 @@ func runGateway() {
 			slog.Warn("pptx: designer agent ensure failed", "error", err)
 		} else {
 			slog.Info("pptx: designer agent ensured", "agent_key", pptx.DesignerAgentKey)
-		}
-	}()
-
-	// Video designer agent: same design-only contract for the Video Studio.
-	go func() {
-		skillsManage, _ := pgStores.Skills.(store.SkillManageStore)
-		if err := video.EnsureDesignerAgent(ctx, cfg, pgStores.Agents, skillsManage, workspace); err != nil {
-			slog.Warn("video: designer agent ensure failed", "error", err)
-		} else {
-			slog.Info("video: designer agent ensured", "agent_key", video.DesignerAgentKey)
 		}
 	}()
 

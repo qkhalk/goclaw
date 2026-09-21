@@ -105,7 +105,8 @@
       "subagents": "Agent",
       "skills": "Skill",
       "delegation": "Ủy quyền",
-      "teams": "Nhóm"
+      "teams": "Nhóm",
+      "studio": "Studio (Kho công cụ)"
     },
     "settingsDialog": {
       "title": "Cài đặt — {{name}}",
@@ -283,6 +284,92 @@
       "skill_search": "Tìm kiếm skill khả dụng theo từ khóa hoặc mô tả để tìm khả năng phù hợp",
       "use_skill": "Kích hoạt skill để sử dụng khả năng chuyên biệt (đánh dấu tracing)",
       "team_tasks": "Xem, tạo, cập nhật và hoàn thành tác vụ trên bảng tác vụ nhóm"
+    }
+  },
+  "store": {
+    "title": "Kho công cụ",
+    "subtitle": "Cài thứ cần dùng, gỡ thứ không dùng — tool chỉ hiện trong menu và cho agent khi đang cài. Gỡ ra thì dữ liệu vẫn được giữ nguyên.",
+    "install": "Cài",
+    "uninstall": "Gỡ",
+    "confirm_uninstall": "Xác nhận gỡ",
+    "installed": "Đã cài",
+    "not_installed": "Chưa cài",
+    "open": "Mở",
+    "admin_required": "Liên hệ quản trị để cài tool này",
+    "not_installed_title": "{{name}} chưa được cài",
+    "not_installed_desc": "Cài từ Kho công cụ để dùng trang này.",
+    "install_now": "Cài ngay",
+    "agent_tools_title": "Tool cho agent",
+    "agent_tools_desc": "Điều chỉnh chi tiết các tool có sẵn mà agent được phép gọi (tìm kiếm, chạy lệnh, trí nhớ, media…).",
+    "manage_agent_tools": "Quản lý tool cho agent",
+    "video_studio": {
+      "desc": "Thiết kế và render video MP4 — scene storyboard, lớp hiệu ứng, giọng đọc và clone giọng."
+    },
+    "watermark_studio": {
+      "desc": "Xóa watermark khỏi ảnh và video — xử lý ngay trên trình duyệt."
+    },
+    "pptx_studio": {
+      "desc": "Dùng làm slide PowerPoint — canvas tự do, theme, biểu đồ và xuất pptx."
+    },
+    "mcp": {
+      "title": "Dùng từ agent ngoài (MCP)",
+      "desc": "Cài một lần ở đây, rồi gọi tool từ Claude Code, OpenCode, Cursor… Dán đoạn lệnh, thay <GATEWAY_TOKEN> và bảo agent dùng tool — ví dụ \"dùng goclaw render video này\".",
+      "copy": "Sao chép lệnh",
+      "copy_failed": "Không thể sao chép vào clipboard",
+      "token_hint": "<GATEWAY_TOKEN> là token gateway trong cấu hình server (GOCLAW_GATEWAY_TOKEN). Giữ kín vì nó có toàn quyền gateway. Tool cũng tuân theo cấu hình bật/tắt của từng agent."
+    },
+    "mcp_servers_title": "MCP tool server",
+    "mcp_servers_subtitle": "Tool server tải từ GitHub về và cài khi cần — agent dùng như tool MCP",
+    "mcp_not_installed": "Chưa cài",
+    "mcp_installing": "Đang cài…",
+    "mcp_installed": "Đã cài",
+    "mcp_install": "Tải & cài",
+    "mcp_uninstall": "Gỡ cài đặt",
+    "mcp_confirm_uninstall": "Xoá server, file và quyền truy cập của agent?",
+    "mcp_step_preflight": "Đang kiểm tra máy chủ",
+    "mcp_step_clone": "Đang tải từ GitHub",
+    "mcp_step_deps": "Đang cài dependencies",
+    "mcp_step_smoke": "Đang thử server",
+    "mcp_step_register": "Đang đăng ký",
+    "mcp_add_custom": "Thêm từ GitHub",
+    "mcp_custom_title": "Thêm MCP server từ GitHub",
+    "mcp_custom_desc": "Cài tool server từ repo github.com bất kỳ, pin theo tag hoặc commit.",
+    "mcp_custom_name": "Tên (slug)",
+    "mcp_custom_display_name": "Tên hiển thị",
+    "mcp_custom_repo": "URL repository",
+    "mcp_custom_repo_ph": "https://github.com/ban/tool-cua-ban",
+    "mcp_custom_ref": "Tag hoặc commit",
+    "mcp_custom_ref_ph": "v1.0.0 (bỏ trống = bản release hiện tại)",
+    "mcp_custom_subdir": "Thư mục con (không bắt buộc)",
+    "mcp_custom_subdir_ph": "mcp/ten-tool",
+    "mcp_custom_runtime": "Runtime",
+    "mcp_custom_entry": "File entry",
+    "mcp_custom_entry_ph": "src/index.js",
+    "mcp_custom_submit": "Cài đặt",
+    "mcp_ram_note": "RAM: {{note}}",
+    "mcp_tool_count": "{{count}} tool",
+    "mcp_job_failed": "Cài thất bại",
+    "mcp_in_progress": "Đang có một lượt cài khác chạy — thử lại sau chút",
+    "mcp_already_installed": "Đã cài rồi — gỡ trước đã",
+    "mcp_manage_hint": "Sau khi cài, hãy cấp tool của server cho agent ở trang MCP.",
+    "mcp_go_manage": "Mở trang MCP",
+    "mcp_fetch_failed": "Không tải được danh mục MCP"
+  },
+  "pptx": {
+    "insert": "Chèn",
+    "slide_settings": "Trang trình bày",
+    "slide_settings_layout_hint": "Áp dụng bố cục sẽ đặt lại nội dung trang theo bố cục đó.",
+    "slide_settings_done": "Xong"
+  },
+  "video": {
+    "studio": {
+      "rail": {
+        "collapse_panel": "Thu gọn khung media",
+        "expand_panel": "Mở rộng khung media"
+      },
+      "inspector": {
+        "empty": "Chọn một cảnh hoặc lớp"
+      }
     }
   }
 }

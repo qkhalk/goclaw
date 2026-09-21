@@ -1,7 +1,11 @@
 import { useEffect } from "react";
 import { useUiStore, type Theme } from "@/stores/use-ui-store";
 
-function applyTheme(theme: Theme) {
+/// Applies a Theme to the document root. Exported for surfaces that force a
+/// temporary theme (e.g. the video studio) and need to restore the user's
+/// CURRENT theme on unmount — a mount-time snapshot goes stale if the user
+/// (or the OS, in system mode) changes theme while they are on the page.
+export function applyTheme(theme: Theme) {
   const root = document.documentElement;
   root.classList.remove("light", "dark");
 

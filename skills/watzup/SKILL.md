@@ -23,7 +23,7 @@ Compile a structured status report from read-only evidence — git log and branc
 
 ## When NOT to use
 - Deep process analysis over a period — that is `retro`
-- Forward-looking planning — that is `plan`
+- Forward-looking planning — that is `goclaw-kit`
 - Live incident watching — that is `monitor`
 
 ## Workflow
@@ -41,7 +41,7 @@ A digest with sections: Current state (branch, uncommitted work), Recent work (l
 
 ## Routing
 - Findings imply process changes -> `retro`
-- Next steps need a real plan -> `plan`
+- Next steps need a real plan -> `goclaw-kit`
 - Handing work to another agent -> pair this digest with `handover`
 - Repo-specific engineering context -> `goclaw` or `docs`
 

@@ -82,10 +82,27 @@
   },
   "routing": {
     "title": "Model routing",
-    "window": "24h",
-    "noData": "No routing data yet",
-    "req": "{{count}} req",
+    "window": "5m",
     "moreProviders": "+{{count}} more providers",
-    "moreModels": "+{{count}} more models"
+    "surfaces": {
+      "telegram": "Telegram",
+      "web": "Web chat",
+      "pptx": "PPTX",
+      "video": "Video editor"
+    }
+  },
+  "system": {
+    "title": "System",
+    "cpu": "CPU",
+    "memory": "Memory",
+    "disk": "Disk",
+    "cores": "{{count}} cores",
+    "hostUptime": "Host uptime",
+    "platform": "Platform",
+    "loadAvg": "Load",
+    "goroutines": "Goroutines",
+    "heap": "Heap",
+    "goVersion": "Go",
+    "swap": "Swap"
   }
 }

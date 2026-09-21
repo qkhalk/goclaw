@@ -221,6 +221,7 @@ export function ScopeBindingsPanel({ provider }: { provider: CloudProvider }) {
           placeholder={t("scope.none")}
         />
       </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">{t("scope.tenant_default_hint")}</p>
 
       {/* Group + user rules table */}
       <div className="mt-4">

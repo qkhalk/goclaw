@@ -7,7 +7,8 @@
     "onedrive": "连接 OneDrive 账户",
     "another": "连接其他账户",
     "dropbox": "连接 Dropbox 账户",
-    "yandex": "连接 Yandex Disk 账户"
+    "yandex": "连接 Yandex Disk 账户",
+    "s3": "连接 S3 兼容存储"
   },
   "disconnect": "断开连接",
   "readonly_badge": "只读",
@@ -40,11 +41,14 @@
     "onedrive_desc": "通过您自己的 Azure 应用访问 Microsoft OneDrive（个人或工作/学校账户）。",
     "more_via_rclone": "更多存储（Dropbox、S3、WebDAV 等）将基于同一 rclone 引擎陆续推出",
     "dropbox_desc": "通过内置 rclone 客户端使用 Dropbox — 无需配置。添加自己的应用可获得更高配额。",
-    "yandex_desc": "通过内置 rclone 客户端使用 Yandex Disk — 无需配置。添加自己的应用可获得更高配额。"
+    "yandex_desc": "通过内置 rclone 客户端使用 Yandex Disk — 无需配置。添加自己的应用可获得更高配额。",
+    "s3_desc": "AWS S3、Cloudflare R2、Backblaze B2、Wasabi、MinIO、DO Spaces — 使用访问密钥连接。"
   },
   "provider": {
     "back": "所有提供商",
-    "accounts_title": "已连接账户"
+    "accounts_title": "已连接账户",
+    "section_personal": "个人",
+    "section_company": "企业（共享）"
   },
   "setup": {
     "title_google": "Google 尚未配置",
@@ -82,7 +86,10 @@
     "yandex_step1": "在 oauth.yandex.com 创建新应用并启用\"Yandex Disk REST API\"权限（读写）。",
     "yandex_step2": "在 Platforms 标签页选择\"Web services\"，选择可访问的用户范围，并准备第 4 步的回调 URI。",
     "yandex_step3": "在下方输入 App ID（client_id）和 Client secret 并保存 — 凭据会加密存储，此表单不会再次出现。",
-    "yandex_step4": "在 Yandex 应用中注册这个准确的 redirect URI（Platforms → Web services → Callback URI）："
+    "yandex_step4": "在 Yandex 应用中注册这个准确的 redirect URI（Platforms → Web services → Callback URI）：",
+    "expand": "立即配置",
+    "configured": "OAuth 客户端已保存",
+    "dropbox_note": "Dropbox 需要您自己的应用（无共享客户端）— 注册免费。"
   },
   "disconnect_confirm": {
     "title": "断开账户？",
@@ -145,7 +152,8 @@
     "table_empty": "暂无规则",
     "personal_accounts": "个人账户",
     "shared_accounts": "共享（企业）账户",
-    "accounts_explainer": "个人账户是您自己连接的云盘。共享（企业）账户面向整个租户 — 可在下方通过优先级规则将其绑定到群组或用户。"
+    "accounts_explainer": "个人账户是您自己连接的云盘。共享（企业）账户面向整个租户 — 可在下方通过优先级规则将其绑定到群组或用户。",
+    "tenant_default_hint": "当 agent 或操作未指定账户时，系统将使用此组织级默认账户。"
   },
   "detail": {
     "mail_btn": "邮箱",
@@ -192,7 +200,11 @@
     "not_found": "账户不存在或已无法访问",
     "back_home": "返回云盘页",
     "toggle_accounts": "展开/收起账户",
-    "quick_views": "快速访问"
+    "quick_views": "快速访问",
+    "dashboard": "仪表板",
+    "search_accounts": "搜索账户…",
+    "no_accounts_match": "没有匹配的账户",
+    "up": "上一级文件夹"
   },
   "files": {
     "upload": "上传",
@@ -313,7 +325,8 @@
     "download": "下载",
     "download_started": "已开始下载",
     "prev": "上一个",
-    "next": "下一个"
+    "next": "下一个",
+    "close": "关闭"
   },
   "shortcuts": {
     "title": "键盘快捷键",
@@ -440,5 +453,48 @@
       "sftp": "SFTP / SSH",
       "smb": "SMB"
     }
+  },
+  "s3": {
+    "title": "连接 S3 兼容存储",
+    "description": "支持 AWS S3、Cloudflare R2、Backblaze B2、Wasabi、MinIO 和 DO Spaces。保存前会先对 endpoint 验证密钥。",
+    "label": "标签(可选)",
+    "label_placeholder": "团队归档",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "AWS S3 可留空。自动使用 path-style 寻址。",
+    "region": "区域(可选)",
+    "bucket": "存储桶",
+    "access_key": "Access Key ID",
+    "secret_key": "Secret Access Key",
+    "secret_hint": "保存时加密存储;API 不会再次返回密钥。",
+    "cancel": "取消",
+    "connect": "连接",
+    "connecting": "正在验证…"
+  },
+  "agent_access": {
+    "title": "Agent 权限",
+    "cap_read": "读取文件",
+    "cap_read_hint": "浏览、下载文件、阅读邮件",
+    "cap_write": "创建和更新文件",
+    "cap_write_hint": "在云端上传、写入和编辑文件",
+    "cap_manage": "管理",
+    "cap_manage_hint": "删除、移动、创建分享链接",
+    "none": "禁止访问",
+    "read": "只读",
+    "write": "读写",
+    "full": "完全控制"
+  },
+  "webdav": {
+    "title": "连接 WebDAV 存储",
+    "description": "支持 Nextcloud、ownCloud、群晖及任何 WebDAV 服务器。保存前会先对 endpoint 验证凭据。",
+    "label": "标签(可选)",
+    "label_placeholder": "团队归档",
+    "endpoint": "WebDAV URL",
+    "endpoint_hint": "作为账户根目录的集合，例如 Nextcloud 的 remote.php/dav/files/<用户> URL。",
+    "username": "用户名",
+    "password": "密码",
+    "password_hint": "保存时加密存储；API 不会再次返回凭据。",
+    "cancel": "取消",
+    "connecting": "连接中…",
+    "connect": "连接"
   }
 }

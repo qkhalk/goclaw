@@ -156,7 +156,20 @@
     "create": "Создать",
     "creating": "Создание...",
     "checkAndCreate": "Проверить и создать",
-    "failedToCreate": "Не удалось создать агента"
+    "failedToCreate": "Не удалось создать агента",
+    "subagent": {
+      "title": "Конфигурация субагента",
+      "toolCount": "{{count}} инструментов",
+      "allTools": "Все инструменты",
+      "allowedTools": "Разрешённые инструменты",
+      "allowedToolsHint": "Выберите инструменты субагента. Пусто = все инструменты.",
+      "allowedToolsPlaceholder": "Выберите инструменты (пусто = все)",
+      "systemPrompt": "Системный промпт",
+      "systemPromptHint": "Заменяет IDENTITY.md — собственный промпт субагента.",
+      "systemPromptPlaceholder": "Ты субагент, специализирующийся на...",
+      "injectAgents": "Внедрить AGENTS.md",
+      "injectAgentsHint": "Включить инструкции рабочей области AGENTS.md в контекст агента."
+    }
   },
   "detail": {
     "tabs": {

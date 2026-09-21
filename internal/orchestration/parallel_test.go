@@ -36,7 +36,7 @@ func TestRunParallel_AllComplete_IndexAligned(t *testing.T) {
 func TestRunParallel_BoundedConcurrency(t *testing.T) {
 	const total = 16
 	contestants := make([]Contestant, total)
-	for i := 0; i < total; i++ {
+	for i := range total {
 		contestants[i] = Contestant{ID: string(rune('a' + i)), Task: "t"}
 	}
 

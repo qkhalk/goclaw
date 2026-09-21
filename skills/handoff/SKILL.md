@@ -43,7 +43,7 @@ One markdown file, roughly 40-80 lines, with sections: Goal, Decisions, State (c
 ## Routing
 - Adding owners, priorities, acceptance per person -> expand into `handover`
 - Fresh context also needs a status picture -> generate a `watzup` digest and link it
-- Work continues under a formal plan -> store the handoff beside the `plan` phase files
+- Work continues under a formal plan -> store the handoff beside the `goclaw-kit` phase files
 - The next arc is long and autonomous -> prepend a `goal-warmup` contract
 
 ## Guardrails

@@ -1,12 +1,13 @@
+import { useTranslation } from "react-i18next";
 import { User } from "lucide-react";
-import { BotAvatar } from "./bot-avatar";
+import { GoclawAvatar } from "@/components/chat/goclaw-avatar";
 import { MessageContent } from "./message-content";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolCallCard } from "./tool-call-card";
 import { BlockReplyBubble } from "./block-reply-bubble";
 import { MediaGallery } from "./media-gallery";
 import { useUiStore } from "@/stores/use-ui-store";
-import { resolveTimezone } from "@/lib/format";
+import { formatChatTimestamp, resolveTimezone } from "@/lib/format";
 import type { ChatMessage } from "@/types/chat";
 
 interface MessageBubbleProps {
@@ -15,6 +16,7 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const timezone = useUiStore((s) => s.timezone);
+  const { t } = useTranslation("chat");
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
 
@@ -34,14 +36,14 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isToolOnly = isAssistant && !hasContent && !hasThinking && (hasToolDetails || hasToolCalls);
 
   return (
-    <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
+    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background">
-        {isUser ? <User className="h-4 w-4" /> : <BotAvatar className="h-4 w-4 rounded-full" />}
+        {isUser ? <User className="h-4 w-4" /> : <GoclawAvatar />}
       </div>
 
       {isToolOnly ? (
         /* Compact tool-only card — no bubble wrapper, full width */
-        <div className="flex-1 min-w-0 rounded-md border bg-muted divide-y divide-border">
+        <div className="flex-1 min-w-0 rounded-xl border bg-muted divide-y divide-border">
           {hasThinking && (
             <div className="px-2 py-1.5">
               <ThinkingBlock text={message.thinking!} />
@@ -52,19 +54,23 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           ))}
         </div>
       ) : (
-        /* Normal message bubble — assistant uses full width, user capped at 85% */
-        <div className={`rounded-lg px-4 py-2 ${
-          isUser
-            ? "max-w-[85%] bg-card text-card-foreground border border-border shadow-sm border-r-2 border-r-accent-foreground"
-            : "flex-1 min-w-0 bg-card text-card-foreground border border-border shadow-sm"
-        }`}>
+        /* Messenger-style bubbles: user = solid primary right with a tail
+           corner, assistant = tinted neutral left. Surface-tint depth only —
+           no hairline + shadow mixing. */
+        <div
+          className={`w-fit max-w-[92%] rounded-2xl px-3.5 py-2 ${
+            isUser
+              ? "rounded-br-md bg-primary text-primary-foreground"
+              : "flex-1 rounded-bl-md bg-muted/50 text-card-foreground"
+          }`}
+        >
           {hasThinking && (
             <div className="mb-2">
               <ThinkingBlock text={message.thinking!} />
             </div>
           )}
           {hasToolDetails && (
-            <div className="mb-2 rounded-md border bg-muted divide-y divide-border">
+            <div className="mb-2 rounded-lg bg-background/60 divide-y divide-border">
               {message.toolDetails!.map((entry) => (
                 <ToolCallCard key={entry.toolCallId} entry={entry} compact />
               ))}
@@ -72,17 +78,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           )}
           <MessageContent content={message.content} role={message.role} mediaBasenames={message.mediaItems?.map((m) => m.path.split("/").pop() ?? "").filter(Boolean)} />
           {message.mediaItems && message.mediaItems.length > 0 && (
-            <div className="mt-2">
+            <div className="mt-2 overflow-hidden rounded-lg">
               <MediaGallery items={message.mediaItems} />
             </div>
           )}
           {message.timestamp && (
-            <div className="mt-1 text-2xs text-muted-foreground">
-              {new Intl.DateTimeFormat([], {
-                timeZone: resolveTimezone(timezone),
-                hour: "numeric",
-                minute: "2-digit",
-              }).format(new Date(message.timestamp))}
+            <div
+              className={`mt-1 text-2xs tabular-nums ${
+                isUser ? "text-primary-foreground/70" : "text-muted-foreground"
+              }`}
+            >
+              {formatChatTimestamp(
+                // Shift the instant into the viewer's tz by formatting a Date
+                // built from the tz-adjusted wall time (keeps Intl locale work).
+                new Date(new Date(message.timestamp).toLocaleString("en-US", { timeZone: resolveTimezone(timezone) })),
+                t,
+              )}
             </div>
           )}
         </div>

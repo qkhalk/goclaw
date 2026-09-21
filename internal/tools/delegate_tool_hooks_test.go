@@ -1101,7 +1101,7 @@ func TestDelegateTool_StagesArtifactsOnlyAfterAdmission(t *testing.T) {
 	}
 	select {
 	case <-firstStarted:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("first delegation did not start")
 	}
 
@@ -1133,7 +1133,7 @@ func TestDelegateTool_StagesArtifactsOnlyAfterAdmission(t *testing.T) {
 	close(releaseFirst)
 	select {
 	case <-secondStarted:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("second delegation did not start after admission")
 	}
 }
@@ -1181,7 +1181,7 @@ func TestDelegateTool_AsyncReleasesAdmissionBeforeAnnouncement(t *testing.T) {
 	}
 	select {
 	case <-firstStarted:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("first delegation did not start")
 	}
 

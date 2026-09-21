@@ -77,5 +77,16 @@
     "runResumed": "Đã chạy tiếp run",
     "runWoken": "Đã đánh thức run",
     "runActionFailed": "Thao tác run thất bại"
+  },
+  "origin": {
+    "web": "Web chat",
+    "telegram": "Telegram",
+    "video": "Video Editor",
+    "pptx": "PPTX",
+    "subagent": "Subagent",
+    "cron": "Cron",
+    "team": "Team",
+    "heartbeat": "Heartbeat",
+    "channel": "{{channel}}"
   }
 }

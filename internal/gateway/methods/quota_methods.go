@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
@@ -26,6 +27,18 @@ func (m *QuotaMethods) Register(router *gateway.MethodRouter) {
 }
 
 func (m *QuotaMethods) handleUsage(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	// tz carries the client's IANA timezone so "today" starts at the user's
+	// local midnight, not UTC midnight (empty → UTC, backwards compatible).
+	var params struct {
+		TZ string `json:"tz"`
+	}
+	if req.Params != nil {
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, "invalid params"))
+			return
+		}
+	}
+
 	if m.checker == nil {
 		result := channels.QuotaUsageResult{
 			Enabled: false,
@@ -33,12 +46,12 @@ func (m *QuotaMethods) handleUsage(ctx context.Context, client *gateway.Client, 
 		}
 		// Still query today's summary from traces when DB is available
 		if m.db != nil {
-			channels.QueryTodaySummary(ctx, m.db, &result)
+			channels.QueryTodaySummary(ctx, m.db, &result, params.TZ)
 		}
 		client.SendResponse(protocol.NewOKResponse(req.ID, result))
 		return
 	}
 
-	result := m.checker.Usage(ctx)
+	result := m.checker.Usage(ctx, params.TZ)
 	client.SendResponse(protocol.NewOKResponse(req.ID, result))
 }

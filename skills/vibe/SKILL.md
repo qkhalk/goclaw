@@ -29,7 +29,7 @@ Drive a fully-specified task through the whole delivery pipeline — recon, plan
 ## Workflow
 1. Validate scope: restate the requirement, acceptance criteria, and budget. If any is missing, stop and ask.
 2. Recon: run `scout` (or reuse a fresh recon report) to get the file set and risks.
-3. Plan: hand the recon to `plan`; receive a phased plan with file-level steps and verification steps.
+3. Plan: hand the recon to `goclaw-kit`; receive a phased plan with file-level steps and verification steps.
 4. Warmup checkpoint: write the outcome contract (goal-warmup style) beside the plan before writing code.
 5. Implement phase by phase with `cook`; after each phase append a journal checkpoint: phase, files touched, tests run, next step.
 6. Test: run the project's test commands or the `test` skill; a failing gate means loop back to `fix`, never skip forward.
@@ -41,7 +41,7 @@ Drive a fully-specified task through the whole delivery pipeline — recon, plan
 A merged or PR-ready change plus a delivery journal: plan reference, per-phase checkpoints, test and review evidence, and a final summary a human can audit in two minutes.
 
 ## Routing
-- Step-level work: `scout`, `plan`, `cook`, `test`, `fix`, `review`, `ship` do the actual work
+- Step-level work: `scout`, `goclaw-kit`, `cook`, `test`, `fix`, `review`, `ship` do the actual work
 - Long-horizon governance, budgets, checkpoints -> `mission` or `goal-warmup`
 - Parallelizable subtasks discovered mid-run -> split with `team`
 - Platform complexity in this repo -> `go-claw-engineer`

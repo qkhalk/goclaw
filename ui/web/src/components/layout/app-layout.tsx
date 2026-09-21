@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import { WifiOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -6,7 +6,8 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { BackgroundErrorBanner } from "./background-error-banner";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
-import { useUiStore } from "@/stores/use-ui-store";
+import { ResizeHandle } from "@/components/shared/resize-handle";
+import { useUiStore, NAV_SIDEBAR_WIDTH } from "@/stores/use-ui-store";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useIsTablet } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,14 @@ export function AppLayout() {
   const connected = useAuthStore((s) => s.connected);
   const isMobile = useIsTablet();
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const navSidebarWidth = useUiStore((s) => s.navSidebarWidth);
+  const setNavSidebarWidth = useUiStore((s) => s.setNavSidebarWidth);
+  // Fresh-state read inside drag callbacks (no stale closure widths).
+  const resizeNavSidebar = useCallback((dx: number) => {
+    const s = useUiStore.getState();
+    s.setNavSidebarWidth(s.navSidebarWidth + dx);
+  }, []);
 
   // Close mobile sidebar on route change (e.g. programmatic navigation, back button)
   useEffect(() => {
@@ -61,7 +70,17 @@ export function AppLayout() {
           </div>
         </>
       ) : (
-        <Sidebar collapsed={sidebarCollapsed} />
+        <>
+          <Sidebar collapsed={sidebarCollapsed} width={navSidebarWidth} />
+          {!sidebarCollapsed && (
+            <ResizeHandle
+              side="right"
+              onResize={resizeNavSidebar}
+              onReset={() => setNavSidebarWidth(NAV_SIDEBAR_WIDTH.default)}
+              ariaLabel={t("pane.resize")}
+            />
+          )}
+        </>
       )}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar settingsOpen={settingsOpen} onSettingsOpenChange={setSettingsOpen} />

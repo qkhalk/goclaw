@@ -104,7 +104,8 @@
       "subagents": "Агенты",
       "skills": "Навыки",
       "delegation": "Делегирование",
-      "teams": "Команды"
+      "teams": "Команды",
+      "studio": "Studio (Магазин)"
     },
     "settingsDialog": {
       "title": "Настройки — {{name}}",
@@ -282,6 +283,92 @@
       "skill_search": "Искать доступные навыки по ключевому слову или описанию, чтобы найти подходящие возможности",
       "use_skill": "Активировать навык для использования его специализированных возможностей (маркер трассировки)",
       "team_tasks": "Просматривать, создавать, обновлять и завершать задачи на доске задач команды"
+    }
+  },
+  "store": {
+    "title": "Магазин инструментов",
+    "subtitle": "Ставьте нужное и убирайте лишнее — инструменты видны в меню и агентам только пока установлены. Ваши проекты сохраняются.",
+    "install": "Установить",
+    "uninstall": "Удалить",
+    "confirm_uninstall": "Точно удалить",
+    "installed": "Установлено",
+    "not_installed": "Не установлено",
+    "open": "Открыть",
+    "admin_required": "Попросите администратора установить",
+    "not_installed_title": "{{name}} не установлен",
+    "not_installed_desc": "Установите его из Магазина инструментов.",
+    "install_now": "Установить сейчас",
+    "agent_tools_title": "Инструменты агента",
+    "agent_tools_desc": "Тонкая настройка встроенных инструментов, доступных агентам (поиск, exec, память, медиа…).",
+    "manage_agent_tools": "Управлять инструментами",
+    "video_studio": {
+      "desc": "Дизайн и рендер MP4 — сцены сториборда, слои анимации, озвучка и клон голоса."
+    },
+    "watermark_studio": {
+      "desc": "Удаление водяных знаков — обработка прямо в браузере."
+    },
+    "pptx_studio": {
+      "desc": "Создание презентаций PowerPoint — свободный холст, темы, графики, экспорт pptx."
+    },
+    "mcp": {
+      "title": "Использование внешними агентами (MCP)",
+      "desc": "Установите один раз здесь — и вызывайте инструменты из Claude Code, OpenCode, Cursor… Вставьте сниппет, замените <GATEWAY_TOKEN> и попросите агента использовать инструмент — например «отрендери это видео через goclaw».",
+      "copy": "Копировать",
+      "copy_failed": "Не удалось скопировать",
+      "token_hint": "<GATEWAY_TOKEN> — токен шлюза из конфигурации сервера (GOCLAW_GATEWAY_TOKEN). Храните его в секрете — он даёт полный доступ к шлюзу. Инструменты также учитывают настройки включения каждого агента."
+    },
+    "mcp_servers_title": "MCP-серверы инструментов",
+    "mcp_servers_subtitle": "Серверы инструментов, загружаемые с GitHub по требованию — агенты используют их как MCP-инструменты",
+    "mcp_not_installed": "Не установлен",
+    "mcp_installing": "Установка…",
+    "mcp_installed": "Установлен",
+    "mcp_install": "Скачать и установить",
+    "mcp_uninstall": "Удалить",
+    "mcp_confirm_uninstall": "Удалить сервер, файлы и доступ агентов?",
+    "mcp_step_preflight": "Проверка хоста",
+    "mcp_step_clone": "Загрузка с GitHub",
+    "mcp_step_deps": "Установка зависимостей",
+    "mcp_step_smoke": "Проверка сервера",
+    "mcp_step_register": "Регистрация",
+    "mcp_add_custom": "Добавить с GitHub",
+    "mcp_custom_title": "Добавить MCP-сервер с GitHub",
+    "mcp_custom_desc": "Устанавливает сервер инструментов из любого репозитория github.com с фиксацией по tag или commit.",
+    "mcp_custom_name": "Имя (slug)",
+    "mcp_custom_display_name": "Отображаемое имя",
+    "mcp_custom_repo": "URL репозитория",
+    "mcp_custom_repo_ph": "https://github.com/you/your-tool",
+    "mcp_custom_ref": "Tag или commit",
+    "mcp_custom_ref_ph": "v1.0.0 (пусто = текущий release)",
+    "mcp_custom_subdir": "Подпапка (необязательно)",
+    "mcp_custom_subdir_ph": "mcp/your-tool",
+    "mcp_custom_runtime": "Среда выполнения",
+    "mcp_custom_entry": "Файл входа",
+    "mcp_custom_entry_ph": "src/index.js",
+    "mcp_custom_submit": "Установить",
+    "mcp_ram_note": "ОЗУ: {{note}}",
+    "mcp_tool_count": "Инструментов: {{count}}",
+    "mcp_job_failed": "Ошибка установки",
+    "mcp_in_progress": "Уже идёт другая установка — попробуйте чуть позже",
+    "mcp_already_installed": "Уже установлен — сначала удалите",
+    "mcp_manage_hint": "После установки выдайте инструменты сервера агентам на странице MCP.",
+    "mcp_go_manage": "Открыть страницу MCP",
+    "mcp_fetch_failed": "Не удалось загрузить каталог MCP"
+  },
+  "pptx": {
+    "insert": "Вставить",
+    "slide_settings": "Слайд",
+    "slide_settings_layout_hint": "Применение шаблона сбрасывает содержимое слайда к этому макету.",
+    "slide_settings_done": "Готово"
+  },
+  "video": {
+    "studio": {
+      "rail": {
+        "collapse_panel": "Свернуть медиапанель",
+        "expand_panel": "Развернуть медиапанель"
+      },
+      "inspector": {
+        "empty": "Выберите сцену или слой"
+      }
     }
   }
 }

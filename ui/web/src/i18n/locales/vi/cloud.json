@@ -7,7 +7,8 @@
     "onedrive": "Kết nối tài khoản OneDrive",
     "another": "Kết nối tài khoản khác",
     "dropbox": "Kết nối tài khoản Dropbox",
-    "yandex": "Kết nối tài khoản Yandex Disk"
+    "yandex": "Kết nối tài khoản Yandex Disk",
+    "s3": "Kết nối lưu trữ tương thích S3"
   },
   "disconnect": "Ngắt kết nối",
   "readonly_badge": "Chỉ đọc",
@@ -40,11 +41,14 @@
     "onedrive_desc": "Microsoft OneDrive (cá nhân hoặc công việc/trường học) qua Azure app của riêng bạn.",
     "more_via_rclone": "Sắp có thêm nhiều lưu trữ khác (Dropbox, S3, WebDAV, …) trên cùng nền tảng rclone",
     "dropbox_desc": "Dropbox qua client rclone tích hợp sẵn — không cần cấu hình. Tạo app riêng để có hạn mức cao hơn.",
-    "yandex_desc": "Yandex Disk qua client rclone tích hợp sẵn — không cần cấu hình. Tạo app riêng để có hạn mức cao hơn."
+    "yandex_desc": "Yandex Disk qua client rclone tích hợp sẵn — không cần cấu hình. Tạo app riêng để có hạn mức cao hơn.",
+    "s3_desc": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces — kết nối bằng access key."
   },
   "provider": {
     "back": "Tất cả nhà cung cấp",
-    "accounts_title": "Tài khoản đã kết nối"
+    "accounts_title": "Tài khoản đã kết nối",
+    "section_personal": "Cá nhân",
+    "section_company": "Doanh nghiệp (chia sẻ)"
   },
   "setup": {
     "title_google": "Google chưa được cấu hình",
@@ -82,7 +86,10 @@
     "yandex_step1": "Tạo app mới tại oauth.yandex.com và bật quyền \"Yandex Disk REST API\" (đọc và ghi).",
     "yandex_step2": "Ở tab Platforms chọn \"Web services\", chọn đối tượng được truy cập app, và chuẩn bị Callback URI ở bước 4.",
     "yandex_step3": "Nhập App ID (client_id) và Client secret bên dưới rồi bấm Lưu — thông tin được lưu mã hóa và biểu mẫu này sẽ không hiện lại.",
-    "yandex_step4": "Đăng ký chính xác redirect URI bên dưới trong app Yandex (Platforms → Web services → Callback URI):"
+    "yandex_step4": "Đăng ký chính xác redirect URI bên dưới trong app Yandex (Platforms → Web services → Callback URI):",
+    "expand": "Cấu hình ngay",
+    "configured": "OAuth client đã lưu",
+    "dropbox_note": "Dropbox cần ứng dụng riêng của bạn (không có client dùng chung) — đăng ký miễn phí."
   },
   "disconnect_confirm": {
     "title": "Ngắt kết nối tài khoản?",
@@ -145,7 +152,8 @@
     "table_empty": "Chưa có quy tắc nào",
     "personal_accounts": "Tài khoản cá nhân",
     "shared_accounts": "Tài khoản dùng chung (doanh nghiệp)",
-    "accounts_explainer": "Tài khoản cá nhân là các đám mây của riêng bạn. Tài khoản dùng chung (doanh nghiệp) áp dụng cho cả tenant — gắn chúng vào nhóm hoặc người dùng bên dưới với quy tắc ưu tiên."
+    "accounts_explainer": "Tài khoản cá nhân là các đám mây của riêng bạn. Tài khoản dùng chung (doanh nghiệp) áp dụng cho cả tenant — gắn chúng vào nhóm hoặc người dùng bên dưới với quy tắc ưu tiên.",
+    "tenant_default_hint": "Khi agent hoặc thao tác không chỉ định tài khoản, hệ thống dùng tài khoản mặc định này cho toàn tổ chức."
   },
   "detail": {
     "mail_btn": "Hộp thư",
@@ -192,7 +200,11 @@
     "not_found": "Không tìm thấy tài khoản hoặc tài khoản không còn truy cập được",
     "back_home": "Về trang Clouds",
     "toggle_accounts": "Ẩn/hiện tài khoản",
-    "quick_views": "Xem nhanh"
+    "quick_views": "Xem nhanh",
+    "dashboard": "Dashboard",
+    "search_accounts": "Tìm tài khoản…",
+    "no_accounts_match": "Không có tài khoản nào khớp",
+    "up": "Lên thư mục cha"
   },
   "files": {
     "upload": "Tải lên",
@@ -313,7 +325,8 @@
     "download": "Tải xuống",
     "download_started": "Đã bắt đầu tải xuống",
     "prev": "Trước",
-    "next": "Sau"
+    "next": "Sau",
+    "close": "Đóng"
   },
   "shortcuts": {
     "title": "Phím tắt",
@@ -440,5 +453,48 @@
       "sftp": "SFTP / SSH",
       "smb": "SMB"
     }
+  },
+  "s3": {
+    "title": "Kết nối lưu trữ tương thích S3",
+    "description": "Hỗ trợ AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO và DO Spaces. Key sẽ được kiểm tra với endpoint trước khi lưu.",
+    "label": "Nhãn (tuỳ chọn)",
+    "label_placeholder": "Kho lưu trữ nhóm",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "Để trống nếu dùng AWS S3. Tự động dùng kiểu địa chỉ path-style.",
+    "region": "Region (tuỳ chọn)",
+    "bucket": "Bucket",
+    "access_key": "Access key ID",
+    "secret_key": "Secret access key",
+    "secret_hint": "Được mã hoá khi lưu; API không bao giờ trả lại key sau khi lưu.",
+    "cancel": "Huỷ",
+    "connect": "Kết nối",
+    "connecting": "Đang kiểm tra…"
+  },
+  "agent_access": {
+    "title": "Quyền agent",
+    "cap_read": "Đọc file",
+    "cap_read_hint": "Duyệt, tải file, đọc thư",
+    "cap_write": "Tạo & cập nhật file",
+    "cap_write_hint": "Tạo, ghi đè và sửa file trên cloud",
+    "cap_manage": "Quản trị",
+    "cap_manage_hint": "Xoá, di chuyển, tạo link chia sẻ",
+    "none": "Không cho phép",
+    "read": "Chỉ đọc",
+    "write": "Đọc + ghi",
+    "full": "Toàn quyền"
+  },
+  "webdav": {
+    "title": "Kết nối lưu trữ WebDAV",
+    "description": "Hỗ trợ Nextcloud, ownCloud, Synology và mọi máy chủ WebDAV. Thông tin đăng nhập sẽ được kiểm tra với endpoint trước khi lưu.",
+    "label": "Nhãn (tuỳ chọn)",
+    "label_placeholder": "Kho lưu trữ nhóm",
+    "endpoint": "URL WebDAV",
+    "endpoint_hint": "Thư mục gốc của tài khoản, ví dụ URL remote.php/dav/files/<người dùng> của Nextcloud.",
+    "username": "Tên đăng nhập",
+    "password": "Mật khẩu",
+    "password_hint": "Được mã hoá khi lưu; API không bao giờ trả lại thông tin đăng nhập.",
+    "cancel": "Huỷ",
+    "connecting": "Đang kết nối…",
+    "connect": "Kết nối"
   }
 }

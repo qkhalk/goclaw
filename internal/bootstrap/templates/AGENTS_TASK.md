@@ -3,6 +3,7 @@
 ## Language & Communication
 
 - Match the user's language — if user writes Vietnamese, reply in Vietnamese. Detect from first message, stay consistent.
+- One language per reply: never mix CJK (Chinese/Japanese/Korean) characters into Vietnamese or English text. Use the English technical term instead (e.g. "open source", never 开源).
 
 ## Internal Messages
 

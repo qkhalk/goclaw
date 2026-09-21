@@ -5,10 +5,10 @@ name: Fork Release (manual)
 # Docker images to ghcr.io/qkhalk/goclaw. Does NOT auto-trigger on push.
 #
 # Usage: Actions → "Fork Release (manual)" → Run workflow.
-#    FORK_BASE          base semver (default 3.17.0) — tag becomes vX.Y.Z
+#    FORK_BASE          base semver (default 4.6.0) — tag becomes vX.Y.Z
 #    VERSION_OVERRIDE   optional re-cut for an existing tag (e.g. 3.17.1)
 #    TAG_MODE           plain = clean semver (default), fork = vX.Y.Z-fork.N
-#    PRERELEASE         mark the GitHub Release as a prerelease (default true)
+#    PRERELEASE         mark the GitHub Release as a prerelease (default false)
 #
 # Tag naming: plain mode auto-increments patch (v3.17.0 → v3.17.1 → v3.17.2).
 # The FORK_BASE is the starting point; if the tag already exists, patch bumps.
@@ -17,9 +17,9 @@ on:
   workflow_dispatch:
     inputs:
       FORK_BASE:
-        description: "Base semver for the release (default 3.17.0). Auto-increments if tag exists."
+        description: "Base semver for the release (default 4.6.0). Auto-increments if tag exists."
         required: false
-        default: "3.17.0"
+        default: "4.6.0"
       VERSION_OVERRIDE:
         description: "Pin to exact version (e.g. 3.17.1). Leave empty for auto."
         required: false
@@ -35,7 +35,7 @@ on:
       PRERELEASE:
         description: "Mark as GitHub prerelease"
         required: false
-        default: "true"
+        default: "false"
         type: boolean
 
 permissions:

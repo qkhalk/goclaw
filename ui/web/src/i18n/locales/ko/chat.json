@@ -136,7 +136,15 @@
     "empty": "열린 페이지가 없습니다. 에이전트에게 페이지를 열어달라고 하세요.",
     "switchToLive": "라이브 미리보기 (JavaScript 실행)",
     "switchToStatic": "정적 보기 (에이전트 조작 가능)",
-    "liveNote": "라이브 미리보기 — 실제 페이지가 JavaScript를 실행합니다. 이 모드에서는 에이전트가 읽거나 클릭할 수 없으니 필요시 정적 보기로 전환하세요."
+    "liveNote": "라이브 미리보기 — 실제 페이지가 JavaScript를 실행합니다. 이 모드에서는 에이전트가 읽거나 클릭할 수 없으니 필요시 정적 보기로 전환하세요.",
+    "thinStaticNote": "이 페이지는 JavaScript가 필요해서 정적 보기는 거의 비어 있어요. 라이브 미리보기(번개 아이콘)로 전환하거나 새 탭에서 여세요.",
+    "remote": {
+      "toggle": "서버 브라우저(에이전트 제어)",
+      "placeholder": "URL — 서버 측 헤드리스 Chrome에서 열기",
+      "empty": "URL을 입력하면 서버 브라우저에서 엽니다(실제 Chrome, JS 실행 — 에이전트가 같은 브라우저 사용).",
+      "note": "서버 브라우저 — 페이지는 게이트웨이가 렌더링; 에이전트는 JS/iframe 차단 사이트도 읽고 제어할 수 있습니다.",
+      "noCapture": "페이지가 열렸지만 스크린샷이 없습니다 — 새로고침해 보세요."
+    }
   },
   "permissionModes": {
     "default": "에이전트 기본값",
@@ -151,6 +159,17 @@
     "other": "기타…",
     "otherPlaceholder": "직접 답변 입력…",
     "send": "답변 보내기",
-    "recommended": "추천"
+    "recommended": "추천",
+    "confirm": "✔ 확인",
+    "back": "◀ 뒤로"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev 모드 켜짐 — 끄려면 클릭",
+    "off": "Dev 모드 꺼짐 — 켜려면 클릭(계획 우선, 스킬 자동 사용, 불분명 시 질문)"
+  },
+  "daySep": {
+    "today": "오늘",
+    "yesterday": "어제"
   }
 }

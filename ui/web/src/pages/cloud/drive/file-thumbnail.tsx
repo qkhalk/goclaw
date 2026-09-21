@@ -1,20 +1,25 @@
 import { cn } from "@/lib/utils";
 import { FileIcon } from "@/components/shared/file-tree-file-icon";
 import { Folder } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useHttp } from "@/hooks/use-ws";
 import { useEffect, useState } from "react";
+import { queryKeys } from "@/lib/query-keys";
 import type { CloudFileEntry } from "../hooks/use-cloud";
 import type { ThumbnailSize } from "../settings-modal";
 import { rawPath } from "./paths";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "tiff", "tif"]);
+const VIDEO_EXTS = new Set(["mp4", "webm", "mov", "m4v"]);
 
-/** Thumbnail size cap — mirrors the preview sheet's image cap (25 MB):
- * never auto-download anything bigger just for a thumbnail. */
+/** Thumbnail size cap for blob-backed image previews — mirrors the preview
+ * modal's image cap (25 MB): never auto-download anything bigger. */
 const THUMB_CAP = 25 << 20;
+/** Video thumbnails stream via signed URLs (browser fetches only metadata +
+ * a keyframe through HTTP byte-range), so the cap is generous. */
+const VIDEO_THUMB_CAP = 500 << 20;
 
-/** Thumbnail zone height per preview setting — the grid card container and
+/** Thumbnail size per preview setting — the grid card container and
  * the fallback icons both follow it. */
 const SIZE_CONTAINER: Record<ThumbnailSize, string> = {
   small: "h-16",
@@ -46,6 +51,10 @@ function isImage(name: string): boolean {
   return IMAGE_EXTS.has(extOf(name));
 }
 
+function isVideo(name: string): boolean {
+  return VIDEO_EXTS.has(extOf(name));
+}
+
 interface FileThumbnailProps {
   entry: CloudFileEntry;
   accountId: string;
@@ -57,55 +66,53 @@ interface FileThumbnailProps {
 }
 
 /**
- * Renders a thumbnail preview for image files fetched via the cloud download
- * endpoint with auth headers. Falls back to the file type icon with an
- * extension badge pinned to the icon's corner.
- *
- * Uses react-query to cache blob URLs per (accountId, path) so repeated
- * renders don't re-fetch.
+ * Renders a real preview instead of an icon where the provider can serve one:
+ * images via the authed download endpoint (blob, react-query cached), videos
+ * via a short-lived signed URL the browser streams with byte-range requests
+ * (first frame as the poster, no full download). Falls back to the file type
+ * icon with an extension badge pinned to the icon's corner.
  */
 export function FileThumbnail({ entry, accountId, path, size = "medium", className }: FileThumbnailProps) {
   const http = useHttp();
-  const queryClient = useQueryClient();
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
 
-  // Oversized entries skip the fetch entirely — icon fallback immediately.
-  const shouldFetch = !entry.is_dir && isImage(entry.name) && entry.size <= THUMB_CAP;
+  const video = !entry.is_dir && isVideo(entry.name) && entry.size <= VIDEO_THUMB_CAP;
+  const image = !entry.is_dir && isImage(entry.name) && entry.size <= THUMB_CAP;
+
+  // Signed streaming URL for video thumbnails.
+  const signed = useQuery({
+    queryKey: queryKeys.cloud.thumb(accountId, path),
+    enabled: video,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await http.post<{ url: string }>(
+        `/v1/cloud/accounts/${accountId}/files/sign`,
+        { path: rawPath(path) },
+      );
+      return res.url;
+    },
+  });
+
+  // Image thumbnails cache the BLOB (not the object URL) in react-query; the
+  // object URL is minted per mount and revoked on unmount — caching URLs
+  // would leak the underlying Blob for the page's lifetime.
+  const blob = useQuery({
+    queryKey: ["cloud", "thumb-blob", accountId, path],
+    enabled: image,
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    queryFn: () =>
+      http.fetchBlob("/v1/cloud/accounts/" + accountId + "/files/download", { path: rawPath(path) }),
+  });
 
   useEffect(() => {
-    if (!shouldFetch) return;
-
-    const queryKey = ["cloud", "thumb", accountId, path];
-    const cached = queryClient.getQueryData<string>(queryKey);
-    if (cached) {
-      setBlobUrl(cached);
-      return;
-    }
-
-    let cancelled = false;
-    http
-      // The API expects the raw remote path — decode the childPath form and
-      // let URLSearchParams do the single percent-encode.
-      .fetchBlob("/v1/cloud/accounts/" + accountId + "/files/download", { path: rawPath(path) })
-      .then((blob) => {
-        if (cancelled) return;
-        const url = URL.createObjectURL(blob);
-        queryClient.setQueryData(queryKey, url);
-        setBlobUrl(url);
-      })
-      .catch(() => {
-        // silently fail — fallback to icon
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [shouldFetch, accountId, path, http, queryClient]);
-
-  // NOTE: blob URLs live in the react-query cache, which outlives this
-  // component — never revoke them on unmount. A revoked URL left in the
-  // cache would permanently break the next mount of the same file; the
-  // query cache's gcTime releases the blob when the entry expires.
+    if (!blob.data) return;
+    const url = URL.createObjectURL(blob.data);
+    setBlobUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [blob.data]);
 
   // Directory: folder icon
   if (entry.is_dir) {
@@ -117,9 +124,25 @@ export function FileThumbnail({ entry, accountId, path, size = "medium", classNa
     );
   }
 
+  // Video: first-frame poster streamed via the signed URL (icon fallback on
+  // failure — e.g. expired token or an unsupported codec).
+  if (video && signed.data && !signed.isError && !videoFailed) {
+    return (
+      <video
+        src={`${signed.data}#t=0.001`}
+        preload="metadata"
+        muted
+        playsInline
+        tabIndex={-1}
+        onError={() => setVideoFailed(true)}
+        className={cn("h-full w-full rounded-md bg-black object-cover", className)}
+      />
+    );
+  }
+
   // Image with blob URL loaded: show thumbnail (fall back to the file icon
   // if the load fails, e.g. a dead cached URL or a provider error)
-  if (blobUrl && !failed) {
+  if (image && blobUrl && !failed) {
     return (
       <img
         src={blobUrl}

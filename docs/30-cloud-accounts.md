@@ -12,7 +12,11 @@ mỗi thành viên tự kết nối tài khoản của mình trên trang **Cloud
    hóa AES-256-GCM** trước khi lưu vào DB (`cloud_accounts`).
 3. Agent dùng tool `cloud_accounts` → `mail_search` / `mail_read` /
    `mail_archive` / `mail_unsubscribe` và `cloud_ls` / `cloud_read` /
-   `cloud_fetch` / `cloud_about` để thao tác.
+   `cloud_fetch` / `cloud_about` / `cloud_write` / `cloud_upload` /
+   `cloud_mkdir` / `cloud_copy` / `cloud_move` / `cloud_delete` /
+   `cloud_share` để thao tác. `cloud_write` ghi **text**; `cloud_upload`
+   đẩy file workspace lên drive **binary-safe** (video, ảnh, archive —
+   giới hạn theo `cloud.fetch_size_cap_mb`, cần quyền ghi trên account).
 
 Bảo mật:
 
@@ -167,6 +171,8 @@ nó). Nếu token trong GoClaw hết hiệu lực (đổi mật khẩu Google, t
 | `PUT /v1/cloud/settings` | Admin: lưu OAuth client từ form Web UI (mã hóa) |
 | `GET /v1/cloud/accounts` | Danh sách tài khoản của user (không trả token) |
 | `DELETE /v1/cloud/accounts/{id}` | Ngắt kết nối |
+| `POST /v1/cloud/accounts/s3` | Kết nối S3-compatible (R2/B2/Wasabi/MinIO/DO/AWS): `endpoint,region,bucket,access_key,secret_key` — probe trước khi lưu |
+| `POST /v1/cloud/accounts/webdav` | Kết nối WebDAV (Nextcloud/Synology/...): `endpoint,username,password` — PROPFIND probe trước khi lưu |
 | `POST /v1/cloud/oauth/google/start` | Lấy `auth_url` + `redirect_uri` |
 | `GET /v1/cloud/oauth/callback` | Redirect target của Google (state ký HMAC) |
 | `POST /v1/cloud/connect` | Kết nối provider dùng key/token (s3, b2, azureblob, gcs, pcloud, webdav, ftp, sftp, smb): `{"provider","displayName","params"}` — params lọc theo whitelist từng provider, secret lưu mã hóa; probe rclone trước khi lưu, sai key → `400` kèm lỗi rclone |

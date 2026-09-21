@@ -5,7 +5,8 @@
     "systemBackup": "系统备份",
     "systemRestore": "系统恢复",
     "s3Config": "S3 存储",
-    "tenantBackup": "租户备份"
+    "tenantBackup": "租户备份",
+    "schedule": "定时"
   },
   "backup": {
     "preflight": {
@@ -167,5 +168,27 @@
       "dryRunNote": "模拟运行 — 未进行更改",
       "newRestore": "新建恢复"
     }
+  },
+  "schedule": {
+    "title": "定时云备份",
+    "description": "按周期自动创建备份并上传到 S3 或云盘。",
+    "interval": "周期",
+    "hours_other": "每 {{count}} 小时",
+    "hours_one": "每小时",
+    "destination": "目标",
+    "cloudDrive": "云盘 (Google/OneDrive)",
+    "s3Hint": "使用 S3 存储标签页中的凭证。",
+    "cloudHint": "租户默认云盘账号（绑定）或指定账号。",
+    "cloudPath": "云盘目录",
+    "keepCount": "保留 N 份",
+    "keepCountHint": "0 = 全部保留。仅限 S3。",
+    "saved": "计划已保存。",
+    "runNow": "立即运行",
+    "running": "运行中...",
+    "runOk": "完成：{{artifact}}",
+    "runFailed": "错误：{{error}}",
+    "lastRun": "上次运行：{{when}} · {{size}}",
+    "nextDue": "下次运行：{{when}}",
+    "loading": "正在加载配置..."
   }
 }

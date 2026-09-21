@@ -127,12 +127,6 @@ func TestAbortRun_AlreadyAborting(t *testing.T) {
 
 	_, _ = registerRun(r, runID, sessionKey)
 
-	// Goroutine exits quickly so most callers see AlreadyAborting, not Forced.
-	go func() {
-		time.Sleep(20 * time.Millisecond)
-		r.UnregisterRun(runID)
-	}()
-
 	const n = 100
 	results := make([]AbortResult, n)
 	var wg sync.WaitGroup
@@ -166,6 +160,14 @@ func TestAbortRun_AlreadyAborting(t *testing.T) {
 	if alreadyAborting+definitiveCount != n {
 		t.Fatalf("counts don't sum to %d: stopped=%d forced=%d alreadyAborting=%d other=%d",
 			n, stopped, forced, alreadyAborting, other)
+	}
+
+	// Aborts after the run is gone must stay non-definitive (no panic, no
+	// second winner) — checked deterministically instead of racing a
+	// mid-test UnregisterRun against the 100 callers.
+	r.UnregisterRun(runID)
+	if res := r.AbortRun(runID, sessionKey); res.Stopped || res.Forced {
+		t.Fatalf("abort after unregister = %+v, want non-definitive", res)
 	}
 }
 

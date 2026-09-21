@@ -33,7 +33,7 @@ func TestOpensAfterThreshold(t *testing.T) {
 	cb := newTestBreaker(now)
 
 	// Failures below threshold → degraded, still allowed.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		cb.RecordFailure("a:b")
 	}
 	if cb.State("a:b") != CircuitDegraded {
@@ -82,7 +82,7 @@ func TestOpensAfterThreshold(t *testing.T) {
 func TestProbeSuccessCloses(t *testing.T) {
 	now, advance := fakeClock(t)
 	cb := newTestBreaker(now)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		cb.RecordFailure("a:b")
 	}
 	if cb.State("a:b") != CircuitOpen {
@@ -104,7 +104,7 @@ func TestProbeSuccessCloses(t *testing.T) {
 func TestProbeFailureReopens(t *testing.T) {
 	now, advance := fakeClock(t)
 	cb := newTestBreaker(now)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		cb.RecordFailure("a:b")
 	}
 	advance(cb.opts.Cooldown + time.Second)
@@ -123,7 +123,7 @@ func TestProbeFailureReopens(t *testing.T) {
 func TestStaleProbeIsReleased(t *testing.T) {
 	now, advance := fakeClock(t)
 	cb := newTestBreaker(now)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		cb.RecordFailure("a:b")
 	}
 	advance(cb.opts.Cooldown + time.Second)
@@ -148,7 +148,7 @@ func TestStaleProbeIsReleased(t *testing.T) {
 func TestProbeStillBlockedBeforeTimeout(t *testing.T) {
 	now, advance := fakeClock(t)
 	cb := newTestBreaker(now)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		cb.RecordFailure("a:b")
 	}
 	advance(cb.opts.Cooldown + time.Second)
@@ -181,7 +181,7 @@ func TestSuccessResetsDegraded(t *testing.T) {
 func TestKeysAreIsolated(t *testing.T) {
 	now, _ := fakeClock(t)
 	cb := newTestBreaker(now)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		cb.RecordFailure("a:bad")
 	}
 	if cb.Allow("a:bad") {

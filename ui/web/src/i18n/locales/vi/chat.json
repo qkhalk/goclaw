@@ -119,7 +119,15 @@
     "empty": "Chưa mở trang nào. Yêu cầu agent mở trang nhé.",
     "switchToLive": "Xem trực tiếp (chạy JavaScript)",
     "switchToStatic": "Chế độ tĩnh (agent thao tác được)",
-    "liveNote": "Xem trực tiếp — trang thật đang chạy JavaScript. Ở chế độ này agent không đọc/click được; cần thì chuyển về chế độ tĩnh."
+    "liveNote": "Xem trực tiếp — trang thật đang chạy JavaScript. Ở chế độ này agent không đọc/click được; cần thì chuyển về chế độ tĩnh.",
+    "thinStaticNote": "Trang này cần JavaScript để hiển thị nên bản tĩnh gần như trống. Hãy chuyển sang xem trực tiếp (biểu tượng tia sét) hoặc mở tab mới.",
+    "remote": {
+      "toggle": "Trình duyệt server (agent điều khiển)",
+      "placeholder": "URL — mở bằng headless Chrome phía server",
+      "empty": "Nhập URL để mở bằng trình duyệt server (Chrome thật, chạy JS — agent cùng dùng trình duyệt này).",
+      "note": "Server browser — trang do gateway render, agent đọc/điều khiển được cả site chặn JS/iframe.",
+      "noCapture": "Trang đã mở nhưng không chụp được ảnh — thử làm mới."
+    }
   },
   "taskTree": {
     "empty": "Chưa có nhiệm vụ nào",
@@ -202,6 +210,17 @@
     "other": "Khác…",
     "otherPlaceholder": "Nhập câu trả lời của bạn…",
     "send": "Gửi câu trả lời",
-    "recommended": "Đề xuất"
+    "recommended": "Đề xuất",
+    "confirm": "✔ Xác nhận",
+    "back": "◀ Quay lại"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev mode đang BẬT — click để tắt",
+    "off": "Dev mode đang TẮT — click để bật (lập kế hoạch, tự dùng skill, hỏi khi chưa rõ)"
+  },
+  "daySep": {
+    "today": "Hôm nay",
+    "yesterday": "Hôm qua"
   }
 }

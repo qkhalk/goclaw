@@ -13,18 +13,23 @@ import { ChatTopBar } from "@/components/chat/chat-top-bar";
 import { DropZone } from "@/components/shared/drop-zone";
 import { TeamTasksPill } from "@/components/chat/team-tasks-pill";
 import { useChatSessions } from "./hooks/use-chat-sessions";
+import { useWs } from "@/hooks/use-ws";
+import { Methods } from "@/api/protocol";
 import { useChatMessages } from "./hooks/use-chat-messages";
 import { useChatSend } from "./hooks/use-chat-send";
 import { isOwnSession, parseSessionKey } from "@/lib/session-key";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
-import { FileExplorerPanel } from "@/components/chat/file-explorer-panel";
-import { JobsTasksPanel } from "@/components/chat/jobs-tasks-panel";
-import { TerminalPanel } from "@/components/chat/terminal-panel";
-import { BrowserPanel } from "@/components/chat/browser-panel";
+import { ChatSidePane, type ChatPaneId } from "@/components/chat/chat-side-pane";
+import { ResizeHandle } from "@/components/shared/resize-handle";
 import { useBrowserPanel } from "./hooks/use-browser-panel";
+import { useUiStore, CHAT_PANE_WIDTH, CHAT_SIDEBAR_WIDTH } from "@/stores/use-ui-store";
+
+/** Widening the right pane must never squeeze the chat column below this. */
+const MIN_CHAT_COLUMN_PX = 360;
 
 export function ChatPage() {
   const { t } = useTranslation("chat");
+  const { t: tCommon } = useTranslation("common");
   const { sessionKey: urlSessionKey } = useParams<{ sessionKey: string }>();
   const navigate = useNavigate();
   const connected = useAuthStore((s) => s.connected);
@@ -58,6 +63,26 @@ export function ChatPage() {
     buildNewSessionKey,
     deleteSession,
   } = useChatSessions(agentId);
+  const ws = useWs();
+
+  // Dev mode: same per-session pref (chat_mode=dev) the Telegram /dev command
+  // writes — the gateway applies the dev-mode prompt section to web runs too.
+  const devMode = sessions.find((s) => s.key === sessionKey)?.metadata?.chat_mode === "dev";
+  const onDevModeChange = useCallback(
+    async (on: boolean) => {
+      if (!sessionKey) return;
+      try {
+        await ws.call(Methods.SESSIONS_PATCH, {
+          key: sessionKey,
+          metadata: { chat_mode: on ? "dev" : "" },
+        });
+        await refreshSessions();
+      } catch {
+        // patch failures leave the pref unchanged; next open of the session re-reads it
+      }
+    },
+    [sessionKey, ws, refreshSessions],
+  );
 
   const {
     messages,
@@ -97,36 +122,6 @@ export function ChatPage() {
     onMessageAdded: handleMessageAdded,
     onExpectRun: expectRun,
   });
-
-  // Dev mode toggle — persisted per session in localStorage (not globally):
-  // draft sessions (no URL key yet) share the "draft" bucket.
-  const devModeStorageKey = `goclaw.dev-mode.${sessionKey || "draft"}`;
-  const [devMode, setDevMode] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(devModeStorageKey) === "1";
-    } catch {
-      return false;
-    }
-  });
-  // Reload the toggle when switching sessions so it follows the per-session flag.
-  useEffect(() => {
-    try {
-      setDevMode(localStorage.getItem(devModeStorageKey) === "1");
-    } catch {
-      // storage unavailable — toggle just won't persist
-    }
-  }, [devModeStorageKey]);
-  const handleDevModeChange = useCallback(
-    (on: boolean) => {
-      setDevMode(on);
-      try {
-        localStorage.setItem(devModeStorageKey, on ? "1" : "0");
-      } catch {
-        // storage unavailable (private mode) — toggle just won't persist
-      }
-    },
-    [devModeStorageKey],
-  );
 
   const handleNewChat = useCallback(() => {
     navigate(`/chat/${encodeURIComponent(buildNewSessionKey())}`);
@@ -168,26 +163,12 @@ export function ChatPage() {
       let key = sessionKey;
       if (!key) {
         key = buildNewSessionKey();
-        // Carry the draft dev-mode toggle under the real session key before
-        // navigating, so the per-session effect doesn't reset it right after
-        // the first message creates the session.
-        try {
-          localStorage.setItem(`goclaw.dev-mode.${key}`, devMode ? "1" : "0");
-        } catch {
-          // storage unavailable — toggle just won't persist
-        }
         navigate(`/chat/${encodeURIComponent(key)}`, { replace: true });
       }
-      // Merge devMode here (not just in ChatInput) so ask_options answer
-      // sends — which bypass the composer — keep the flag on the run.
-      const merged: ComposerOverrides | undefined = {
-        ...overrides,
-        ...(devMode ? { devMode: true } : {}),
-      };
-      send(message, key, sendFiles, merged);
+      send(message, key, sendFiles, overrides);
       setScrollTrigger((n) => n + 1);
     },
-    [sessionKey, send, buildNewSessionKey, navigate, devMode],
+    [sessionKey, send, buildNewSessionKey, navigate],
   );
 
   const handleDropFiles = useCallback((dropped: File[]) => {
@@ -221,13 +202,38 @@ export function ChatPage() {
   const [agentSelectorOpenSignal, setAgentSelectorOpenSignal] = useState(0);
   // Paseo Phase 3 console panels: workspace selection + right-side tools.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [filesPanelOpen, setFilesPanelOpen] = useState(false);
-  const [jobsPanelOpen, setJobsPanelOpen] = useState(false);
-  // Paseo Phase 4 (§25): web terminal side panel.
-  const [termOpen, setTermOpen] = useState(false);
+  // Single ZCode-style tabbed side pane: open a tool = switch its tab, never
+  // stack columns. Null = closed.
+  const [activePane, setActivePane] = useState<ChatPaneId | null>(null);
   // Client-side browsing: agent's web_browse renders here (browser.panel.invoke).
-  const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
-  const browserPanel = useBrowserPanel(useCallback(() => setBrowserPanelOpen(true), []));
+  const browserPanel = useBrowserPanel(useCallback(() => setActivePane("browser"), []));
+
+  // Toggle semantics: clicking the open pane's entry closes it.
+  const togglePane = useCallback((id: ChatPaneId) => {
+    setActivePane((cur) => (cur === id ? null : id));
+  }, []);
+
+  const setChatSidebarWidth = useUiStore((s) => s.setChatSidebarWidth);
+  const chatSidebarWidth = useUiStore((s) => s.chatSidebarWidth);
+  const setChatPaneWidth = useUiStore((s) => s.setChatPaneWidth);
+  const chatPaneWidth = useUiStore((s) => s.chatPaneWidth);
+  // Read fresh state inside drag callbacks so rapid pointermove events never
+  // compound a stale closure width.
+  const resizeChatSidebar = useCallback((dx: number) => {
+    const s = useUiStore.getState();
+    s.setChatSidebarWidth(s.chatSidebarWidth + dx);
+  }, []);
+  const resizeChatPane = useCallback((dx: number) => {
+    const s = useUiStore.getState();
+    // Pane sits on the right: drag left = wider. Cap widening so the chat
+    // column keeps a usable minimum (MIN_CHAT_COLUMN_PX) instead of being
+    // crushed into a broken sliver on smaller windows.
+    const dynamicMax = Math.max(
+      CHAT_PANE_WIDTH.min,
+      Math.min(CHAT_PANE_WIDTH.max, window.innerWidth - s.chatSidebarWidth - MIN_CHAT_COLUMN_PX),
+    );
+    s.setChatPaneWidth(Math.min(s.chatPaneWidth - dx, dynamicMax));
+  }, []);
 
   const handleSessionSelectMobile = useCallback(
     (key: string) => {
@@ -273,21 +279,33 @@ export function ChatPage() {
           </div>
         </>
       ) : (
-        <ChatSidebar
-          agentId={agentId}
-          onAgentChange={handleAgentChange}
-          sessions={sessions}
-          sessionsLoading={sessionsLoading}
-          activeSessionKey={sessionKey}
-          onSessionSelect={handleSessionSelect}
-          onDeleteSession={handleDeleteSession}
-          onNewChat={handleNewChat}
-          agentSelectorOpenSignal={agentSelectorOpenSignal}
-        />
+        /* Desktop chat sidebar with drag-resizable width */
+        <>
+          <ChatSidebar
+            agentId={agentId}
+            onAgentChange={handleAgentChange}
+            sessions={sessions}
+            sessionsLoading={sessionsLoading}
+            activeSessionKey={sessionKey}
+            onSessionSelect={handleSessionSelect}
+            onDeleteSession={handleDeleteSession}
+            onNewChat={handleNewChat}
+            agentSelectorOpenSignal={agentSelectorOpenSignal}
+            width={chatSidebarWidth}
+          />
+          <ResizeHandle
+            side="right"
+            onResize={resizeChatSidebar}
+            onReset={() => setChatSidebarWidth(CHAT_SIDEBAR_WIDTH.default)}
+            ariaLabel={tCommon("pane.resize")}
+          />
+        </>
       )}
 
-      {/* Main chat area */}
-      <div className="flex min-w-0 flex-1 min-h-0 flex-col">
+      {/* Main chat area. Hard floor at MIN_CHAT_COLUMN_PX (never wider than
+          the viewport on small screens) so widening the side pane can only
+          clip the pane, never crush the thread into an unreadable sliver. */}
+      <div className="flex min-w-[min(360px,100vw)] flex-1 min-h-0 flex-col">
         {isMobile && (
           <div className="flex shrink-0 items-center border-b px-3 py-2 landscape-compact">
             <button
@@ -305,16 +323,12 @@ export function ChatPage() {
             agentId={agentId}
             isRunning={isRunning}
             session={sessions.find((s) => s.key === sessionKey) ?? null}
-            onToggleFiles={() => setFilesPanelOpen((v) => !v)}
-            filesPanelOpen={filesPanelOpen}
-            onToggleJobsTasks={() => setJobsPanelOpen((v) => !v)}
-            jobsTasksPanelOpen={jobsPanelOpen}
-            onToggleTerminal={() => setTermOpen((v) => !v)}
-            termPanelOpen={termOpen}
-            onToggleBrowser={() => setBrowserPanelOpen((v) => !v)}
-            browserPanelOpen={browserPanelOpen}
+            activePane={activePane}
+            onTogglePane={togglePane}
             workspaceId={workspaceId}
             onWorkspaceChange={setWorkspaceId}
+            devMode={devMode}
+            onDevModeChange={onDevModeChange}
           />
         </div>
 
@@ -372,53 +386,34 @@ export function ChatPage() {
                 disabled={!connected}
                 files={files}
                 onFilesChange={setFiles}
-                devMode={devMode}
-                onDevModeChange={handleDevModeChange}
               />
             </>
           )}
         </DropZone>
       </div>
 
-      {/* Mobile overlay backdrops for the console panels — one open at a time */}
-      {filesPanelOpen && !jobsPanelOpen && isMobile && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setFilesPanelOpen(false)} />
-      )}
-      {jobsPanelOpen && isMobile && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setJobsPanelOpen(false)} />
-      )}
-      {termOpen && !filesPanelOpen && !jobsPanelOpen && isMobile && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setTermOpen(false)} />
-      )}
-      {browserPanelOpen && !filesPanelOpen && !jobsPanelOpen && !termOpen && isMobile && (
-        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setBrowserPanelOpen(false)} />
+      {/* Mobile backdrop for the side pane (fullscreen overlay on mobile) */}
+      {activePane && isMobile && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setActivePane(null)} />
       )}
 
-      <FileExplorerPanel
-        open={filesPanelOpen}
-        onClose={() => setFilesPanelOpen(false)}
+      <ChatSidePane
+        active={activePane}
         workspaceId={workspaceId}
-      />
-      <JobsTasksPanel
-        open={jobsPanelOpen}
-        onClose={() => setJobsPanelOpen(false)}
-        workspaceId={workspaceId}
-      />
-      <TerminalPanel
-        open={termOpen}
-        onClose={() => setTermOpen(false)}
-        workspaceId={workspaceId}
-      />
-      <BrowserPanel
-        open={browserPanelOpen}
-        onClose={() => setBrowserPanelOpen(false)}
-        state={browserPanel.state}
-        onIframeLoad={browserPanel.handleIframeLoad}
-        onBack={browserPanel.goBack}
-        onForward={browserPanel.goForward}
-        onReload={browserPanel.reload}
-        onURLSubmit={browserPanel.openURL}
-        onToggleMode={browserPanel.toggleMode}
+        width={isMobile ? null : chatPaneWidth}
+        onResize={resizeChatPane}
+        onResetWidth={() => setChatPaneWidth(CHAT_PANE_WIDTH.default)}
+        onClose={() => setActivePane(null)}
+        onSelect={togglePane}
+        browser={{
+          state: browserPanel.state,
+          onIframeLoad: browserPanel.handleIframeLoad,
+          onBack: browserPanel.goBack,
+          onForward: browserPanel.goForward,
+          onReload: browserPanel.reload,
+          onURLSubmit: browserPanel.openURL,
+          onToggleMode: browserPanel.toggleMode,
+        }}
       />
     </div>
   );

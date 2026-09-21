@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"mime"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -381,10 +380,11 @@ func mimeTypeForFile(name string) string {
 		if m := defaultMimeByExt(ext); m != "" {
 			return m
 		}
-		if m := mime.TypeByExtension(ext); m != "" {
-			return m
-		}
 	}
+	// Deliberately no mime.TypeByExtension fallback: the system/Go mime
+	// registry varies across runtimes (Go 1.26 knows .xyz → chemical/x-xyz),
+	// and downloads must map unknown extensions to a binary-safe type
+	// deterministically.
 	return "application/octet-stream"
 }
 

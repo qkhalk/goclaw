@@ -22,11 +22,12 @@ import (
 // TTSHandler handles POST /v1/tts/synthesize — converts text to audio via a
 // configured TTS provider and returns raw audio bytes with the appropriate MIME type.
 type TTSHandler struct {
-	mu            sync.RWMutex
-	manager       *audio.Manager
-	rateLimiter   func(string) bool        // per-IP/token rate limit check (nil = no limit)
-	systemConfigs store.SystemConfigStore  // per-tenant TTS settings
-	configSecrets store.ConfigSecretsStore // per-tenant TTS secrets
+	mu             sync.RWMutex
+	manager        *audio.Manager
+	rateLimiter    func(string) bool        // per-IP/token rate limit check (nil = no limit)
+	systemConfigs  store.SystemConfigStore  // per-tenant TTS settings
+	configSecrets  store.ConfigSecretsStore // per-tenant TTS secrets
+	videoNarration VideoNarrationStore      // optional; backs POST /v1/video/narration
 }
 
 // NewTTSHandler creates a TTSHandler backed by the given audio.Manager.
@@ -59,6 +60,14 @@ func (h *TTSHandler) RegisterRoutes(mux *http.ServeMux) {
 		requireAuth(permissions.RoleOperator, h.handleSynthesize))
 	mux.HandleFunc("POST /v1/tts/test-connection",
 		requireAuth(permissions.RoleOperator, h.handleTestConnection))
+	mux.HandleFunc("GET /v1/tts/clone/voices",
+		requireAuth(permissions.RoleOperator, h.handleCloneVoicesList))
+	mux.HandleFunc("POST /v1/tts/clone/voices",
+		requireAuth(permissions.RoleOperator, h.handleCloneVoicesRegister))
+	mux.HandleFunc("DELETE /v1/tts/clone/voices/{id}",
+		requireAuth(permissions.RoleOperator, h.handleCloneVoicesDelete))
+	mux.HandleFunc("POST /v1/video/narration",
+		requireAuth(permissions.RoleOperator, h.handleVideoNarrationUpload))
 	h.registerCapabilitiesRoute(mux)
 }
 
@@ -71,9 +80,9 @@ type synthesizeRequest struct {
 }
 
 const (
-	maxSynthesizeBodyBytes      = 4 << 10 // 4KB — enough for 500 chars + metadata
-	maxSynthesizeTextChars      = 500
-	defaultSynthesizeTimeoutMs  = 120000 // 120s default; tenant tts.timeout_ms overrides
+	maxSynthesizeBodyBytes     = 4 << 10 // 4KB — enough for 500 chars + metadata
+	maxSynthesizeTextChars     = 500
+	defaultSynthesizeTimeoutMs = 120000 // 120s default; tenant tts.timeout_ms overrides
 )
 
 // handleSynthesize serves POST /v1/tts/synthesize.
@@ -304,6 +313,18 @@ func (h *TTSHandler) resolveTenantProvider(ctx context.Context, explicitProvider
 		req.VoiceID, _ = h.systemConfigs.Get(ctx, "tts.gemini.voice")
 		req.ModelID, _ = h.systemConfigs.Get(ctx, "tts.gemini.model")
 		req.Params = loadParamsBlob(ctx, h.systemConfigs, "tts.gemini.params")
+
+	case "clone":
+		// Endpoint is the enable switch; the worker token is optional.
+		req.APIBase, _ = h.systemConfigs.Get(ctx, "tts.clone.endpoint")
+		if req.APIBase == "" {
+			return nil, "", nil, fmt.Errorf("no clone endpoint")
+		}
+		if key, _ := h.configSecrets.Get(ctx, "tts.clone.api_key"); key != "" {
+			req.APIKey = key
+		}
+		req.VoiceID, _ = h.systemConfigs.Get(ctx, "tts.clone.voice")
+		req.Params = loadParamsBlob(ctx, h.systemConfigs, "tts.clone.params")
 
 	default:
 		return nil, "", nil, fmt.Errorf("unsupported provider: %s", providerName)
