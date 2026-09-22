@@ -632,3 +632,57 @@ func TestHandleArchiveCallback_StoreUnavailable(t *testing.T) {
 		t.Errorf("answerCallbackQuery calls = %d, want 1", n)
 	}
 }
+
+// Forged ar:all:<otherAgent> must be rejected — callback data is
+// client-supplied, so archive-all is scoped to the channel's own agent.
+func TestHandleArchiveCallback_ForgedArchiveAllRejected(t *testing.T) {
+	own := uuid.New()
+	other := uuid.New()
+	tasks := newFakeSubagentTaskStore()
+	tasks.addTask(other, "completed", "Foreign docs")
+
+	ch, caller := newArchiveTestChannel(t, tasks, nil)
+	ch.SetAgentID(own.String())
+
+	ch.handleArchiveCallback(context.Background(),
+		testCallbackQuery("ar:all:"+other.String(), -100, 101, "en"))
+
+	if len(tasks.archiveAllOf) != 0 {
+		t.Fatalf("ArchiveCompletedForParent must not fire, got %v", tasks.archiveAllOf)
+	}
+	if len(tasks.archived) != 0 {
+		t.Fatalf("foreign tasks must not be archived, got %v", tasks.archived)
+	}
+	send := lastTelegramCall(t, caller, "sendMessage")
+	text, _ := send.body["text"].(string)
+	if !strings.Contains(text, "Invalid agent ID") {
+		t.Errorf("reply = %q, want invalid-agent rejection", text)
+	}
+}
+
+// Forged ar:<foreignTaskID> must answer as not-found and archive nothing —
+// no existence leak, no cross-agent mutation.
+func TestHandleArchiveCallback_ForeignTaskTreatedAsNotFound(t *testing.T) {
+	own := uuid.New()
+	other := uuid.New()
+	tasks := newFakeSubagentTaskStore()
+	foreign := tasks.addTask(other, "completed", "Foreign docs")
+
+	ch, caller := newArchiveTestChannel(t, tasks, nil)
+	ch.SetAgentID(own.String())
+
+	ch.handleArchiveCallback(context.Background(),
+		testCallbackQuery("ar:"+foreign.ID.String(), -100, 101, "en"))
+
+	if len(tasks.archived) != 0 {
+		t.Fatalf("foreign task must not be archived, got %v", tasks.archived)
+	}
+	if n := countTelegramCalls(caller, "editMessageText"); n != 0 {
+		t.Errorf("editMessageText calls = %d, want 0 (no list re-render)", n)
+	}
+	send := lastTelegramCall(t, caller, "sendMessage")
+	text, _ := send.body["text"].(string)
+	if !strings.Contains(text, "not found") {
+		t.Errorf("reply = %q, want generic not-found", text)
+	}
+}

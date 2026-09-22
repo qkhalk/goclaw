@@ -324,10 +324,20 @@ func (c *Channel) handleArchiveCallback(ctx context.Context, query *telego.Callb
 		return
 	}
 
+	// Callback data is client-forgeable — scope every archive to THIS
+	// channel's agent (same contract as the sa: detail handler) so a crafted
+	// ar: payload cannot touch another agent's tasks.
+	agentID, err := c.resolveAgentUUID(ctx)
+	if err != nil {
+		slog.Warn("archive callback: resolve agent UUID failed", "error", err)
+		send("Subagent tasks are not available (agent could not be resolved).")
+		return
+	}
+
 	// --- archive every completed task of the root agent ---
 	if agentStr, ok := strings.CutPrefix(query.Data, "ar:all:"); ok {
 		rootAgentID, err := uuid.Parse(agentStr)
-		if err != nil {
+		if err != nil || rootAgentID != agentID {
 			answer("", false)
 			send("Invalid agent ID.")
 			return
@@ -366,6 +376,12 @@ func (c *Channel) handleArchiveCallback(ctx context.Context, query *telego.Callb
 		return
 	}
 	if task == nil {
+		answer("", false)
+		send(fmt.Sprintf("Task %s not found.", taskIDStr[:8]))
+		return
+	}
+	if task.RootAgentID != agentID {
+		// Foreign agent's task — reply as not-found (no existence leak).
 		answer("", false)
 		send(fmt.Sprintf("Task %s not found.", taskIDStr[:8]))
 		return

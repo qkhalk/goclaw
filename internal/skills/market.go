@@ -407,9 +407,11 @@ func (m *Market) Uninstall(ctx context.Context, slug string) error {
 
 	// Remove the managed directory (all versions). row.Path is the managed
 	// file_path recorded at seed time; its parent is <managedDir>/<slug>.
+	// Containment (not basename) equality: only ever delete the directory
+	// this market manages for the slug, never anything a stale row points at.
 	if row.Path != "" {
 		skillRoot := filepath.Dir(filepath.Clean(row.Path))
-		if filepath.Base(skillRoot) == slug {
+		if skillRoot == filepath.Clean(filepath.Join(m.managedDir, slug)) {
 			if err := os.RemoveAll(skillRoot); err != nil {
 				slog.Warn("market: remove managed dir failed", "slug", slug, "dir", skillRoot, "error", err)
 			}
