@@ -31,6 +31,7 @@ type seededSkill struct {
 	id      uuid.UUID
 	slug    string
 	baseDir string // managed dir path for ScanSkillDeps
+	version int    // DB version of the seeded/unchanged row
 }
 
 // Seeder seeds system/bundled skills into the database.
@@ -38,6 +39,7 @@ type Seeder struct {
 	bundledDir string           // source: /app/bundled-skills/ or skills/ (dev)
 	managedDir string           // destination: skills-store/ directory
 	store      SystemSkillStore // DB operations
+	include    map[string]bool  // slug allowlist (seed filter); nil = seed everything
 }
 
 // NewSeeder creates a new system skill seeder.
@@ -47,6 +49,45 @@ func NewSeeder(bundledDir, managedDir string, store SystemSkillStore) *Seeder {
 		managedDir: managedDir,
 		store:      store,
 	}
+}
+
+// SetFilter restricts seeding to the given slugs (skills.seed_mode=core).
+// Unknown slugs are ignored; `_`-prefixed shared directories are always
+// copied regardless of the filter so core skills with shared code keep
+// working. Passing an empty slice seeds nothing but the shared dirs.
+func (s *Seeder) SetFilter(slugs []string) {
+	s.include = make(map[string]bool, len(slugs))
+	for _, slug := range slugs {
+		s.include[slug] = true
+	}
+}
+
+// seedOutcomeKind classifies what seedOne did for one slug. Seed counts
+// seeded/skipped from it; the market installer branches on it to decide
+// whether a row needs reactivation or grants.
+type seedOutcomeKind int
+
+const (
+	// outcomeNoSkillFile: directory has no readable SKILL.md — silently
+	// ignored (not counted, not listed).
+	outcomeNoSkillFile seedOutcomeKind = iota
+	// outcomeSeedFailed: upsert or copy error — logged, not counted.
+	outcomeSeedFailed
+	// outcomeSkippedConflict: slug collides with a user-custom skill —
+	// counted as skipped, never listed.
+	outcomeSkippedConflict
+	// outcomeSkippedUnchanged: bundled content hash unchanged — counted as
+	// skipped, still listed for the async dep check.
+	outcomeSkippedUnchanged
+	// outcomeSeeded: new row or updated content, files copied.
+	outcomeSeeded
+)
+
+// seedOutcome is the result of seeding one bundled skill.
+type seedOutcome struct {
+	kind    seedOutcomeKind
+	skill   seededSkill // valid for outcomeSeeded and outcomeSkippedUnchanged
+	changed bool        // whether the DB row content changed (upsert reported true)
 }
 
 // Seed upserts skill records into DB and copies files to managedDir.
@@ -71,106 +112,138 @@ func (s *Seeder) Seed(ctx context.Context) (seeded int, skipped int, skills []se
 			continue
 		}
 
-		skillDir := filepath.Join(s.bundledDir, slug)
-		skillFile := filepath.Join(skillDir, "SKILL.md")
-
-		data, err := os.ReadFile(skillFile)
-		if err != nil {
-			slog.Debug("seeder: skip dir without SKILL.md", "slug", slug)
+		// seed_mode=core: only seed the allowlisted slugs.
+		if s.include != nil && !s.include[slug] {
 			continue
 		}
 
-		// Parse metadata
-		content := string(data)
-		meta := parseMetadata(skillFile)
-		name := slug
-		description := ""
-		if meta != nil {
-			if meta.Name != "" {
-				name = meta.Name
-			}
-			description = meta.Description
+		outcome, seedErr := s.seedOne(ctx, slug)
+		if seedErr != nil {
+			seedErrs = append(seedErrs, seedErr)
 		}
-
-		// Compute hash of SKILL.md content
-		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
-
-		// Build frontmatter map
-		fm := extractFrontmatter(content)
-		fmMap := make(map[string]string)
-		if fm != "" {
-			fmMap = parseSimpleYAML(fm)
-		}
-
-		version := s.store.GetNextVersion(ctx, slug)
-		destDir := filepath.Join(s.managedDir, slug, fmt.Sprintf("%d", version))
-
-		desc := description
-		p := store.SkillCreateParams{
-			Name:        name,
-			Slug:        slug,
-			Description: &desc,
-			OwnerID:     "system",
-			Visibility:  "public",
-			Status:      "active",
-			Version:     version,
-			FilePath:    destDir,
-			FileSize:    int64(len(data)),
-			FileHash:    &hash,
-			Frontmatter: fmMap,
-		}
-
-		id, changed, actualDir, upsertErr := s.store.UpsertSystemSkill(ctx, p)
-		if upsertErr != nil {
-			if errors.Is(upsertErr, store.ErrMisclassifiedCustomSkill) {
-				if err := s.restoreCustomSkillMetadata(ctx, id, p); err != nil {
-					slog.Warn("seeder: failed to restore custom skill metadata", "slug", slug, "error", err)
-					seedErrs = append(seedErrs, fmt.Errorf("restore custom skill %q: %w", slug, err))
-				}
-				slog.Warn("seeder: skip bundled skill with custom slug", "slug", slug)
-				skipped++
-				continue
-			}
-			if errors.Is(upsertErr, store.ErrSystemSkillSlugConflict) {
-				slog.Warn("seeder: skip bundled skill with custom slug", "slug", slug)
-				skipped++
-				continue
-			}
-			slog.Error("seeder: failed to upsert skill", "slug", slug, "error", upsertErr)
-			continue
-		}
-
-		if !changed {
-			// Use the existing file_path from DB — destDir is GetNextVersion+1 which doesn't exist yet.
-			// Also check if the managed dir is intact: a previous copy may have failed mid-way due to
-			// symlink-to-directory errors, leaving scripts/ empty. Detect by checking if the bundled
-			// scripts/ dir has content but the managed scripts/ dir is missing or empty.
-			if needsReCopy(skillDir, actualDir) {
-				slog.Info("seeder: managed dir incomplete, re-copying", "slug", slug, "dir", actualDir)
-				if err := CopyDir(skillDir, actualDir); err != nil {
-					slog.Error("seeder: failed to re-copy skill files", "slug", slug, "error", err)
-				}
-			}
+		switch outcome.kind {
+		case outcomeSeeded:
+			skills = append(skills, outcome.skill)
+			seeded++
+		case outcomeSkippedUnchanged:
+			skills = append(skills, outcome.skill)
 			skipped++
-			skills = append(skills, seededSkill{id: id, slug: slug, baseDir: actualDir})
-			continue
+		case outcomeSkippedConflict:
+			skipped++
+		case outcomeNoSkillFile, outcomeSeedFailed:
+			// logged inside seedOne; not counted
 		}
-
-		// Copy skill directory to managed dir
-		if err := CopyDir(skillDir, destDir); err != nil {
-			slog.Error("seeder: failed to copy skill files", "slug", slug, "error", err)
-			continue
-		}
-
-		slog.Info("seeder: skill seeded", "id", id, "slug", slug, "version", version)
-		skills = append(skills, seededSkill{id: id, slug: slug, baseDir: actualDir})
-		seeded++
 	}
 
 	if seeded > 0 {
 		s.store.BumpVersion()
 	}
 	return seeded, skipped, skills, errors.Join(seedErrs...)
+}
+
+// seedOne upserts a single bundled skill into the DB and copies its files
+// into the managed directory. It is the per-skill body of the Seed loop,
+// extracted so the market installer can install individual skills with the
+// exact same semantics. Transient errors are logged here exactly as Seed
+// always did; the returned error is non-nil only for the custom-skill
+// recovery path (the caller joins it into the aggregate seed error).
+func (s *Seeder) seedOne(ctx context.Context, slug string) (seedOutcome, error) {
+	skillDir := filepath.Join(s.bundledDir, slug)
+	skillFile := filepath.Join(skillDir, "SKILL.md")
+
+	data, err := os.ReadFile(skillFile)
+	if err != nil {
+		slog.Debug("seeder: skip dir without SKILL.md", "slug", slug)
+		return seedOutcome{kind: outcomeNoSkillFile}, nil
+	}
+
+	// Parse metadata
+	content := string(data)
+	meta := parseMetadata(skillFile)
+	name := slug
+	description := ""
+	if meta != nil {
+		if meta.Name != "" {
+			name = meta.Name
+		}
+		description = meta.Description
+	}
+
+	// Compute hash of SKILL.md content
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
+
+	// Build frontmatter map
+	fm := extractFrontmatter(content)
+	fmMap := make(map[string]string)
+	if fm != "" {
+		fmMap = parseSimpleYAML(fm)
+	}
+
+	version := s.store.GetNextVersion(ctx, slug)
+	destDir := filepath.Join(s.managedDir, slug, fmt.Sprintf("%d", version))
+
+	desc := description
+	p := store.SkillCreateParams{
+		Name:        name,
+		Slug:        slug,
+		Description: &desc,
+		OwnerID:     "system",
+		Visibility:  "public",
+		Status:      "active",
+		Version:     version,
+		FilePath:    destDir,
+		FileSize:    int64(len(data)),
+		FileHash:    &hash,
+		Frontmatter: fmMap,
+	}
+
+	id, changed, actualDir, upsertErr := s.store.UpsertSystemSkill(ctx, p)
+	if upsertErr != nil {
+		if errors.Is(upsertErr, store.ErrMisclassifiedCustomSkill) {
+			if err := s.restoreCustomSkillMetadata(ctx, id, p); err != nil {
+				slog.Warn("seeder: failed to restore custom skill metadata", "slug", slug, "error", err)
+				return seedOutcome{kind: outcomeSkippedConflict}, fmt.Errorf("restore custom skill %q: %w", slug, err)
+			}
+			slog.Warn("seeder: skip bundled skill with custom slug", "slug", slug)
+			return seedOutcome{kind: outcomeSkippedConflict}, nil
+		}
+		if errors.Is(upsertErr, store.ErrSystemSkillSlugConflict) {
+			slog.Warn("seeder: skip bundled skill with custom slug", "slug", slug)
+			return seedOutcome{kind: outcomeSkippedConflict}, nil
+		}
+		slog.Error("seeder: failed to upsert skill", "slug", slug, "error", upsertErr)
+		return seedOutcome{kind: outcomeSeedFailed}, nil
+	}
+
+	if !changed {
+		// Use the existing file_path from DB — destDir is GetNextVersion+1 which doesn't exist yet.
+		// Also check if the managed dir is intact: a previous copy may have failed mid-way due to
+		// symlink-to-directory errors, leaving scripts/ empty. Detect by checking if the bundled
+		// scripts/ dir has content but the managed scripts/ dir is missing or empty.
+		if needsReCopy(skillDir, actualDir) {
+			slog.Info("seeder: managed dir incomplete, re-copying", "slug", slug, "dir", actualDir)
+			if err := CopyDir(skillDir, actualDir); err != nil {
+				slog.Error("seeder: failed to re-copy skill files", "slug", slug, "error", err)
+			}
+		}
+		return seedOutcome{
+			kind:  outcomeSkippedUnchanged,
+			skill: seededSkill{id: id, slug: slug, baseDir: actualDir, version: version},
+		}, nil
+	}
+
+	// Copy skill directory to managed dir
+	if err := CopyDir(skillDir, destDir); err != nil {
+		slog.Error("seeder: failed to copy skill files", "slug", slug, "error", err)
+		return seedOutcome{kind: outcomeSeedFailed}, nil
+	}
+
+	slog.Info("seeder: skill seeded", "id", id, "slug", slug, "version", version)
+	return seedOutcome{
+		kind:    outcomeSeeded,
+		skill:   seededSkill{id: id, slug: slug, baseDir: actualDir, version: version},
+		changed: true,
+	}, nil
 }
 
 // restoreCustomSkillMetadata repairs a row that the older slug-only seeder
