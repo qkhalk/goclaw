@@ -1,5 +1,6 @@
 ---
 title: "Phase 12: Docs: VitePress site + GitHub Pages (repo riêng goclaw-docs)"
+<!-- Updated: Validation Session 2 - anh chon docs VitePress nam TRONG repo goclaw (docs/) + workflow Pages chi nhanh dev/main; repo goclaw-docs bi huy, content da move -->
 status: todo
 priority: P3
 effort: "1.5d"
