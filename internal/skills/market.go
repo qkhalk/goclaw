@@ -193,6 +193,12 @@ func (m *Market) installedIndex(ctx context.Context) map[string]store.SkillInfo 
 		return index
 	}
 	for _, info := range m.manage.ListSkills(store.WithTenantID(ctx, store.MasterTenantID)) {
+		// ListSkills deliberately includes soft-deleted system rows (the
+		// skills UI dims them); the market must treat deleted as not
+		// installed so uninstalled skills leave the catalog's installed set.
+		if info.Status == "deleted" {
+			continue
+		}
 		index[info.Slug] = info
 	}
 	return index

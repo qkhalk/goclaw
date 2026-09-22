@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,9 @@ type fakeMarketStore struct {
 	rows   map[string]*fakeSkillRow // slug → row (master-tenant semantics)
 	grants map[uuid.UUID]map[uuid.UUID]bool
 	bumps  int
+	// listIncludesDeleted mimics PGSkillStore.ListSkills, which returns
+	// system rows regardless of soft-delete status (the skills UI dims them).
+	listIncludesDeleted bool
 }
 
 func newFakeMarketStore() *fakeMarketStore {
@@ -99,7 +103,7 @@ func (s *fakeMarketStore) StoreMissingDeps(context.Context, uuid.UUID, []string)
 func (s *fakeMarketStore) ListSkills(context.Context) []store.SkillInfo {
 	out := make([]store.SkillInfo, 0, len(s.rows))
 	for _, row := range s.rows {
-		if row.status == "deleted" {
+		if row.status == "deleted" && !s.listIncludesDeleted {
 			continue
 		}
 		out = append(out, store.SkillInfo{
@@ -388,6 +392,51 @@ func TestMarket_InstallVisibleUninstallCycle(t *testing.T) {
 	}
 	if len(res3.Installed) != 1 || res3.Installed[0] != "alpha" {
 		t.Fatalf("reinstall result = %+v, want alpha installed (reactivated)", res3)
+	}
+	if st.rows["alpha"].status != "active" || !st.rows["alpha"].enabled {
+		t.Fatalf("row not reactivated: %+v", st.rows["alpha"])
+	}
+}
+
+// PG ListSkills returns soft-deleted SYSTEM rows on purpose (the skills UI
+// dims them so admins can reactivate) — the market catalog must still report
+// such rows as not installed, and installing must reactivate them.
+func TestMarket_SoftDeletedSystemRowNotInstalled(t *testing.T) {
+	ctx := context.Background()
+	bundled := writeMarketFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	st := newFakeMarketStore()
+	st.listIncludesDeleted = true
+	// Same SKILL.md hash the seeder computes, so the reinstall takes the
+	// unchanged-content reactivate path (like a plain uninstall→install).
+	skillContent, err := os.ReadFile(filepath.Join(bundled, "alpha", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read fixture SKILL.md: %v", err)
+	}
+	skillHash := fmt.Sprintf("%x", sha256.Sum256(skillContent))
+	st.rows["alpha"] = &fakeSkillRow{
+		id: uuid.New(), name: "alpha", slug: "alpha", owner: "system",
+		status: "deleted", enabled: false, version: 2, hash: skillHash,
+		path: filepath.Join(managed, "alpha", "2", "SKILL.md"), isSystem: true,
+	}
+	market := NewMarket(bundled, managed, st, st)
+
+	rows, err := market.Catalog(ctx)
+	if err != nil {
+		t.Fatalf("Catalog error: %v", err)
+	}
+	for _, row := range rows {
+		if row.Slug == "alpha" && row.Installed {
+			t.Fatalf("soft-deleted system row must not be marked installed")
+		}
+	}
+
+	res, err := market.Install(ctx, []string{"alpha"}, nil, "")
+	if err != nil {
+		t.Fatalf("Install error: %v", err)
+	}
+	if len(res.Installed) != 1 || res.Installed[0] != "alpha" {
+		t.Fatalf("Install result = %+v, want alpha installed (reactivated)", res)
 	}
 	if st.rows["alpha"].status != "active" || !st.rows["alpha"].enabled {
 		t.Fatalf("row not reactivated: %+v", st.rows["alpha"])
