@@ -248,6 +248,14 @@ func (k *KitManager) nextVersion(slug string) int {
 	return v + 1
 }
 
+// safeKitSlug rejects path-traversal payloads before a slug reaches
+// filepath.Join. Defense-in-depth: market callers pre-validate against the
+// bundled catalog, but KitManager must not trust that on its own.
+func safeKitSlug(slug string) bool {
+	return slug != "" && slug != "." && slug != ".." &&
+		!strings.ContainsAny(slug, "/\\") && !strings.Contains(slug, "..")
+}
+
 // InstallOpts tunes InstallFrom. DryRun computes and returns the plan without
 // writing anything.
 type InstallOpts struct {
@@ -313,6 +321,9 @@ func (k *KitManager) InstallFrom(ctx context.Context, manifest KitManifest, opts
 		lock = &LockFile{}
 	}
 	for _, slug := range plan.Install {
+		if !safeKitSlug(slug) {
+			return nil, fmt.Errorf("kit install: invalid slug %q", slug)
+		}
 		version := k.nextVersion(slug)
 		dst := filepath.Join(k.managedDir, slug, strconv.Itoa(version))
 		if err := CopyDir(filepath.Join(k.skillsRoot, slug), dst); err != nil {
@@ -339,6 +350,9 @@ func (k *KitManager) InstallFrom(ctx context.Context, manifest KitManifest, opts
 // the lock entry untouched otherwise. It reports an error for unknown or
 // untracked skills.
 func (k *KitManager) Update(ctx context.Context, slug string) error {
+	if !safeKitSlug(slug) {
+		return fmt.Errorf("kit update %s: invalid slug", slug)
+	}
 	lock, err := LoadKitLock(k.lockPath())
 	if err != nil {
 		return fmt.Errorf("kit update %s: load lock: %w", slug, err)

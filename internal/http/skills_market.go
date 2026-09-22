@@ -3,9 +3,15 @@ package http
 // skills_market.go — bundled-skill market endpoints on the SkillsHandler.
 //
 // GET    /v1/skills/market                    (viewer+)  catalog with installed flags
-// POST   /v1/skills/market/install            (tenant admin) install slugs (+optional grants)
-// DELETE /v1/skills/market/installed/{slug}   (tenant admin) uninstall a bundled skill
-// POST   /v1/skills/market/update/{slug}      (tenant admin) refresh from bundled source
+// POST   /v1/skills/market/install            (master)   install slugs (+optional grants)
+// DELETE /v1/skills/market/installed/{slug}   (master)   uninstall a bundled skill
+// POST   /v1/skills/market/update/{slug}      (master)   refresh from bundled source
+//
+// Mutations require master scope (not just tenant admin): bundled rows are
+// seeded into the master tenant and are global to the deployment, so a
+// tenant admin must not be able to uninstall a bundled skill for everyone.
+// Mutating handlers serialize on one shared market lock — installs compute
+// version directories (nextVersion + CopyDir) that race under concurrency.
 //
 // Installs are local directory copies, so they run synchronously and return
 // a plain JSON result — no background job layer. A very large slug list
@@ -76,6 +82,9 @@ func (h *SkillsHandler) handleMarketList(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *SkillsHandler) handleMarketInstall(w http.ResponseWriter, r *http.Request) {
+	if !requireMasterScope(w, r) {
+		return
+	}
 	locale := store.LocaleFromContext(r.Context())
 	userID := store.UserIDFromContext(r.Context())
 
@@ -111,6 +120,9 @@ func (h *SkillsHandler) handleMarketInstall(w http.ResponseWriter, r *http.Reque
 		grantIDs = append(grantIDs, id)
 	}
 
+	lock := h.skillUploadLock("market")
+	lock.Lock()
+	defer lock.Unlock()
 	market := h.marketFor(r)
 	if market == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "skill market unavailable (no bundled skills directory or store support)"})
@@ -132,11 +144,17 @@ func (h *SkillsHandler) handleMarketInstall(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *SkillsHandler) handleMarketUninstall(w http.ResponseWriter, r *http.Request) {
+	if !requireMasterScope(w, r) {
+		return
+	}
 	slug := r.PathValue("slug")
 	if !validMarketSlug(slug) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid slug"})
 		return
 	}
+	lock := h.skillUploadLock("market")
+	lock.Lock()
+	defer lock.Unlock()
 	market := h.marketFor(r)
 	if market == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "skill market unavailable (no bundled skills directory or store support)"})
@@ -154,11 +172,17 @@ func (h *SkillsHandler) handleMarketUninstall(w http.ResponseWriter, r *http.Req
 }
 
 func (h *SkillsHandler) handleMarketUpdate(w http.ResponseWriter, r *http.Request) {
+	if !requireMasterScope(w, r) {
+		return
+	}
 	slug := r.PathValue("slug")
 	if !validMarketSlug(slug) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid slug"})
 		return
 	}
+	lock := h.skillUploadLock("market")
+	lock.Lock()
+	defer lock.Unlock()
 	market := h.marketFor(r)
 	if market == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "skill market unavailable (no bundled skills directory or store support)"})
@@ -179,7 +203,8 @@ func (h *SkillsHandler) handleMarketUpdate(w http.ResponseWriter, r *http.Reques
 func (h *SkillsHandler) registerMarketRoutes(mux *http.ServeMux) {
 	// Catalog read is viewer+ (same floor as the skills list).
 	mux.HandleFunc("GET /v1/skills/market", h.authMiddleware(h.handleMarketList))
-	// Installs/uninstalls write tenant-scoped skill data — tenant admin.
+	// Installs/uninstalls mutate master-tenant (global) skill rows — admin
+	// role floor here, master-scope enforcement inside the handlers.
 	mux.HandleFunc("POST /v1/skills/market/install", h.tenantAdminMiddleware(h.handleMarketInstall))
 	mux.HandleFunc("DELETE /v1/skills/market/installed/{slug}", h.tenantAdminMiddleware(h.handleMarketUninstall))
 	mux.HandleFunc("POST /v1/skills/market/update/{slug}", h.tenantAdminMiddleware(h.handleMarketUpdate))
