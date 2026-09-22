@@ -455,6 +455,13 @@ func init() {
 		"telegram.status.queue":          " · 🪢 Queue: %s %d/%d active, %d pending",
 		"telegram.status.fullhint":       "/status full — show everything",
 
+		// Telegram subagent archive buttons
+		"telegram.subagent.archiveallconfirm": "🗄 Archived %d completed task(s).",
+		"telegram.subagent.archiveallbtn":     "🗄 Archive completed (%d)",
+		"telegram.subagent.archivedone":       "🗄 Task archived — it's no longer in the list.",
+		"telegram.subagent.notterminal":       "⏳ This task is still running — archive it when it finishes.",
+		"telegram.subagent.archivebtn":        "🗄 Archive",
+
 		// Video render pipeline
 		MsgVideoJobCreated:    "video render job %s created",
 		MsgVideoJobFailed:     "video render job %s failed: %s",
