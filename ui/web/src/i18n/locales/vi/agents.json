@@ -158,7 +158,20 @@
     "create": "Tạo",
     "creating": "Đang tạo...",
     "checkAndCreate": "Kiểm tra & Tạo",
-    "failedToCreate": "Tạo agent thất bại"
+    "failedToCreate": "Tạo agent thất bại",
+    "subagent": {
+      "title": "Cấu hình subagent",
+      "toolCount": "{{count}} công cụ",
+      "allTools": "Tất cả công cụ",
+      "allowedTools": "Công cụ được phép",
+      "allowedToolsHint": "Chọn các công cụ subagent được dùng. Bỏ trống = tất cả công cụ.",
+      "allowedToolsPlaceholder": "Chọn công cụ (để trống = tất cả)",
+      "systemPrompt": "System prompt",
+      "systemPromptHint": "Ghi đè IDENTITY.md — dùng làm system prompt riêng cho subagent.",
+      "systemPromptPlaceholder": "Bạn là một subagent chuyên về...",
+      "injectAgents": "Inject AGENTS.md",
+      "injectAgentsHint": "Bao gồm file hướng dẫn workspace AGENTS.md vào ngữ cảnh của agent."
+    }
   },
   "detail": {
     "tabs": {

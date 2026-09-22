@@ -44,7 +44,7 @@ A branch `wt/<slug>` with committed work, the main checkout left untouched, and 
 - Integrating a finished worktree branch -> `ship` or `git`
 - Deep repo knowledge needed inside the worktree -> `go-claw-engineer`
 - Coordinating many worktrees across agents -> `team` or `orchestrate`
-- Deciding what to build in the worktree first -> `plan`
+- Deciding what to build in the worktree first -> `goclaw-kit`
 
 ## Guardrails
 - Never remove a worktree with uncommitted changes; check status in that directory first

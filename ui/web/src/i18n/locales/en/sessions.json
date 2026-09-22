@@ -77,5 +77,16 @@
     "runResumed": "Run resumed",
     "runWoken": "Run woken up",
     "runActionFailed": "Run action failed"
+  },
+  "origin": {
+    "web": "Web chat",
+    "telegram": "Telegram",
+    "video": "Video Editor",
+    "pptx": "PPTX",
+    "subagent": "Subagent",
+    "cron": "Cron",
+    "team": "Team",
+    "heartbeat": "Heartbeat",
+    "channel": "{{channel}}"
   }
 }

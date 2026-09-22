@@ -1,4 +1,4 @@
-export type SkillsTab = "core" | "custom";
+export type SkillsTab = "core" | "custom" | "market";
 export type SkillsFilter = "all" | "attention" | "missing-deps" | "disabled" | "archived" | "unmanaged";
 export type SkillsSort = "name" | "deps" | "version";
 
@@ -27,8 +27,9 @@ export function parseSkillsPageState(params: URLSearchParams): SkillsPageState {
   const q = (params.get("q") ?? "").trim();
   const agent = (params.get("agent") ?? "").trim();
 
+  const rawTab = params.get("tab");
   return {
-    tab: params.get("tab") === "custom" ? "custom" : "core",
+    tab: rawTab === "custom" || rawTab === "market" ? rawTab : "core",
     q,
     filter: rawFilter && FILTERS.has(rawFilter as SkillsFilter) ? (rawFilter as SkillsFilter) : "all",
     sort: rawSort && SORTS.has(rawSort as SkillsSort) ? (rawSort as SkillsSort) : "name",

@@ -516,6 +516,14 @@ func bridgeContextMiddleware(gatewayToken string, agentStore store.AgentStore, n
 		if sessionKey != "" {
 			ctx = tools.WithToolSessionKey(ctx, sessionKey)
 		}
+		// Callers without an HMAC-verified tenant header (plain gateway-token
+		// clients like external MCP agents) get the master tenant — the same
+		// fallback the HTTP auth path applies. Without this, tenant-scoped
+		// writes inside tools (e.g. render_video creating its job row) insert
+		// uuid.Nil and die on the tenants FK.
+		if store.TenantIDFromContext(ctx) == uuid.Nil {
+			ctx = store.WithTenantID(ctx, store.MasterTenantID)
+		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -678,6 +686,12 @@ func (s *Server) SetBrowseRelayHandler(h *httpapi.BrowseRelayHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
+// SetSystemStatsHandler sets the host/process metrics endpoint
+// (GET /v1/system/stats) for the dashboard System card.
+func (s *Server) SetSystemStatsHandler(h *httpapi.SystemStatsHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetAgentsHandler sets the agent CRUD handler.
 func (s *Server) SetAgentsHandler(h *httpapi.AgentsHandler) { s.handlers = append(s.handlers, h) }
 
@@ -691,7 +705,11 @@ func (s *Server) SetTracesHandler(h *httpapi.TracesHandler) { s.handlers = appen
 func (s *Server) SetWakeHandler(h *httpapi.WakeHandler) { s.handlers = append(s.handlers, h) }
 
 // SetMCPHandler sets the MCP server management handler.
-func (s *Server) SetMCPHandler(h *httpapi.MCPHandler)           { s.handlers = append(s.handlers, h) }
+func (s *Server) SetMCPHandler(h *httpapi.MCPHandler) { s.handlers = append(s.handlers, h) }
+
+// SetMCPInstallHandler sets the MCP tool-server installer handler
+// (Tool Store tier 3: catalog + git install jobs).
+func (s *Server) SetMCPInstallHandler(h *httpapi.MCPInstallHandler) { s.handlers = append(s.handlers, h) }
 func (s *Server) SetMCPOAuthHandler(h *httpapi.MCPOAuthHandler) { s.handlers = append(s.handlers, h) }
 func (s *Server) SetMCPUserCredentialsHandler(h *httpapi.MCPUserCredentialsHandler) {
 	s.handlers = append(s.handlers, h)
@@ -902,6 +920,7 @@ func (s *Server) SetRestoreHandler(h *httpapi.RestoreHandler) { s.handlers = app
 
 // SetBackupS3Handler sets the S3 backup integration handler.
 func (s *Server) SetBackupS3Handler(h *httpapi.BackupS3Handler) { s.handlers = append(s.handlers, h) }
+
 
 // SetTenantBackupHandler sets the tenant-scoped backup/restore handler.
 func (s *Server) SetTenantBackupHandler(h *httpapi.TenantBackupHandler) {

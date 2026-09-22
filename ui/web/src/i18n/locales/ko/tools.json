@@ -101,7 +101,8 @@
       "subagents": "에이전트",
       "skills": "스킬",
       "delegation": "위임",
-      "teams": "팀"
+      "teams": "팀",
+      "studio": "스튜디오(도구 스토어)"
     },
     "settingsDialog": {
       "title": "설정 — {{name}}",
@@ -207,6 +208,92 @@
       "skill_search": "키워드나 설명으로 사용 가능한 스킬을 검색하여 관련 기능을 찾습니다",
       "use_skill": "스킬을 활성화하여 전문화된 기능을 사용합니다 (추적 마커)",
       "team_tasks": "팀 태스크 보드의 태스크를 조회, 생성, 업데이트, 완료합니다"
+    }
+  },
+  "store": {
+    "title": "도구 스토어",
+    "subtitle": "필요한 것만 설치하고 나머지는 제거하세요 — 도구는 설치된 동안만 메뉴와 에이전트에 나타납니다. 제거해도 프로젝트 데이터는 유지됩니다.",
+    "install": "설치",
+    "uninstall": "제거",
+    "confirm_uninstall": "제거 확인",
+    "installed": "설치됨",
+    "not_installed": "미설치",
+    "open": "열기",
+    "admin_required": "이 도구를 설치하려면 관리자에게 문의하세요",
+    "not_installed_title": "{{name}} 이(가) 설치되어 있지 않습니다",
+    "not_installed_desc": "도구 스토어에서 설치하면 이 페이지를 사용할 수 있습니다.",
+    "install_now": "지금 설치",
+    "agent_tools_title": "에이전트 도구",
+    "agent_tools_desc": "에이전트가 호출할 수 있는 내장 도구(검색, 실행, 메모리, 미디어 등)를 세밀하게 제어합니다.",
+    "manage_agent_tools": "에이전트 도구 관리",
+    "video_studio": {
+      "desc": "MP4 영상 디자인 및 렌더링 — 스토리보드 장면, 모션 레이어, 내레이션, 음성 클론."
+    },
+    "watermark_studio": {
+      "desc": "이미지와 영상에서 워터마크 제거 — 브라우저에서 처리됩니다."
+    },
+    "pptx_studio": {
+      "desc": "PowerPoint 프레젠테이션 제작 — 자유 캔버스, 테마, 차트, pptx 내보내기."
+    },
+    "mcp": {
+      "title": "외부 에이전트에서 사용(MCP)",
+      "desc": "여기서 한 번 설치하면 Claude Code, OpenCode, Cursor…에서 도구를 호출할 수 있습니다. 스니펫을 붙여넣고 <GATEWAY_TOKEN>을 교체한 뒤 에이전트에게 도구 사용을 요청하세요(예: \"goclaw로 이 영상 렌더링해 줘\").",
+      "copy": "스니펫 복사",
+      "copy_failed": "클립보드에 복사할 수 없습니다",
+      "token_hint": "<GATEWAY_TOKEN>은 서버 구성의 게이트웨이 토큰(GOCLAW_GATEWAY_TOKEN)입니다. 전체 권한을 가지므로 비밀로 유지하세요. 도구는 각 에이전트의 활성화 설정도 따릅니다."
+    },
+    "mcp_servers_title": "MCP 도구 서버",
+    "mcp_servers_subtitle": "필요할 때 GitHub에서 내려받아 설치하는 도구 서버 — agent가 MCP 도구로 사용",
+    "mcp_not_installed": "설치 안 됨",
+    "mcp_installing": "설치 중…",
+    "mcp_installed": "설치됨",
+    "mcp_install": "다운로드 및 설치",
+    "mcp_uninstall": "제거",
+    "mcp_confirm_uninstall": "서버, 파일, agent 접근 권한을 모두 제거할까요?",
+    "mcp_step_preflight": "호스트 확인 중",
+    "mcp_step_clone": "GitHub에서 내려받는 중",
+    "mcp_step_deps": "의존성 설치 중",
+    "mcp_step_smoke": "서버 테스트 중",
+    "mcp_step_register": "등록 중",
+    "mcp_add_custom": "GitHub에서 추가",
+    "mcp_custom_title": "GitHub에서 MCP 서버 추가",
+    "mcp_custom_desc": "github.com 저장소에서 도구 서버를 설치하고 tag 또는 commit에 고정합니다.",
+    "mcp_custom_name": "이름 (slug)",
+    "mcp_custom_display_name": "표시 이름",
+    "mcp_custom_repo": "저장소 URL",
+    "mcp_custom_repo_ph": "https://github.com/you/your-tool",
+    "mcp_custom_ref": "Tag 또는 commit",
+    "mcp_custom_ref_ph": "v1.0.0 (비워두면 현재 release)",
+    "mcp_custom_subdir": "하위 폴더 (선택)",
+    "mcp_custom_subdir_ph": "mcp/your-tool",
+    "mcp_custom_runtime": "런타임",
+    "mcp_custom_entry": "엔트리 파일",
+    "mcp_custom_entry_ph": "src/index.js",
+    "mcp_custom_submit": "설치",
+    "mcp_ram_note": "RAM: {{note}}",
+    "mcp_tool_count": "도구 {{count}}개",
+    "mcp_job_failed": "설치 실패",
+    "mcp_in_progress": "다른 설치가 진행 중입니다 — 잠시 후 다시 시도하세요",
+    "mcp_already_installed": "이미 설치됨 — 먼저 제거하세요",
+    "mcp_manage_hint": "설치 후 MCP 페이지에서 서버의 도구를 agent에 부여하세요.",
+    "mcp_go_manage": "MCP 페이지 열기",
+    "mcp_fetch_failed": "MCP 카탈로그를 불러오지 못했습니다"
+  },
+  "pptx": {
+    "insert": "삽입",
+    "slide_settings": "슬라이드",
+    "slide_settings_layout_hint": "레이아웃을 적용하면 슬라이드 내용이 해당 레이아웃으로 재설정됩니다.",
+    "slide_settings_done": "완료"
+  },
+  "video": {
+    "studio": {
+      "rail": {
+        "collapse_panel": "미디어 패널 접기",
+        "expand_panel": "미디어 패널 펼치기"
+      },
+      "inspector": {
+        "empty": "장면 또는 레이어 선택"
+      }
     }
   }
 }

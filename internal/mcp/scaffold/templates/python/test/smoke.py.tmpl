@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Smoke test: spawn the server, do the MCP handshake, list tools, call each
+one, and exit non-zero on any failure. Zero dependencies — python3 test/smoke.py.
+"""
+import json
+import os
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ENTRY = os.path.join(HERE, "..", "src", "server.py")
+
+
+def fail(msg):
+    print("SMOKE FAIL:", msg)
+    sys.exit(1)
+
+
+def main():
+    proc = subprocess.Popen(
+        [sys.executable, ENTRY],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+    def rpc(id_, method, params=None):
+        proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": id_, "method": method, "params": params or {}}) + "\n")
+        proc.stdin.flush()
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                fail(f"server closed during {method}")
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if msg.get("id") == id_:
+                return msg
+
+    init = rpc(1, "initialize", {"protocolVersion": "2025-06-18"})
+    info = (init.get("result") or {}).get("serverInfo")
+    if not info:
+        fail("initialize handshake failed")
+    print("server:", info["name"], info["version"])
+
+    listing = rpc(2, "tools/list")
+    tools = (listing.get("result") or {}).get("tools") or []
+    if not tools:
+        fail("tools/list returned no tools")
+    print("tools:", ", ".join(t["name"] for t in tools))
+
+    for i, tool in enumerate(tools):
+        res = rpc(10 + i, "tools/call", {"name": tool["name"], "arguments": {}})
+        if res.get("error"):
+            fail(f"tools/call {tool['name']}: {res['error'].get('message')}")
+        if (res.get("result") or {}).get("isError"):
+            fail(f"tools/call {tool['name']}: tool reported error")
+
+    proc.terminate()
+    print("SMOKE PASS")
+
+
+if __name__ == "__main__":
+    main()

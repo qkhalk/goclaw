@@ -108,6 +108,7 @@ func NewSQLiteStores(cfg store.StoreConfig) (*store.Stores, error) {
 		CloudSyncPairs:         NewSQLiteCloudSyncPairStore(db),
 		CloudStarred:           NewSQLiteCloudStarredStore(db),
 		VideoJobs:              NewSQLiteVideoJobStore(db),
+		MCPInstalls:            NewSQLiteMCPInstallStore(db),
 	}
 	// Wire permStore into WorkstationStore so Create seeds allowlist atomically (H5 fix).
 	sqliteStores.Workstations.(*SQLiteWorkstationStore).SetPermStore(sqliteStores.WorkstationPermissions)

@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { RefreshCw, X } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/format";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -60,10 +61,7 @@ export function JobsTasksPanel({ workspaceId, open, onClose }: JobsTasksPanelPro
   if (!open) return null;
 
   return (
-    <div className={cn(
-      "flex h-full w-72 shrink-0 flex-col border-l bg-background",
-      "max-sm:fixed max-sm:inset-y-0 max-sm:right-0 max-sm:z-50 max-sm:w-full max-sm:max-w-[85vw] max-sm:shadow-xl",
-    )}>
+    <div className="flex h-full min-h-0 flex-col bg-background">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-sm font-medium">{t("jobsPanel.title")}</span>

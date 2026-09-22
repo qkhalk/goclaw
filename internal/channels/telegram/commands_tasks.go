@@ -199,6 +199,13 @@ func (c *Channel) handleCallbackQuery(ctx context.Context, query *telego.Callbac
 	// Inject tenant scope (callback queries bypass handleBotCommand).
 	ctx = store.WithTenantID(ctx, c.TenantID())
 
+	// Archive callbacks answer their own query — the outcome toast
+	// (non-terminal task rejection) needs the single allowed answer.
+	if strings.HasPrefix(query.Data, "ar:") {
+		c.handleArchiveCallback(ctx, query)
+		return
+	}
+
 	c.bot.AnswerCallbackQuery(ctx, &telego.AnswerCallbackQueryParams{
 		CallbackQueryID: query.ID,
 	})

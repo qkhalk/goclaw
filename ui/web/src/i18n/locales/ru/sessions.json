@@ -77,5 +77,16 @@
     "runResumed": "Запуск возобновлён",
     "runWoken": "Запуск разбужен",
     "runActionFailed": "Действие с запуском не удалось"
+  },
+  "origin": {
+    "web": "Веб-чат",
+    "telegram": "Telegram",
+    "video": "Видеоредактор",
+    "pptx": "PPTX",
+    "subagent": "Субагент",
+    "cron": "Крон",
+    "team": "Команда",
+    "heartbeat": "Пульс",
+    "channel": "{{channel}}"
   }
 }

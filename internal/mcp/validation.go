@@ -91,10 +91,18 @@ func ValidateCommand(cmd string) error {
 }
 
 // ValidateArgs checks command arguments for dangerous patterns.
+// Flag-shaped patterns ("-e", "-c", "--require", ... ) only match flag-shaped
+// tokens: absolute entry-file paths routinely contain "-e"/"-c" substrings
+// (.../tenants/team-eu/..., .../file-converter/...) without being flags at
+// all. Inline-code patterns ("eval(", "__import__", ...) apply to every arg.
 func ValidateArgs(args []string) error {
 	for i, arg := range args {
 		argLower := strings.ToLower(arg)
+		isFlagToken := strings.HasPrefix(argLower, "-")
 		for _, pattern := range dangerousArgPatterns {
+			if strings.HasPrefix(pattern, "-") && !isFlagToken {
+				continue
+			}
 			if strings.Contains(argLower, pattern) {
 				return fmt.Errorf("arg[%d] contains dangerous pattern %q", i, pattern)
 			}

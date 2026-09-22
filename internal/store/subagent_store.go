@@ -11,6 +11,9 @@ import (
 var (
 	ErrSubagentRootAgentIDRequired = errors.New("subagent root agent ID required")
 	ErrSubagentTaskNotFound        = errors.New("subagent task not found in owner scope")
+	// ErrSubagentTaskNotTerminal is returned by ArchiveByID when the task exists
+	// but has not reached a terminal status (completed/failed/cancelled).
+	ErrSubagentTaskNotTerminal = errors.New("subagent task is not in a terminal state")
 )
 
 const (
@@ -69,16 +72,35 @@ type SubagentTaskStore interface {
 	// UpdateStatus updates status, result, iterations, and token counts on completion/failure.
 	UpdateStatus(ctx context.Context, rootAgentID, id uuid.UUID, status string, result *string, iterations int, inputTokens, outputTokens int64) error
 
-	// ListByParent returns tasks owned by a root-agent UUID, optionally filtered by status.
-	// Empty statusFilter returns all statuses. Ordered by created_at DESC.
-	ListByParent(ctx context.Context, rootAgentID uuid.UUID, statusFilter string) ([]SubagentTaskData, error)
+	// ListByParent returns tasks owned by a root-agent UUID, optionally filtered
+	// by status. Empty statusFilter returns all statuses. Archived tasks are
+	// excluded unless includeArchived is true. Ordered by created_at DESC.
+	ListByParent(ctx context.Context, rootAgentID uuid.UUID, statusFilter string, includeArchived bool) ([]SubagentTaskData, error)
 
 	// ListBySession returns tasks for a session owned by the tenant and immutable root-agent UUID.
 	ListBySession(ctx context.Context, rootAgentID uuid.UUID, sessionKey string) ([]SubagentTaskData, error)
 
+	// GetByID retrieves a task by ID within the caller's tenant, without
+	// requiring the root-agent UUID upfront (the UI addresses tasks by ID).
+	// Returns nil when the task belongs to another tenant or has no root agent
+	// (legacy orphan rows are not addressable).
+	GetByID(ctx context.Context, taskID uuid.UUID) (*SubagentTaskData, error)
+
 	// Archive marks at most limit old terminal tasks owned by the tenant and
 	// immutable root-agent UUID as archived. Returns the number of rows affected.
 	Archive(ctx context.Context, rootAgentID uuid.UUID, olderThan time.Duration, limit int) (int64, error)
+
+	// ArchiveByID archives one terminal task (completed/failed/cancelled) owned
+	// by the caller's tenant, addressed by task ID. Returns
+	// ErrSubagentTaskNotFound when no tenant-owned task matches and
+	// ErrSubagentTaskNotTerminal when the task has not finished. Archiving an
+	// already-archived terminal task is idempotent (nil).
+	ArchiveByID(ctx context.Context, taskID uuid.UUID) error
+
+	// ArchiveCompletedForParent archives every terminal, non-archived task of
+	// the root agent owned by the caller's tenant (no age cutoff). Returns the
+	// number of rows archived.
+	ArchiveCompletedForParent(ctx context.Context, rootAgentID uuid.UUID) (int64, error)
 
 	// UpdateMetadata merges metadata on an existing task.
 	UpdateMetadata(ctx context.Context, rootAgentID, id uuid.UUID, metadata map[string]any) error

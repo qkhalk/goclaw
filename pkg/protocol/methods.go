@@ -45,7 +45,12 @@ const (
 	// new session key (fork). Mirrors POST /v1/chat/sessions/{key}/branch;
 	// handler lives in internal/gateway/methods/sessions.go.
 	MethodSessionsBranch = "sessions.branch"
-	MethodRunTimelineGet = "run.timeline.get"
+	// sessions.archive/restore soft-hide a finished session from the default
+	// session list and bring it back; messages stay untouched. Handlers live
+	// in internal/gateway/methods/sessions.go.
+	MethodSessionsArchive = "sessions.archive"
+	MethodSessionsRestore = "sessions.restore"
+	MethodRunTimelineGet  = "run.timeline.get"
 
 	// Durable run records (agent_runs state machine). Follow the naming
 	// pattern of run.timeline.get; handlers live in
@@ -141,6 +146,15 @@ const (
 	MethodMissionPause  = "mission.pause"
 	MethodMissionResume = "mission.resume"
 	MethodMissionDelete = "mission.delete"
+
+	// Subagent tasks (platform expansion Phase 5): durable subagent task
+	// list/get/archive/cancel over the subagent_tasks store. Handlers live in
+	// internal/gateway/methods/subagents.go.
+	MethodSubagentsList             = "subagents.list"
+	MethodSubagentsGet              = "subagents.get"
+	MethodSubagentsArchive          = "subagents.archive"
+	MethodSubagentsArchiveCompleted = "subagents.archive_completed"
+	MethodSubagentsCancel           = "subagents.cancel"
 
 	// System
 	MethodConnect = "connect"
@@ -338,6 +352,14 @@ const (
 	// agent-driven navigation): the client asks the gateway to fetch+sanitize+
 	// relay one URL and gets the loadable relay URL back in the RPC response.
 	MethodBrowserPanelOpen = "browser.panel.open"
+
+	// browser.remote.* drives the SERVER-side headless browser (Rod): the
+	// panel asks the gateway to open/operate arbitrary external sites that
+	// the sanitized relay can't run (SPAs, framing-protected pages) and gets
+	// a11y snapshot + screenshot back.
+	MethodBrowserRemoteOpen = "browser.remote.open"
+	MethodBrowserRemoteAct = "browser.remote.act"
+	MethodBrowserRemoteScreenshot = "browser.remote.screenshot"
 
 	// Zalo Personal
 	MethodZaloPersonalQRStart  = "zalo.personal.qr.start"

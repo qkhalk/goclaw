@@ -101,10 +101,7 @@ func isJSONStart(b byte) bool {
 // (the full `)]}'` prefix is 4 chars, so the payload starts at index 4),
 // or -1.
 func firstNonNoise(b []byte) int {
-	max := len(b)
-	if max > 5 {
-		max = 5
-	}
+	max := min(len(b), 5)
 	for i := 0; i < max; i++ {
 		c := b[i]
 		if isSpace(c) || c == ')' || c == ']' || c == '}' || c == '\'' || c == ';' || c == ',' {
@@ -239,7 +236,7 @@ func stripTrailingComma(b []byte) []byte {
 	out := make([]byte, 0, len(b))
 	inStr := false
 	esc := false
-	for i := 0; i < len(b); i++ {
+	for i := range b {
 		c := b[i]
 		if inStr {
 			out = append(out, c)

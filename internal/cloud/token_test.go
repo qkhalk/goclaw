@@ -66,6 +66,9 @@ func (f *fakeAccountStore) ListShared(ctx context.Context) ([]store.CloudAccount
 func (f *fakeAccountStore) SetShared(ctx context.Context, id string, shared bool) error {
 	return store.ErrCloudAccountNotFound
 }
+func (f *fakeAccountStore) SetAgentAccess(ctx context.Context, id string, access string) error {
+	return store.ErrCloudAccountNotFound
+}
 func (f *fakeAccountStore) Delete(ctx context.Context, id string) error            { return nil }
 func (f *fakeAccountStore) UpdateTokens(ctx context.Context, id string, upd store.CloudAccountUpdate) error {
 	f.updates = append(f.updates, upd)

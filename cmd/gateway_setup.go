@@ -628,20 +628,25 @@ func setupSkillsSystem(
 			skillsLoader.SetManagedDir(dataDir)
 			slog.Info("skills-store directory wired into loader", "dataDir", dataDir)
 
-			// Seed system/bundled skills into DB
-			bundledSkillsDir = os.Getenv("GOCLAW_BUNDLED_SKILLS_DIR")
-			if bundledSkillsDir == "" {
-				// Check common locations: Docker default, then local dev
-				for _, candidate := range []string{"bundled-skills", "/app/bundled-skills", "skills"} {
-					if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-						bundledSkillsDir = candidate
-						break
-					}
-				}
+			// Seed system/bundled skills into DB.
+			// skills.seed_mode (env GOCLAW_SKILLS_SEED_MODE) controls scope:
+			// all = every bundled skill (back-compat default), core = only
+			// skills.CoreSlugs (rest installable via the market API),
+			// none = skip seeding entirely (reconciler below still runs).
+			bundledSkillsDir = skills.ResolveBundledSkillsDir()
+			seedMode := skills.NormalizeSeedMode(cfg.Skills.SeedMode)
+			if v := strings.TrimSpace(os.Getenv("GOCLAW_SKILLS_SEED_MODE")); v != "" {
+				seedMode = skills.NormalizeSeedMode(v)
 			}
-			if bundledSkillsDir != "" {
+			if seedMode == skills.SeedModeNone {
+				slog.Info("system skills seeding disabled", "mode", seedMode)
+			} else if bundledSkillsDir != "" {
 				if seederStore, ok := pgStores.Skills.(skills.SystemSkillStore); ok {
 					seeder := skills.NewSeeder(bundledSkillsDir, storeDirs[0], seederStore)
+					if seedMode == skills.SeedModeCore {
+						seeder.SetFilter(skills.CoreSlugs)
+						slog.Info("system skills seed mode core", "core_slugs", len(skills.CoreSlugs))
+					}
 					seeded, skipped, seededSkills, err := seeder.Seed(context.Background())
 					if err != nil {
 						slog.Warn("system skills seed failed", "error", err)

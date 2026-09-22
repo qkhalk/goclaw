@@ -18,6 +18,12 @@ type CloudConfig struct {
 	Google GoogleCloudConfig `json:"google"`
 	// Microsoft OAuth client for OneDrive (BYO Azure app registration).
 	Microsoft MicrosoftCloudConfig `json:"microsoft"`
+	// Dropbox OAuth client (BYO Dropbox app). Empty = rclone's embedded
+	// shared client (zero-config, rate-limited).
+	Dropbox OAuthClientConfig `json:"dropbox"`
+	// Yandex OAuth client (BYO Yandex app). Empty = rclone's embedded shared
+	// client (zero-config, rate-limited).
+	Yandex OAuthClientConfig `json:"yandex"`
 	// MailRatePerMinute caps Gmail API calls per account (token bucket).
 	MailRatePerMinute int `json:"mail_rate_per_minute,omitempty"`
 	// MailReadMaxBytes truncates mail_read output (default 8192).
@@ -41,6 +47,15 @@ type GoogleCloudConfig struct {
 // MicrosoftCloudConfig carries the OAuth client registration for Microsoft
 // (OneDrive). Client secret is injected via GOCLAW_CLOUD_MICROSOFT_CLIENT_SECRET.
 type MicrosoftCloudConfig struct {
+	ClientID     string `json:"client_id,omitempty"`
+	ClientSecret string `json:"client_secret,omitempty"`
+}
+
+// OAuthClientConfig carries a BYO OAuth client registration (client_id +
+// client_secret) for providers that work out of the box with rclone's
+// embedded shared client: Dropbox and Yandex. The secret is injected via
+// GOCLAW_CLOUD_DROPBOX_CLIENT_SECRET / GOCLAW_CLOUD_YANDEX_CLIENT_SECRET.
+type OAuthClientConfig struct {
 	ClientID     string `json:"client_id,omitempty"`
 	ClientSecret string `json:"client_secret,omitempty"`
 }

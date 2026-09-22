@@ -108,6 +108,12 @@ func TestValidateArgs_DangerousPatterns_Rejected(t *testing.T) {
 		{"valid args", []string{"server.js", "--port", "3000"}, false},
 		{"valid path args", []string{"/path/to/script.js"}, false},
 		{"empty args", []string{}, false},
+		// Flag patterns are token-aware: entry-file paths routinely contain
+		// "-e"/"-c"/"-r" substrings without being flags.
+		{"path with -e substring", []string{"/data/tenants/team-eu/mcp/tool/src/index.js"}, false},
+		{"path with -c substring", []string{"/data/mcp/file-converter/server.py"}, false},
+		{"path with -r substring", []string{"/data/mcp/file-render/index.js"}, false},
+		{"real short flag still rejected", []string{"/data/mcp/tool/index.js", "-e", "code"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

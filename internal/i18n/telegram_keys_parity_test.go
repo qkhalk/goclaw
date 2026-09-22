@@ -60,6 +60,11 @@ var telegramKeys = []string{
 	MsgTGStatusThinkMode,
 	MsgTGStatusQueue,
 	MsgTGStatusFullHint,
+	MsgTGSubagentArchiveDone,
+	MsgTGSubagentArchiveAllConfirm,
+	MsgTGSubagentNotTerminal,
+	MsgTGSubagentArchiveBtn,
+	MsgTGSubagentArchiveAllBtn,
 }
 
 func TestI18nCatalogs_HasTelegramKeys(t *testing.T) {
@@ -107,7 +112,9 @@ var verbCases = []struct {
 	{MsgTGStatusCtx, []any{"100k"}},
 	{MsgTGStatusCompactions, []any{2}},
 	{MsgTGStatusThinkMode, []any{"low", "dev"}},
-	{MsgTGStatusQueue, []any{"main", 1, 4, 0}},
+		{MsgTGStatusQueue, []any{"main", 1, 4, 0}},
+		{MsgTGSubagentArchiveAllConfirm, []any{3}},
+		{MsgTGSubagentArchiveAllBtn, []any{3}},
 }
 
 func TestI18nTelegramKeys_FormatVerbsStable(t *testing.T) {

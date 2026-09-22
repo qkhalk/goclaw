@@ -41,14 +41,15 @@ func (r *sessionListRow) toSessionInfo(msgCount int) store.SessionInfo {
 
 // sessionPagedRow is an sqlx scan struct for ListPaged (uses jsonb_array_length, not full messages).
 type sessionPagedRow struct {
-	Key      string    `db:"session_key"`
-	MsgCount int       `db:"message_count"`
-	Created  time.Time `db:"created_at"`
-	Updated  time.Time `db:"updated_at"`
-	Label    *string   `db:"label"`
-	Channel  *string   `db:"channel"`
-	UserID   *string   `db:"user_id"`
-	MetaJSON []byte    `db:"metadata"`
+	Key        string     `db:"session_key"`
+	MsgCount   int        `db:"message_count"`
+	Created    time.Time  `db:"created_at"`
+	Updated    time.Time  `db:"updated_at"`
+	Label      *string    `db:"label"`
+	Channel    *string    `db:"channel"`
+	UserID     *string    `db:"user_id"`
+	MetaJSON   []byte     `db:"metadata"`
+	ArchivedAt *time.Time `db:"archived_at"`
 }
 
 // toSessionInfo converts a sessionPagedRow to store.SessionInfo.
@@ -66,27 +67,29 @@ func (r *sessionPagedRow) toSessionInfo() store.SessionInfo {
 		Channel:      derefStr(r.Channel),
 		UserID:       derefStr(r.UserID),
 		Metadata:     meta,
+		ArchivedAt:   r.ArchivedAt,
 	}
 }
 
 // sessionRichRow is an sqlx scan struct for ListPagedRich (includes model, tokens, agent name, computed fields).
 type sessionRichRow struct {
-	Key             string    `db:"session_key"`
-	MsgCount        int       `db:"message_count"`
-	Created         time.Time `db:"created_at"`
-	Updated         time.Time `db:"updated_at"`
-	Label           *string   `db:"label"`
-	Channel         *string   `db:"channel"`
-	UserID          *string   `db:"user_id"`
-	MetaJSON        []byte    `db:"metadata"`
-	Model           *string   `db:"model"`
-	Provider        *string   `db:"provider"`
-	InputTokens     int64     `db:"input_tokens"`
-	OutputTokens    int64     `db:"output_tokens"`
-	AgentName       string    `db:"agent_name"`
-	EstimatedTokens int       `db:"estimated_tokens"`
-	ContextWindow   int       `db:"context_window"`
-	CompactionCount int       `db:"compaction_count"`
+	Key             string     `db:"session_key"`
+	MsgCount        int        `db:"message_count"`
+	Created         time.Time  `db:"created_at"`
+	Updated         time.Time  `db:"updated_at"`
+	Label           *string    `db:"label"`
+	Channel         *string    `db:"channel"`
+	UserID          *string    `db:"user_id"`
+	MetaJSON        []byte     `db:"metadata"`
+	Model           *string    `db:"model"`
+	Provider        *string    `db:"provider"`
+	InputTokens     int64      `db:"input_tokens"`
+	OutputTokens    int64      `db:"output_tokens"`
+	AgentName       string     `db:"agent_name"`
+	EstimatedTokens int        `db:"estimated_tokens"`
+	ContextWindow   int        `db:"context_window"`
+	CompactionCount int        `db:"compaction_count"`
+	ArchivedAt      *time.Time `db:"archived_at"`
 }
 
 // toSessionInfoRich converts a sessionRichRow to store.SessionInfoRich.
@@ -105,6 +108,7 @@ func (r *sessionRichRow) toSessionInfoRich() store.SessionInfoRich {
 			Channel:      derefStr(r.Channel),
 			UserID:       derefStr(r.UserID),
 			Metadata:     meta,
+			ArchivedAt:   r.ArchivedAt,
 		},
 		Model:           derefStr(r.Model),
 		Provider:        derefStr(r.Provider),

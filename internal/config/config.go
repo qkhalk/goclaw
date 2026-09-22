@@ -44,65 +44,65 @@ func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
 
 // Config is the root configuration for the GoClaw Gateway.
 type Config struct {
-	DataDir   string          `json:"data_dir,omitempty"` // persistent data directory (default: ~/.goclaw/data)
-	Branding  BrandingConfig  `json:"branding,omitempty"`
-	Agents    AgentsConfig    `json:"agents"`
-	Channels  ChannelsConfig  `json:"channels"`
-	Providers ProvidersConfig `json:"providers"`
-	Gateway   GatewayConfig   `json:"gateway"`
-	Audit     AuditConfig     `json:"audit"`
-	Tools     ToolsConfig     `json:"tools"`
-	Skills    SkillsConfig    `json:"skills"`
-	Sessions  SessionsConfig  `json:"sessions"`
-	Database  DatabaseConfig  `json:"database"`
-	Tts       TtsConfig       `json:"tts"`
-	Audio     *AudioConfig    `json:"audio,omitempty"` // optional STT/Music defaults (Phase 3/4)
-	Cron      CronConfig      `json:"cron"`
-	Telemetry TelemetryConfig `json:"telemetry"`
-	Tailscale TailscaleConfig `json:"tailscale"`
-	Runtime    RuntimeConfig    `json:"runtime,omitempty"`
-	Reliability ReliabilityConfig `json:"reliability,omitempty"`
-	Bindings  []AgentBinding  `json:"bindings,omitempty"`
-	Hooks     HooksConfig     `json:"hooks"`
-	Packages  PackagesConfig  `json:"packages"` // runtime package mgmt (GitHub updater)
-	Messages  SystemMsgConfig `json:"system_messages,omitempty"`
-	Cloud     CloudConfig     `json:"cloud,omitempty"` // per-user OAuth cloud accounts (Google first)
-	Video     VideoConfig     `json:"video,omitempty"` // video render pipeline (worker sidecar)
-	mu        sync.RWMutex
+	DataDir     string            `json:"data_dir,omitempty"` // persistent data directory (default: ~/.goclaw/data)
+	Branding    BrandingConfig    `json:"branding"`
+	Agents      AgentsConfig      `json:"agents"`
+	Channels    ChannelsConfig    `json:"channels"`
+	Providers   ProvidersConfig   `json:"providers"`
+	Gateway     GatewayConfig     `json:"gateway"`
+	Audit       AuditConfig       `json:"audit"`
+	Tools       ToolsConfig       `json:"tools"`
+	Skills      SkillsConfig      `json:"skills"`
+	Sessions    SessionsConfig    `json:"sessions"`
+	Database    DatabaseConfig    `json:"database"`
+	Tts         TtsConfig         `json:"tts"`
+	Audio       *AudioConfig      `json:"audio,omitempty"` // optional STT/Music defaults (Phase 3/4)
+	Cron        CronConfig        `json:"cron"`
+	Telemetry   TelemetryConfig   `json:"telemetry"`
+	Tailscale   TailscaleConfig   `json:"tailscale"`
+	Runtime     RuntimeConfig     `json:"runtime"`
+	Reliability ReliabilityConfig `json:"reliability"`
+	Bindings    []AgentBinding    `json:"bindings,omitempty"`
+	Hooks       HooksConfig       `json:"hooks"`
+	Packages    PackagesConfig    `json:"packages"` // runtime package mgmt (GitHub updater)
+	Messages    SystemMsgConfig   `json:"system_messages"`
+	Cloud       CloudConfig       `json:"cloud"` // per-user OAuth cloud accounts (Google first)
+	Video       VideoConfig       `json:"video"` // video render pipeline (worker sidecar)
+	mu          sync.RWMutex
 }
 
 // ReliabilityConfig groups reliability knobs for the gateway. Zero-valued
 // fields fall back to the defaults below.
 type ReliabilityConfig struct {
-	Runs    RunsConfig    `json:"runs,omitempty"`
-	Circuit CircuitConfig `json:"circuit,omitempty"`
-	Stream  StreamConfig  `json:"stream,omitempty"`
+	Runs    RunsConfig    `json:"runs"`
+	Circuit CircuitConfig `json:"circuit"`
+	Stream  StreamConfig  `json:"stream"`
 	// PrematureCompletion gates the continuation stage that asks a weak model
 	// for one more iteration when it finishes before doing any work. Disabled
 	// by default — opt in via reliability.premature_completion.enabled.
-	PrematureCompletion PrematureCompletionConfig `json:"premature_completion,omitempty"`
+	PrematureCompletion PrematureCompletionConfig `json:"premature_completion"`
 	// SLO tunes the config-driven reliability SLO (error budget). The evaluator
 	// in internal/reliability computes a rolling success-rate over a FIFO window
 	// of snapshot deltas; zero-valued fields fall back to the defaults below.
-	SLO SLOConfig `json:"slo,omitempty"`
+	SLO SLOConfig `json:"slo"`
 	// Alerts tunes webhook alerting for SLO burn-rate and provider errors. When
 	// disabled, all alerting is a no-op.
-	Alerts AlertingConfig `json:"alerts,omitempty"`
+	Alerts AlertingConfig `json:"alerts"`
 	// CompletionVerifier tunes the run-completion verifier terminal gate
 	// (internal/agent verifyCompletion). Mode "advisory" (default) records
 	// the verdict without changing run outcomes; "recover" gives an incomplete
 	// run one continuation pass before completing; "hard" blocks COMPLETED
 	// unless the verifier passes.
-	CompletionVerifier CompletionVerifierConfig `json:"completion_verifier,omitempty"`
+	CompletionVerifier CompletionVerifierConfig `json:"completion_verifier"`
 	// Recovery bounds the unified weak-model/error recovery engine
 	// (internal/pipeline recover stage). Zero values fall back to defaults.
-	Recovery RecoveryConfig `json:"recovery,omitempty"`
+	Recovery RecoveryConfig `json:"recovery"`
 	// Supervisor tunes the proactive per-run resource enforcement
 	// (internal/agent RunSupervisor): hard caps on tool calls, LLM calls,
 	// wall-clock run time and consecutive tool failures, enforced immediately
 	// inside the loop. Zero values fall back to the documented defaults;
 	// negative values disable a specific cap.
-	Supervisor SupervisorConfig `json:"supervisor,omitempty"`
+	Supervisor SupervisorConfig `json:"supervisor"`
 }
 
 // SupervisorConfig tunes reliability.supervisor. See agent.SupervisorLimits
@@ -158,7 +158,7 @@ type RecoveryConfig struct {
 }
 
 const (
-	DefaultRecoveryMaxRetryCount = 8
+	DefaultRecoveryMaxRetryCount  = 8
 	DefaultRecoveryMaxRetryTimeMs = 300000 // 5m
 
 	DefaultRuntimeAutoResume = false // opt-in auto-resume of interrupted runs after restart
@@ -228,11 +228,11 @@ type StreamConfig struct {
 // startup (internal/reliability). Zero-valued fields fall back to the
 // reliability package defaults (see DefaultCircuitOptions).
 type CircuitConfig struct {
-	FailureThreshold   int `json:"failure_threshold,omitempty"`    // consecutive failures before Healthy→Degraded→Open (default 5)
-	DegradedThreshold  int `json:"degraded_threshold,omitempty"`   // failures after which Healthy becomes Degraded (default 2)
-	CooldownMs         int `json:"cooldown_ms,omitempty"`          // duration the breaker stays Open before HalfOpen (default 30000)
-	HalfOpenMax        int `json:"half_open_max,omitempty"`        // probe requests allowed while HalfOpen (default 1)
-	ProbeTimeoutMs     int `json:"probe_timeout_ms,omitempty"`     // stale half-open probe slot timeout (default 30000)
+	FailureThreshold    int `json:"failure_threshold,omitempty"`      // consecutive failures before Healthy→Degraded→Open (default 5)
+	DegradedThreshold   int `json:"degraded_threshold,omitempty"`     // failures after which Healthy becomes Degraded (default 2)
+	CooldownMs          int `json:"cooldown_ms,omitempty"`            // duration the breaker stays Open before HalfOpen (default 30000)
+	HalfOpenMax         int `json:"half_open_max,omitempty"`          // probe requests allowed while HalfOpen (default 1)
+	ProbeTimeoutMs      int `json:"probe_timeout_ms,omitempty"`       // stale half-open probe slot timeout (default 30000)
 	RateLimitMaxPending int `json:"rate_limit_max_pending,omitempty"` // pending waiter cap for the rate-limit coordinator (0 = unlimited)
 }
 
@@ -260,18 +260,18 @@ const (
 	DefaultRunsExtensionBudgetMs   = 0     // placeholder, not enforced in P0
 
 	// Default circuit breaker thresholds — mirror reliability.DefaultCircuitOptions.
-	DefaultCircuitFailureThreshold  = 5
-	DefaultCircuitDegradedThreshold = 2
-	DefaultCircuitCooldownMs        = 30000  // 30s
-	DefaultCircuitHalfOpenMax       = 1
-	DefaultCircuitProbeTimeoutMs    = 30000  // 30s
-	DefaultCircuitRateLimitMaxPending = 0    // 0 = unlimited pending waiters
+	DefaultCircuitFailureThreshold    = 5
+	DefaultCircuitDegradedThreshold   = 2
+	DefaultCircuitCooldownMs          = 30000 // 30s
+	DefaultCircuitHalfOpenMax         = 1
+	DefaultCircuitProbeTimeoutMs      = 30000 // 30s
+	DefaultCircuitRateLimitMaxPending = 0     // 0 = unlimited pending waiters
 
 	// Default stream watchdog timeouts (ms). Idle default 60s — the interval
 	// of silence between two stream events; first-byte 0 = disabled (the
 	// transport's ResponseHeaderTimeout remains the backstop).
-	DefaultStreamIdleTimeoutMs       = 60000 // 60s
-	DefaultStreamFirstByteTimeoutMs  = 0     // 0 = disabled
+	DefaultStreamIdleTimeoutMs      = 60000 // 60s
+	DefaultStreamFirstByteTimeoutMs = 0     // 0 = disabled
 
 	// Default SLO target: 99% success rate over the rolling window.
 	DefaultSLOTargetPercent = 0.99
@@ -462,9 +462,7 @@ func (s SystemMsgConfig) Clone() SystemMsgConfig {
 			continue
 		}
 		cp := make(LocalizedSystemMessage, len(byLocale))
-		for locale, template := range byLocale {
-			cp[locale] = template
-		}
+		maps.Copy(cp, byLocale)
 		out.Messages[key] = cp
 	}
 	return out
@@ -521,6 +519,7 @@ type DatabaseConfig struct {
 type SkillsConfig struct {
 	StorageDir      string                  `json:"storage_dir,omitempty"`        // directory for skill content (default: dataDir/skills-store/)
 	MaxUploadSizeMB int                     `json:"max_upload_size_mb,omitempty"` // per-file ZIP upload limit
+	SeedMode        string                  `json:"seed_mode,omitempty"`          // startup seeding: all|core|none (empty = all; env GOCLAW_SKILLS_SEED_MODE overrides)
 	SlashCommands   SkillSlashCommandConfig `json:"slash_commands"`
 }
 
@@ -622,6 +621,12 @@ type BindingPeer struct {
 type AgentsConfig struct {
 	Defaults AgentDefaults        `json:"defaults"`
 	List     map[string]AgentSpec `json:"list,omitempty"`
+	// ReasoningDefault is the reasoning effort stamped on NEW agents created
+	// via agents.create when the request omits both reasoning_config and
+	// thinking_level. Values: inherit|off|low|medium|high|auto. Empty resolves
+	// to "auto" (see Config.AgentReasoningDefault); "inherit" stamps nothing,
+	// preserving the pre-Phase-7 behavior. Existing agents are never touched.
+	ReasoningDefault string `json:"reasoning_default,omitempty"`
 }
 
 // AgentDefaults are default settings for all agents.
@@ -650,16 +655,16 @@ type AgentDefaults struct {
 // CompactionConfig configures session compaction behaviour.
 // Matching TS agents.defaults.compaction.
 type CompactionConfig struct {
-	ReserveTokensFloor       int                `json:"reserveTokensFloor,omitempty"`       // min reserve tokens (default 20000)
-	MaxHistoryShare          float64            `json:"maxHistoryShare,omitempty"`          // max share of context for history-only post-turn compaction (default 0.85)
-	MaxRequestShare          float64            `json:"maxRequestShare,omitempty"`          // max share of context for the final request sent to the model (default 0.85)
-	KeepLastMessages         int                `json:"keepLastMessages,omitempty"`         // messages to keep after compaction (default 4)
-	TimeoutSeconds           int                `json:"timeoutSeconds,omitempty"`           // summarization timeout in seconds (default 120)
-	MemoryFlush              *MemoryFlushConfig `json:"memoryFlush,omitempty"`              // pre-compaction flush
+	ReserveTokensFloor int                `json:"reserveTokensFloor,omitempty"` // min reserve tokens (default 20000)
+	MaxHistoryShare    float64            `json:"maxHistoryShare,omitempty"`    // max share of context for history-only post-turn compaction (default 0.85)
+	MaxRequestShare    float64            `json:"maxRequestShare,omitempty"`    // max share of context for the final request sent to the model (default 0.85)
+	KeepLastMessages   int                `json:"keepLastMessages,omitempty"`   // messages to keep after compaction (default 4)
+	TimeoutSeconds     int                `json:"timeoutSeconds,omitempty"`     // summarization timeout in seconds (default 120)
+	MemoryFlush        *MemoryFlushConfig `json:"memoryFlush,omitempty"`        // pre-compaction flush
 	// MaxCompactionsPerSession caps how many LLM compactions a single session may
 	// run before the pipeline stops compacting and nudges the user instead.
 	// Default 12; 0 = unlimited (legacy behavior unchanged).
-	MaxCompactionsPerSession int                `json:"maxCompactionsPerSession,omitempty"`
+	MaxCompactionsPerSession int `json:"maxCompactionsPerSession,omitempty"`
 }
 
 // MemoryFlushConfig configures the pre-compaction memory flush.
@@ -679,12 +684,12 @@ type MemoryFlushConfig struct {
 //
 //	gated by provider prompt-cache TTL (see PruneStage).
 type ContextPruningConfig struct {
-	Mode                 string                   `json:"mode,omitempty"`                 // "" (default off), "off", "cache-ttl"
-	TTL                  string                   `json:"ttl,omitempty"`                  // cache TTL gate duration (default "5m"), Go duration string e.g. "5m", "30s"
-	KeepLastAssistants   int                      `json:"keepLastAssistants,omitempty"`   // protect last N assistant msgs (default 3)
-	SoftTrimRatio        float64                  `json:"softTrimRatio,omitempty"`        // start soft trim at this % of window (default 0.3)
-	HardClearRatio       float64                  `json:"hardClearRatio,omitempty"`       // start hard clear at this % (default 0.5)
-	MinPrunableToolChars int                      `json:"minPrunableToolChars,omitempty"` // min chars in prunable tools before acting (default 50000)
+	Mode                 string  `json:"mode,omitempty"`                 // "" (default off), "off", "cache-ttl"
+	TTL                  string  `json:"ttl,omitempty"`                  // cache TTL gate duration (default "5m"), Go duration string e.g. "5m", "30s"
+	KeepLastAssistants   int     `json:"keepLastAssistants,omitempty"`   // protect last N assistant msgs (default 3)
+	SoftTrimRatio        float64 `json:"softTrimRatio,omitempty"`        // start soft trim at this % of window (default 0.3)
+	HardClearRatio       float64 `json:"hardClearRatio,omitempty"`       // start hard clear at this % (default 0.5)
+	MinPrunableToolChars int     `json:"minPrunableToolChars,omitempty"` // min chars in prunable tools before acting (default 50000)
 	// FreshResultCapTokens caps per-result token budget for fresh (current-turn)
 	// tool results held in pending messages. 0 (default) = disabled. Consumed by
 	// the fresh tool-result cap in the final request guard.
@@ -875,7 +880,7 @@ type TelemetryConfig struct {
 	// Prometheus serves a Prometheus text-exposition /metrics endpoint on its
 	// own port. The endpoint is compiled with `-tags prometheus` (default
 	// builds are unaffected). Off by default.
-	Prometheus PrometheusConfig `json:"prometheus,omitempty"`
+	Prometheus PrometheusConfig `json:"prometheus"`
 }
 
 // PrometheusConfig configures the optional Prometheus /metrics endpoint
@@ -1000,6 +1005,11 @@ type SubagentDefinition struct {
 	AllowedTools   []string `json:"allowedTools,omitempty"`   // exact tool names; empty = all (deny lists still apply)
 	SystemPrompt   string   `json:"systemPrompt,omitempty"`   // replaces the default subagent context prompt
 	InjectAgentsMd bool     `json:"injectAgentsMd,omitempty"` // prepend the workspace AGENTS.md content
+	// Optional LLM parameter overrides. Nil/empty means "inherit the parent
+	// agent's effective config" (Phase 7 chat-quality work). JSONB, no migration.
+	MaxTokens     *int     `json:"maxTokens,omitempty"`     // max_tokens override (>0 required to apply)
+	Temperature   *float64 `json:"temperature,omitempty"`   // temperature override
+	ThinkingLevel string   `json:"thinkingLevel,omitempty"` // reasoning effort override (off|low|medium|high)
 }
 
 // AgentSpec is the per-agent configuration override.

@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+	// Embedded tz database: TodayLocation must resolve IANA names on hosts
+	// without a system zoneinfo (Windows desktop builds).
+	_ "time/tzdata"
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
@@ -205,7 +208,8 @@ type QuotaUsageResult struct {
 
 // Usage returns quota consumption for all users with recent activity.
 // Used by the dashboard to display quota usage with progress bars.
-func (qc *QuotaChecker) Usage(ctx context.Context) QuotaUsageResult {
+// tz is the client's IANA timezone for local-midnight "today" boundaries.
+func (qc *QuotaChecker) Usage(ctx context.Context, tz string) QuotaUsageResult {
 	qc.mu.RLock()
 	cfg := qc.config
 	qc.mu.RUnlock()
@@ -216,7 +220,7 @@ func (qc *QuotaChecker) Usage(ctx context.Context) QuotaUsageResult {
 	}
 	if !cfg.Enabled {
 		// Still return today's summary even when quota is disabled
-		QueryTodaySummary(ctx, qc.db, &result)
+		QueryTodaySummary(ctx, qc.db, &result, tz)
 		return result
 	}
 
@@ -244,7 +248,7 @@ func (qc *QuotaChecker) Usage(ctx context.Context) QuotaUsageResult {
 	_ = nextIdx
 	if err != nil {
 		slog.Warn("quota.usage: failed to query user counts", "error", err)
-		QueryTodaySummary(ctx, qc.db, &result)
+		QueryTodaySummary(ctx, qc.db, &result, tz)
 		return result
 	}
 	defer rows.Close()
@@ -265,18 +269,35 @@ func (qc *QuotaChecker) Usage(ctx context.Context) QuotaUsageResult {
 		})
 	}
 
-	QueryTodaySummary(ctx, qc.db, &result)
+	QueryTodaySummary(ctx, qc.db, &result, tz)
 	return result
+}
+
+// TodayLocation resolves an IANA timezone name to a location for local
+// midnight boundaries, falling back to UTC when empty or unknown.
+func TodayLocation(tz string) *time.Location {
+	if tz == "" {
+		return time.UTC
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		slog.Warn("quota.usage: invalid timezone, falling back to UTC", "tz", tz, "error", err)
+		return time.UTC
+	}
+	return loc
 }
 
 // QueryTodaySummary fills today's aggregate stats into the result.
 // Exported so QuotaMethods can call it directly when QuotaChecker is nil.
-func QueryTodaySummary(ctx context.Context, db *sql.DB, result *QuotaUsageResult) {
+// tz is the client's IANA timezone; "today" starts at local midnight there,
+// not UTC midnight (a UTC+7 user's 06:47 request must count as today).
+func QueryTodaySummary(ctx context.Context, db *sql.DB, result *QuotaUsageResult, tz string) {
 	if db == nil {
 		return
 	}
-	now := time.Now().UTC()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	loc := TodayLocation(tz)
+	now := time.Now().In(loc)
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 
 	tenantFilter, tenantArgs, _ := tenantWhereClause(ctx, 2)
 	args := append([]any{startOfDay}, tenantArgs...)

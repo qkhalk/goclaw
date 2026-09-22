@@ -86,7 +86,13 @@
     "retrying": "재시도 ({{attempt}}/{{max}})…",
     "leaderProcessing": "팀 결과 처리 중…",
     "working": "작업 중…",
-    "step": "단계 {{n}}"
+    "step": "단계 {{n}}",
+    "metaFull": "{{provider}} · {{model}} · {{effort}}",
+    "metaModelEffort": "{{model}} · {{effort}}",
+    "metaProviderModel": "{{provider}} · {{model}}",
+    "metaModel": "{{model}}",
+    "metaProviderEffort": "{{provider}} · {{effort}}",
+    "metaProvider": "{{provider}}"
   },
   "teamTasks": {
     "pill": "팀: 실행 중인 태스크 {{n}}개",
@@ -136,7 +142,15 @@
     "empty": "열린 페이지가 없습니다. 에이전트에게 페이지를 열어달라고 하세요.",
     "switchToLive": "라이브 미리보기 (JavaScript 실행)",
     "switchToStatic": "정적 보기 (에이전트 조작 가능)",
-    "liveNote": "라이브 미리보기 — 실제 페이지가 JavaScript를 실행합니다. 이 모드에서는 에이전트가 읽거나 클릭할 수 없으니 필요시 정적 보기로 전환하세요."
+    "liveNote": "라이브 미리보기 — 실제 페이지가 JavaScript를 실행합니다. 이 모드에서는 에이전트가 읽거나 클릭할 수 없으니 필요시 정적 보기로 전환하세요.",
+    "thinStaticNote": "이 페이지는 JavaScript가 필요해서 정적 보기는 거의 비어 있어요. 라이브 미리보기(번개 아이콘)로 전환하거나 새 탭에서 여세요.",
+    "remote": {
+      "toggle": "서버 브라우저(에이전트 제어)",
+      "placeholder": "URL — 서버 측 헤드리스 Chrome에서 열기",
+      "empty": "URL을 입력하면 서버 브라우저에서 엽니다(실제 Chrome, JS 실행 — 에이전트가 같은 브라우저 사용).",
+      "note": "서버 브라우저 — 페이지는 게이트웨이가 렌더링; 에이전트는 JS/iframe 차단 사이트도 읽고 제어할 수 있습니다.",
+      "noCapture": "페이지가 열렸지만 스크린샷이 없습니다 — 새로고침해 보세요."
+    }
   },
   "permissionModes": {
     "default": "에이전트 기본값",
@@ -151,6 +165,59 @@
     "other": "기타…",
     "otherPlaceholder": "직접 답변 입력…",
     "send": "답변 보내기",
-    "recommended": "추천"
+    "recommended": "추천",
+    "confirm": "✔ 확인",
+    "back": "◀ 뒤로"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev 모드 켜짐 — 끄려면 클릭",
+    "off": "Dev 모드 꺼짐 — 켜려면 클릭(계획 우선, 스킬 자동 사용, 불분명 시 질문)"
+  },
+  "daySep": {
+    "today": "오늘",
+    "yesterday": "어제"
+  },
+  "subagents": {
+    "title": "서브에이전트",
+    "description": "이 에이전트가 생성한 서브에이전트 작업 — 상태 확인, 취소 및 보관.",
+    "pillActive": "{{running}}개 실행 중 · {{completed}}개 완료",
+    "pillDone": "{{n}}개 완료됨",
+    "pillCountRunning": "{{n}}개 실행 중",
+    "pillCountDone": "{{n}}개 완료",
+    "emptyTitle": "서브에이전트 작업이 아직 없습니다",
+    "empty": "에이전트가 자동으로 서브에이전트를 생성할 수 있습니다 — 예: “이 작업을 서브에이전트 3개로 나눠줘”.",
+    "archive": "보관",
+    "archive_all": "완료된 작업 모두 보관 ({{n}})",
+    "archive_all_hint": "완료된 서브에이전트 작업을 모두 보관",
+    "cancel": "작업 취소",
+    "cancelConfirmTitle": "이 작업을 취소할까요?",
+    "cancelConfirmBody": "실행 중인 서브에이전트가 중지됩니다. 되돌릴 수 없습니다.",
+    "announceTitle": "서브에이전트 완료됨",
+    "statuses": {
+      "queued": "대기열",
+      "running": "실행 중",
+      "waiting": "대기 중",
+      "waitingChild": "하위 작업 대기",
+      "completed": "완료",
+      "failed": "실패",
+      "cancelled": "취소됨"
+    },
+    "toast": {
+      "archived": "작업 보관됨",
+      "archiveFailed": "작업 보관 실패",
+      "archivedCount": "{{count}}개 작업 보관됨",
+      "cancelled": "작업 취소됨",
+      "cancelFailed": "작업 취소 실패"
+    }
+  },
+  "sessions": {
+    "archive": "보관",
+    "restore": "복원",
+    "archivedSection": "보관됨 ({{n}})",
+    "archived": "세션이 보관되었습니다",
+    "archiveFailed": "세션 보관 실패",
+    "restored": "세션이 복원되었습니다",
+    "restoreFailed": "세션 복원 실패"
   }
 }

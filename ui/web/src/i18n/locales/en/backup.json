@@ -5,7 +5,8 @@
     "systemBackup": "System Backup",
     "systemRestore": "System Restore",
     "s3Config": "S3 Storage",
-    "tenantBackup": "Tenant Backup"
+    "tenantBackup": "Tenant Backup",
+    "schedule": "Schedule"
   },
   "backup": {
     "preflight": {
@@ -167,5 +168,27 @@
       "dryRunNote": "Dry run — no changes made",
       "newRestore": "New Restore"
     }
+  },
+  "schedule": {
+    "title": "Scheduled cloud backups",
+    "description": "Automatically create backups and upload them to S3 or a drive on an interval.",
+    "interval": "Interval",
+    "hours_one": "Every hour",
+    "hours_other": "Every {{count}} hours",
+    "destination": "Destination",
+    "cloudDrive": "Drive (Google/OneDrive)",
+    "s3Hint": "Uses the S3 credentials from the S3 Storage tab.",
+    "cloudHint": "Tenant-default drive account (bindings) or a pinned account.",
+    "cloudPath": "Drive folder",
+    "keepCount": "Keep N",
+    "keepCountHint": "0 = keep all. S3 only.",
+    "saved": "Schedule saved.",
+    "runNow": "Run now",
+    "running": "Running...",
+    "runOk": "Completed: {{artifact}}",
+    "runFailed": "Error: {{error}}",
+    "lastRun": "Last run: {{when}} · {{size}}",
+    "nextDue": "Next run: {{when}}",
+    "loading": "Loading schedule..."
   }
 }

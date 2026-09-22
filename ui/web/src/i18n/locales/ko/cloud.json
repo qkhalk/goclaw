@@ -5,7 +5,10 @@
   "connect": {
     "google": "Google 계정 연결",
     "onedrive": "OneDrive 계정 연결",
-    "another": "다른 계정 연결"
+    "another": "다른 계정 연결",
+    "dropbox": "Dropbox 계정 연결",
+    "yandex": "Yandex Disk 계정 연결",
+    "s3": "S3 호환 스토리지 연결"
   },
   "disconnect": "연결 해제",
   "readonly_badge": "읽기 전용",
@@ -36,11 +39,16 @@
     "coming_soon": "곧 제공",
     "google_desc": "자체 GCP OAuth 클라이언트를 통한 Google Drive. Gmail 도구 포함.",
     "onedrive_desc": "자체 Azure 앱을 통한 Microsoft OneDrive(개인 및 회사/학교 계정).",
-    "more_via_rclone": "더 많은 스토리지(Dropbox, S3, WebDAV 등)가 동일한 rclone 엔진으로 곧 제공될 예정입니다"
+    "more_via_rclone": "더 많은 스토리지(Dropbox, S3, WebDAV 등)가 동일한 rclone 엔진으로 곧 제공될 예정입니다",
+    "dropbox_desc": "내장 rclone 클라이언트로 Dropbox 사용 — 설정이 필요 없습니다. 더 높은 할당량에는 자체 앱을 추가하세요.",
+    "yandex_desc": "내장 rclone 클라이언트로 Yandex Disk 사용 — 설정이 필요 없습니다. 더 높은 할당량에는 자체 앱을 추가하세요.",
+    "s3_desc": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces — 액세스 키로 연결합니다."
   },
   "provider": {
     "back": "모든 공급자",
-    "accounts_title": "연결된 계정"
+    "accounts_title": "연결된 계정",
+    "section_personal": "개인",
+    "section_company": "회사(공유)"
   },
   "setup": {
     "title_google": "Google이 아직 구성되지 않았습니다",
@@ -66,7 +74,22 @@
     "embedded_note": "빠른 연결은 rclone 공유 OAuth 클라이언트를 사용합니다 — 설정이 필요 없지만 공유 속도 제한이 적용됩니다. 공유 클라이언트는 이제 전체 Drive 권한을 부여합니다. Gmail 도구에는 여전히 자체 OAuth 클라이언트가 필요합니다(클라우드 설정 참조).",
     "showMore": "설정 펼치기",
     "showLess": "설정 접기",
-    "requiredHint": "설정 필요"
+    "requiredHint": "설정 필요",
+    "title_dropbox": "Dropbox가 아직 구성되지 않았습니다",
+    "title_yandex": "Yandex Disk가 아직 구성되지 않았습니다",
+    "dropbox_client_id": "Dropbox App key",
+    "yandex_client_id": "Yandex App ID(client_id)",
+    "dropbox_step1": "Dropbox App Console에서 \"Scoped app\"을 만들고 권한을 활성화하세요: files.metadata.write, files.content.write, files.content.read, sharing.write, account_info.read.",
+    "dropbox_step2": "Settings → OAuth2에서 액세스 유형을 선택하세요(\"Full Dropbox\" — App folder를 선택하면 해당 폴더 안에서 드라이브가 시작됩니다).",
+    "dropbox_step3": "아래에 App key와 App secret을 입력하고 저장을 누르세요 — 자격 증명은 암호화되어 저장되며 이 폼은 다시 나타나지 않습니다.",
+    "dropbox_step4": "Dropbox 앱에 이 redirect URI를 정확히 등록하세요(Settings → OAuth2 → Redirect URIs):",
+    "yandex_step1": "oauth.yandex.com에서 새 앱을 만들고 \"Yandex Disk REST API\" 권한(읽기 및 쓰기)을 활성화하세요.",
+    "yandex_step2": "Platforms 탭에서 \"Web services\"를 선택하고, 앱에 접근할 사용자 범위를 정한 뒤 4단계의 콜백 URI를 준비하세요.",
+    "yandex_step3": "아래에 App ID(client_id)와 Client secret을 입력하고 저장을 누르세요 — 자격 증명은 암호화되어 저장되며 이 폼은 다시 나타나지 않습니다.",
+    "yandex_step4": "Yandex 앱에 이 redirect URI를 정확히 등록하세요(Platforms → Web services → Callback URI):",
+    "expand": "지금 설정",
+    "configured": "OAuth 클라이언트 저장됨",
+    "dropbox_note": "Dropbox는 자체 앱이 필요합니다(공유 클라이언트 없음) — 등록은 무료입니다."
   },
   "disconnect_confirm": {
     "title": "계정 연결을 해제하시겠습니까?",
@@ -129,7 +152,8 @@
     "table_empty": "규칙이 없습니다",
     "personal_accounts": "개인 계정",
     "shared_accounts": "공유(비즈니스) 계정",
-    "accounts_explainer": "개인 계정은 본인이 연결한 클라우드입니다. 공유(비즈니스) 계정은 테넌트 전체에 적용되며 — 아래에서 우선순위 규칙으로 그룹이나 사용자에게 바인딩할 수 있습니다."
+    "accounts_explainer": "개인 계정은 본인이 연결한 클라우드입니다. 공유(비즈니스) 계정은 테넌트 전체에 적용되며 — 아래에서 우선순위 규칙으로 그룹이나 사용자에게 바인딩할 수 있습니다.",
+    "tenant_default_hint": "agent 또는 작업이 계정을 지정하지 않으면 이 조직 기본 계정이 사용됩니다."
   },
   "detail": {
     "mail_btn": "메일함",
@@ -176,7 +200,11 @@
     "not_found": "계정을 찾을 수 없거나 더 이상 접근할 수 없습니다",
     "back_home": "클라우드로 돌아가기",
     "toggle_accounts": "계정 펼치기/접기",
-    "quick_views": "빠른 보기"
+    "quick_views": "빠른 보기",
+    "dashboard": "대시보드",
+    "search_accounts": "계정 검색…",
+    "no_accounts_match": "일치하는 계정 없음",
+    "up": "상위 폴더로 이동"
   },
   "files": {
     "upload": "업로드",
@@ -297,7 +325,8 @@
     "download": "다운로드",
     "download_started": "다운로드 시작됨",
     "prev": "이전",
-    "next": "다음"
+    "next": "다음",
+    "close": "닫기"
   },
   "shortcuts": {
     "title": "키보드 단축키",
@@ -359,13 +388,113 @@
         "user_hint": "WebDAV 로그인 계정입니다.",
         "pass": "비밀번호",
         "pass_hint": "WebDAV 비밀번호 또는 앱 비밀번호입니다."
+      },
+      "azureblob": {
+        "account": "스토리지 계정 이름",
+        "account_hint": "Azure 스토리지 계정 이름입니다.",
+        "key": "스토리지 계정 키",
+        "key_hint": "스토리지 계정의 액세스 키입니다(설정 → 액세스 키).",
+        "endpoint": "엔드포인트",
+        "endpoint_hint": "예: https://<account>.blob.core.windows.net — 선택 사항, Azurite는 http 사용 가능."
+      },
+      "gcs": {
+        "service_account_credentials": "서비스 계정 JSON",
+        "service_account_credentials_hint": "서비스 계정 키 JSON 파일 전체를 붙여넣으세요(Google Cloud → IAM 및 관리 → 서비스 계정 → 키).",
+        "project_number": "프로젝트 번호",
+        "project_number_hint": "Google Cloud 프로젝트 번호 — 버킷 나열에 필수입니다."
+      },
+      "ftp": {
+        "host": "호스트",
+        "host_hint": "스킴 없이 호스트 이름 또는 IP 주소.",
+        "port": "포트",
+        "port_hint": "비워 두면 기본 포트 21.",
+        "user": "사용자 이름",
+        "user_hint": "공개 FTP 서버는 \"anonymous\".",
+        "pass": "비밀번호",
+        "pass_hint": "FTP 비밀번호입니다.",
+        "explicit_tls": "명시적 TLS(FTPS)",
+        "explicit_tls_hint": "true는 FTPS, false(또는 비움)는 일반 FTP."
+      },
+      "sftp": {
+        "host": "호스트",
+        "host_hint": "스킴 없이 호스트 이름 또는 IP 주소.",
+        "port": "포트",
+        "port_hint": "비워 두면 기본 포트 22.",
+        "user": "사용자 이름",
+        "user_hint": "SSH 로그인 계정입니다.",
+        "pass": "비밀번호",
+        "pass_hint": "SSH 비밀번호 — 또는 비워 두고 아래 개인 키를 사용하세요.",
+        "key_pem": "개인 키(PEM)",
+        "key_pem_hint": "암호화되지 않은 개인 키(OpenSSH 또는 PEM)를 붙여넣으세요. 줄바꿈은 자동 처리됩니다.",
+        "key_file_pass": "키 암호",
+        "key_file_pass_hint": "암호로 보호된 개인 키에만 사용합니다."
+      },
+      "smb": {
+        "host": "호스트",
+        "host_hint": "NAS/Windows 머신의 호스트 이름 또는 IP 주소.",
+        "user": "사용자 이름",
+        "user_hint": "SMB 사용자 이름 — 게스트 공유는 \"guest\".",
+        "pass": "비밀번호",
+        "pass_hint": "SMB 비밀번호입니다.",
+        "domain": "도메인",
+        "domain_hint": "비워 두면 기본 WORKGROUP.",
+        "port": "포트",
+        "port_hint": "비워 두면 기본 포트 445."
       }
     },
     "providers": {
       "s3": "Amazon S3 / 호환",
       "b2": "Backblaze B2",
       "pcloud": "pCloud",
-      "webdav": "WebDAV"
+      "webdav": "WebDAV",
+      "azureblob": "Azure Blob Storage",
+      "gcs": "Google Cloud Storage",
+      "ftp": "FTP",
+      "sftp": "SFTP / SSH",
+      "smb": "SMB"
     }
+  },
+  "s3": {
+    "title": "S3 호환 스토리지 연결",
+    "description": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces를 지원합니다. 저장하기 전에 엔드포인트에서 키를 검증합니다.",
+    "label": "라벨(선택)",
+    "label_placeholder": "팀 아카이브",
+    "endpoint": "엔드포인트",
+    "endpoint_hint": "AWS S3는 비워 두세요. path-style 주소가 자동으로 사용됩니다.",
+    "region": "리전(선택)",
+    "bucket": "버킷",
+    "access_key": "액세스 키 ID",
+    "secret_key": "시크릿 액세스 키",
+    "secret_hint": "저장 시 암호화되며 API는 저장 후 키를 다시 반환하지 않습니다.",
+    "cancel": "취소",
+    "connect": "연결",
+    "connecting": "검증 중…"
+  },
+  "agent_access": {
+    "title": "에이전트 권한",
+    "cap_read": "파일 읽기",
+    "cap_read_hint": "파일 탐색·다운로드, 메일 읽기",
+    "cap_write": "파일 생성 및 수정",
+    "cap_write_hint": "드라이브에 업로드·작성·편집",
+    "cap_manage": "관리",
+    "cap_manage_hint": "삭제, 이동, 공유 링크 생성",
+    "none": "접근 금지",
+    "read": "읽기 전용",
+    "write": "읽기 + 쓰기",
+    "full": "전체 권한"
+  },
+  "webdav": {
+    "title": "WebDAV 스토리지 연결",
+    "description": "Nextcloud, ownCloud, 시놀로지 및 모든 WebDAV 서버를 지원합니다. 저장하기 전에 엔드포인트에서 자격 증명을 검증합니다.",
+    "label": "라벨(선택)",
+    "label_placeholder": "팀 아카이브",
+    "endpoint": "WebDAV URL",
+    "endpoint_hint": "계정 루트로 사용할 컬렉션(예: Nextcloud의 remote.php/dav/files/<사용자> URL).",
+    "username": "사용자 이름",
+    "password": "비밀번호",
+    "password_hint": "저장 시 암호화되며 API는 저장 후 자격 증명을 다시 반환하지 않습니다.",
+    "cancel": "취소",
+    "connecting": "연결 중…",
+    "connect": "연결"
   }
 }

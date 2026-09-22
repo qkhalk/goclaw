@@ -88,6 +88,17 @@ export const Methods = {
   RUNS_WAKE: "runs.wake",
   SESSIONS_COMPACT: "sessions.compact",
   SESSIONS_BRANCH: "sessions.branch",
+  // Session archive (platform expansion Phase 8): soft-archive a finished
+  // conversation out of the sidebar list; restore brings it back intact.
+  SESSIONS_ARCHIVE: "sessions.archive",
+  SESSIONS_RESTORE: "sessions.restore",
+
+  // Subagent task tracking (platform expansion Phase 5, pkg/protocol/methods.go)
+  SUBAGENTS_LIST: "subagents.list",
+  SUBAGENTS_GET: "subagents.get",
+  SUBAGENTS_ARCHIVE: "subagents.archive",
+  SUBAGENTS_ARCHIVE_COMPLETED: "subagents.archive_completed",
+  SUBAGENTS_CANCEL: "subagents.cancel",
 
   // Workspace registry (Paseo Phase 2) + file explorer (Phase 3 / §24)
   WORKSPACE_LIST: "workspace.list",
@@ -354,6 +365,9 @@ export const Events = {
   // request; the browser panel renders the relayed page and posts the
   // extracted content back (server pushes this event directly, not via bus).
   BROWSER_PANEL_INVOKE: "browser.panel.invoke",
+  BROWSER_REMOTE_OPEN: "browser.remote.open",
+  BROWSER_REMOTE_ACT: "browser.remote.act",
+  BROWSER_REMOTE_SCREENSHOT: "browser.remote.screenshot",
 } as const;
 
 /** All event names relevant to team debug view */

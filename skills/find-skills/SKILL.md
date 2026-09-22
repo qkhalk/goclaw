@@ -30,7 +30,7 @@ Locate the best-matching skill for a task by searching the skill index with `ski
 3. Read the returned `description` fields; match trigger conditions to the task, not just name similarity. A skill named "ship" is about releasing, not boats.
 4. Pick the single closest skill. If two overlap, prefer the more specific one and check its Routing section for precedence.
 5. Load it with `use_skill`, then follow its workflow. If its body names a prerequisite skill, load that first.
-6. For multi-phase tasks, note the chain explicitly (e.g. `research` then `plan` then `cook` then `test`) and keep it in your progress notes so resumable work stays consistent.
+6. For multi-phase tasks, note the chain explicitly (e.g. `research` then `goclaw-kit` then `cook` then `test`) and keep it in your progress notes so resumable work stays consistent.
 
 ## Output
 A loaded skill plus a one-line statement of why it was chosen; for chains, the ordered list of skill slugs with the current position marked.

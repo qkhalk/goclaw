@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+/**
+ * Smoke test: spawn the server, do the MCP handshake, list tools, call each
+ * one, and exit non-zero on any failure. Zero dependencies — `node test/smoke.js`.
+ */
+"use strict";
+
+const { spawn } = require("child_process");
+const path = require("path");
+
+const ENTRY = path.join(__dirname, "..", "src", "index.js");
+
+function send(child, obj) {
+  child.stdin.write(JSON.stringify(obj) + "\n");
+}
+
+function fail(msg) {
+  console.error("SMOKE FAIL:", msg);
+  process.exit(1);
+}
+
+const child = spawn(process.execPath, [ENTRY], { stdio: ["pipe", "pipe", "pipe"] });
+let buf = "";
+const pending = new Map();
+child.stdout.on("data", (d) => {
+  buf += d;
+  let idx;
+  while ((idx = buf.indexOf("\n")) >= 0) {
+    const line = buf.slice(0, idx).trim();
+    buf = buf.slice(idx + 1);
+    if (!line) continue;
+    let msg;
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const resolve = pending.get(msg.id);
+    if (resolve) {
+      pending.delete(msg.id);
+      resolve(msg);
+    }
+  }
+});
+child.stderr.on("data", (d) => process.stderr.write(d));
+child.on("error", (e) => fail(`spawn: ${e.message}`));
+
+function rpc(id, method, params) {
+  return new Promise((resolve) => {
+    pending.set(id, resolve);
+    send(child, { jsonrpc: "2.0", id, method, params });
+  });
+}
+
+(async () => {
+  const init = await rpc(1, "initialize", { protocolVersion: "2025-06-18" });
+  if (!init.result || !init.result.serverInfo) fail("initialize handshake failed");
+  console.log("server:", init.result.serverInfo.name, init.result.serverInfo.version);
+
+  const list = await rpc(2, "tools/list", {});
+  const tools = list.result?.tools || [];
+  if (tools.length === 0) fail("tools/list returned no tools");
+  console.log("tools:", tools.map((t) => t.name).join(", "));
+
+  for (let i = 0; i < tools.length; i++) {
+    const res = await rpc(10 + i, "tools/call", { name: tools[i].name, arguments: {} });
+    if (res.error) fail(`tools/call ${tools[i].name}: ${res.error.message}`);
+    if (res.result?.isError) fail(`tools/call ${tools[i].name}: tool reported error`);
+  }
+
+  child.kill();
+  console.log("SMOKE PASS");
+  process.exit(0);
+})().catch((e) => fail(e.message));
+
+// Hard timeout so a broken server cannot hang CI.
+setTimeout(() => fail("timeout after 10s"), 10_000).unref();

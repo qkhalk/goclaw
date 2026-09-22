@@ -31,6 +31,10 @@ func newCloudManager(cfg *config.Config, stores *store.Stores) *cloud.Manager {
 		GoogleClientSecret:    cfg.Cloud.Google.ClientSecret,
 		MicrosoftClientID:     cfg.Cloud.Microsoft.ClientID,
 		MicrosoftClientSecret: cfg.Cloud.Microsoft.ClientSecret,
+		DropboxClientID:       cfg.Cloud.Dropbox.ClientID,
+		DropboxClientSecret:   cfg.Cloud.Dropbox.ClientSecret,
+		YandexClientID:        cfg.Cloud.Yandex.ClientID,
+		YandexClientSecret:    cfg.Cloud.Yandex.ClientSecret,
 	}, stores.CloudAccounts, os.Getenv("GOCLAW_ENCRYPTION_KEY"))
 	if stores.ConfigSecrets != nil {
 		manager.SetSecretsStore(stores.ConfigSecrets)

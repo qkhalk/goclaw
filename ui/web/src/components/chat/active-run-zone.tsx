@@ -1,6 +1,6 @@
 import { memo } from "react";
-import { BotAvatar } from "./bot-avatar";
-import { ActivityIndicator } from "./activity-indicator";
+import { GoclawAvatar } from "@/components/chat/goclaw-avatar";
+import { ActivityIndicator, type RunLlmMeta } from "./activity-indicator";
 import { BlockReplyBubble } from "./block-reply-bubble";
 import { ThinkingBlock } from "./thinking-block";
 import { StreamingText } from "./streaming-text";
@@ -14,6 +14,7 @@ interface ActiveRunZoneProps {
   streamText: string | null;
   toolStream: ToolStreamEntry[];
   blockReplies: ChatMessage[];
+  llmMeta?: RunLlmMeta | null;
 }
 
 export const ActiveRunZone = memo(function ActiveRunZone({
@@ -23,6 +24,7 @@ export const ActiveRunZone = memo(function ActiveRunZone({
   streamText,
   toolStream,
   blockReplies,
+  llmMeta,
 }: ActiveRunZoneProps) {
   const hasContent =
     blockReplies.length > 0 ||
@@ -35,7 +37,7 @@ export const ActiveRunZone = memo(function ActiveRunZone({
   return (
     <div className="flex gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background">
-        <BotAvatar className="h-4 w-4 rounded-full" />
+        <GoclawAvatar />
       </div>
 
       <div className="flex-1 min-w-0 space-y-3">
@@ -65,7 +67,7 @@ export const ActiveRunZone = memo(function ActiveRunZone({
         )}
 
         {(isRunning || activity?.phase === "leader_processing") && (
-          <ActivityIndicator activity={activity} isRunning={isRunning} />
+          <ActivityIndicator activity={activity} isRunning={isRunning} llmMeta={llmMeta} />
         )}
       </div>
     </div>

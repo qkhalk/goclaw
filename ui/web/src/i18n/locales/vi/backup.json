@@ -5,7 +5,8 @@
     "systemBackup": "Sao lưu hệ thống",
     "systemRestore": "Khôi phục hệ thống",
     "s3Config": "Lưu trữ S3",
-    "tenantBackup": "Sao lưu Tenant"
+    "tenantBackup": "Sao lưu Tenant",
+    "schedule": "Định kì"
   },
   "backup": {
     "preflight": {
@@ -167,5 +168,27 @@
       "dryRunNote": "Chạy thử — không có thay đổi",
       "newRestore": "Khôi phục mới"
     }
+  },
+  "schedule": {
+    "title": "Sao lưu định kì lên cloud",
+    "description": "Tự động tạo backup và tải lên S3 hoặc drive theo chu kì.",
+    "interval": "Chu kì",
+    "hours_one": "Mỗi giờ",
+    "hours_other": "Mỗi {{count}} giờ",
+    "destination": "Đích",
+    "cloudDrive": "Drive (Google/OneDrive)",
+    "s3Hint": "Dùng thông tin S3 trong tab Lưu trữ S3.",
+    "cloudHint": "Tài khoản drive mặc định của tenant (bindings) hoặc tài khoản chỉ định.",
+    "cloudPath": "Thư mục trên drive",
+    "keepCount": "Giữ N bản",
+    "keepCountHint": "0 = giữ tất cả. Chỉ áp dụng cho S3.",
+    "saved": "Đã lưu lịch.",
+    "runNow": "Chạy ngay",
+    "running": "Đang chạy...",
+    "runOk": "Đã chạy xong: {{artifact}}",
+    "runFailed": "Lỗi: {{error}}",
+    "lastRun": "Lần cuối: {{when}} · {{size}}",
+    "nextDue": "Lần tiếp theo: {{when}}",
+    "loading": "Đang tải cấu hình..."
   }
 }

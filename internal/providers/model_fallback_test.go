@@ -332,7 +332,7 @@ func TestModelFallbackHealthOrder(t *testing.T) {
 // leads even when its health score is the lowest of all candidates.
 func TestModelFallbackHealthOrderPrimaryLowestScore(t *testing.T) {
 	reg := reliability.Default()
-	observeMixed(reg, "hp-a", "model", 5, 4)   // 5/9 = 0.556
+	observeMixed(reg, "hp-a", "model", 5, 4)    // 5/9 = 0.556
 	observeMixed(reg, "hp-prim", "model", 4, 4) // 4/8 = 0.5
 	observeMixed(reg, "hp-b", "model", 8, 0)    // 1.0 (scored first)
 
@@ -568,10 +568,10 @@ func TestModelFallbackLastAttemptsCopy(t *testing.T) {
 }
 
 func observeMixed(reg *reliability.Runtime, provider, model string, successes, failures int) {
-	for i := 0; i < successes; i++ {
+	for range successes {
 		reg.Health.ObserveSuccess(provider, model)
 	}
-	for i := 0; i < failures; i++ {
+	for range failures {
 		reg.Health.ObserveFailure(provider, model, reliability.ErrModelEmptyOutput)
 	}
 }

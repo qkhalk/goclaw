@@ -66,10 +66,10 @@ func (s *StorageService) RemoveRemote(ctx context.Context, accountID string) {
 // resolveAccount picks by email/ID when given, else per-scope bindings
 // (group → user → tenant default) and finally the caller's own accounts —
 // including tenant-shared ones (the enterprise "company drive" pattern).
-// Credential-based providers (s3, b2, pcloud, webdav) are appended to the
-// binding preference order so per-scope rules can pin them too.
+// Credential-based providers are appended to the binding preference order so
+// per-scope rules can pin them too.
 func (s *StorageService) resolveAccount(ctx context.Context, name string) (*store.CloudAccount, error) {
-	providers := append([]string{GoogleProvider, MicrosoftProvider}, CredentialProviderIDs()...)
+	providers := append([]string{GoogleProvider, MicrosoftProvider, DropboxProvider, YandexProvider}, CredentialProviderIDs()...)
 	return s.manager.ResolveAccount(ctx, name, providers, func(a *store.CloudAccount) bool {
 		return isStorageProvider(a.Provider)
 	})
@@ -79,7 +79,7 @@ func (s *StorageService) resolveAccount(ctx context.Context, name string) (*stor
 // the OAuth providers plus every credential-based provider in the registry.
 func isStorageProvider(provider string) bool {
 	switch provider {
-	case GoogleProvider, MicrosoftProvider:
+	case GoogleProvider, MicrosoftProvider, DropboxProvider, YandexProvider:
 		return true
 	default:
 		return IsCredentialProvider(provider)
@@ -156,7 +156,12 @@ func (s *StorageService) ensureRemote(ctx context.Context, acct *store.CloudAcco
 	tokenJSON, _ := json.Marshal(token)
 	params := map[string]any{"token": string(tokenJSON)}
 	remoteType := "drive"
-	if acct.Provider == MicrosoftProvider {
+	switch acct.Provider {
+	case DropboxProvider:
+		remoteType = "dropbox"
+	case YandexProvider:
+		remoteType = "yandex"
+	case MicrosoftProvider:
 		// The onedrive backend refuses to auto-pick a drive non-interactively:
 		// drive_id (resolved at connect time via Graph /me/drives) is required.
 		remoteType = "onedrive"
@@ -601,4 +606,63 @@ func ensureDir(dir string) error {
 		return fmt.Errorf("cloud storage: mkdir %s: %w", dir, err)
 	}
 	return nil
+}
+
+// AgentAccount resolves the account for an AGENT tool call, additionally
+// enforcing the per-account agent access level (admin-configured). The web UI
+// is unaffected — this only gates what agents may touch. An explicit account
+// that exists but is below the required level fails with the actionable
+// denied error (not a misleading "not found").
+func (s *StorageService) AgentAccount(ctx context.Context, name string, min AgentAccess) (*store.CloudAccount, error) {
+	acct, err := s.resolveAccount(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if level := AgentAccessOf(acct); !level.allows(min) {
+		return nil, errAgentAccessDenied(level, acct.Email)
+	}
+	return acct, nil
+}
+
+// FetchAccount is Fetch for a pre-authorized account (agent tools resolve +
+// permission-check once via AgentAccount, then call this).
+func (s *StorageService) FetchAccount(ctx context.Context, acct *store.CloudAccount, remotePath, workspaceDir string, sizeCapMB int64) (string, error) {
+	rc, err := s.supervisor.RC(ctx)
+	if err != nil {
+		return "", err
+	}
+	var out string
+	err = s.runWithRemote(ctx, acct, func(fs string) error {
+		p, opErr := s.fetchVia(ctx, rc, fs, remotePath, workspaceDir, sizeCapMB)
+		if opErr == nil {
+			out = p
+		}
+		return opErr
+	})
+	return out, err
+}
+
+// WriteAccount creates/overwrites the file at remotePath with content (the
+// agent-facing write tool path). rclone copies files, not byte streams, so
+// the content lands in a per-call temp dir first; the temp file reuses the
+// destination's base name so backend mimetype guessing sees the right
+// extension. The temp dir is removed on return.
+func (s *StorageService) WriteAccount(ctx context.Context, acct *store.CloudAccount, remotePath, content string) error {
+	if _, err := CleanRemotePath(remotePath); err != nil {
+		return err
+	}
+	dir, err := os.MkdirTemp("", "goclaw-cloud-write-")
+	if err != nil {
+		return fmt.Errorf("cloud_write: temp dir: %w", err)
+	}
+	defer os.RemoveAll(dir)
+	name := filepath.Base(strings.TrimSuffix(remotePath, "/"))
+	if name == "" || name == "." || name == "/" || strings.ContainsAny(name, `\/`) {
+		name = "file"
+	}
+	tmp := filepath.Join(dir, name)
+	if err := os.WriteFile(tmp, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("cloud_write: temp file: %w", err)
+	}
+	return s.UploadAccount(ctx, acct, dir, name, remotePath)
 }

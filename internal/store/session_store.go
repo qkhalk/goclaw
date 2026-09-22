@@ -64,6 +64,10 @@ type SessionInfo struct {
 	Channel      string            `json:"channel,omitempty" db:"channel"`
 	UserID       string            `json:"userID,omitempty" db:"user_id"`
 	Metadata     map[string]string `json:"metadata,omitempty" db:"metadata"`
+	// ArchivedAt is set when the session was archived (soft-hidden from the
+	// default listing); nil means active. Populated so callers that pass
+	// IncludeArchived can split active vs archived rows client-side.
+	ArchivedAt *time.Time `json:"archivedAt,omitempty" db:"archived_at"`
 }
 
 // SessionListOpts holds pagination options for ListPaged.
@@ -80,6 +84,12 @@ type SessionListOpts struct {
 	// listing so the token-heavy filter is pushed into SQL instead of scanning
 	// the whole table in memory.
 	TokenFilter bool `db:"-"`
+
+	// IncludeArchived, when true, lifts the default `archived_at IS NULL`
+	// filter so archived sessions are returned alongside active ones (each
+	// row then carries ArchivedAt for client-side splitting). Default false:
+	// chat sidebar, sessions.list, and GET /v1/sessions hide archived rows.
+	IncludeArchived bool `db:"-"`
 }
 
 // SessionListResult is the paginated result of ListPaged.
@@ -130,6 +140,16 @@ type SessionCoreStore interface {
 // into a new branch key without overwriting an existing target.
 type SessionBranchStore interface {
 	BranchSession(ctx context.Context, sourceKey string, opts SessionBranchOpts) (*SessionData, int, error)
+}
+
+// SessionArchiveStore is implemented by stores that can soft-archive a
+// session: ArchiveSession hides it from default listings (archived_at set),
+// RestoreSession brings it back. Messages and metadata are never touched —
+// archive is not delete. Kept as a separate capability interface (mirrors
+// SessionBranchStore) so existing SessionStore implementations stay valid.
+type SessionArchiveStore interface {
+	ArchiveSession(ctx context.Context, sessionKey string) error
+	RestoreSession(ctx context.Context, sessionKey string) error
 }
 
 // SessionMetadataStore manages session metadata, token tracking, and calibration.

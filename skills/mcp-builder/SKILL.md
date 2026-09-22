@@ -22,7 +22,7 @@ Design and ship Model Context Protocol servers: choose primitives and transport,
 
 ## When NOT to use
 - MCP client/bridge behavior inside goclaw → the repo's `internal/mcp` conventions
-- Agent design on Google's stack → `google-adk-python`
+- Agent design on Google's stack → `goclaw-kit`
 - General in-process tool design for goclaw itself → follow `internal/tools` patterns
 
 ## Workflow
@@ -40,7 +40,7 @@ Design and ship Model Context Protocol servers: choose primitives and transport,
 
 ## Routing
 - Consuming MCP servers from goclaw → repo `internal/mcp` bridge conventions
-- Building agents on Google ADK with MCP tools → `google-adk-python`
+- Building agents on Google ADK with MCP tools → `goclaw-kit`
 - Security review of exposed tools → `security-audit`
 
 ## Guardrails

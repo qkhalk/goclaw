@@ -25,13 +25,22 @@ func (*recordingGatewayTaskStore) Get(context.Context, uuid.UUID, uuid.UUID) (*s
 func (*recordingGatewayTaskStore) UpdateStatus(context.Context, uuid.UUID, uuid.UUID, string, *string, int, int64, int64) error {
 	return nil
 }
-func (*recordingGatewayTaskStore) ListByParent(context.Context, uuid.UUID, string) ([]store.SubagentTaskData, error) {
+func (*recordingGatewayTaskStore) ListByParent(context.Context, uuid.UUID, string, bool) ([]store.SubagentTaskData, error) {
 	return nil, nil
 }
 func (*recordingGatewayTaskStore) ListBySession(context.Context, uuid.UUID, string) ([]store.SubagentTaskData, error) {
 	return nil, nil
 }
+func (*recordingGatewayTaskStore) GetByID(context.Context, uuid.UUID) (*store.SubagentTaskData, error) {
+	return nil, nil
+}
 func (*recordingGatewayTaskStore) Archive(context.Context, uuid.UUID, time.Duration, int) (int64, error) {
+	return 0, nil
+}
+func (*recordingGatewayTaskStore) ArchiveByID(context.Context, uuid.UUID) error {
+	return nil
+}
+func (*recordingGatewayTaskStore) ArchiveCompletedForParent(context.Context, uuid.UUID) (int64, error) {
 	return 0, nil
 }
 func (s *recordingGatewayTaskStore) UpdateMetadata(_ context.Context, _ uuid.UUID, _ uuid.UUID, metadata map[string]any) error {

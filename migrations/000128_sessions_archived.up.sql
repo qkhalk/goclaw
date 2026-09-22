@@ -1,0 +1,12 @@
+-- Session archive (platform expansion Phase 8): soft-hide finished chats
+-- from default session listings. Archive never deletes data — messages,
+-- summary, and metadata stay intact; restore simply clears archived_at.
+--
+-- No partial index on (archived_at IS NULL): the session list queries keep
+-- their existing tenant/agent/user filters + ORDER BY updated_at DESC, which
+-- stay selective through the current session indexes (idx_sessions_tenant_user,
+-- idx_sessions_updated). Archived rows are expected to be a small subset of
+-- the table, so the extra predicate costs a cheap filter pass; a partial
+-- index would add write amplification on every session upsert for no
+-- meaningful read win. Revisit only if archived rows come to dominate.
+ALTER TABLE sessions ADD COLUMN archived_at TIMESTAMPTZ;

@@ -127,5 +127,6 @@ func (m *BrowserPanelMethods) handleOpen(ctx context.Context, client *gateway.Cl
 		"relayUrl": info.RelayURL,
 		"finalUrl": info.FinalURL,
 		"title":    info.Title,
+		"rendered": info.Rendered,
 	}))
 }

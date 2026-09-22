@@ -145,6 +145,9 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/skills/export/preview", h.adminMiddleware(h.handleSkillsExportPreview))
 	mux.HandleFunc("GET /v1/skills/export", h.adminMiddleware(h.handleSkillsExport))
 	mux.HandleFunc("POST /v1/skills/import", h.adminMiddleware(h.handleSkillsImport))
+
+	// Bundled-skill market (handlers live in skills_market.go).
+	h.registerMarketRoutes(mux)
 }
 
 func (h *SkillsHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {

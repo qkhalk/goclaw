@@ -145,4 +145,9 @@ type Stores struct {
 	// VideoJobs persists storyboard-to-MP4 render requests (Video pipeline
 	// Phase 1; PG 000125). Queries scoped by ctx tenant.
 	VideoJobs VideoRenderJobStore
+
+	// MCPInstalls persists tool-server packages installed from git by the
+	// Tool Store installer (MCP plan Phase 3; PG 000127). Scoped by ctx
+	// tenant; (tenant_id, name) unique and name matches mcp_servers.name.
+	MCPInstalls MCPInstallStore
 }

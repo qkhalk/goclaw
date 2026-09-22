@@ -5,11 +5,11 @@
 // and URL-bar entries navigate through the gateway's sanitized relay
 // (browser.panel.open), and agent actions operate the live page via the
 // use-browser-panel hook.
-import { ArrowLeft, ArrowRight, ExternalLink, FileText, Globe, RotateCw, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, FileText, Globe, MonitorSmartphone, RotateCw, X, Zap } from "lucide-react";
+import { RemoteBrowserView } from "./browser-remote-view";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BrowserPanelState } from "@/pages/chat/hooks/use-browser-panel";
-import { cn } from "@/lib/utils";
 
 interface BrowserPanelProps {
   open: boolean;
@@ -25,6 +25,7 @@ interface BrowserPanelProps {
 
 export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onForward, onReload, onURLSubmit, onToggleMode }: BrowserPanelProps) {
   const { t } = useTranslation("chat");
+  const [remoteMode, setRemoteMode] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [urlDraft, setUrlDraft] = useState(state.url);
 
@@ -40,11 +41,27 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
   const showIframe = frameSrc !== "" && state.status !== "error";
   const displayTitle = state.title || state.finalUrl || t("browserPanel.title");
   // Sandbox flips with the mode: the relay needs allow-same-origin so the
-  // dashboard can read/operate its DOM; the live preview runs the real page's
-  // scripts but WITHOUT allow-same-origin — opaque origin, isolated from the
-  // dashboard. Changing sandbox only takes effect on a fresh frame, so the
-  // key includes the mode (and src) to force a remount.
-  const sandbox = live ? "allow-scripts allow-forms" : "allow-same-origin";
+  // dashboard can read/operate its DOM. The live preview runs the real page's
+  // scripts; EXTERNAL live pages also get allow-same-origin — without it the
+  // frame is an opaque origin and any localStorage/sessionStorage access
+  // throws a SecurityError, white-screening most SPAs at boot. The flag is
+  // only safe when the frame keeps the SITE's origin (never ours): for URLs
+  // sharing the dashboard origin it is dropped, so allow-scripts can never
+  // pair with our own origin. Changing sandbox only takes effect on a fresh
+  // frame, so the key includes the mode (and src) to force a remount.
+  let liveAllowsSameOrigin = false;
+  if (live && state.finalUrl) {
+    try {
+      liveAllowsSameOrigin = new URL(state.finalUrl).origin !== window.location.origin;
+    } catch {
+      liveAllowsSameOrigin = false;
+    }
+  }
+  const sandbox = live
+    ? liveAllowsSameOrigin
+      ? "allow-scripts allow-forms allow-same-origin"
+      : "allow-scripts allow-forms"
+    : "allow-same-origin";
 
   const submitURL = () => {
     const trimmed = urlDraft.trim();
@@ -54,10 +71,7 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
   };
 
   return (
-    <div className={cn(
-      "flex h-full w-[min(520px,45vw)] shrink-0 flex-col border-l bg-background",
-      "max-sm:fixed max-sm:inset-0 max-sm:z-50 max-sm:w-full max-sm:shadow-xl",
-    )}>
+    <div className="flex h-full min-h-0 flex-col bg-background">
       {/* Header: title + actions */}
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2 safe-top">
         <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
@@ -119,8 +133,20 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
         />
         <button
           type="button"
+          onClick={() => setRemoteMode((v) => !v)}
+          title={t("browserPanel.remote.toggle")}
+          className={`rounded-md p-1.5 ${
+            remoteMode
+              ? "bg-primary/10 text-primary hover:bg-primary/20"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          }`}
+        >
+          <MonitorSmartphone className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
           onClick={onToggleMode}
-          disabled={!state.finalUrl}
+          disabled={remoteMode || !state.finalUrl}
           title={live ? t("browserPanel.switchToStatic") : t("browserPanel.switchToLive")}
           className={`rounded-md p-1.5 disabled:pointer-events-none disabled:opacity-40 ${
             live
@@ -142,7 +168,9 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
 
       {/* Content */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden overscroll-contain">
-        {showIframe ? (
+        {remoteMode ? (
+          <RemoteBrowserView />
+        ) : showIframe ? (
           <iframe
             ref={iframeRef}
             key={`${state.mode}:${frameSrc}`}
@@ -171,15 +199,17 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
       <div className="shrink-0 border-t px-3 py-1.5 text-xs text-muted-foreground safe-bottom">
         {state.note
           ? state.note
-          : state.status === "loading"
-            ? t("browserPanel.loading")
-            : state.status === "error"
-              ? t("browserPanel.errorHint")
-              : state.status === "ready"
-                ? live
-                  ? t("browserPanel.liveNote")
-                  : t("browserPanel.staticNote")
-                : t("browserPanel.empty")}
+          : state.thinStatic
+            ? t("browserPanel.thinStaticNote")
+            : state.status === "loading"
+              ? t("browserPanel.loading")
+              : state.status === "error"
+                ? t("browserPanel.errorHint")
+                : state.status === "ready"
+                  ? live
+                    ? t("browserPanel.liveNote")
+                    : t("browserPanel.staticNote")
+                  : t("browserPanel.empty")}
       </div>
     </div>
   );

@@ -57,7 +57,7 @@ with trade-offs explicit and open questions enumerable.
 ## Routing
 - Formal architecture proposal with migration/rollback → `architect`.
 - UI-specific visuals and interaction design → `ui-ux-pro-max`.
-- Sequencing the implementation → `plan`; recording the decision →
+- Sequencing the implementation → `goclaw-kit`; recording the decision →
   `decision-log`.
 
 ## Guardrails

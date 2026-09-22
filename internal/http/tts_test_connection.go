@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
+	"github.com/nextlevelbuilder/goclaw/internal/audio/clone"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/edge"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/elevenlabs"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/gemini"
@@ -50,6 +51,7 @@ var supportedTestProviders = map[string]bool{
 	"edge":       true,
 	"minimax":    true,
 	"gemini":     true,
+	"clone":      true,
 }
 
 // providersRequiringAPIKey lists providers that need an API key.
@@ -239,6 +241,14 @@ func createEphemeralTTSProvider(req testConnectionRequest) (audio.TTSProvider, e
 			Model:     req.ModelID,
 			TimeoutMs: req.TimeoutMs,
 		}), nil
+	case "clone":
+		// Worker token is optional — LAN workers commonly run tokenless.
+		return clone.NewProvider(clone.Config{
+			Endpoint:  req.APIBase,
+			APIKey:    req.APIKey,
+			Voice:     req.VoiceID,
+			TimeoutMs: req.TimeoutMs,
+		}), nil
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", req.Provider)
 	}
@@ -259,6 +269,11 @@ func (h *TTSHandler) fillMissingTestSecrets(ctx context.Context, req *testConnec
 	if req.Provider == "minimax" && req.GroupID == "" {
 		if saved, _ := h.configSecrets.Get(ctx, "tts.minimax.group_id"); saved != "" {
 			req.GroupID = saved
+		}
+	}
+	if req.Provider == "clone" && req.APIKey == "" {
+		if saved, _ := h.configSecrets.Get(ctx, "tts.clone.api_key"); saved != "" {
+			req.APIKey = saved
 		}
 	}
 }

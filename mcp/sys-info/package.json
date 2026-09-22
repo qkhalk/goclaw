@@ -1,0 +1,7 @@
+{
+  "name": "sys-info",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zero-dependency MCP stdio server exposing host stats and disk usage",
+  "main": "src/index.js"
+}

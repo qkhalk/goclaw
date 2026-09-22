@@ -23,6 +23,7 @@ const SkillUploadDialog = lazy(() =>
 );
 import { MissingDepsPanel } from "./missing-deps-panel";
 import { SkillTableRow } from "./skill-table-row";
+import { MarketTab } from "./market/market-tab";
 import { useRuntimes } from "./hooks/use-runtimes";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
@@ -40,7 +41,7 @@ import type { SkillExportFormat } from "./lib/skill-export-download";
 
 const MASTER_TENANT_ID = "0193a5b0-7000-7000-8000-000000000001";
 
-type Tab = "core" | "custom";
+type Tab = "core" | "custom" | "market";
 
 export function SkillsPage() {
   const { t } = useTranslation("skills");
@@ -325,7 +326,7 @@ export function SkillsPage() {
       />
 
       <div className="flex gap-1 border-b mt-4">
-        {(["core", "custom"] as Tab[]).map((tabKey) => (
+        {(["core", "custom", "market"] as Tab[]).map((tabKey) => (
           <button
             key={tabKey}
             type="button"
@@ -337,105 +338,115 @@ export function SkillsPage() {
             )}
             onClick={() => setTab(tabKey)}
           >
-            {t(`tabs.${tabKey}`)} ({tabKey === "core" ? coreSkills.length : customSkills.length})
+            {tabKey === "market"
+              ? t("market.tabLabel")
+              : `${t(`tabs.${tabKey}`)} (${tabKey === "core" ? coreSkills.length : customSkills.length})`}
           </button>
         ))}
       </div>
 
-      <SkillBulkActionsToolbar
-        selectedCount={selectedSkills.length}
-        customSelectedCount={selectedCustomSkills.length}
-        skippedSystemCount={skippedSystemCount}
-        agentCount={agents.length}
-        loading={bulkLoading || deleteLoading}
-        downloadLoading={downloadLoading}
-        exportFormat={exportFormat}
-        onExportFormatChange={setExportFormat}
-        onDownload={() => handleDownloadSkills(selectedSkills)}
-        onEnable={() => handleBulkToggle(true)}
-        onDisable={() => handleBulkToggle(false)}
-        onGrantAllAgents={handleBulkGrantAllAgents}
-        onDelete={() => setBulkDeleteOpen(true)}
-        onClear={() => setSelectedIds(new Set())}
-      />
-
-      <div className="mt-4">
-        <MissingDepsPanel missing={allMissing} onInstallItem={installSingleDep} runtimes={tab === "core" ? runtimes : undefined} />
-        <div className="space-y-3">
-          <SkillHealthSummary
-            stats={healthStats}
-            activeFilter={pageState.filter}
-            onFilterChange={(filter) => setPageState({ filter })}
-          />
-          <SkillsFilterBar state={pageState} onChange={setPageState} />
+      {tab === "market" ? (
+        <div className="mt-4">
+          <MarketTab />
         </div>
-      </div>
-
-      <div className="mt-4">
-        {showSkeleton ? (
-          <TableSkeleton rows={5} />
-        ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={Zap}
-            title={pageState.q || pageState.filter !== "all" ? t("noMatchTitle") : t("emptyTitle")}
-            description={pageState.q || pageState.filter !== "all" ? t("noMatchDescription") : t("emptyDescription")}
+      ) : (
+        <>
+          <SkillBulkActionsToolbar
+            selectedCount={selectedSkills.length}
+            customSelectedCount={selectedCustomSkills.length}
+            skippedSystemCount={skippedSystemCount}
+            agentCount={agents.length}
+            loading={bulkLoading || deleteLoading}
+            downloadLoading={downloadLoading}
+            exportFormat={exportFormat}
+            onExportFormatChange={setExportFormat}
+            onDownload={() => handleDownloadSkills(selectedSkills)}
+            onEnable={() => handleBulkToggle(true)}
+            onDisable={() => handleBulkToggle(false)}
+            onGrantAllAgents={handleBulkGrantAllAgents}
+            onDelete={() => setBulkDeleteOpen(true)}
+            onClear={() => setSelectedIds(new Set())}
           />
-        ) : (
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[600px] text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="w-10 px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={allPageSelected}
-                      ref={(el) => { if (el) el.indeterminate = somePageSelected; }}
-                      onChange={toggleSelectPage}
-                      aria-label={t("bulk.selectPage")}
-                      className="h-4 w-4 cursor-pointer accent-primary"
-                    />
-                  </th>
-                  <th className="px-4 py-3 text-left font-medium">{t("columns.name")}</th>
-                  <th className="px-4 py-3 text-left font-medium">{t("columns.description")}</th>
-                  {tab === "custom" && <th className="px-4 py-3 text-left font-medium">{t("columns.agents")}</th>}
-                  <th className="px-4 py-3 text-left font-medium">{t("columns.status")}</th>
-                  {tab === "custom" && <th className="px-4 py-3 text-left font-medium">{t("columns.accessMode")}</th>}
-                  <th className="px-4 py-3 text-right font-medium">{t("columns.actions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageItems.map((skill: SkillInfo) => (
-                  <SkillTableRow
-                    key={skill.name}
-                    skill={skill}
-                    tab={tab}
-                    hasTenantScope={hasTenantScope}
-                    toggling={toggling}
-                    selected={!!skill.id && selectedIds.has(skill.id)}
-                    onToggleSelect={toggleSelectSkill}
-                    onView={handleViewSkill}
-                    onEdit={setEditTarget}
-                    onManageGrants={setGrantsTarget}
-                    onDelete={setDeleteTarget}
-                    onToggle={handleToggle}
-                    onCycleAccessMode={handleCycleAccessMode}
-                    onSetTenantConfig={handleSetTenantConfig}
-                    onDeleteTenantConfig={handleDeleteTenantConfig}
-                  />
-                ))}
-              </tbody>
-            </table>
-            <Pagination
-              page={pagination.page}
-              pageSize={pagination.pageSize}
-              total={pagination.total}
-              totalPages={pagination.totalPages}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-            />
+
+          <div className="mt-4">
+            <MissingDepsPanel missing={allMissing} onInstallItem={installSingleDep} runtimes={tab === "core" ? runtimes : undefined} />
+            <div className="space-y-3">
+              <SkillHealthSummary
+                stats={healthStats}
+                activeFilter={pageState.filter}
+                onFilterChange={(filter) => setPageState({ filter })}
+              />
+              <SkillsFilterBar state={pageState} onChange={setPageState} />
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="mt-4">
+            {showSkeleton ? (
+              <TableSkeleton rows={5} />
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={Zap}
+                title={pageState.q || pageState.filter !== "all" ? t("noMatchTitle") : t("emptyTitle")}
+                description={pageState.q || pageState.filter !== "all" ? t("noMatchDescription") : t("emptyDescription")}
+              />
+            ) : (
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full min-w-[600px] text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="w-10 px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={allPageSelected}
+                          ref={(el) => { if (el) el.indeterminate = somePageSelected; }}
+                          onChange={toggleSelectPage}
+                          aria-label={t("bulk.selectPage")}
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                        />
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium">{t("columns.name")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("columns.description")}</th>
+                      {tab === "custom" && <th className="px-4 py-3 text-left font-medium">{t("columns.agents")}</th>}
+                      <th className="px-4 py-3 text-left font-medium">{t("columns.status")}</th>
+                      {tab === "custom" && <th className="px-4 py-3 text-left font-medium">{t("columns.accessMode")}</th>}
+                      <th className="px-4 py-3 text-right font-medium">{t("columns.actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageItems.map((skill: SkillInfo) => (
+                      <SkillTableRow
+                        key={skill.name}
+                        skill={skill}
+                        tab={tab === "custom" ? "custom" : "core"}
+                        hasTenantScope={hasTenantScope}
+                        toggling={toggling}
+                        selected={!!skill.id && selectedIds.has(skill.id)}
+                        onToggleSelect={toggleSelectSkill}
+                        onView={handleViewSkill}
+                        onEdit={setEditTarget}
+                        onManageGrants={setGrantsTarget}
+                        onDelete={setDeleteTarget}
+                        onToggle={handleToggle}
+                        onCycleAccessMode={handleCycleAccessMode}
+                        onSetTenantConfig={handleSetTenantConfig}
+                        onDeleteTenantConfig={handleDeleteTenantConfig}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination
+                  page={pagination.page}
+                  pageSize={pagination.pageSize}
+                  total={pagination.total}
+                  totalPages={pagination.totalPages}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {selectedSkill && (
         <SkillDetailDialog

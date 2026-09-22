@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Events, Methods } from "@/api/protocol";
 import { useWs } from "@/hooks/use-ws";
 import { useWsEvent } from "@/hooks/use-ws-event";
@@ -8,6 +9,15 @@ import {
   MIN_USEFUL_CHARS,
   MAX_EXTRACT_CHARS,
 } from "@/lib/dom-extract";
+
+/** Response of browser.panel.open — rendered = headless-browser fallback. */
+interface OpenRelayResponse {
+  browseId: string;
+  relayUrl: string;
+  finalUrl: string;
+  title: string;
+  rendered?: boolean;
+}
 
 /**
  * Client-side mini-browser behind the chat browser panel (ZCode-style).
@@ -27,11 +37,15 @@ export type BrowserPanelStatus = "idle" | "loading" | "ready" | "error";
  * relay — sanitized same-origin document (default; script-free, agent-operable
  * via [eN] refs). live — sandboxed preview of the real URL for JavaScript-
  * rendered pages whose static relay would be blank: scripts run inside the
- * frame but it gets an opaque origin (no allow-same-origin), so the page is
- * isolated from the dashboard and the panel cannot read its DOM — preview
- * only. The panel auto-switches to live when a relay extraction is too thin.
+ * frame with the SITE's own origin (cross-origin to the dashboard, so the
+ * panel still cannot read its DOM — preview only). The panel auto-switches to
+ * live when a relay extraction is too thin and the mode was chosen
+ * automatically; a user-toggled mode is never overridden.
  */
 export type BrowserPanelMode = "relay" | "live";
+
+/** Who chose the current mode: the auto-fallback heuristics or the user. */
+export type BrowserPanelModeSource = "auto" | "user";
 
 export interface BrowserPanelState {
   /** Current page's original URL ("" = nothing open). */
@@ -41,6 +55,9 @@ export interface BrowserPanelState {
   relayUrl: string;
   status: BrowserPanelStatus;
   mode: BrowserPanelMode;
+  modeSource: BrowserPanelModeSource;
+  /** Static shell extracted too thin while the user pinned static mode. */
+  thinStatic: boolean;
   canBack: boolean;
   canForward: boolean;
   /** Last action note for the status bar. */
@@ -78,6 +95,8 @@ const initialState: BrowserPanelState = {
   relayUrl: "",
   status: "idle",
   mode: "relay",
+  modeSource: "auto",
+  thinStatic: false,
   canBack: false,
   canForward: false,
   note: "",
@@ -85,6 +104,7 @@ const initialState: BrowserPanelState = {
 
 export function useBrowserPanel(onInvoke: () => void) {
   const ws = useWs();
+  const { t } = useTranslation("chat");
   const [state, setState] = useState<BrowserPanelState>(initialState);
   // Refs mirror state/mutable session data for callbacks that must read the
   // latest values without re-binding (iframe onLoad, WS event handler).
@@ -105,11 +125,13 @@ export function useBrowserPanel(onInvoke: () => void) {
   }, []);
 
   /** Switch relay↔live. modeRef updates synchronously so an iframe onLoad
-   *  arriving before React re-renders still reads the right mode. */
+   *  arriving before React re-renders still reads the right mode. The source
+   *  records who made the choice: "user" toggles suppress the thin→live
+   *  auto-fallback until the next navigation resets it to "auto". */
   const setMode = useCallback(
-    (mode: BrowserPanelMode) => {
+    (mode: BrowserPanelMode, source: BrowserPanelModeSource) => {
       modeRef.current = mode;
-      publishState({ mode, status: "loading", note: "" });
+      publishState({ mode, modeSource: source, status: "loading", note: "", thinStatic: false });
     },
     [publishState],
   );
@@ -153,6 +175,8 @@ export function useBrowserPanel(onInvoke: () => void) {
         relayUrl: entry.relayUrl,
         status: "loading",
         mode: "relay",
+        modeSource: "auto",
+        thinStatic: false,
         note: "",
         ...syncNav(),
       });
@@ -166,10 +190,7 @@ export function useBrowserPanel(onInvoke: () => void) {
       const replyTo = opts?.replyTo ?? "";
       pendingRef.current = replyTo ? { id: replyTo, kind: "open" } : pendingRef.current;
       publishState({ status: "loading", note: opts?.note ?? "" });
-      ws.call<{ browseId: string; relayUrl: string; finalUrl: string; title: string }>(
-        Methods.BROWSER_PANEL_OPEN,
-        { url },
-      )
+      ws.call<OpenRelayResponse>(Methods.BROWSER_PANEL_OPEN, { url })
         .then((res) => {
           if (!res || !res.relayUrl) throw new Error("empty relay response");
           loadEntry(
@@ -182,6 +203,7 @@ export function useBrowserPanel(onInvoke: () => void) {
             },
             true,
           );
+          if (res.rendered) publishState({ note: t("browserPanel.renderedNote") });
         })
         .catch((err) => {
           publishState({ status: "error", note: String(err?.message ?? err) });
@@ -189,7 +211,7 @@ export function useBrowserPanel(onInvoke: () => void) {
           if (replyTo) postResult(replyTo, { error: `navigation failed: ${String(err?.message ?? err)}` });
         });
     },
-    [ws, publishState, loadEntry, postResult],
+    [ws, publishState, loadEntry, postResult, t],
   );
 
   /** Run an agent action against the currently displayed page. */
@@ -268,10 +290,7 @@ export function useBrowserPanel(onInvoke: () => void) {
         // Re-open through the gateway: fresh signed relay regardless of TTL.
         pendingRef.current = { id: payload.browseId, kind: "open" };
         publishState({ status: "loading" });
-        ws.call<{ browseId: string; relayUrl: string; finalUrl: string; title: string }>(
-          Methods.BROWSER_PANEL_OPEN,
-          { url: target },
-        )
+        ws.call<OpenRelayResponse>(Methods.BROWSER_PANEL_OPEN, { url: target })
           .then((res) => {
             if (!res || !res.relayUrl) throw new Error("empty relay response");
             loadEntry(
@@ -284,6 +303,7 @@ export function useBrowserPanel(onInvoke: () => void) {
               },
               false,
             );
+            if (res.rendered) publishState({ note: t("browserPanel.renderedNote") });
           })
           .catch((err) => {
             pendingRef.current = null;
@@ -336,7 +356,7 @@ export function useBrowserPanel(onInvoke: () => void) {
       el.dispatchEvent(new (win ?? window).MouseEvent("click", { bubbles: true, cancelable: true }));
       finish(`clicked [${payload.ref}] (static relay — pages run no scripts, so most buttons have no effect)`);
     },
-    [extractCurrent, openURL, postResult, publishState, ws, loadEntry],
+    [extractCurrent, openURL, postResult, publishState, ws, loadEntry, t],
   );
 
   useWsEvent(Events.BROWSER_PANEL_INVOKE, (payload) => {
@@ -351,6 +371,7 @@ export function useBrowserPanel(onInvoke: () => void) {
     // Open flow: the gateway already prepared the relay document.
     if (!p.relayUrl) return;
     pendingRef.current = { id: p.browseId, kind: "open" };
+    modeRef.current = "relay";
     const h = historyRef.current;
     h.entries = h.entries.slice(0, h.index + 1);
     h.entries.push({
@@ -367,6 +388,9 @@ export function useBrowserPanel(onInvoke: () => void) {
       finalUrl: p.finalUrl ?? p.url ?? "",
       title: "",
       status: "loading",
+      mode: "relay",
+      modeSource: "auto",
+      thinStatic: false,
       note: "",
       ...syncNav(),
     });
@@ -442,9 +466,15 @@ export function useBrowserPanel(onInvoke: () => void) {
       }
       // Thin relay extraction = JS-rendered page: the static document is a
       // blank shell, so switch the panel to the live preview instead. The
-      // agent already got the honest "too thin" error above.
+      // agent already got the honest "too thin" error above. A mode the USER
+      // toggled is never overridden: keep their static view and surface the
+      // thinStatic note instead of silently flipping.
       if (markdown.length < MIN_USEFUL_CHARS && /^https?:/i.test(cur.finalUrl)) {
-        setMode("live");
+        if (cur.modeSource === "auto") {
+          setMode("live", "auto");
+        } else {
+          publishState({ thinStatic: true });
+        }
       }
     },
     [openURL, postResult, publishState, setMode, syncNav],
@@ -468,18 +498,20 @@ export function useBrowserPanel(onInvoke: () => void) {
     if (stateRef.current.url) openURL(stateRef.current.url, { note: "" });
   }, [openURL]);
 
-  /** User toggled static↔live. Back to static re-opens through the gateway:
-   *  the signed relay URL may be past its TTL, and a fresh load also restores
+  /** User toggled static↔live: record their choice so the auto-fallback
+   *  stops overriding it. Back to static re-opens through the gateway: the
+   *  signed relay URL may be past its TTL, and a fresh load also restores
    *  ref extraction for agent actions. */
   const toggleMode = useCallback(() => {
     if (!stateRef.current.finalUrl) return;
     if (modeRef.current === "live") {
       modeRef.current = "relay";
+      publishState({ mode: "relay", modeSource: "user", thinStatic: false });
       openURL(stateRef.current.url || stateRef.current.finalUrl, { note: "" });
     } else {
-      setMode("live");
+      setMode("live", "user");
     }
-  }, [openURL, setMode]);
+  }, [openURL, setMode, publishState]);
 
   const reset = useCallback(() => {
     historyRef.current = { entries: [], index: -1 };

@@ -143,5 +143,22 @@
   },
   "pane": {
     "resize": "调整面板大小"
+  },
+  "planCard": {
+    "title": "任务计划",
+    "progress": "{{done}}/{{total}} 已完成"
+  },
+  "systemUpdate": {
+    "available": "更新到 {{version}}",
+    "currentVersion": "当前版本：{{version}}",
+    "confirm": "安装并重启",
+    "confirmBody": "网关将重启并离线约 15 秒。",
+    "installing": "正在下载更新...",
+    "restarting": "正在重启...",
+    "success": "已更新到 {{version}}",
+    "failed": "更新失败",
+    "noRestart": "网关已恢复在线",
+    "restartTimeout": "尚未检测到重启",
+    "restartTimeoutBody": "网关可能仍在重启。请稍后刷新页面。"
   }
 }

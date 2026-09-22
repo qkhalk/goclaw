@@ -26,7 +26,7 @@ picked, reasons shown, confidence calibrated.
 - No options exist yet and ideas must be generated → `brainstorm`.
 - The question is factual and lookup-able → answer directly or use
   `web_fetch` / `docs-seeker`.
-- A full implementation plan is the real ask → `plan`.
+- A full implementation plan is the real ask → `goclaw-kit`.
 
 ## Workflow
 1. Restate the question as a decision: "choosing A for situation B, given
@@ -52,7 +52,7 @@ change it.
 
 ## Routing
 - The decision needs to be archived with rationale → `decision-log`.
-- The chosen option needs a design or plan → `design` or `plan`.
+- The chosen option needs a design or plan → `design` or `goclaw-kit`.
 - The recommendation should be stress-tested → `predict`.
 
 ## Guardrails

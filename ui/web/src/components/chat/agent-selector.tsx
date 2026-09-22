@@ -5,6 +5,7 @@ import { Bot, ChevronDown } from "lucide-react";
 import { usePortalDropdownClose } from "@/hooks/use-portal-dropdown-close";
 import { useAgents } from "@/hooks/use-agents";
 import { stripLeadingEmoji } from "@/lib/agent-emoji";
+import { isSystemAgent } from "@/lib/system-agents";
 import type { AgentData } from "@/types/agent";
 
 interface AgentSelectorProps {
@@ -22,12 +23,14 @@ function agentEmoji(agent: AgentData): string | undefined {
 export function AgentSelector({ value, onChange, openSignal }: AgentSelectorProps) {
   const { t } = useTranslation("common");
   const { data: allAgents = [] } = useAgents();
-  // Only active, non-designer agents are selectable in /chat. Designer agents
-  // (e.g. pptx-designer) are studio-only workers addressed directly by session
-  // key from the tools pages — excluding them here keeps their session history
-  // out of the chat selector.
+  // Only active, non-designer agents are selectable in /chat. The system
+  // designer agents (video-designer, pptx-designer) are studio-only workers
+  // addressed directly by session key from the tools pages — excluding them
+  // here keeps their session history out of the chat selector. Exact-match
+  // on SYSTEM_AGENT_KEYS so user-created agents like "logo-designer" stay
+  // visible.
   const agents = allAgents.filter(
-    (a) => a.status === "active" && !a.agent_key.endsWith("-designer"),
+    (a) => a.status === "active" && !isSystemAgent(a.agent_key),
   );
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);

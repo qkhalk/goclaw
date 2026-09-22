@@ -30,13 +30,8 @@ interface ChatInputProps {
   /** Provider name of the target agent — feeds the model picker when no
    * provider override is selected (model-only override on agent's provider). */
   defaultProviderName?: string;
-  /**
-   * Dev mode toggle state. Owned by the parent (persisted per session, not
-   * with the composer overrides) and sent per message via chat.send; omit
-   * onDevModeChange to hide the toggle (embedded instances).
-   */
-  devMode?: boolean;
-  onDevModeChange?: (on: boolean) => void;
+  /** Hide the per-run permission-mode picker (designer composers). */
+  showPermissionMode?: boolean;
 }
 
 const COMPOSER_OVERRIDE_KEY = "goclaw.composer-override";
@@ -66,8 +61,7 @@ export function ChatInput({
   onFilesChange,
   storageKey = COMPOSER_OVERRIDE_KEY,
   defaultProviderName,
-  devMode,
-  onDevModeChange,
+  showPermissionMode = true,
 }: ChatInputProps) {
   const { t } = useTranslation("common");
   const [value, setValue] = useState("");
@@ -136,9 +130,6 @@ export function ChatInput({
         model: overrides.model || undefined,
         thinkingLevel: overrides.thinkingLevel || undefined,
         permissionMode: overrides.permissionMode || undefined,
-        // Dev mode is owned by the parent (per-session persistence) — merged
-        // into the per-message overrides transport here.
-        ...(devMode && { devMode: true }),
       },
     );
     setValue("");
@@ -146,7 +137,7 @@ export function ChatInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [value, files, onSend, onFilesChange, disabled, overrides, devMode]);
+  }, [value, files, onSend, onFilesChange, disabled, overrides]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -299,8 +290,7 @@ export function ChatInput({
             onChange={handleOverridesChange}
             disabled={disabled || voiceRecorder.isRecording}
             defaultProviderName={defaultProviderName}
-            devMode={devMode}
-            onDevModeChange={onDevModeChange}
+            showPermissionMode={showPermissionMode}
           />
 
           <div className="ml-auto flex shrink-0 items-center gap-1">

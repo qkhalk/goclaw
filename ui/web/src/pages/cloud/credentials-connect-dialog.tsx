@@ -4,6 +4,7 @@ import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -18,9 +19,11 @@ import {
   type CredentialProviderId,
 } from "./hooks/use-cloud";
 
-/** Connect dialog for credential-based providers (S3, B2, pCloud, WebDAV):
- * fields render dynamically from the frontend copy of the registry specs
- * (CREDENTIAL_PROVIDER_FIELDS — keep in sync with internal/cloud/providers.go).
+/** Connect dialog for credential-based providers (S3, B2, pCloud, WebDAV,
+ * Azure Blob, GCS, FTP, SFTP, SMB): fields render dynamically from the
+ * frontend copy of the registry specs (CREDENTIAL_PROVIDER_FIELDS — keep in
+ * sync with internal/cloud/providers.go). secret_textarea fields are
+ * multi-line secrets (PEM key, service-account JSON) rendered as a textarea.
  * Submitting calls POST /v1/cloud/connect; the server probes the credentials
  * with rclone BEFORE persisting, so a failure here means the credentials did
  * not work (rclone's own error text is shown). Full-screen slide-up on
@@ -114,15 +117,27 @@ export function CredentialsConnectDialog({
                 {t(`credentials.fields.${provider}.${f.key}`)}
                 {f.required && <span className="ml-1 text-destructive">*</span>}
               </Label>
-              <Input
-                id={`cred-${f.key}`}
-                type={f.type === "password" ? "password" : "text"}
-                value={values[f.key] ?? ""}
-                onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                className="text-base md:text-sm"
-                autoComplete={f.type === "password" ? "new-password" : "off"}
-                dir="ltr"
-              />
+              {f.type === "secret_textarea" ? (
+                <Textarea
+                  id={`cred-${f.key}`}
+                  value={values[f.key] ?? ""}
+                  onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                  className="min-h-24 font-mono text-base md:text-sm"
+                  autoComplete="new-password"
+                  spellCheck={false}
+                  dir="ltr"
+                />
+              ) : (
+                <Input
+                  id={`cred-${f.key}`}
+                  type={f.type === "password" ? "password" : "text"}
+                  value={values[f.key] ?? ""}
+                  onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                  className="text-base md:text-sm"
+                  autoComplete={f.type === "password" ? "new-password" : "off"}
+                  dir="ltr"
+                />
+              )}
               <p className="text-xs text-muted-foreground">
                 {t(`credentials.fields.${provider}.${f.key}_hint`)}
               </p>

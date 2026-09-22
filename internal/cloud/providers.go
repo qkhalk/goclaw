@@ -1,11 +1,13 @@
 package cloud
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -23,13 +25,27 @@ import (
 
 // Field types for FieldSpec.Type.
 const (
-	FieldTypeText     = "text"
+	FieldTypeText = "text"
+	// FieldTypePassword — single-line secret: masked input in the UI, stored
+	// in the encrypted column.
 	FieldTypePassword = "password"
+	// FieldTypeSecretTextarea — multi-line secret (PEM private key,
+	// service-account key JSON): textarea in the UI, stored in the encrypted
+	// column exactly like a password.
+	FieldTypeSecretTextarea = "secret_textarea"
 )
 
 // credentialValueMaxLen bounds every user-supplied credential value — enough
 // for any real key/token, small enough to stop absurd payloads.
 const credentialValueMaxLen = 1024
+
+// Per-field length bounds for multi-line secrets: real-world service-account
+// key JSON is ~2-3 KB and an RSA-4096 PEM key ~3.2 KB — both far exceed the
+// default bound above.
+const (
+	serviceAccountJSONMaxLen = 16384
+	pemPrivateKeyMaxLen      = 16384
+)
 
 // FieldSpec describes one credential field of a CredentialProvider.
 type FieldSpec struct {
@@ -39,12 +55,16 @@ type FieldSpec struct {
 	// Label is the English fallback label; the web UI has its own i18n copy
 	// (keep ui/web credentials-connect-dialog.tsx in sync with these specs).
 	Label string
-	// Type is FieldTypeText or FieldTypePassword (secret → encrypted column).
+	// Type is FieldTypeText, FieldTypePassword or FieldTypeSecretTextarea
+	// (secret types → encrypted column).
 	Type string
 	// Required fields must be non-empty after trimming.
 	Required bool
 	// Hint is optional English help text for the field.
 	Hint string
+	// MaxLen overrides credentialValueMaxLen for oversized values (multi-line
+	// secrets); 0 means the default.
+	MaxLen int
 }
 
 // CredentialProvider describes one rclone backend connected via typed
@@ -62,6 +82,11 @@ type CredentialProvider struct {
 	// the rclone config for this provider. Derived from Fields; asserted by
 	// tests to stay exactly in sync.
 	ParamWhitelist []string
+	// ProbeViaList marks backends WITHOUT rclone operations/about (quota)
+	// support — the connect probe proves auth with a root listing instead.
+	// Declared per provider (azureblob, gcs, ftp report "not implemented")
+	// so the HTTP layer never depends on rclone error-string matching.
+	ProbeViaList bool
 }
 
 // s3ProviderHints are the accepted values for the s3 "provider" hint. rclone
@@ -129,10 +154,78 @@ var credentialProviders = map[string]CredentialProvider{
 		},
 		ParamWhitelist: []string{"url", "vendor", "user", "pass"},
 	},
+	"azureblob": {
+		ID:         "azureblob",
+		RemoteType: "azureblob",
+		Label:      "Azure Blob Storage",
+		// No operations/about in rclone — probe with a container listing.
+		ProbeViaList: true,
+		Fields: []FieldSpec{
+			{Key: "account", Label: "Storage account name", Type: FieldTypeText, Required: true},
+			{Key: "key", Label: "Storage account key", Type: FieldTypePassword, Required: true},
+			{Key: "endpoint", Label: "Endpoint", Type: FieldTypeText, Required: false, Hint: "https://<account>.blob.core.windows.net (optional; plain http for Azurite)"},
+		},
+		ParamWhitelist: []string{"account", "key", "endpoint"},
+	},
+	"gcs": {
+		ID:         "gcs",
+		RemoteType: "googlecloudstorage",
+		Label:      "Google Cloud Storage",
+		// No operations/about in rclone — probe with a bucket listing, which
+		// is also why project_number is required.
+		ProbeViaList: true,
+		Fields: []FieldSpec{
+			{Key: "service_account_credentials", Label: "Service account JSON", Type: FieldTypeSecretTextarea, Required: true, MaxLen: serviceAccountJSONMaxLen, Hint: "Paste the whole service-account key JSON file"},
+			{Key: "project_number", Label: "Project number", Type: FieldTypeText, Required: true, Hint: "Google Cloud project number (IAM & Admin → Project info)"},
+		},
+		ParamWhitelist: []string{"service_account_credentials", "project_number"},
+	},
+	"ftp": {
+		ID:           "ftp",
+		RemoteType:   "ftp",
+		Label:        "FTP",
+		ProbeViaList: true, // no operations/about in rclone
+		Fields: []FieldSpec{
+			{Key: "host", Label: "Host", Type: FieldTypeText, Required: true, Hint: "Hostname or IP, no scheme"},
+			{Key: "port", Label: "Port", Type: FieldTypeText, Required: false, Hint: "Default 21"},
+			{Key: "user", Label: "Username", Type: FieldTypeText, Required: true, Hint: "\"anonymous\" for public FTP servers"},
+			{Key: "pass", Label: "Password", Type: FieldTypePassword, Required: true},
+			{Key: "explicit_tls", Label: "Explicit TLS (FTPS)", Type: FieldTypeText, Required: false, Hint: "true | false (default false)"},
+		},
+		ParamWhitelist: []string{"host", "port", "user", "pass", "explicit_tls"},
+	},
+	"sftp": {
+		ID:         "sftp",
+		RemoteType: "sftp",
+		Label:      "SFTP / SSH",
+		Fields: []FieldSpec{
+			{Key: "host", Label: "Host", Type: FieldTypeText, Required: true, Hint: "Hostname or IP, no scheme"},
+			{Key: "port", Label: "Port", Type: FieldTypeText, Required: false, Hint: "Default 22"},
+			{Key: "user", Label: "Username", Type: FieldTypeText, Required: true},
+			{Key: "pass", Label: "Password", Type: FieldTypePassword, Required: false},
+			{Key: "key_pem", Label: "Private key (PEM)", Type: FieldTypeSecretTextarea, Required: false, MaxLen: pemPrivateKeyMaxLen, Hint: "Paste an UNENCRYPTED private key (newlines are handled for you)"},
+			{Key: "key_file_pass", Label: "Key passphrase", Type: FieldTypePassword, Required: false, Hint: "Only for passphrase-protected PEM keys"},
+		},
+		ParamWhitelist: []string{"host", "port", "user", "pass", "key_pem", "key_file_pass"},
+	},
+	"smb": {
+		ID:         "smb",
+		RemoteType: "smb",
+		Label:      "SMB / Samba share",
+		Fields: []FieldSpec{
+			{Key: "host", Label: "Host", Type: FieldTypeText, Required: true, Hint: "Hostname or IP, no scheme"},
+			{Key: "user", Label: "Username", Type: FieldTypeText, Required: true, Hint: "\"guest\" for guest shares"},
+			{Key: "pass", Label: "Password", Type: FieldTypePassword, Required: true},
+			{Key: "domain", Label: "Domain", Type: FieldTypeText, Required: false, Hint: "Default WORKGROUP"},
+			{Key: "port", Label: "Port", Type: FieldTypeText, Required: false, Hint: "Default 445"},
+		},
+		ParamWhitelist: []string{"host", "user", "pass", "domain", "port"},
+	},
 }
 
-// credentialProviderOrder is the stable display/registration order.
-var credentialProviderOrder = []string{"s3", "b2", "pcloud", "webdav"}
+// credentialProviderOrder is the stable display/registration order: object
+// storage, personal/self-hosted cloud, then transfer protocols.
+var credentialProviderOrder = []string{"s3", "b2", "azureblob", "gcs", "pcloud", "webdav", "ftp", "sftp", "smb"}
 
 // CredentialProviderIDs returns the credential provider ids in display order.
 func CredentialProviderIDs() []string {
@@ -178,8 +271,9 @@ func (p CredentialProvider) SanitizeAndValidateParams(params map[string]string) 
 		if v == "" {
 			continue // optional fields may be omitted; required checked below
 		}
-		if len(v) > credentialValueMaxLen {
-			return nil, fmt.Errorf("cloud: parameter %q exceeds %d characters", key, credentialValueMaxLen)
+		v = p.normalizeFieldValue(key, v)
+		if max := p.fieldMaxLen(key); len(v) > max {
+			return nil, fmt.Errorf("cloud: parameter %q exceeds %d characters", key, max)
 		}
 		clean[key] = v
 	}
@@ -194,10 +288,50 @@ func (p CredentialProvider) SanitizeAndValidateParams(params map[string]string) 
 	return clean, nil
 }
 
+// fieldMaxLen returns the value length bound for one field (FieldSpec.MaxLen
+// when set, else the shared credentialValueMaxLen).
+func (p CredentialProvider) fieldMaxLen(key string) int {
+	for _, f := range p.Fields {
+		if f.Key == key && f.MaxLen > 0 {
+			return f.MaxLen
+		}
+	}
+	return credentialValueMaxLen
+}
+
+// normalizeFieldValue adapts pasted multi-line secrets to the exact form the
+// rclone backend expects; it runs BEFORE the length check. rclone requires:
+//   - sftp key_pem as ONE line with literal "\n" separators (rclone docs:
+//     "should be on a single line with line endings replaced with '\n'"), and
+//   - gcs service_account_credentials without raw newlines (the rclone config
+//     file cannot hold them; compacting JSON is lossless).
+func (p CredentialProvider) normalizeFieldValue(key, v string) string {
+	switch {
+	case p.ID == "sftp" && key == "key_pem":
+		v = strings.ReplaceAll(v, "\r\n", "\n")
+		v = strings.ReplaceAll(v, "\r", "\n")
+		return strings.ReplaceAll(v, "\n", "\\n")
+	case p.ID == "gcs" && key == "service_account_credentials":
+		var buf bytes.Buffer
+		if err := json.Compact(&buf, []byte(v)); err == nil {
+			return buf.String()
+		}
+		// Invalid JSON is caught by validateFieldValueHints below.
+	}
+	return v
+}
+
 // validateFieldValueHints checks per-field semantic constraints beyond
-// presence/length: URL shape for endpoint/url fields and enum membership for
-// the s3 provider / webdav vendor hints.
+// presence/length: URL shape for endpoint/url fields, enum membership for the
+// s3 provider / webdav vendor hints, and cross-field auth requirements for
+// the protocol backends.
 func (p CredentialProvider) validateFieldValueHints(params map[string]string) error {
+	// Any provider exposing a "port" option must receive a TCP port number.
+	if v := params["port"]; v != "" {
+		if n, err := strconv.Atoi(v); err != nil || n < 1 || n > 65535 {
+			return fmt.Errorf("cloud: %s: port must be a TCP port number (1-65535)", p.ID)
+		}
+	}
 	switch p.ID {
 	case "s3":
 		if v := params["endpoint"]; v != "" {
@@ -217,6 +351,26 @@ func (p CredentialProvider) validateFieldValueHints(params map[string]string) er
 		}
 		if v := params["vendor"]; v != "" && !webdavVendors[v] {
 			return fmt.Errorf("cloud: webdav: vendor must be one of nextcloud, owncloud, other")
+		}
+	case "azureblob":
+		if v := params["endpoint"]; v != "" {
+			// http allowed: Azurite / on-prem emulators are plain http.
+			if err := validateHTTPURL(v); err != nil {
+				return fmt.Errorf("cloud: azureblob: endpoint: %w", err)
+			}
+		}
+	case "gcs":
+		if v := params["service_account_credentials"]; v != "" && !json.Valid([]byte(v)) {
+			return errors.New(`cloud: gcs: service_account_credentials must be the service-account key JSON`)
+		}
+	case "ftp":
+		if v := params["explicit_tls"]; v != "" && v != "true" && v != "false" {
+			return errors.New("cloud: ftp: explicit_tls must be true or false")
+		}
+	case "sftp":
+		// Exactly one auth secret is required: password or private key.
+		if params["pass"] == "" && params["key_pem"] == "" {
+			return errors.New(`cloud: sftp: either "pass" or "key_pem" is required`)
 		}
 	}
 	return nil
@@ -247,6 +401,12 @@ func validateHTTPURL(raw string) error {
 	return nil
 }
 
+// isSecretFieldType reports whether a field's values must live in the
+// encrypted column rather than the plaintext settings JSON.
+func isSecretFieldType(t string) bool {
+	return t == FieldTypePassword || t == FieldTypeSecretTextarea
+}
+
 // splitCredentialParams splits validated params into non-secret (stored in
 // the plaintext settings JSON) and secret values (stored in the encrypted
 // refresh-token column — see NewCredentialAccount).
@@ -257,7 +417,7 @@ func splitCredentialParams(p CredentialProvider, params map[string]string) (plai
 		if !ok || v == "" {
 			continue
 		}
-		if f.Type == FieldTypePassword {
+		if isSecretFieldType(f.Type) {
 			secret[f.Key] = v
 		} else {
 			plain[f.Key] = v

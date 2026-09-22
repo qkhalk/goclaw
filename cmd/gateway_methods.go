@@ -15,10 +15,11 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
+	"github.com/nextlevelbuilder/goclaw/pkg/browser"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore store.SessionStore, tracingStore store.TracingStore, runTimeline store.RunTimelineStore, runsStore store.RunsStore, cronStore store.CronStore, pairingStore store.PairingStore, cfg *config.Config, cfgPath, workspace, dataDir string, msgBus *bus.MessageBus, execApprovalMgr *tools.ExecApprovalManager, approvalStore store.ApprovalStore, agentStore store.AgentStore, skillStore store.SkillStore, configSecretsStore store.ConfigSecretsStore, teamStore store.TeamStore, agentLinkStore store.AgentLinkStore, contextFileInterceptor *tools.ContextFileInterceptor, logTee *gateway.LogTee, heartbeatStore store.HeartbeatStore, configPermStore store.ConfigPermissionStore, sysConfigStore store.SystemConfigStore, tenantStore store.TenantStore, skillTenantCfgStore store.SkillTenantConfigStore, audioMgr *audio.Manager, usageCapSvc *usagecaps.Service, providerReg *providers.Registry, providerStore store.ProviderStore, teamWorkEmbedder memory.EmbeddingProvider, contractStore store.ContractStore, checkpointSnapshots store.CheckpointSnapshotStore, missionStore store.MissionStore, tenantPolicyStore store.TenantPolicyStore, tenantRoleStore store.TenantRoleStore, nodeLeaseStore store.NodeLeaseStore, workspaceStore store.WorkspaceStore, agentJobStore store.AgentJobStore, taskGraphStore store.TaskGraphStore, memoryFabricStore store.MemoryFabricStore, terminals store.TerminalStore, routingRulesStore store.RoutingRulesStore, webBrowseTool *tools.WebBrowseTool) (*methods.PairingMethods, *methods.HeartbeatMethods, *methods.ChatMethods, *methods.ConfigPermissionsMethods) {
+func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore store.SessionStore, tracingStore store.TracingStore, runTimeline store.RunTimelineStore, runsStore store.RunsStore, cronStore store.CronStore, pairingStore store.PairingStore, cfg *config.Config, cfgPath, workspace, dataDir string, msgBus *bus.MessageBus, execApprovalMgr *tools.ExecApprovalManager, approvalStore store.ApprovalStore, agentStore store.AgentStore, skillStore store.SkillStore, configSecretsStore store.ConfigSecretsStore, teamStore store.TeamStore, agentLinkStore store.AgentLinkStore, contextFileInterceptor *tools.ContextFileInterceptor, logTee *gateway.LogTee, heartbeatStore store.HeartbeatStore, configPermStore store.ConfigPermissionStore, sysConfigStore store.SystemConfigStore, tenantStore store.TenantStore, skillTenantCfgStore store.SkillTenantConfigStore, audioMgr *audio.Manager, usageCapSvc *usagecaps.Service, providerReg *providers.Registry, providerStore store.ProviderStore, teamWorkEmbedder memory.EmbeddingProvider, contractStore store.ContractStore, checkpointSnapshots store.CheckpointSnapshotStore, missionStore store.MissionStore, tenantPolicyStore store.TenantPolicyStore, tenantRoleStore store.TenantRoleStore, nodeLeaseStore store.NodeLeaseStore, workspaceStore store.WorkspaceStore, agentJobStore store.AgentJobStore, taskGraphStore store.TaskGraphStore, memoryFabricStore store.MemoryFabricStore, terminals store.TerminalStore, routingRulesStore store.RoutingRulesStore, webBrowseTool *tools.WebBrowseTool, browserMgr *browser.Manager) (*methods.PairingMethods, *methods.HeartbeatMethods, *methods.ChatMethods, *methods.ConfigPermissionsMethods) {
 	router := server.Router()
 
 	// Phase 1: Core methods
@@ -96,6 +97,9 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	// Scheduled periodic cloud backup: WS surface (owner+master scope) and
 	// the 30s scheduler tick both live behind this registration.
 	methods.NewBackupScheduleMethods(cfg, cfg.Database.PostgresDSN, Version, configSecretsStore, msgBus).Register(router)
+	if browserMgr != nil {
+		methods.NewBrowserRemoteMethods(browserMgr, cfg, server.BrowserPanelBridge()).Register(router)
+	}
 	configMethods := methods.NewConfigMethods(cfg, cfgPath, configSecretsStore, msgBus)
 	if sysConfigStore != nil {
 		configMethods.SetSystemConfigSync(func(ctx context.Context, c *config.Config) {
@@ -195,4 +199,50 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	)
 
 	return pairingMethods, heartbeatMethods, chatMethods, cfgPerms
+}
+
+// wireSubagentMethods wires the subagents.* WS surface (platform expansion
+// Phase 5) over the durable subagent task store, with live-run cancellation
+// delegated to the shared SubagentManager.
+//
+// Kept out of registerAllMethods (which has neither the subagent task store
+// nor the manager in scope), mirroring wireNodeRuntime's single-wiring-line
+// convention. Call once from the gateway setup after the manager and stores
+// exist:
+//
+//	wireSubagentMethods(cfg, server, pgStores.Agents, pgStores.SubagentTasks, subagentMgr)
+func wireSubagentMethods(
+	cfg *config.Config,
+	server *gateway.Server,
+	agentStore store.AgentStore,
+	taskStore store.SubagentTaskStore,
+	mgr *tools.SubagentManager,
+) {
+	if taskStore == nil {
+		slog.Warn("subagent methods skipped: subagent task store not initialised")
+		return
+	}
+	m := methods.NewSubagentMethods(cfg, taskStore, agentStore)
+	m.SetCancelFn(func(_ context.Context, task *store.SubagentTaskData) bool {
+		if mgr == nil || task == nil {
+			return false
+		}
+		runtimeID, _ := task.Metadata["runtime_task_id"].(string)
+		if runtimeID == "" {
+			return false
+		}
+		return mgr.CancelTask(tools.TaskScope{
+			TenantID:     task.TenantID,
+			RootAgentID:  task.RootAgentID,
+			RootAgentKey: task.ParentAgentKey,
+		}, runtimeID)
+	})
+	m.Register(server.Router())
+	slog.Info("subagents.* RPC methods registered", "methods", []string{
+		protocol.MethodSubagentsList,
+		protocol.MethodSubagentsGet,
+		protocol.MethodSubagentsArchive,
+		protocol.MethodSubagentsArchiveCompleted,
+		protocol.MethodSubagentsCancel,
+	})
 }

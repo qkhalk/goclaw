@@ -62,7 +62,7 @@ for queries, a dated summary of relevant entries.
 ## Routing
 - A decision needs a formal durable record → `decision-log`.
 - Learned content generalizes into reference material → `docs`.
-- Next items are concrete upcoming work → `plan`.
+- Next items are concrete upcoming work → `goclaw-kit`.
 
 ## Guardrails
 - Never edit or remove past entries; append-only is the whole point.

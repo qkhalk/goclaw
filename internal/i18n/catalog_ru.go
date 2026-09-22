@@ -407,6 +407,8 @@ func init() {
 		"telegram.ask.other":             "Другое",
 		"telegram.ask.otherhint":         "✏️ Ответьте на это сообщение своим ответом.",
 		"telegram.ask.answered":          "✓ Ответ: %s → %s",
+		"telegram.ask.confirm":           "✔ Подтвердить",
+		"telegram.ask.back":              "◀ Назад",
 		"telegram.language.unavailable":  "Настройки языка недоступны (хранилище сессий не настроено).",
 		"telegram.language.title":        "🌐 Язык для этого чата — выберите:",
 		"telegram.language.current":      "🌐 Язык: %s",
@@ -431,6 +433,13 @@ func init() {
 		"telegram.status.thinkmode":      "⚙️ Think: %s · Режим: %s",
 		"telegram.status.queue":          " · 🪢 Очередь: %s %d/%d активных, %d в ожидании",
 		"telegram.status.fullhint":       "/status full — показать всё",
+
+		// Telegram subagent archive buttons
+		"telegram.subagent.archiveallconfirm": "🗄 В архив перемещено завершённых задач: %d.",
+		"telegram.subagent.archiveallbtn":     "🗄 Архивировать все завершённые (%d)",
+		"telegram.subagent.archivedone":       "🗄 Задача в архиве — она больше не в списке.",
+		"telegram.subagent.notterminal":       "⏳ Задача ещё выполняется — архивировать можно только после завершения.",
+		"telegram.subagent.archivebtn":        "🗄 В архив",
 
 		// Video render pipeline
 		MsgVideoJobCreated:    "задача рендера видео %s создана",

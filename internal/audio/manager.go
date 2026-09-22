@@ -191,6 +191,18 @@ func (m *Manager) ListCapabilities() []ProviderCapabilities {
 	return out
 }
 
+// LookupVoiceProvider returns the registered TTS provider with the given name
+// when it implements VoiceListProvider (dynamic voice listing). Lets handlers
+// enrich static capability catalogs with live voices.
+func (m *Manager) LookupVoiceProvider(name string) (VoiceListProvider, bool) {
+	p, ok := m.ttsProviders[name]
+	if !ok {
+		return nil, false
+	}
+	lp, ok := p.(VoiceListProvider)
+	return lp, ok
+}
+
 // ---- TTS dispatch ----
 
 // Synthesize uses the primary provider.

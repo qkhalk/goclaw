@@ -385,7 +385,7 @@ func loadAllowlist(path string) (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		entry := strings.TrimSpace(line)
 		if entry == "" || strings.HasPrefix(entry, "#") {
 			continue
@@ -406,7 +406,7 @@ func mustMarshal(v any) json.RawMessage {
 
 func splitCaps(s string) []string {
 	var out []string
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		if p := strings.TrimSpace(strings.ToLower(part)); p != "" {
 			out = append(out, p)
 		}

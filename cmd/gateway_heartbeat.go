@@ -181,11 +181,8 @@ func startCronAndHeartbeat(
 	// window is marked interrupted and rescheduled. The window covers
 	// worst-case runtime — (retries+1) × job_timeout — plus retry-backoff
 	// headroom, so a legitimately retrying job is never reclaimed.
-	if reclaimer, ok := interface{}(pgStores.Cron).(interface{ SetStaleReclaimWindow(time.Duration) }); ok {
-		retries := cfg.Cron.MaxRetries
-		if retries < 0 {
-			retries = 0
-		}
+	if reclaimer, ok := any(pgStores.Cron).(interface{ SetStaleReclaimWindow(time.Duration) }); ok {
+		retries := max(cfg.Cron.MaxRetries, 0)
 		reclaimer.SetStaleReclaimWindow(cfg.Cron.JobTimeoutDuration()*time.Duration(retries+1) + 2*time.Minute)
 	}
 	if err := pgStores.Cron.Start(); err != nil {

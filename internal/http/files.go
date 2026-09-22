@@ -124,14 +124,18 @@ func (h *FilesHandler) handleServe(w http.ResponseWriter, r *http.Request) {
 
 	absPath := absoluteFilePath(urlPath)
 
-	// Block access to sensitive system directories
-	if hasDeniedFilePrefix(absPath) {
+	signed := r.URL.Query().Get("ft") != ""
+	// Lexical deny-list: unsigned requests are blocked here outright. Signed
+	// requests skip it — the ft token is HMAC-bound to this exact path and can
+	// only be minted by handleSign, which resolves symlinks and applies the
+	// deny list to the real path; openValidatedFile re-validates the resolved
+	// path below, so a symlinked root (e.g. /root/.goclaw -> /.goclaw) is not
+	// wrongly rejected on its lexical form before resolution.
+	if !signed && hasDeniedFilePrefix(absPath) {
 		slog.Warn("security.files_denied_path", "path", absPath)
 		http.Error(w, i18n.T(locale, i18n.MsgInvalidPath), http.StatusForbidden)
 		return
 	}
-
-	signed := r.URL.Query().Get("ft") != ""
 	// Fail-closed observability: if no boundary roots are configured at all,
 	// lexicallyAllowsFilePath already returns false, but log explicitly so
 	// operators can detect misconfigured deployments.

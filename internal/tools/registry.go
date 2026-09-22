@@ -194,10 +194,7 @@ func (r *Registry) ApplyDeferredMode() {
 			kept[name] = true
 		}
 	}
-	budget := r.deferThreshold - len(kept)
-	if budget < 0 {
-		budget = 0
-	}
+	budget := max(r.deferThreshold-len(kept), 0)
 	for _, name := range visible {
 		if budget <= 0 {
 			break

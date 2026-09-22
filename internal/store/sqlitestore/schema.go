@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 87
+const SchemaVersion = 90
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1648,6 +1648,42 @@ CREATE INDEX IF NOT EXISTS idx_video_jobs_status
 	ON video_render_jobs (status);
 CREATE INDEX IF NOT EXISTS idx_video_jobs_expires
 	ON video_render_jobs (expires_at);`,
+
+	// Version 87 → 88: per-account agent permission level (PG 000126) —
+	// gates what agents may do through the cloud_*/mail_* tools. Legacy rows
+	// default to 'read' (the pre-column behavior).
+	87: `ALTER TABLE cloud_accounts ADD COLUMN agent_access TEXT NOT NULL DEFAULT 'read';`,
+
+	// Version 88 → 89: MCP installed packages (PG 000127) — tool servers
+	// installed from git by the Tool Store installer. (tenant_id, name)
+	// unique; name matches mcp_servers.name for uninstall joins.
+	88: `CREATE TABLE IF NOT EXISTS mcp_installed_packages (
+	id          TEXT NOT NULL PRIMARY KEY,
+	tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+	name        TEXT NOT NULL,
+	display_name TEXT NOT NULL DEFAULT '',
+	source      TEXT NOT NULL DEFAULT 'catalog',
+	repo        TEXT NOT NULL,
+	ref         TEXT NOT NULL,
+	commit_sha  TEXT NOT NULL DEFAULT '',
+	runtime     TEXT NOT NULL,
+	entry       TEXT NOT NULL,
+	install_dir TEXT NOT NULL,
+	status      TEXT NOT NULL DEFAULT 'installing',
+	error       TEXT,
+	tool_count  INTEGER NOT NULL DEFAULT 0,
+	created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	UNIQUE (tenant_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_mcp_installed_packages_tenant
+	ON mcp_installed_packages (tenant_id);`,
+
+	// Version 89 → 90: session archive (platform expansion Phase 8; PG 000128).
+	// Soft-hide marker for finished chats: default session listings filter
+	// `archived_at IS NULL`; messages/metadata stay untouched. Key is the
+	// SOURCE version: applied when upgrading from 89 to reach SchemaVersion 90.
+	89: `ALTER TABLE sessions ADD COLUMN archived_at TEXT;`,
 }
 
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.
@@ -2424,6 +2460,11 @@ func idempotentColumnMigration(version int) (string, string, bool) {
 		return "webhook_calls", "last_heartbeat_at", true
 	case 55:
 		return "mcp_servers", "require_user_credentials", true
+	case 89:
+		// Session archive column (PG 000128). Guarded so test DBs built from
+		// the full schema.sql with the version rewound (openTestDBAtVersion)
+		// don't fail on duplicate column.
+		return "sessions", "archived_at", true
 	default:
 		return "", "", false
 	}

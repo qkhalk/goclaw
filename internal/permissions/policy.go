@@ -367,6 +367,27 @@ func isWriteMethod(method string) bool {
 		protocol.MethodSessionsCompact,
 		// Branch (fork) inserts a new session row derived from the source.
 		protocol.MethodSessionsBranch,
+		// Archive/restore flip sessions.archived_at (soft hide/show) — same
+		// ownership class as delete, so operator-or-above.
+		protocol.MethodSessionsArchive,
+		protocol.MethodSessionsRestore,
+
+		// Subagent task lifecycle — archive/cancel mutate durable task state
+		// (operator-or-above, mirrors sessions archive class).
+		protocol.MethodSubagentsArchive,
+		protocol.MethodSubagentsArchiveCompleted,
+		protocol.MethodSubagentsCancel,
+
+		// Scheduled periodic backup — set mutates the schedule; run triggers
+		// an immediate backup job (provider/disk side effects).
+		protocol.MethodBackupScheduleSet,
+		protocol.MethodBackupScheduleRun,
+
+		// Browser remote control — open/act/screenshot drive the shared
+		// browser instance (side-effectful control plane).
+		protocol.MethodBrowserRemoteOpen,
+		protocol.MethodBrowserRemoteAct,
+		protocol.MethodBrowserRemoteScreenshot,
 		protocol.MethodCronCreate,
 		protocol.MethodCronUpdate,
 		protocol.MethodCronDelete,
@@ -506,6 +527,11 @@ func isReadMethod(method string) bool {
 		// Sessions read
 		protocol.MethodSessionsList,
 		protocol.MethodSessionsPreview,
+
+		// Subagent task roster + backup schedule reads
+		protocol.MethodSubagentsList,
+		protocol.MethodSubagentsGet,
+		protocol.MethodBackupScheduleGet,
 		protocol.MethodRunTimelineGet,
 		protocol.MethodRunsGet,
 		protocol.MethodRunsList,

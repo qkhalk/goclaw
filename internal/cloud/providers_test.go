@@ -45,7 +45,9 @@ func TestCredentialRegistrySpecs(t *testing.T) {
 				t.Fatalf("provider %q: field key %q duplicated", id, f.Key)
 			}
 			seen[f.Key] = true
-			if f.Type != FieldTypeText && f.Type != FieldTypePassword {
+			switch f.Type {
+			case FieldTypeText, FieldTypePassword, FieldTypeSecretTextarea:
+			default:
 				t.Fatalf("provider %q field %q has invalid type %q", id, f.Key, f.Type)
 			}
 		}
@@ -59,15 +61,30 @@ func TestCredentialRegistrySpecs(t *testing.T) {
 				t.Fatalf("provider %q: field key %q missing from the whitelist", id, k)
 			}
 		}
-		// Every provider needs at least one required secret.
+		// Every provider authenticates through at least one secret-typed
+		// field (required for most; cross-field validated for sftp — pass OR
+		// key_pem — covered in TestSanitizeValidateParamsProtocolProviders).
 		hasSecret := false
 		for _, f := range spec.Fields {
-			if f.Required && f.Type == FieldTypePassword {
+			if isSecretFieldType(f.Type) {
 				hasSecret = true
 			}
 		}
 		if !hasSecret {
-			t.Fatalf("provider %q has no required password field", id)
+			t.Fatalf("provider %q has no secret field", id)
+		}
+		// ProbeViaList must match backends without operations/about support
+		// (verified against the rclone features table): azureblob, gcs and
+		// ftp report "not implemented" — sftp and smb DO support about.
+		switch id {
+		case "azureblob", "gcs", "ftp":
+			if !spec.ProbeViaList {
+				t.Fatalf("provider %q must probe via a root listing (no about support)", id)
+			}
+		case "sftp", "smb":
+			if spec.ProbeViaList {
+				t.Fatalf("provider %q supports about — must not probe via listing", id)
+			}
 		}
 	}
 }
@@ -201,6 +218,107 @@ func TestSanitizeValidateParamsWebdavAndB2AndPCloud(t *testing.T) {
 	}
 }
 
+func TestSanitizeValidateParamsObjectStorageProviders(t *testing.T) {
+	// azureblob: account + key (+ optional endpoint; http allowed for Azurite).
+	azure := credentialProviders["azureblob"]
+	if _, err := azure.SanitizeAndValidateParams(map[string]string{"account": "sto", "key": "k=="}); err != nil {
+		t.Fatalf("valid azureblob params rejected: %v", err)
+	}
+	for _, bad := range []string{"ftp://x", "azblob://y"} {
+		p := map[string]string{"account": "sto", "key": "k==", "endpoint": bad}
+		if _, err := azure.SanitizeAndValidateParams(p); err == nil {
+			t.Fatalf("azureblob endpoint %q must be rejected", bad)
+		}
+	}
+	for _, good := range []string{"https://sto.blob.core.windows.net", "http://127.0.0.1:10000/devstoreaccount1"} {
+		p := map[string]string{"account": "sto", "key": "k==", "endpoint": good}
+		if _, err := azure.SanitizeAndValidateParams(p); err != nil {
+			t.Fatalf("azureblob endpoint %q must pass: %v", good, err)
+		}
+	}
+
+	// gcs: service-account JSON (required secret) + project number (required
+	// — the root listing probe needs it to enumerate buckets).
+	gcs := credentialProviders["gcs"]
+	saJSON := `{
+		"type": "service_account",
+		"project_id": "proj",
+		"private_key": "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n"
+	}`
+	clean, err := gcs.SanitizeAndValidateParams(map[string]string{
+		"service_account_credentials": "  " + saJSON + "\n",
+		"project_number":              "123456789012",
+	})
+	if err != nil {
+		t.Fatalf("valid gcs params rejected: %v", err)
+	}
+	// The multi-line JSON is minified to a single line (config-file safe) —
+	// and the \n escapes inside string values survive compaction.
+	if strings.ContainsAny(clean["service_account_credentials"], "\r\n") {
+		t.Fatalf("gcs credentials must be single-line: %q", clean["service_account_credentials"])
+	}
+	if !strings.Contains(clean["service_account_credentials"], `-----BEGIN PRIVATE KEY-----\nabc`) {
+		t.Fatalf("gcs minification must preserve escaped newlines: %q", clean["service_account_credentials"])
+	}
+	if _, err := gcs.SanitizeAndValidateParams(map[string]string{"service_account_credentials": saJSON}); err == nil {
+		t.Fatal("gcs without project_number must fail")
+	}
+	if _, err := gcs.SanitizeAndValidateParams(map[string]string{"service_account_credentials": "not json", "project_number": "1"}); err == nil {
+		t.Fatal("gcs non-JSON credentials must fail")
+	}
+}
+
+func TestSanitizeValidateParamsProtocolProviders(t *testing.T) {
+	// ftp: host/user/pass (+ port, explicit_tls enum).
+	ftp := credentialProviders["ftp"]
+	if _, err := ftp.SanitizeAndValidateParams(map[string]string{"host": "ftp.example.com", "user": "u", "pass": "p"}); err != nil {
+		t.Fatalf("valid ftp params rejected: %v", err)
+	}
+	if _, err := ftp.SanitizeAndValidateParams(map[string]string{"host": "h", "user": "u", "pass": "p", "port": "21"}); err != nil {
+		t.Fatalf("ftp with port rejected: %v", err)
+	}
+	if _, err := ftp.SanitizeAndValidateParams(map[string]string{"host": "h", "user": "u", "pass": "p", "port": "not-a-port"}); err == nil {
+		t.Fatal("ftp non-numeric port must be rejected")
+	}
+	if _, err := ftp.SanitizeAndValidateParams(map[string]string{"host": "h", "user": "u", "pass": "p", "port": "99999"}); err == nil {
+		t.Fatal("ftp out-of-range port must be rejected")
+	}
+	if _, err := ftp.SanitizeAndValidateParams(map[string]string{"host": "h", "user": "u", "pass": "p", "explicit_tls": "true"}); err != nil {
+		t.Fatalf("ftp explicit_tls=true rejected: %v", err)
+	}
+	if _, err := ftp.SanitizeAndValidateParams(map[string]string{"host": "h", "user": "u", "pass": "p", "explicit_tls": "sometimes"}); err == nil {
+		t.Fatal("ftp unknown explicit_tls value must be rejected")
+	}
+
+	// sftp: pass OR key_pem — at least one auth secret.
+	sftp := credentialProviders["sftp"]
+	if _, err := sftp.SanitizeAndValidateParams(map[string]string{"host": "h", "user": "u"}); err == nil {
+		t.Fatal("sftp without pass and key_pem must fail")
+	}
+	if _, err := sftp.SanitizeAndValidateParams(map[string]string{"host": "h", "user": "u", "pass": "p"}); err != nil {
+		t.Fatalf("sftp password auth rejected: %v", err)
+	}
+	pem := "-----BEGIN OPENSSH PRIVATE KEY-----\naaa\nbbb\n-----END OPENSSH PRIVATE KEY-----\n"
+	clean, err := sftp.SanitizeAndValidateParams(map[string]string{"host": "h", "user": "u", "key_pem": pem})
+	if err != nil {
+		t.Fatalf("sftp key auth rejected: %v", err)
+	}
+	// The PEM is stored as ONE line with literal \n separators (rclone
+	// requirement; trailing whitespace is trimmed first) — never raw newlines.
+	if clean["key_pem"] != "-----BEGIN OPENSSH PRIVATE KEY-----\\naaa\\nbbb\\n-----END OPENSSH PRIVATE KEY-----" {
+		t.Fatalf("sftp key_pem not \\n-escaped: %q", clean["key_pem"])
+	}
+
+	// smb: host/user/pass (+ domain, port).
+	smb := credentialProviders["smb"]
+	if _, err := smb.SanitizeAndValidateParams(map[string]string{"host": "nas.lan", "user": "u", "pass": "p", "domain": "HOME"}); err != nil {
+		t.Fatalf("valid smb params rejected: %v", err)
+	}
+	if _, err := smb.SanitizeAndValidateParams(map[string]string{"host": "nas.lan", "user": "u"}); err == nil {
+		t.Fatal("smb without pass must fail")
+	}
+}
+
 // --- can_write semantics ---
 
 func TestAccountCanWriteCredentialProviders(t *testing.T) {
@@ -215,7 +333,8 @@ func TestAccountCanWriteCredentialProviders(t *testing.T) {
 			t.Fatalf("credential provider %q with empty scopes must stay writable", id)
 		}
 	}
-	if AccountCanWrite(&store.CloudAccount{Provider: "dropbox"}) {
+	// Never-registered provider must not be writable.
+	if AccountCanWrite(&store.CloudAccount{Provider: "box"}) {
 		t.Fatal("unknown provider must not be writable")
 	}
 }
@@ -295,6 +414,60 @@ func TestNewCredentialAccount(t *testing.T) {
 	}
 	if acct.DisplayName != "Backblaze B2" {
 		t.Fatalf("display name fallback = %q", acct.DisplayName)
+	}
+}
+
+func TestNewCredentialAccountSecretTextareaSplit(t *testing.T) {
+	m := NewManager(CloudProviderConfig{}, nil, "test-key")
+
+	// gcs: the service-account JSON is a secret (encrypted column); the
+	// project number stays in plaintext settings.
+	saJSON := `{"type":"service_account","private_key":"-----BEGIN PRIVATE KEY-----\nx\n"}`
+	acct, err := m.NewCredentialAccount(context.Background(), "gcs", "", map[string]string{
+		"service_account_credentials": saJSON,
+		"project_number":              "123456789012",
+	}, "t", "u")
+	if err != nil {
+		t.Fatalf("NewCredentialAccount(gcs): %v", err)
+	}
+	if acct.DisplayName != "Google Cloud Storage" {
+		t.Fatalf("label fallback = %q", acct.DisplayName)
+	}
+	var settings struct {
+		RcloneParams map[string]string `json:"rclone_params"`
+	}
+	if err := json.Unmarshal([]byte(acct.Settings), &settings); err != nil {
+		t.Fatalf("settings JSON: %v", err)
+	}
+	if _, ok := settings.RcloneParams["service_account_credentials"]; ok {
+		t.Fatal("service_account_credentials leaked into plaintext settings")
+	}
+	if settings.RcloneParams["project_number"] != "123456789012" {
+		t.Fatalf("project_number missing from settings: %#v", settings.RcloneParams)
+	}
+	var secret map[string]string
+	if err := json.Unmarshal([]byte(acct.RefreshToken), &secret); err != nil {
+		t.Fatalf("secret JSON: %v", err)
+	}
+	if !strings.Contains(secret["service_account_credentials"], "private_key") {
+		t.Fatalf("credentials not in the encrypted column: %#v", secret)
+	}
+
+	// sftp: key_pem is a secret (normalized to one line); host/port/user stay
+	// plaintext.
+	acct, err = m.NewCredentialAccount(context.Background(), "sftp", "NAS", map[string]string{
+		"host": "nas.lan", "port": "22", "user": "alice",
+		"key_pem": "-----BEGIN OPENSSH PRIVATE KEY-----\naaa\n-----END OPENSSH PRIVATE KEY-----",
+	}, "t", "u")
+	if err != nil {
+		t.Fatalf("NewCredentialAccount(sftp): %v", err)
+	}
+	secret = nil
+	if err := json.Unmarshal([]byte(acct.RefreshToken), &secret); err != nil {
+		t.Fatalf("secret JSON: %v", err)
+	}
+	if secret["key_pem"] != "-----BEGIN OPENSSH PRIVATE KEY-----\\naaa\\n-----END OPENSSH PRIVATE KEY-----" {
+		t.Fatalf("key_pem not normalized into the secret column: %#v", secret)
 	}
 }
 
@@ -379,5 +552,47 @@ func TestCredentialRemoteParamsOtherProvidersAndErrors(t *testing.T) {
 	// Non-credential provider.
 	if _, err := credentialRemoteParams(&store.CloudAccount{Provider: GoogleProvider}); err == nil {
 		t.Fatal("OAuth provider must be rejected")
+	}
+}
+
+func TestCredentialRemoteParamsSftpAndGcs(t *testing.T) {
+	// sftp: plain params from settings + normalized key_pem from the
+	// encrypted column.
+	acct := &store.CloudAccount{
+		Provider:     "sftp",
+		Settings:     `{"connected_via":"credentials","rclone_params":{"host":"nas.lan","port":"22","user":"alice"}}`,
+		RefreshToken: `{"key_pem":"-----BEGIN KEY-----\\naaa\\n-----END KEY-----"}`,
+	}
+	params, err := credentialRemoteParams(acct)
+	if err != nil {
+		t.Fatalf("credentialRemoteParams(sftp): %v", err)
+	}
+	want := map[string]any{
+		"host":    "nas.lan",
+		"port":    "22",
+		"user":    "alice",
+		"key_pem": "-----BEGIN KEY-----\\naaa\\n-----END KEY-----",
+	}
+	if len(params) != len(want) {
+		t.Fatalf("sftp params = %#v, want %#v", params, want)
+	}
+	for k, v := range want {
+		if params[k] != v {
+			t.Fatalf("sftp params[%q] = %v, want %v", k, params[k], v)
+		}
+	}
+
+	// gcs: credentials (secret) + project number both reach the rclone config.
+	acct = &store.CloudAccount{
+		Provider:     "gcs",
+		Settings:     `{"connected_via":"credentials","rclone_params":{"project_number":"123456789012"}}`,
+		RefreshToken: `{"service_account_credentials":"{\"type\":\"service_account\"}"}`,
+	}
+	params, err = credentialRemoteParams(acct)
+	if err != nil {
+		t.Fatalf("credentialRemoteParams(gcs): %v", err)
+	}
+	if params["project_number"] != "123456789012" || params["service_account_credentials"] != `{"type":"service_account"}` {
+		t.Fatalf("gcs params = %#v", params)
 	}
 }

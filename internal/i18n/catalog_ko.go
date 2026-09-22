@@ -221,6 +221,8 @@ func init() {
 		"telegram.ask.other":             "직접 입력",
 		"telegram.ask.otherhint":         "✏️ 이 메시지에 답장하여 답변을 입력하세요.",
 		"telegram.ask.answered":          "✓ 답변됨: %s → %s",
+		"telegram.ask.confirm":           "✔ 확인",
+		"telegram.ask.back":              "◀ 뒤로",
 		"telegram.language.unavailable":  "언어 설정을 사용할 수 없습니다 (세션 스토어 미구성).",
 		"telegram.language.title":        "🌐 이 채팅의 언어 — 선택하세요:",
 		"telegram.language.current":      "🌐 언어: %s",
@@ -245,6 +247,13 @@ func init() {
 		"telegram.status.thinkmode":      "⚙️ Think: %s · 모드: %s",
 		"telegram.status.queue":          " · 🪢 대기열: %s %d/%d 활성, %d 대기",
 		"telegram.status.fullhint":       "/status full — 모두 표시",
+
+		// Telegram subagent archive buttons
+		"telegram.subagent.archiveallconfirm": "🗄 완료된 작업 %d개를 보관했습니다.",
+		"telegram.subagent.archiveallbtn":     "🗄 완료된 작업 모두 보관 (%d)",
+		"telegram.subagent.archivedone":       "🗄 작업을 보관했습니다 — 더 이상 목록에 없습니다.",
+		"telegram.subagent.notterminal":       "⏳ 이 작업은 아직 실행 중입니다 — 완료된 후에 보관할 수 있습니다.",
+		"telegram.subagent.archivebtn":        "🗄 보관",
 
 		// Video render pipeline
 		MsgVideoJobCreated:    "비디오 렌더 작업 %s 생성됨",

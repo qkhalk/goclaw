@@ -52,7 +52,7 @@ A risk register: table of rank, persona, scenario, likelihood, impact,
 mitigation. Ends with the 3 risks most worth fixing before implementation.
 
 ## Routing
-- Risks change the design itself → back to `architect` or `plan`.
+- Risks change the design itself → back to `architect` or `goclaw-kit`.
 - Implementation exists and needs inspection → `review`.
 - Scenarios should become test cases → `test`.
 

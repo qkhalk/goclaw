@@ -202,7 +202,7 @@ func buildSkillsListHTML(infos []skills.Info) string {
 
 // firstLine returns the first non-empty trimmed line of a multi-line string.
 func firstLine(s string) string {
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
 			return trimmed
 		}

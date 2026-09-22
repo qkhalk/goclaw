@@ -1,0 +1,26 @@
+# {{.DisplayName}}
+
+{{.Description}}
+
+Zero-dependency MCP stdio server (category: {{.Category}}, runtime: python).
+
+## Layout
+
+- `manifest.json` — catalog metadata (name, entry, runtime); ships in the Tool Store
+- `{{.Entry}}` — the server; replace the example tool with yours
+- `test/smoke.py` — handshake + tools/list + tools/call check
+
+## Develop
+
+```
+python3 test/smoke.py
+```
+
+Dependencies (only if unavoidable) go in `requirements.txt` — the installer
+runs `pip install --target vendor -r requirements.txt`; prefer stdlib-only.
+
+## Ship
+
+Commit this folder under `mcp/{{.Name}}/` and cut a release tag — the
+dynamic catalog picks it up for every existing install within ~15 minutes,
+no gateway upgrade needed.

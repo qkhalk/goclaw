@@ -76,7 +76,9 @@ function statusBadge(status: CloudAccount["status"], label: string) {
   }
 }
 
-const COMING_SOON_PROVIDERS = ["Dropbox", "Amazon S3 / compatible"];
+// Dropbox and Yandex shipped as real OAuth providers — nothing is "coming
+// soon" anymore; new providers appear in the rail automatically.
+const COMING_SOON_PROVIDERS: string[] = [];
 
 /** Clouds page — Drive-style shell. Navigation state lives in the URL:
  * /cloud (home) → /cloud/:provider → /cloud/:provider/:accountId?path=…
@@ -95,11 +97,23 @@ export function CloudPage() {
   const { data: cloudStatus, isLoading: cloudStatusLoading } = useCloudStatus();
   const { accounts, loading, refresh, disconnect, startConnect, completeConnect, setShared } = useCloudAccounts();
 
-  // URL-derived view state (never duplicated into useState). Credential
-  // providers (s3/b2/pcloud/webdav) are first-class routing targets too.
-  const CREDENTIAL_PROVIDERS: readonly string[] = ["s3", "b2", "pcloud", "webdav"];
+  // URL-derived view state (never duplicated into useState). OAuth providers
+  // are named explicitly; credential providers come from the list — keep in
+  // sync with CREDENTIAL_PROVIDER_IDS in hooks/use-cloud.ts.
+  const OAUTH_PROVIDERS: readonly string[] = ["google", "onedrive", "dropbox", "yandex"];
+  const CREDENTIAL_PROVIDERS: readonly string[] = [
+    "s3",
+    "b2",
+    "pcloud",
+    "webdav",
+    "azureblob",
+    "gcs",
+    "ftp",
+    "sftp",
+    "smb",
+  ];
   const activeProvider: CloudProvider | null =
-    provider === "google" || provider === "onedrive" || (provider ? CREDENTIAL_PROVIDERS.includes(provider) : false)
+    provider && (OAUTH_PROVIDERS.includes(provider) || CREDENTIAL_PROVIDERS.includes(provider))
       ? (provider as CloudProvider)
       : null;
   const path = normalizePath(params.get("path"));

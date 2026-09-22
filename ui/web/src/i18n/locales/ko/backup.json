@@ -5,7 +5,8 @@
     "systemBackup": "시스템 백업",
     "systemRestore": "시스템 복원",
     "s3Config": "S3 스토리지",
-    "tenantBackup": "테넌트 백업"
+    "tenantBackup": "테넌트 백업",
+    "schedule": "예약"
   },
   "backup": {
     "preflight": {
@@ -164,5 +165,27 @@
       "dryRunNote": "미리 보기 실행 — 변경사항 없음",
       "newRestore": "새 복원"
     }
+  },
+  "schedule": {
+    "title": "예약 클라우드 백업",
+    "description": "주기에 따라 자동으로 백업을 만들어 S3 또는 드라이브에 업로드합니다.",
+    "interval": "주기",
+    "hours_one": "매시간",
+    "hours_other": "{{count}}시간마다",
+    "destination": "대상",
+    "cloudDrive": "드라이브(Google/OneDrive)",
+    "s3Hint": "S3 저장소 탭의 자격 증명을 사용합니다.",
+    "cloudHint": "테넌트 기본 드라이브 계정(바인딩) 또는 지정 계정.",
+    "cloudPath": "드라이브 폴더",
+    "keepCount": "N개 보관",
+    "keepCountHint": "0 = 모두 보관. S3 전용.",
+    "saved": "일정이 저장되었습니다.",
+    "runNow": "지금 실행",
+    "running": "실행 중...",
+    "runOk": "완료: {{artifact}}",
+    "runFailed": "오류: {{error}}",
+    "lastRun": "마지막 실행: {{when}} · {{size}}",
+    "nextDue": "다음 실행: {{when}}",
+    "loading": "구성 불러오는 중..."
   }
 }

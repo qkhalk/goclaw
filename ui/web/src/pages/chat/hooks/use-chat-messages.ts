@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useWs } from "@/hooks/use-ws";
 import { useWsEvent } from "@/hooks/use-ws-event";
 import { Methods, Events } from "@/api/protocol";
+import { queryKeys } from "@/lib/query-keys";
 import type { Message } from "@/types/session";
 import type { ChatMessage, AgentEventPayload, ToolStreamEntry, RunActivity, ActiveTeamTask, MediaItem } from "@/types/chat";
+import type { ChatRunMessage } from "@/components/chat/message-bubble";
+import type { RunLlmMeta } from "@/components/chat/activity-indicator";
 import { toFileUrl, mediaKindFromMime } from "@/lib/file-helpers";
 import { transformHistoryMessages } from "@/adapters/chat-message.adapter";
 import { useChatTeamTasks } from "./use-chat-team-tasks";
@@ -108,6 +112,10 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   const [loading, setLoading] = useState(false);
   const [activity, setActivity] = useState<RunActivity | null>(null);
   const [blockReplies, setBlockReplies] = useState<ChatMessage[]>([]);
+  // Latest llm.started/llm.completed metadata (provider · model · effort) for
+  // the run-phase indicator and the final message meta line (phase 7 UI).
+  const [llmMeta, setLlmMeta] = useState<RunLlmMeta | null>(null);
+  const queryClient = useQueryClient();
 
   // Refs for values accessed inside event handler to avoid stale closures
   const runIdRef = useRef<string | null>(null);
@@ -127,6 +135,11 @@ export function useChatMessages(sessionKey: string, agentId: string) {
   const rafHandleRef = useRef(0);
   const activityRef = useRef<RunActivity | null>(null);
   const blockRepliesRef = useRef<ChatMessage[]>([]);
+  // True while the current run is an announce run (subagent result delivery) —
+  // stamps the final assistant message so message-bubble can render the
+  // compact "subagent completed" card variant.
+  const announceRunRef = useRef(false);
+  const llmMetaRef = useRef<RunLlmMeta | null>(null);
   // Timestamp of the last processed run event — drives the stuck-run self-heal
   // poll (a missed terminal event leaves the typing indicator up forever).
   const lastRunEventAtRef = useRef(Date.now());
@@ -178,7 +191,10 @@ export function useChatMessages(sessionKey: string, agentId: string) {
     setActivity(null);
     setBlockReplies([]);
     setTeamTasks([]);
+    setLlmMeta(null);
     runIdRef.current = null;
+    announceRunRef.current = false;
+    llmMetaRef.current = null;
     seenSeqRef.current.clear();
     expectingRunRef.current = false;
     streamRef.current = "";
@@ -253,6 +269,9 @@ export function useChatMessages(sessionKey: string, agentId: string) {
         if (expectingRunRef.current || event.runKind === "announce") {
           runIdRef.current = event.runId;
           expectingRunRef.current = false;
+          announceRunRef.current = event.runKind === "announce";
+          llmMetaRef.current = null;
+          setLlmMeta(null);
           setSessionRunning(sessionKeyRef.current, true);
           setSessionStream(sessionKeyRef.current, null);
           setSessionThinking(sessionKeyRef.current, null);
@@ -261,6 +280,13 @@ export function useChatMessages(sessionKey: string, agentId: string) {
           thinkingRef.current = "";
           streamFilterRef.current = createThinkTagStreamFilterState();
           toolStreamRef.current = [];
+          if (event.runKind === "announce") {
+            // A subagent finished and its announce run just arrived — refresh
+            // the tracker pill/sheet so terminal counts update immediately.
+            void queryClient.invalidateQueries({
+              queryKey: queryKeys.subagents.list(agentIdRef.current),
+            });
+          }
         }
         return;
       }
@@ -374,6 +400,32 @@ export function useChatMessages(sessionKey: string, agentId: string) {
           }
           break;
         }
+        // LLM span bracket (loop_pipeline_callbacks.go): llm.started carries
+        // provider/model/iteration, llm.completed adds duration_ms/is_error/
+        // effort. Payload values arrive as JSON scalars (numbers arrive as
+        // strings per the timeline-preview convention) — read defensively.
+        case "llm.started":
+        case "llm.completed": {
+          const raw = event.payload as unknown as Record<string, unknown> | undefined;
+          const str = (v: unknown): string | undefined =>
+            typeof v === "string" && v !== "" ? v : undefined;
+          const prevMeta = llmMetaRef.current ?? {};
+          const next: RunLlmMeta = { ...prevMeta };
+          const provider = str(raw?.provider);
+          if (provider) next.provider = provider;
+          const model = str(raw?.model);
+          if (model) next.model = model;
+          if (event.type === "llm.completed") {
+            const effort = str(raw?.effort);
+            if (effort) next.effort = effort;
+            const durationMs = str(raw?.duration_ms);
+            if (durationMs) next.durationMs = durationMs;
+            if (typeof raw?.is_error === "boolean") next.isError = raw.is_error as boolean;
+          }
+          llmMetaRef.current = next;
+          setLlmMeta(next);
+          break;
+        }
         case "run.retrying": {
           activityRef.current = { phase: "retrying", retryAttempt: Number(event.payload?.attempt) || 0, retryMax: Number(event.payload?.maxAttempts) || 0 };
           setActivity(activityRef.current);
@@ -402,8 +454,15 @@ export function useChatMessages(sessionKey: string, agentId: string) {
             ? rawMedia.map((m) => ({ path: toFileUrl(m.path), mimeType: m.content_type ?? "application/octet-stream", fileName: m.path.split("?")[0]?.split("/").pop() ?? "file", size: m.size, kind: mediaKindFromMime(m.content_type ?? "") }))
             : undefined;
           if (streamed && !hadTools) {
-            updateSessionMessages(sessionKeyRef.current, (prev) => [...prev, { role: "assistant", content: streamed, thinking, timestamp: Date.now(), mediaItems }]);
+            // Stamp live-run metadata so message-bubble can render the announce
+            // card variant + the provider/model/effort meta line. History
+            // reloads (hadTools path) come from the server without these marks.
+            const finalMsg: ChatRunMessage = { role: "assistant", content: streamed, thinking, timestamp: Date.now(), mediaItems };
+            if (announceRunRef.current) finalMsg.isAnnounce = true;
+            if (llmMetaRef.current) finalMsg.llm = llmMetaRef.current;
+            updateSessionMessages(sessionKeyRef.current, (prev) => [...prev, finalMsg]);
           } else { loadHistory(mediaItems); }
+          announceRunRef.current = false;
           break;
         }
         case "run.failed": {
@@ -477,6 +536,15 @@ export function useChatMessages(sessionKey: string, agentId: string) {
               setSessionThinking(sessionKey, null);
               setToolStream([]);
               void loadHistory();
+            } else {
+              // First-connect race: a chat surface that mounted before the WS
+              // handshake settled ran loadHistory while !isConnected — it
+              // bailed and never retried, leaving a persisted conversation
+              // invisible. Backfill when nothing has loaded for the session.
+              const cur = useChatMessagesStore.getState().sessions[sessionKey];
+              if (!cur || cur.messages.length === 0) {
+                void loadHistory();
+              }
             }
             return;
           }
@@ -568,6 +636,6 @@ export function useChatMessages(sessionKey: string, agentId: string) {
 
   return {
     messages, streamText, thinkingText, toolStream, isRunning, isBusy,
-    loading, activity, blockReplies, teamTasks, expectRun, loadHistory, addLocalMessage,
+    loading, activity, llmMeta, blockReplies, teamTasks, expectRun, loadHistory, addLocalMessage,
   };
 }

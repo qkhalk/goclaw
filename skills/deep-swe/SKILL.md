@@ -43,7 +43,7 @@ A root-cause writeup: problem statement, hypotheses with how each was falsified 
 
 ## Routing
 - Reproduction tooling or environment issues -> `debug`
-- The fix grows into a feature -> switch to `plan` plus `cook`
+- The fix grows into a feature -> switch to `goclaw-kit` plus `cook`
 - Reviewing the final diff -> `review`
 - A recurring bug class across the project -> record it in `decision-log`
 

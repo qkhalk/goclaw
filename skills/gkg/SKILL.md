@@ -41,7 +41,7 @@ Answer architectural questions with a semantic knowledge graph of the codebase �
 ## Routing
 - Live debugging of runtime behavior → `debug`; performance → `loadtest`
 - Document/notes knowledge graphs → `graphify`
-- Repo-wide exploration for a feature plan → `architect`, `plan`
+- Repo-wide exploration for a feature plan → `architect`, `goclaw-kit`
 
 ## Guardrails
 - Every edge needs evidence (file:line); inferred relations must be labeled inferred.

@@ -119,7 +119,16 @@
     "empty": "Chưa mở trang nào. Yêu cầu agent mở trang nhé.",
     "switchToLive": "Xem trực tiếp (chạy JavaScript)",
     "switchToStatic": "Chế độ tĩnh (agent thao tác được)",
-    "liveNote": "Xem trực tiếp — trang thật đang chạy JavaScript. Ở chế độ này agent không đọc/click được; cần thì chuyển về chế độ tĩnh."
+    "liveNote": "Xem trực tiếp — trang thật đang chạy JavaScript. Ở chế độ này agent không đọc/click được; cần thì chuyển về chế độ tĩnh.",
+    "thinStaticNote": "Trang này cần JavaScript để hiển thị nên bản tĩnh gần như trống. Hãy chuyển sang xem trực tiếp (biểu tượng tia sét) hoặc mở tab mới.",
+    "remote": {
+      "toggle": "Trình duyệt server (agent điều khiển)",
+      "placeholder": "URL — mở bằng headless Chrome phía server",
+      "empty": "Nhập URL để mở bằng trình duyệt server (Chrome thật, chạy JS — agent cùng dùng trình duyệt này).",
+      "note": "Server browser — trang do gateway render, agent đọc/điều khiển được cả site chặn JS/iframe.",
+      "noCapture": "Trang đã mở nhưng không chụp được ảnh — thử làm mới."
+    },
+    "renderedNote": "Đã render bằng trình duyệt phía server — trang JavaScript hiển thị đầy đủ, nhưng không gõ được vào form."
   },
   "taskTree": {
     "empty": "Chưa có nhiệm vụ nào",
@@ -166,7 +175,13 @@
     "retrying": "Thử lại ({{attempt}}/{{max}})…",
     "leaderProcessing": "Đang xử lý kết quả team…",
     "working": "Đang làm việc…",
-    "step": "Bước {{n}}"
+    "step": "Bước {{n}}",
+    "metaFull": "{{provider}} · {{model}} · {{effort}}",
+    "metaModelEffort": "{{model}} · {{effort}}",
+    "metaProviderModel": "{{provider}} · {{model}}",
+    "metaModel": "{{model}}",
+    "metaProviderEffort": "{{provider}} · {{effort}}",
+    "metaProvider": "{{provider}}"
   },
   "teamTasks": {
     "pill": "Team: {{n}} tác vụ đang chạy",
@@ -202,6 +217,59 @@
     "other": "Khác…",
     "otherPlaceholder": "Nhập câu trả lời của bạn…",
     "send": "Gửi câu trả lời",
-    "recommended": "Đề xuất"
+    "recommended": "Đề xuất",
+    "confirm": "✔ Xác nhận",
+    "back": "◀ Quay lại"
+  },
+  "devMode": {
+    "label": "Dev",
+    "on": "Dev mode đang BẬT — click để tắt",
+    "off": "Dev mode đang TẮT — click để bật (lập kế hoạch, tự dùng skill, hỏi khi chưa rõ)"
+  },
+  "daySep": {
+    "today": "Hôm nay",
+    "yesterday": "Hôm qua"
+  },
+  "subagents": {
+    "title": "Subagent",
+    "description": "Các tác vụ subagent của agent này — theo dõi trạng thái, hủy và lưu trữ.",
+    "pillActive": "{{running}} đang chạy · {{completed}} xong",
+    "pillDone": "{{n}} đã xong",
+    "pillCountRunning": "{{n}} đang chạy",
+    "pillCountDone": "{{n}} xong",
+    "emptyTitle": "Chưa có tác vụ subagent",
+    "empty": "Agent của bạn có thể tự spawn subagent — thử: “Chia việc này thành 3 subagent”.",
+    "archive": "Lưu trữ",
+    "archive_all": "Lưu trữ tất cả đã xong ({{n}})",
+    "archive_all_hint": "Lưu trữ tất cả tác vụ subagent đã xong",
+    "cancel": "Hủy tác vụ",
+    "cancelConfirmTitle": "Hủy tác vụ này?",
+    "cancelConfirmBody": "Subagent đang chạy sẽ bị dừng. Hành động này không thể hoàn tác.",
+    "announceTitle": "Subagent đã hoàn thành",
+    "statuses": {
+      "queued": "Đang xếp hàng",
+      "running": "Đang chạy",
+      "waiting": "Đang đợi",
+      "waitingChild": "Đang đợi subagent con",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy"
+    },
+    "toast": {
+      "archived": "Đã lưu trữ tác vụ",
+      "archiveFailed": "Lưu trữ tác vụ thất bại",
+      "archivedCount": "Đã lưu trữ {{count}} tác vụ",
+      "cancelled": "Đã hủy tác vụ",
+      "cancelFailed": "Hủy tác vụ thất bại"
+    }
+  },
+  "sessions": {
+    "archive": "Lưu trữ",
+    "restore": "Khôi phục",
+    "archivedSection": "Đã lưu trữ ({{n}})",
+    "archived": "Đã lưu trữ phiên hội thoại",
+    "archiveFailed": "Lưu trữ phiên hội thoại thất bại",
+    "restored": "Đã khôi phục phiên hội thoại",
+    "restoreFailed": "Khôi phục phiên hội thoại thất bại"
   }
 }

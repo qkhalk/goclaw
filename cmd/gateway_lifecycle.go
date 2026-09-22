@@ -15,6 +15,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/heartbeat"
+	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/orchestration"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
@@ -365,6 +366,16 @@ func (d *gatewayDeps) runLifecycle(
 	// so the same routes are served on both the main listener and Tailscale.
 	// Compiled via build tags: `go build -tags tsnet` to enable.
 	mux := d.server.BuildMux()
+
+	// Self-update check/install API (GET/POST /v1/system/update*). Targets
+	// self-hosted Linux systemd deployments: install replaces the live binary,
+	// applies the release migrations, and exits; Restart=always brings the new
+	// version up. Owner/master-scope only, guarded inside the handler. Not
+	// mounted for the limited (desktop/lite) edition — that edition ships its
+	// own updater and must never swap this binary for the server tarball.
+	if !edition.Current().IsLimited() {
+		httpapi.NewSystemUpdateHandler(func() string { return Version }).RegisterRoutes(mux)
+	}
 
 	// Mount channel webhook handlers on the main mux (e.g. Feishu /feishu/events).
 	// This allows webhook-based channels to share the main server port.

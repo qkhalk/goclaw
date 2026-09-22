@@ -43,7 +43,7 @@ A retro report: period and scope; findings (each with signal, evidence, mechanis
 ## Routing
 - Status/what-happened reporting -> `watzup`
 - An improvement requires architectural change -> `architect`
-- Improvements land as tasks -> `plan`, then `cook`
+- Improvements land as tasks -> `goclaw-kit`, then `cook`
 - Persist conclusions for future sessions -> `decision-log`
 
 ## Guardrails

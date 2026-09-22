@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"errors"
+	"maps"
 	"sync"
 	"testing"
 	"time"
@@ -140,7 +141,7 @@ func (s *recordingSubagentTaskStore) UpdateStatus(
 	return nil
 }
 
-func (s *recordingSubagentTaskStore) ListByParent(context.Context, uuid.UUID, string) ([]store.SubagentTaskData, error) {
+func (s *recordingSubagentTaskStore) ListByParent(context.Context, uuid.UUID, string, bool) ([]store.SubagentTaskData, error) {
 	return nil, nil
 }
 
@@ -148,7 +149,19 @@ func (s *recordingSubagentTaskStore) ListBySession(context.Context, uuid.UUID, s
 	return nil, nil
 }
 
+func (s *recordingSubagentTaskStore) GetByID(context.Context, uuid.UUID) (*store.SubagentTaskData, error) {
+	return nil, nil
+}
+
 func (s *recordingSubagentTaskStore) Archive(context.Context, uuid.UUID, time.Duration, int) (int64, error) {
+	return 0, nil
+}
+
+func (s *recordingSubagentTaskStore) ArchiveByID(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (s *recordingSubagentTaskStore) ArchiveCompletedForParent(context.Context, uuid.UUID) (int64, error) {
 	return 0, nil
 }
 
@@ -158,9 +171,7 @@ func (s *recordingSubagentTaskStore) UpdateMetadata(_ context.Context, rootAgent
 		if task.Metadata == nil {
 			task.Metadata = make(map[string]any)
 		}
-		for key, value := range metadata {
-			task.Metadata[key] = value
-		}
+		maps.Copy(task.Metadata, metadata)
 		s.rows[id] = task
 	}
 	s.mu.Unlock()

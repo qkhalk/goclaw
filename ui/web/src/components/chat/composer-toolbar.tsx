@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { BrainCog, Code2, Cpu, ShieldCheck } from "lucide-react";
+import { BrainCog, Cpu, ShieldCheck } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -37,19 +37,18 @@ interface ComposerToolbarProps {
   onChange: (next: ComposerOverrides) => void;
   disabled?: boolean;
   /**
-   * Dev mode toggle (engineer workflow: plan, ask with options, verify).
-   * State lives in the parent (persisted per session); rides to chat.send as
-   * a per-message flag the gateway maps to the dev-mode system prompt.
-   */
-  devMode?: boolean;
-  onDevModeChange?: (on: boolean) => void;
-  /**
    * Provider name of the agent this composer talks to. When no provider
    * override is picked, the model list is fed from this provider so a model
    * can be selected alone (chat.send applies model-only overrides on the
    * agent's own provider).
    */
   defaultProviderName?: string;
+  /**
+   * Hide the per-run permission-mode picker. Designer composers omit it —
+   * those agents run a locked design-only tool surface, so a per-run gating
+   * override is noise (spec: provider, model, thinking only).
+   */
+  showPermissionMode?: boolean;
 }
 
 const FALLBACK_LEVELS = ["off", "low", "medium", "high"];
@@ -69,7 +68,7 @@ const AGENT_DEFAULT = "agent-default";
  * is selected). Popper also flips upward automatically for the bottom-docked
  * composer.
  */
-export function ComposerToolbar({ value, onChange, disabled, devMode, onDevModeChange, defaultProviderName }: ComposerToolbarProps) {
+export function ComposerToolbar({ value, onChange, disabled, defaultProviderName, showPermissionMode = true }: ComposerToolbarProps) {
   const { t } = useTranslation("chat");
   const { providers } = useProviders(!disabled);
 
@@ -98,32 +97,40 @@ export function ComposerToolbar({ value, onChange, disabled, devMode, onDevModeC
 
   const levelLabel = (level: string) => t(`thinkingLevels.${level}`, { defaultValue: level });
 
+  // The agent's own provider is a real selectable value (not a "Provider của
+  // agent" placeholder), so the pill always shows an actual provider name.
+  // The sentinel entry stays only as a fallback when the agent's provider is
+  // unknown or disconnected.
+  const agentProvider = enabledProviders.find((p) => p.name === defaultProviderName);
+
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
       {/* Provider picker — only connected (enabled) providers */}
       <Select
-        value={value.providerName ?? AGENT_DEFAULT}
-        onValueChange={(v) =>
-          onChange(
-            v === AGENT_DEFAULT
-              ? { providerName: undefined, model: undefined }
-              : { providerName: v, model: undefined },
-          )
-        }
+        value={value.providerName ?? agentProvider?.name ?? AGENT_DEFAULT}
+        onValueChange={(v) => {
+          if (!v || v === AGENT_DEFAULT || v === defaultProviderName) {
+            onChange({ providerName: undefined, model: undefined });
+          } else {
+            onChange({ providerName: v, model: undefined });
+          }
+        }}
         disabled={disabled || enabledProviders.length === 0}
       >
         <SelectTrigger
           size="sm"
-          className="h-7 max-w-[150px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5"
+          className="h-7 max-w-[140px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>span]:truncate"
           title={t("composer.provider")}
         >
           <Cpu className="h-3.5 w-3.5 shrink-0" />
           <SelectValue placeholder={t("composer.providerDefault")} />
         </SelectTrigger>
         <SelectContent position="popper" sideOffset={6} className="w-56">
-          <SelectItem value={AGENT_DEFAULT} className="text-sm">
-            {t("composer.providerDefault")}
-          </SelectItem>
+          {!agentProvider && (
+            <SelectItem value={AGENT_DEFAULT} className="text-sm">
+              {t("composer.providerDefault")}
+            </SelectItem>
+          )}
           {enabledProviders.map((p) => (
             <SelectItem key={p.id} value={p.name} className="text-sm">
               {p.display_name || p.name}
@@ -141,7 +148,7 @@ export function ComposerToolbar({ value, onChange, disabled, devMode, onDevModeC
         >
           <SelectTrigger
             size="sm"
-            className="h-7 max-w-[190px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5"
+            className="h-7 max-w-[170px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>span]:truncate"
             title={t("composer.model")}
           >
             <SelectValue placeholder={modelsLoading ? t("composer.loadingModels") : t("composer.modelDefault")} />
@@ -167,7 +174,7 @@ export function ComposerToolbar({ value, onChange, disabled, devMode, onDevModeC
       >
         <SelectTrigger
           size="sm"
-          className="h-7 max-w-[130px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5"
+          className="h-7 max-w-[120px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>span]:truncate"
           title={t("composer.thinking")}
         >
           <BrainCog className="h-3.5 w-3.5 shrink-0" />
@@ -190,51 +197,35 @@ export function ComposerToolbar({ value, onChange, disabled, devMode, onDevModeC
 
       {/* Permission mode picker — per-run tool gating override (agent default
           when unset). plan = read-only, full_access = no gates, the ask-modes
-          route writes/exec through the approvals queue. */}
-      <Select
-        value={value.permissionMode ?? AGENT_DEFAULT}
-        onValueChange={(v) =>
-          onChange({ ...value, permissionMode: v === AGENT_DEFAULT ? undefined : v })
-        }
-        disabled={disabled}
-      >
-        <SelectTrigger
-          size="sm"
-          className="h-7 max-w-[150px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5"
-          title={t("composer.permissionMode")}
-        >
-          <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-          <SelectValue placeholder={t("permissionModes.default")} />
-        </SelectTrigger>
-        <SelectContent position="popper" sideOffset={6} className="w-56">
-          <SelectItem value={AGENT_DEFAULT} className="text-sm">
-            {t("permissionModes.default")}
-          </SelectItem>
-          {PERMISSION_MODES.map((m) => (
-            <SelectItem key={m.value} value={m.value} className="text-sm">
-              {t(m.labelKey)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {/* Dev mode toggle — per-message flag; on = agent runs with the
-          dev-mode behavior section (plan, skills, ask_options, verify). */}
-      {onDevModeChange && (
-        <button
-          type="button"
-          onClick={() => onDevModeChange(!devMode)}
+          route writes/exec through the approvals queue. Designer composers
+          hide it via showPermissionMode={false}. */}
+      {showPermissionMode && (
+        <Select
+          value={value.permissionMode ?? AGENT_DEFAULT}
+          onValueChange={(v) =>
+            onChange({ ...value, permissionMode: v === AGENT_DEFAULT ? undefined : v })
+          }
           disabled={disabled}
-          aria-pressed={!!devMode}
-          title={t("composer.devMode")}
-          className={`flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 ${
-            devMode
-              ? "bg-primary/10 text-primary"
-              : "border-none bg-muted/60 text-muted-foreground shadow-none hover:text-foreground"
-          }`}
         >
-          <Code2 className="h-3.5 w-3.5 shrink-0" />
-          {t("composer.devMode")}
-        </button>
+          <SelectTrigger
+            size="sm"
+            className="h-7 max-w-[150px] gap-1 rounded-lg border-none bg-muted/60 px-2 text-xs font-medium text-muted-foreground shadow-none focus:ring-1 [&>svg]:h-3.5 [&>svg]:w-3.5"
+            title={t("composer.permissionMode")}
+          >
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            <SelectValue placeholder={t("permissionModes.default")} />
+          </SelectTrigger>
+          <SelectContent position="popper" sideOffset={6} className="w-56">
+            <SelectItem value={AGENT_DEFAULT} className="text-sm">
+              {t("permissionModes.default")}
+            </SelectItem>
+            {PERMISSION_MODES.map((m) => (
+              <SelectItem key={m.value} value={m.value} className="text-sm">
+                {t(m.labelKey)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
     </div>
   );
