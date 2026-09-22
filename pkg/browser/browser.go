@@ -268,22 +268,33 @@ func (m *Manager) Start(ctx context.Context) error {
 		launchCtx, launchCancel := context.WithTimeout(ctx, 30*time.Second)
 		defer launchCancel()
 
-		l := launcher.New().
-			Context(launchCtx).
-			Leakless(true).
-			Headless(m.headless).
-			Set("disable-gpu").
-			Set("no-first-run").
-			Set("no-default-browser-check").
-			Set("disable-dev-shm-usage").
-			Set("disable-software-rasterizer").
-			Set("disable-extensions").
-			Set("disable-background-networking").
-			Set("disable-renderer-backgrounding").
-			Set("disable-background-timer-throttling").
-			Set("disable-backgrounding-occluded-windows")
+		newLauncher := func(leakless bool) *launcher.Launcher {
+			return launcher.New().
+				Context(launchCtx).
+				Leakless(leakless).
+				Headless(m.headless).
+				Set("disable-gpu").
+				Set("no-first-run").
+				Set("no-default-browser-check").
+				Set("disable-dev-shm-usage").
+				Set("disable-software-rasterizer").
+				Set("disable-extensions").
+				Set("disable-background-networking").
+				Set("disable-renderer-backgrounding").
+				Set("disable-background-timer-throttling").
+				Set("disable-backgrounding-occluded-windows")
+		}
 
+		l := newLauncher(true)
 		u, err := l.Launch()
+		if err != nil && strings.Contains(err.Error(), "leakless") {
+			// Windows AV (Defender included) often quarantines rod's leakless
+			// helper binary. Retry without it — we only lose orphan-process
+			// cleanup on a hard kill, not functionality.
+			m.logger.Warn("chrome launch failed via leakless helper (AV block?) — retrying without leakless", "error", err)
+			l = newLauncher(false)
+			u, err = l.Launch()
+		}
 		if err != nil {
 			return fmt.Errorf("launch Chrome: %w", err)
 		}

@@ -127,7 +127,8 @@
       "empty": "Nhập URL để mở bằng trình duyệt server (Chrome thật, chạy JS — agent cùng dùng trình duyệt này).",
       "note": "Server browser — trang do gateway render, agent đọc/điều khiển được cả site chặn JS/iframe.",
       "noCapture": "Trang đã mở nhưng không chụp được ảnh — thử làm mới."
-    }
+    },
+    "renderedNote": "Đã render bằng trình duyệt phía server — trang JavaScript hiển thị đầy đủ, nhưng không gõ được vào form."
   },
   "taskTree": {
     "empty": "Chưa có nhiệm vụ nào",

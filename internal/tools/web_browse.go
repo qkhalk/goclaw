@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -41,6 +42,32 @@ type RelayInfo struct {
 	RelayURL string // /v1/browse/{id}?ft=... (signed, iframe-loadable)
 	FinalURL string // post-redirect page URL
 	Title    string
+	Rendered bool // document produced by the headless render fallback
+}
+
+// DefaultPanelRenderTimeout bounds the headless render fallback inside
+// browser.panel.open. The web client's WS RPC times out at 30s, so the render
+// must finish — or give up and relay the plain fetch — with room to spare.
+const DefaultPanelRenderTimeout = 20 * time.Second
+
+// relayRenderMinChars is the extracted-text threshold under which a fetched
+// document counts as a JS-only shell / challenge page worth re-rendering.
+const relayRenderMinChars = 200
+
+// PageRenderResult is the outcome of a headless render: the settled DOM and
+// the post-redirect location/title reported by the browser.
+type PageRenderResult struct {
+	HTML     string
+	FinalURL string
+	Title    string
+}
+
+// PageRenderer renders a URL with a real (headless) browser — full JS
+// execution. Implemented by pkg/browser.Manager and injected via
+// SetPageRenderer; declared as an interface because pkg/browser imports this
+// package (Tool interface), so the dependency cannot be reversed.
+type PageRenderer interface {
+	RenderHTML(ctx context.Context, rawURL string) (*PageRenderResult, error)
 }
 
 // WebBrowseTool implements web_browse: opens URLs in the user's browser panel
@@ -53,10 +80,11 @@ type RelayInfo struct {
 // web client is available — Telegram, dashboards, timeouts — so the tool never
 // hangs.
 type WebBrowseTool struct {
-	fetch   *WebFetchTool
-	store   *browse.Store
-	invoker ClientBrowserInvoker
-	signer  RelayTokenSigner
+	fetch    *WebFetchTool
+	store    *browse.Store
+	invoker  ClientBrowserInvoker
+	signer   RelayTokenSigner
+	renderer PageRenderer
 }
 
 // NewWebBrowseTool builds the tool around the shared web_fetch pipeline and
@@ -71,6 +99,10 @@ func (t *WebBrowseTool) SetClientInvoker(inv ClientBrowserInvoker) { t.invoker =
 // SetRelayTokenSigner wires the ?ft= signer over httpapi (cmd wiring).
 func (t *WebBrowseTool) SetRelayTokenSigner(signer RelayTokenSigner) { t.signer = signer }
 
+// SetPageRenderer wires the optional headless render fallback (cmd wiring).
+// Only set when the browser tool is enabled (cfg.Tools.Browser.Enabled).
+func (t *WebBrowseTool) SetPageRenderer(r PageRenderer) { t.renderer = r }
+
 func (t *WebBrowseTool) Name() string { return "web_browse" }
 
 func (t *WebBrowseTool) Description() string {
@@ -80,7 +112,8 @@ func (t *WebBrowseTool) Description() string {
 		"[eN] refs: pass action=\"click\"/\"type\" with a ref to act, then the fresh page content comes back. " +
 		"Prefer this over web_fetch on the web channel (the user sees what you are doing) and over the browser " +
 		"tool (which runs heavy headless Chrome on the server). Falls back to a plain server-side fetch for the " +
-		"open action when no web client is connected. Limitation: the relayed page never executes scripts, so " +
+		"open action when no web client is connected; JS-only shells are then re-rendered through the server's " +
+		"headless browser when one is configured. Limitation: the relayed page never executes scripts, so " +
 		"JS-only sites return thin content — switch to web_search or an API in that case."
 }
 
@@ -172,7 +205,10 @@ func (t *WebBrowseTool) executeOpen(ctx context.Context, args map[string]any) *R
 	}
 
 	// Fallback (or delegation declined): server-side extraction from the
-	// already-fetched document — no second request.
+	// already-fetched document. When it is a JS-only shell or a challenge
+	// page, re-render through the headless browser first — no client is left
+	// to do it.
+	doc, _ = t.maybeRender(ctx, doc, rawURL)
 	text := extractDocumentText(doc)
 	title := browse.ExtractTitle(doc.content)
 	return NewResult(formatBrowseResult(text, title, doc.finalURL, maxChars, false, false))
@@ -258,7 +294,9 @@ func (t *WebBrowseTool) validateURL(ctx context.Context, rawURL string) (webFetc
 // navigation RPC (browser.panel.open): URL-bar entries and link clicks made in
 // the panel come through here. The sanitized document is exactly what the
 // panel iframe already renders, so the RPC response carries everything the
-// client needs to load it.
+// client needs to load it. When the plain fetch yields a JS-only shell or a
+// bot-challenge page, the URL is re-rendered through the headless browser
+// (when wired) so the panel shows real content instead of a blank frame.
 func (t *WebBrowseTool) OpenRelay(ctx context.Context, rawURL string) (*RelayInfo, error) {
 	if t.store == nil || t.signer == nil || t.fetch == nil {
 		return nil, fmt.Errorf("browse relay not wired")
@@ -271,7 +309,74 @@ func (t *WebBrowseTool) OpenRelay(ctx context.Context, rawURL string) (*RelayInf
 	if err != nil {
 		return nil, fmt.Errorf("fetch failed: %w", err)
 	}
-	return t.storeRelay(doc, rawURL)
+	doc, rendered := t.maybeRender(ctx, doc, rawURL)
+	info, err := t.storeRelay(doc, rawURL)
+	if err == nil {
+		info.Rendered = rendered
+	}
+	return info, err
+}
+
+// relayNeedsRender reports whether a fetched document would relay as a blank
+// or useless page: a classic WAF challenge status (403/429/5xx for
+// non-browser clients), or a 2xx HTML body whose text extraction is thinner
+// than relayRenderMinChars (JS-only SPA shell). Other 4xx bodies (404, 410…)
+// are the page's real content — rendering them wouldn't add anything.
+func relayNeedsRender(doc fetchRawResult) bool {
+	if doc.statusCode == 403 || doc.statusCode == 429 || doc.statusCode >= 500 {
+		return true
+	}
+	if doc.statusCode != 0 && doc.statusCode/100 != 2 {
+		return false
+	}
+	switch {
+	case strings.Contains(doc.contentType, "text/html"),
+		strings.Contains(doc.contentType, "application/xhtml"),
+		doc.contentType == "": // assume HTML
+		return len(strings.TrimSpace(htmlToMarkdown(doc.content))) < relayRenderMinChars
+	default:
+		return false
+	}
+}
+
+// maybeRender re-fetches the page through the headless browser when the plain
+// HTTP fetch looks like a JS-only shell or a bot challenge. Best-effort: any
+// renderer failure — or a render no better than the fetch — keeps the
+// original document, exactly as before this fallback existed.
+func (t *WebBrowseTool) maybeRender(ctx context.Context, doc fetchRawResult, rawURL string) (fetchRawResult, bool) {
+	if t.renderer == nil || !relayNeedsRender(doc) {
+		return doc, false
+	}
+	renderCtx, cancel := context.WithTimeout(ctx, DefaultPanelRenderTimeout)
+	defer cancel()
+	res, err := t.renderer.RenderHTML(renderCtx, rawURL)
+	if err != nil || res == nil || strings.TrimSpace(res.HTML) == "" {
+		slog.Warn("browse relay render fallback failed",
+			"url", rawURL, "fetch_status", doc.statusCode, "error", err)
+		return doc, false
+	}
+	// Adopt only when the render actually improved on the fetch — a render
+	// can still come back thin (canvas-only apps, hard bot walls).
+	fetchText := len(strings.TrimSpace(htmlToMarkdown(doc.content)))
+	renderText := len(strings.TrimSpace(htmlToMarkdown(res.HTML)))
+	if renderText <= fetchText {
+		slog.Info("browse relay render produced no better content", "url", rawURL,
+			"fetch_chars", fetchText, "render_chars", renderText)
+		return doc, false
+	}
+	finalURL := res.FinalURL
+	if finalURL == "" {
+		finalURL = doc.finalURL
+	}
+	slog.Info("browse relay rendered via headless browser",
+		"url", rawURL, "final_url", finalURL, "chars", renderText)
+	return fetchRawResult{
+		content:     res.HTML,
+		extractor:   "headless-render",
+		finalURL:    finalURL,
+		statusCode:  200,
+		contentType: "text/html; charset=utf-8",
+	}, true
 }
 
 // storeRelay sanitizes + stores a fetched document and signs its relay URL.

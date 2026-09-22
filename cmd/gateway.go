@@ -678,6 +678,12 @@ func runGateway() {
 	// server exists because the tool needs its browser-panel bridge.
 	browseStore := browse.NewStore()
 	webBrowseTool := tools.NewWebBrowseTool(webFetchTool, browseStore)
+	if browserMgr != nil {
+		// Headless render fallback for JS-only shells / challenge pages in the
+		// browse relay — gated on the browser tool being enabled
+		// (cfg.Tools.Browser.Enabled decides whether browserMgr exists).
+		webBrowseTool.SetPageRenderer(browserMgr)
+	}
 	webBrowseTool.SetClientInvoker(server.BrowserPanelBridge())
 	webBrowseTool.SetRelayTokenSigner(func(path string) string {
 		return httpapi.SignFileToken(path, httpapi.FileSigningKey(), httpapi.FileTokenTTL)
