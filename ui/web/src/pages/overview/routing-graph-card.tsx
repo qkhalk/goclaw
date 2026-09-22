@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Bot } from "lucide-react";
@@ -108,7 +108,12 @@ function NodePill({
 export function RoutingGraphCard() {
   const { t } = useTranslation("overview");
   const http = useHttp();
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Width comes from a callback ref, not a mount effect: the container only
+  // mounts after the first edges arrive, and ResizeObserver delivery can be
+  // starved indefinitely (background tab / throttled rendering), which left
+  // width at 0 forever and the graph never drew. The callback ref measures
+  // synchronously at commit; the observer only handles later resizes.
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
   const [width, setWidth] = useState(0);
 
   const { data } = useQuery({
@@ -121,19 +126,16 @@ export function RoutingGraphCard() {
   const providers = useMemo(() => aggregate(edges, "provider"), [edges]);
   const models = useMemo(() => aggregate(edges, "model"), [edges]);
 
-  // Re-attach the observer when the graph container mounts. The div only
-  // renders after the first edges arrive, so a mount-only effect would keep
-  // width at 0 forever and the graph would never draw (empty card bug).
-  const hasEdges = edges.length > 0;
-  useEffect(() => {
-    const el = containerRef.current;
+  const attachContainer = useCallback((el: HTMLDivElement | null) => {
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
     if (!el) return;
     const update = () => setWidth(el.clientWidth);
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [hasEdges]);
+    resizeCleanupRef.current = () => ro.disconnect();
+  }, []);
 
   const totalCalls = edges.reduce((s, e) => s + e.calls, 0);
   const req = (n: number) => t("routing.req", { count: compactCount(n) });
@@ -215,7 +217,7 @@ export function RoutingGraphCard() {
           <p className="py-8 text-center text-sm text-muted-foreground">{t("routing.noData")}</p>
         ) : (
           <>
-            <div ref={containerRef} className="relative w-full" style={{ height }}>
+            <div ref={attachContainer} className="relative w-full" style={{ height }}>
               {width > 0 && (
                 <>
                   <svg className="absolute inset-0" width={width} height={height} aria-hidden>
