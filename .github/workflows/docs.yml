@@ -31,6 +31,8 @@ jobs:
       # pnpm version is pinned via "packageManager" in docs/package.json
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          package_json_file: docs/package.json
 
       - name: Install Node
         uses: actions/setup-node@v4
