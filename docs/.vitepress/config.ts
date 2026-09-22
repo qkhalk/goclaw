@@ -197,7 +197,8 @@ export default defineConfig({
   },
 
   themeConfig: {
-    logo: '/logo.svg',
+    // Official GoClaw mascot (same artwork the web app loader uses).
+    logo: '/goclaw-icon.svg',
 
     socialLinks: [{ icon: 'github', link: goclawRepo }],
 
