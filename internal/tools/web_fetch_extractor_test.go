@@ -436,3 +436,25 @@ func TestFormatFetchResult_Truncation(t *testing.T) {
 		}
 	}
 }
+
+func TestInProcessExtractor_HTTPErrorSurfaced(t *testing.T) {
+	// Regression: a 404 from a private repo / bad ref used to cascade through
+	// the whole chain as "content below quality threshold (14 chars)" — now the
+	// HTTP status must surface directly so the agent can stop retrying.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404: Not Found"))
+	}))
+	defer server.Close()
+
+	tool := NewWebFetchTool(WebFetchConfig{})
+	ext := &InProcessExtractor{tool: tool}
+	_, err := ext.Extract(context.Background(), server.URL)
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+	if !strings.Contains(err.Error(), "HTTP 404") {
+		t.Errorf("error should name the HTTP status, got: %v", err)
+	}
+}

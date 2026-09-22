@@ -7,7 +7,6 @@ import { RequireSetup } from "@/components/shared/require-setup";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
 import { ROUTES } from "@/lib/constants";
 import { lazyWithRetry } from "@/lib/lazy-with-retry";
-import { StudioGate } from "@/pages/store/studio-gate";
 
 // Lazy-loaded pages
 const LoginPage = lazyWithRetry(() =>
@@ -63,18 +62,6 @@ const LogsPage = lazyWithRetry(() =>
 );
 const CloudPage = lazyWithRetry(() =>
   import("@/pages/cloud/cloud-page").then((m) => ({ default: m.CloudPage })),
-);
-const VideoToolPage = lazyWithRetry(() =>
-  import("@/pages/tools/video/video-tool-page").then((m) => ({ default: m.VideoToolPage })),
-);
-const WatermarkToolPage = lazyWithRetry(() =>
-  import("@/pages/tools/watermark/watermark-tool-page").then((m) => ({ default: m.WatermarkToolPage })),
-);
-const PptxToolPage = lazyWithRetry(() =>
-  import("@/pages/tools/pptx/pptx-tool-page").then((m) => ({ default: m.PptxToolPage })),
-);
-const StorePage = lazyWithRetry(() =>
-  import("@/pages/store/store-page").then((m) => ({ default: m.StorePage })),
 );
 const ProvidersPage = lazyWithRetry(() =>
   import("@/pages/providers/providers-page").then((m) => ({ default: m.ProvidersPage })),
@@ -213,34 +200,11 @@ export function AppRoutes() {
           <Route path={ROUTES.CLOUD} element={<CloudPage />} />
           <Route path={ROUTES.CLOUD_PROVIDER} element={<CloudPage />} />
           <Route path={ROUTES.CLOUD_ACCOUNT} element={<CloudPage />} />
-          {/* Tools hub retired — each tool has a direct sidebar entry,
-              filtered by its Tool Store install state. */}
-          <Route path={ROUTES.TOOLS} element={<Navigate to={ROUTES.TOOLS_VIDEO} replace />} />
-          <Route path={ROUTES.STORE} element={<StorePage />} />
-          <Route
-            path={ROUTES.TOOLS_VIDEO}
-            element={
-              <StudioGate module="video_studio">
-                <VideoToolPage />
-              </StudioGate>
-            }
-          />
-          <Route
-            path={ROUTES.TOOLS_WATERMARK}
-            element={
-              <StudioGate module="watermark_studio">
-                <WatermarkToolPage />
-              </StudioGate>
-            }
-          />
-          <Route
-            path={ROUTES.TOOLS_PPTX}
-            element={
-              <StudioGate module="pptx_studio">
-                <PptxToolPage />
-              </StudioGate>
-            }
-          />
+          {/* Tools hub + studio tools retired — the tools studio lives in its
+              own product (GoTools); /builtin-tools covers built-in tool config.
+              Old /tools/* and /store deep links redirect there. */}
+          <Route path="/tools/*" element={<Navigate to={ROUTES.BUILTIN_TOOLS} replace />} />
+          <Route path="/store" element={<Navigate to={ROUTES.BUILTIN_TOOLS} replace />} />
           <Route path={ROUTES.WEBHOOKS} element={<RequireAdmin><WebhooksPage /></RequireAdmin>} />
           <Route path={ROUTES.NODES} element={<RequireAdmin><NodesPage /></RequireAdmin>} />
           <Route path={ROUTES.WORKSTATIONS} element={<RequireAdmin><WorkstationsPage /></RequireAdmin>} />

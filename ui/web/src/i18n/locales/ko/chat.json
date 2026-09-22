@@ -37,6 +37,10 @@
     "noResults": "일치하는 명령어나 스킬이 없습니다",
     "gcHint": "GoClaw 워크플로 명령어"
   },
+  "sessionCommand": {
+    "clear": "대화 기록 전체 삭제(새로 시작)",
+    "compact": "기록 압축 — 최근 메시지만 유지"
+  },
   "workspacePicker": {
     "title": "워크스페이스",
     "none": "워크스페이스 없음",

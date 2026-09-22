@@ -142,6 +142,10 @@
     "noResults": "Không tìm thấy lệnh hoặc kỹ năng nào",
     "gcHint": "Lệnh quy trình GoClaw"
   },
+  "sessionCommand": {
+    "clear": "Xoá toàn bộ lịch sử hội thoại (bắt đầu lại từ đầu)",
+    "compact": "Nén lịch sử — chỉ giữ lại vài tin nhắn gần nhất"
+  },
   "composer": {
     "provider": "Nhà cung cấp",
     "providerDefault": "Provider của agent",

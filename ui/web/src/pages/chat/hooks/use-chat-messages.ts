@@ -634,8 +634,14 @@ export function useChatMessages(sessionKey: string, agentId: string) {
 
   const isBusy = isRunning || teamTasks.length > 0 || activity?.phase === "leader_processing";
 
+  // /clear: drop the local list for a session key (server already reset).
+  const replaceAllMessages = useCallback((key: string, msgs: ChatMessage[]) => {
+    setSessionMessages(key, msgs);
+  }, [setSessionMessages]);
+
   return {
     messages, streamText, thinkingText, toolStream, isRunning, isBusy,
     loading, activity, llmMeta, blockReplies, teamTasks, expectRun, loadHistory, addLocalMessage,
+    replaceAllMessages,
   };
 }

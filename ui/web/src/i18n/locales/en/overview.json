@@ -82,8 +82,11 @@
   },
   "routing": {
     "title": "Model routing",
-    "window": "5m",
+    "window": "24h",
+    "noData": "No routing data yet",
+    "req": "{{count}} reqs",
     "moreProviders": "+{{count}} more providers",
+    "moreModels": "+{{count}} more models",
     "surfaces": {
       "telegram": "Telegram",
       "web": "Web chat",

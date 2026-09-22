@@ -335,6 +335,15 @@ func (t *WebFetchTool) fetchRawContent(ctx context.Context, rawURL, extractMode 
 		return fetchRawResult{}, fmt.Errorf("read body: %w", err)
 	}
 
+	// Surface transport-level failures as explicit HTTP errors. A 404/401/5xx
+	// body ("404: Not Found", 14 chars) otherwise trips the chain's quality
+	// threshold and cascades into a misleading "all extractors failed" after
+	// retrying every extractor against a doomed URL.
+	if resp.StatusCode >= 400 {
+		snippet := truncateStr(strings.TrimSpace(string(body)), 200)
+		return fetchRawResult{}, fmt.Errorf("HTTP %d (%s): %s", resp.StatusCode, rawURL, snippet)
+	}
+
 	contentType := resp.Header.Get("Content-Type")
 	finalURL := resp.Request.URL.String()
 

@@ -82,8 +82,11 @@
   },
   "routing": {
     "title": "模型路由",
-    "window": "5 分钟",
+    "window": "24 小时",
+    "noData": "暂无路由数据",
+    "req": "{{count}} 次请求",
     "moreProviders": "还有 {{count}} 个提供商",
+    "moreModels": "还有 {{count}} 个模型",
     "surfaces": {
       "telegram": "Telegram",
       "web": "网页聊天",

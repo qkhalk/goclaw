@@ -3,7 +3,6 @@
     "core": "핵심",
     "conversations": "대화",
     "cloud": "클라우드",
-    "tools": "도구",
     "connectivity": "연결",
     "capabilities": "기능",
     "data": "데이터",
@@ -46,10 +45,6 @@
     "packages": "패키지",
     "tenants": "테넌트",
     "backupRestore": "백업 & 복원",
-    "cloud": "클라우드",
-    "videoEditor": "비디오 편집기",
-    "watermarkRemover": "워터마크 제거기",
-    "pptxStudio": "PPTX 스튜디오",
-    "store": "도구 스토어"
+    "cloud": "클라우드"
   }
 }

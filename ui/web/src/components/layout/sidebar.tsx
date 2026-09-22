@@ -33,7 +33,6 @@ import {
   Cable,
   MonitorCog,
   CloudCog,
-  Store as StoreIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SidebarGroup } from "./sidebar-group";
@@ -42,7 +41,6 @@ import { ConnectionStatus } from "./connection-status";
 import { UpdateBadge } from "@/components/update/update-badge";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { useStudioModules } from "@/pages/store/use-studio-modules";
 import { usePendingPairingsCount } from "@/hooks/use-pending-pairings-count";
 import { useEdition } from "@/hooks/use-edition";
 import { useAuthStore } from "@/stores/use-auth-store";
@@ -65,9 +63,6 @@ export function Sidebar({ collapsed, width, onNavItemClick }: SidebarProps) {
   const { data: edition } = useEdition();
   const cloudAccountsEnabled = edition?.cloud_accounts_enabled ?? false;
   const branding = getRuntimeBranding();
-  // Studio tools follow their Tool Store install state (tenant override of
-  // the "studio" builtin tool defs); uninstalled tools drop out of the nav.
-  const { modules: studioModules } = useStudioModules();
 
   return (
     <aside
@@ -121,21 +116,6 @@ export function Sidebar({ collapsed, width, onNavItemClick }: SidebarProps) {
             <SidebarItem to={ROUTES.CLOUD} icon={CloudCog} label={t("nav.cloud")} collapsed={collapsed} />
           </SidebarGroup>
         )}
-
-        <SidebarGroup label={t("groups.tools")} collapsed={collapsed}>
-          <SidebarItem to={ROUTES.STORE} icon={StoreIcon} label={t("nav.store")} collapsed={collapsed} />
-          {studioModules
-            .filter((m) => m.installed)
-            .map((m) => (
-              <SidebarItem
-                key={m.meta.name}
-                to={m.meta.route}
-                icon={m.meta.icon}
-                label={t(m.meta.labelKey)}
-                collapsed={collapsed}
-              />
-            ))}
-        </SidebarGroup>
 
         <SidebarGroup label={t("groups.connectivity")} collapsed={collapsed}>
           <SidebarItem to={ROUTES.CHANNELS} icon={Radio} label={t("nav.channels")} collapsed={collapsed} />
