@@ -121,6 +121,10 @@ export function RoutingGraphCard() {
   const providers = useMemo(() => aggregate(edges, "provider"), [edges]);
   const models = useMemo(() => aggregate(edges, "model"), [edges]);
 
+  // Re-attach the observer when the graph container mounts. The div only
+  // renders after the first edges arrive, so a mount-only effect would keep
+  // width at 0 forever and the graph would never draw (empty card bug).
+  const hasEdges = edges.length > 0;
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -129,7 +133,7 @@ export function RoutingGraphCard() {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [hasEdges]);
 
   const totalCalls = edges.reduce((s, e) => s + e.calls, 0);
   const req = (n: number) => t("routing.req", { count: compactCount(n) });
