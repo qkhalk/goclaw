@@ -157,19 +157,8 @@ export default defineConfig({
   head: [
     // themeConfig.logo/hero get the base auto-prefixed; raw <head> links do
     // not — without base here the favicon 404s on GitHub Pages.
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }],
-    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
-    [
-      'link',
-      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }
-    ],
-    [
-      'link',
-      {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap'
-      }
-    ]
+    // Fonts are self-hosted (theme/fonts.css) — no third-party request.
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }]
   ],
 
   // The repo README is for GitHub, not a docs page.

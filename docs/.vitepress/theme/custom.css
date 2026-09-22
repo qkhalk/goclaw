@@ -61,6 +61,17 @@
   color: var(--goclaw-ember);
 }
 
+/*
+ * Language: keep the nav-menu switcher only. The built-in globe flyout maps
+ * the current path onto the other locale (/en/troubleshooting ->
+ * /vi/troubleshooting) and 404s on untranslated pages; it also duplicates
+ * the switcher. Hidden on desktop and in the mobile screen menu.
+ */
+.VPNavBarTranslations,
+.VPNavScreenTranslations {
+  display: none;
+}
+
 /* Free typographic quality: balanced headings, relaxed prose measure. */
 h1,
 h2,
