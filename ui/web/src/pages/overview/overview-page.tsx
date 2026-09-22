@@ -270,12 +270,12 @@ export function OverviewPage() {
             </div>
           </div>
 
-          {/* Routing graph + Recent Requests (9router-style dashboard) */}
+          {/* Surface topology (9router-style) + compact Recent Requests */}
           <div className="grid gap-4 lg:grid-cols-5">
-            <div className="lg:col-span-2">
-              <RoutingGraphCard />
-            </div>
             <div className="lg:col-span-3">
+              <RoutingGraphCard channelEntries={channelEntries} />
+            </div>
+            <div className="lg:col-span-2">
               <RecentRequestsCard />
             </div>
           </div>

@@ -82,7 +82,7 @@
   },
   "routing": {
     "title": "模型路由",
-    "window": "24 小时",
+    "window": "5 分钟",
     "noData": "暂无路由数据",
     "req": "{{count}} 次请求",
     "moreProviders": "还有 {{count}} 个提供商",
