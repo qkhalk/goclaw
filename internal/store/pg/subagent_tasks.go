@@ -145,9 +145,10 @@ func (s *PGSubagentTaskStore) UpdateStatus(
 	return nil
 }
 
-// ListByParent returns tasks for a root-agent UUID, optionally filtered by status.
+// ListByParent returns tasks for a root-agent UUID, optionally filtered by
+// status. Archived tasks are excluded unless includeArchived is true.
 func (s *PGSubagentTaskStore) ListByParent(
-	ctx context.Context, rootAgentID uuid.UUID, statusFilter string,
+	ctx context.Context, rootAgentID uuid.UUID, statusFilter string, includeArchived bool,
 ) ([]store.SubagentTaskData, error) {
 	tid, err := requireTenantID(ctx)
 	if err != nil {
@@ -157,18 +158,23 @@ func (s *PGSubagentTaskStore) ListByParent(
 		return nil, store.ErrSubagentRootAgentIDRequired
 	}
 
+	archiveFilter := " AND archived_at IS NULL"
+	if includeArchived {
+		archiveFilter = ""
+	}
+
 	var rows *sql.Rows
 	if statusFilter != "" {
 		q := fmt.Sprintf(`SELECT %s FROM subagent_tasks
-				WHERE tenant_id = $1 AND root_agent_id = $2 AND status = $3
+				WHERE tenant_id = $1 AND root_agent_id = $2 AND status = $3%s
 				AND COALESCE(metadata->>'completion_kind', 'subagent') <> 'delegate'
-				ORDER BY created_at DESC LIMIT 50`, subagentTaskSelectCols)
+				ORDER BY created_at DESC LIMIT 50`, subagentTaskSelectCols, archiveFilter)
 		rows, err = s.db.QueryContext(ctx, q, tid, rootAgentID, statusFilter)
 	} else {
 		q := fmt.Sprintf(`SELECT %s FROM subagent_tasks
-				WHERE tenant_id = $1 AND root_agent_id = $2
+				WHERE tenant_id = $1 AND root_agent_id = $2%s
 				AND COALESCE(metadata->>'completion_kind', 'subagent') <> 'delegate'
-				ORDER BY created_at DESC LIMIT 50`, subagentTaskSelectCols)
+				ORDER BY created_at DESC LIMIT 50`, subagentTaskSelectCols, archiveFilter)
 		rows, err = s.db.QueryContext(ctx, q, tid, rootAgentID)
 	}
 	if err != nil {
@@ -177,6 +183,27 @@ func (s *PGSubagentTaskStore) ListByParent(
 	defer rows.Close()
 
 	return collectTasks(rows)
+}
+
+// GetByID retrieves a task by ID within the caller's tenant, without requiring
+// the root-agent UUID upfront. Legacy rows with no root agent are not
+// addressable (scanTask cannot materialize a NULL root_agent_id).
+func (s *PGSubagentTaskStore) GetByID(ctx context.Context, taskID uuid.UUID) (*store.SubagentTaskData, error) {
+	tid, err := requireTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if taskID == uuid.Nil {
+		return nil, store.ErrSubagentTaskNotFound
+	}
+	q := fmt.Sprintf(`SELECT %s FROM subagent_tasks
+		WHERE id = $1 AND tenant_id = $2 AND root_agent_id IS NOT NULL`, subagentTaskSelectCols)
+	row := s.db.QueryRowContext(ctx, q, taskID, tid)
+	t, err := scanTask(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return t, err
 }
 
 // ListBySession returns tasks for a specific session key (tenant-scoped).
@@ -235,6 +262,72 @@ func (s *PGSubagentTaskStore) Archive(
 		FROM candidates
 		WHERE task.id = candidates.id`
 	res, err := s.db.ExecContext(ctx, q, tid, rootAgentID, cutoff, limit)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// ArchiveByID archives one terminal task addressed by ID (tenant-scoped).
+// Distinguishes not-found from not-terminal so callers can surface a precise
+// error; re-archiving an archived terminal task is a no-op.
+func (s *PGSubagentTaskStore) ArchiveByID(ctx context.Context, taskID uuid.UUID) error {
+	tid, err := requireTenantID(ctx)
+	if err != nil {
+		return err
+	}
+	if taskID == uuid.Nil {
+		return store.ErrSubagentTaskNotFound
+	}
+
+	q := `UPDATE subagent_tasks SET archived_at = NOW(), updated_at = NOW()
+		WHERE id = $1 AND tenant_id = $2
+		AND status IN ('completed', 'failed', 'cancelled')
+		AND archived_at IS NULL`
+	res, err := s.db.ExecContext(ctx, q, taskID, tid)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 1 {
+		return nil
+	}
+
+	// Zero rows: either absent, non-terminal, or already archived. Fetch the
+	// row (tenant-scoped) to produce the precise sentinel.
+	task, err := s.GetByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if task == nil {
+		return store.ErrSubagentTaskNotFound
+	}
+	if !store.IsTerminalSubagentTaskStatus(task.Status) {
+		return store.ErrSubagentTaskNotTerminal
+	}
+	// Terminal and matched no rows → already archived (idempotent success).
+	return nil
+}
+
+// ArchiveCompletedForParent archives every terminal, non-archived task of the
+// root agent (tenant-scoped, no age cutoff — user-initiated bulk cleanup).
+func (s *PGSubagentTaskStore) ArchiveCompletedForParent(ctx context.Context, rootAgentID uuid.UUID) (int64, error) {
+	tid, err := requireTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if rootAgentID == uuid.Nil {
+		return 0, store.ErrSubagentRootAgentIDRequired
+	}
+
+	q := `UPDATE subagent_tasks SET archived_at = NOW(), updated_at = NOW()
+		WHERE tenant_id = $1 AND root_agent_id = $2
+		AND status IN ('completed', 'failed', 'cancelled')
+		AND archived_at IS NULL`
+	res, err := s.db.ExecContext(ctx, q, tid, rootAgentID)
 	if err != nil {
 		return 0, err
 	}

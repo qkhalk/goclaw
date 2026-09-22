@@ -145,14 +145,14 @@ func TestSQLiteSubagentTaskStoreRequiresTenantAndRootScope(t *testing.T) {
 		t.Fatalf("metadata JSON types were not preserved: %#v", got.Metadata)
 	}
 
-	parentTasksA, err := taskStore.ListByParent(ctxA, rootAID, "")
+	parentTasksA, err := taskStore.ListByParent(ctxA, rootAID, "", false)
 	if err != nil {
 		t.Fatalf("ListByParent root A: %v", err)
 	}
 	if len(parentTasksA) != 1 || parentTasksA[0].ID != taskA {
 		t.Fatalf("ListByParent root A = %#v, want only self-clone %s", parentTasksA, taskA)
 	}
-	parentTasksB, err := taskStore.ListByParent(ctxA, rootBID, "queued")
+	parentTasksB, err := taskStore.ListByParent(ctxA, rootBID, "queued", false)
 	if err != nil {
 		t.Fatalf("ListByParent root B: %v", err)
 	}

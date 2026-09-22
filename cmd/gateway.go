@@ -938,6 +938,9 @@ func runGateway() {
 	// Node runtime (inheritance plan Phase 2): nodes.* RPC + node_exec tool.
 	wireNodeRuntime(pgStores, toolsReg, server, msgBus)
 	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Tracing, pgStores.RunTimeline, pgStores.Runs, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Approval, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, pgStores.AgentLinks, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc, providerRegistry, pgStores.Providers, teamWorkEmbedder, pgStores.Contracts, pgStores.CheckpointSnapshots, pgStores.Missions, pgStores.TenantPolicies, pgStores.TenantRoles, pgStores.NodeLeases, pgStores.Workspaces, pgStores.AgentJobs, pgStores.TaskGraph, pgStores.MemoryFabric, pgStores.Terminals, pgStores.RoutingRules, webBrowseTool, browserMgr)
+	// Subagent task surface (subagents.* RPC) — needs stores + manager that are
+	// outside registerAllMethods' parameter list; mirrors wireNodeRuntime.
+	wireSubagentMethods(cfg, server, pgStores.Agents, pgStores.SubagentTasks, subagentMgr)
 
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {
