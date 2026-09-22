@@ -82,7 +82,7 @@
   },
   "routing": {
     "title": "Định tuyến mô hình",
-    "window": "24 giờ",
+    "window": "5 phút",
     "noData": "Chưa có dữ liệu định tuyến",
     "req": "{{count}} yêu cầu",
     "moreProviders": "+{{count}} nhà cung cấp khác",

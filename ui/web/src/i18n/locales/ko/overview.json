@@ -82,7 +82,7 @@
   },
   "routing": {
     "title": "모델 라우팅",
-    "window": "24시간",
+    "window": "5분",
     "noData": "라우팅 데이터가 없습니다",
     "req": "요청 {{count}}회",
     "moreProviders": "제공자 {{count}}개 더보기",

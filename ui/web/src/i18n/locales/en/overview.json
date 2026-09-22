@@ -82,7 +82,7 @@
   },
   "routing": {
     "title": "Model routing",
-    "window": "24h",
+    "window": "5m",
     "noData": "No routing data yet",
     "req": "{{count}} reqs",
     "moreProviders": "+{{count}} more providers",
