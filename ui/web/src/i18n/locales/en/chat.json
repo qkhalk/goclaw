@@ -175,7 +175,13 @@
     "retrying": "Retrying ({{attempt}}/{{max}})…",
     "leaderProcessing": "Processing team results…",
     "working": "Working…",
-    "step": "Step {{n}}"
+    "step": "Step {{n}}",
+    "metaFull": "{{provider}} · {{model}} · {{effort}}",
+    "metaModelEffort": "{{model}} · {{effort}}",
+    "metaProviderModel": "{{provider}} · {{model}}",
+    "metaModel": "{{model}}",
+    "metaProviderEffort": "{{provider}} · {{effort}}",
+    "metaProvider": "{{provider}}"
   },
   "teamTasks": {
     "pill": "Team: {{n}} active task(s)",
@@ -223,5 +229,47 @@
   "daySep": {
     "today": "Today",
     "yesterday": "Yesterday"
+  },
+  "subagents": {
+    "title": "Subagents",
+    "description": "Subagent tasks spawned by this agent — status, cancel and archive.",
+    "pillActive": "{{running}} running · {{completed}} done",
+    "pillDone": "{{n}} finished",
+    "pillCountRunning": "{{n}} running",
+    "pillCountDone": "{{n}} done",
+    "emptyTitle": "No subagent tasks yet",
+    "empty": "Your agent can spawn subagents on its own — try: “Split this work into 3 subagents”.",
+    "archive": "Archive",
+    "archive_all": "Archive all finished ({{n}})",
+    "archive_all_hint": "Archive all finished subagent tasks",
+    "cancel": "Cancel task",
+    "cancelConfirmTitle": "Cancel this task?",
+    "cancelConfirmBody": "The running subagent will be stopped. This cannot be undone.",
+    "announceTitle": "Subagent finished",
+    "statuses": {
+      "queued": "Queued",
+      "running": "Running",
+      "waiting": "Waiting",
+      "waitingChild": "Waiting for child",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "toast": {
+      "archived": "Task archived",
+      "archiveFailed": "Failed to archive task",
+      "archivedCount": "{{count}} tasks archived",
+      "cancelled": "Task cancelled",
+      "cancelFailed": "Failed to cancel task"
+    }
+  },
+  "sessions": {
+    "archive": "Archive",
+    "restore": "Restore",
+    "archivedSection": "Archived ({{n}})",
+    "archived": "Session archived",
+    "archiveFailed": "Failed to archive session",
+    "restored": "Session restored",
+    "restoreFailed": "Failed to restore session"
   }
 }

@@ -175,7 +175,13 @@
     "retrying": "Thử lại ({{attempt}}/{{max}})…",
     "leaderProcessing": "Đang xử lý kết quả team…",
     "working": "Đang làm việc…",
-    "step": "Bước {{n}}"
+    "step": "Bước {{n}}",
+    "metaFull": "{{provider}} · {{model}} · {{effort}}",
+    "metaModelEffort": "{{model}} · {{effort}}",
+    "metaProviderModel": "{{provider}} · {{model}}",
+    "metaModel": "{{model}}",
+    "metaProviderEffort": "{{provider}} · {{effort}}",
+    "metaProvider": "{{provider}}"
   },
   "teamTasks": {
     "pill": "Team: {{n}} tác vụ đang chạy",
@@ -223,5 +229,47 @@
   "daySep": {
     "today": "Hôm nay",
     "yesterday": "Hôm qua"
+  },
+  "subagents": {
+    "title": "Subagent",
+    "description": "Các tác vụ subagent của agent này — theo dõi trạng thái, hủy và lưu trữ.",
+    "pillActive": "{{running}} đang chạy · {{completed}} xong",
+    "pillDone": "{{n}} đã xong",
+    "pillCountRunning": "{{n}} đang chạy",
+    "pillCountDone": "{{n}} xong",
+    "emptyTitle": "Chưa có tác vụ subagent",
+    "empty": "Agent của bạn có thể tự spawn subagent — thử: “Chia việc này thành 3 subagent”.",
+    "archive": "Lưu trữ",
+    "archive_all": "Lưu trữ tất cả đã xong ({{n}})",
+    "archive_all_hint": "Lưu trữ tất cả tác vụ subagent đã xong",
+    "cancel": "Hủy tác vụ",
+    "cancelConfirmTitle": "Hủy tác vụ này?",
+    "cancelConfirmBody": "Subagent đang chạy sẽ bị dừng. Hành động này không thể hoàn tác.",
+    "announceTitle": "Subagent đã hoàn thành",
+    "statuses": {
+      "queued": "Đang xếp hàng",
+      "running": "Đang chạy",
+      "waiting": "Đang đợi",
+      "waitingChild": "Đang đợi subagent con",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy"
+    },
+    "toast": {
+      "archived": "Đã lưu trữ tác vụ",
+      "archiveFailed": "Lưu trữ tác vụ thất bại",
+      "archivedCount": "Đã lưu trữ {{count}} tác vụ",
+      "cancelled": "Đã hủy tác vụ",
+      "cancelFailed": "Hủy tác vụ thất bại"
+    }
+  },
+  "sessions": {
+    "archive": "Lưu trữ",
+    "restore": "Khôi phục",
+    "archivedSection": "Đã lưu trữ ({{n}})",
+    "archived": "Đã lưu trữ phiên hội thoại",
+    "archiveFailed": "Lưu trữ phiên hội thoại thất bại",
+    "restored": "Đã khôi phục phiên hội thoại",
+    "restoreFailed": "Khôi phục phiên hội thoại thất bại"
   }
 }

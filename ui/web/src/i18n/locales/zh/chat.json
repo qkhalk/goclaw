@@ -175,7 +175,13 @@
     "retrying": "重试 ({{attempt}}/{{max}})…",
     "leaderProcessing": "正在处理团队结果…",
     "working": "工作中…",
-    "step": "第 {{n}} 步"
+    "step": "第 {{n}} 步",
+    "metaFull": "{{provider}} · {{model}} · {{effort}}",
+    "metaModelEffort": "{{model}} · {{effort}}",
+    "metaProviderModel": "{{provider}} · {{model}}",
+    "metaModel": "{{model}}",
+    "metaProviderEffort": "{{provider}} · {{effort}}",
+    "metaProvider": "{{provider}}"
   },
   "teamTasks": {
     "pill": "团队：{{n}} 个任务进行中",
@@ -223,5 +229,47 @@
   "daySep": {
     "today": "今天",
     "yesterday": "昨天"
+  },
+  "subagents": {
+    "title": "子代理",
+    "description": "此代理派生的子代理任务 — 查看状态、取消与归档。",
+    "pillActive": "{{running}} 运行中 · {{completed}} 已完成",
+    "pillDone": "{{n}} 已完成",
+    "pillCountRunning": "{{n}} 运行中",
+    "pillCountDone": "{{n}} 已完成",
+    "emptyTitle": "暂无子代理任务",
+    "empty": "你的代理可以自动派生子代理 — 试试：“把这项工作拆成 3 个子代理”。",
+    "archive": "归档",
+    "archive_all": "归档全部已完成 ({{n}})",
+    "archive_all_hint": "归档全部已完成的子代理任务",
+    "cancel": "取消任务",
+    "cancelConfirmTitle": "取消此任务？",
+    "cancelConfirmBody": "正在运行的子代理将被停止，此操作无法撤销。",
+    "announceTitle": "子代理已完成",
+    "statuses": {
+      "queued": "排队中",
+      "running": "运行中",
+      "waiting": "等待中",
+      "waitingChild": "等待子任务",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
+    "toast": {
+      "archived": "任务已归档",
+      "archiveFailed": "归档任务失败",
+      "archivedCount": "已归档 {{count}} 个任务",
+      "cancelled": "任务已取消",
+      "cancelFailed": "取消任务失败"
+    }
+  },
+  "sessions": {
+    "archive": "归档",
+    "restore": "恢复",
+    "archivedSection": "已归档 ({{n}})",
+    "archived": "会话已归档",
+    "archiveFailed": "归档会话失败",
+    "restored": "会话已恢复",
+    "restoreFailed": "恢复会话失败"
   }
 }
