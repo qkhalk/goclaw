@@ -228,6 +228,19 @@ func (a *AgentData) ParseReasoningConfig() AgentReasoningConfig {
 		}
 	}
 
+	// "auto" sentinel resolution (Phase 7): only agents EXPLICITLY configured
+	// "auto" reach this point — legacy nil/empty reasoning keeps Effort "off"
+	// exactly as before. The provider capability map (registered by
+	// providerresolve; nil in store-only builds) resolves "auto" to a concrete
+	// effort using the agent row's provider/model. Unresolvable pairs keep the
+	// sentinel so the per-request providers.ResolveReasoningDecision applies
+	// the provider default downstream.
+	if cfg.OverrideMode == ReasoningOverrideCustom && cfg.Effort == ReasoningEffortAuto {
+		if effort := resolveAutoReasoningEffort(a.Provider, a.Model); effort != "" && effort != ReasoningEffortAuto {
+			cfg.Effort = effort
+		}
+	}
+
 	return cfg
 }
 
@@ -397,6 +410,11 @@ const (
 	ReasoningSourceLegacy          = "thinking_level"
 	ReasoningSourceAdvanced        = "reasoning"
 	ReasoningSourceProviderDefault = "provider_default"
+	// ReasoningEffortAuto is an agent-level effort sentinel: the concrete
+	// effort is resolved from the provider capability map (see
+	// RegisterAutoEffortResolver). Only agents explicitly configured "auto"
+	// carry it — legacy nil/empty reasoning keeps resolving to "off".
+	ReasoningEffortAuto = "auto"
 	// Reasoning fallback constants — canonical definitions in providers package.
 	ReasoningFallbackDowngrade       = providers.ReasoningFallbackDowngrade
 	ReasoningFallbackDisable         = providers.ReasoningFallbackDisable
@@ -404,6 +422,30 @@ const (
 	ReasoningOverrideInherit         = "inherit"
 	ReasoningOverrideCustom          = "custom"
 )
+
+// autoEffortResolver resolves the agent-level "auto" reasoning sentinel to a
+// concrete effort for a provider/model pair. providerresolve registers its
+// capability map at init (store cannot import providerresolve — the dependency
+// points the other way). When nil (store-only builds/tests), "auto" passes
+// through unchanged and is resolved per-request by
+// providers.ResolveReasoningDecision.
+var autoEffortResolver func(providerType, model string) string
+
+// RegisterAutoEffortResolver installs the provider capability map used to
+// resolve the "auto" reasoning sentinel. Returns the previously registered
+// resolver (nil when none) so callers can restore it in tests.
+func RegisterAutoEffortResolver(fn func(providerType, model string) string) func(providerType, model string) string {
+	prev := autoEffortResolver
+	autoEffortResolver = fn
+	return prev
+}
+
+func resolveAutoReasoningEffort(providerType, model string) string {
+	if autoEffortResolver == nil {
+		return ""
+	}
+	return autoEffortResolver(providerType, model)
+}
 
 type AgentReasoningConfig struct {
 	OverrideMode string `json:"override_mode,omitempty" db:"-"`
@@ -447,6 +489,36 @@ func ResolveEffectiveReasoningConfig(
 		Fallback:     providerDefaults.Fallback,
 		Source:       ReasoningSourceProviderDefault,
 	}
+}
+
+// ResolveEffectiveReasoningConfigForModel is the provider-aware variant of
+// ResolveEffectiveReasoningConfig: when the resolved effort is the "auto"
+// sentinel and caller-supplied provider info is present, the provider
+// capability map (RegisterAutoEffortResolver) resolves it to a concrete
+// effort. With empty provider info (the legacy two-arg call shape) the
+// sentinel is kept as the safe default and resolved per-request downstream by
+// providers.ResolveReasoningDecision — byte-identical legacy behavior.
+//
+// Note: ParseReasoningConfig already resolves "auto" from the agent row's own
+// Provider/Model fields, so the sentinel only reaches this function when those
+// were unresolvable; this variant exists for call sites that know the ACTIVE
+// provider (e.g. after provider fallback/routing) and for tests.
+func ResolveEffectiveReasoningConfigForModel(
+	providerDefaults *ProviderReasoningConfig,
+	agentConfig AgentReasoningConfig,
+	providerType, model string,
+) AgentReasoningConfig {
+	cfg := ResolveEffectiveReasoningConfig(providerDefaults, agentConfig)
+	if cfg.Effort != ReasoningEffortAuto {
+		return cfg
+	}
+	if strings.TrimSpace(providerType) == "" && strings.TrimSpace(model) == "" {
+		return cfg // no provider info: safe default = keep sentinel
+	}
+	if effort := resolveAutoReasoningEffort(providerType, model); effort != "" && effort != ReasoningEffortAuto {
+		cfg.Effort = effort
+	}
+	return cfg
 }
 
 const (

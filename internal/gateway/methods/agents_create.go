@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -127,6 +128,16 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 			model = m.cfg.Agents.Defaults.Model
 		}
 
+		// Phase 7 chat quality: new agents inherit the configured default
+		// reasoning effort (agents.reasoning_default, default "auto") when the
+		// request omits BOTH reasoning_config and thinking_level. Explicit
+		// request values always win; "inherit" stamps nothing. Legacy agents
+		// are never touched — this runs at creation time only.
+		thinkingLevel := params.ThinkingLevel
+		if thinkingLevel == "" {
+			thinkingLevel = defaultThinkingLevelForNewAgent(m.cfg, params.ReasoningConfig)
+		}
+
 		// Phase 4: enforce tenant policy — resource cap + provider/model allowlist.
 		if m.policyStore != nil {
 			if fail := checkTenantLimit(ctx, m.policyStore, tenantID, func(ctx context.Context) error {
@@ -142,28 +153,28 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 		}
 
 		agentData := &store.AgentData{
-			AgentKey:         agentID,
-			DisplayName:      params.Name,
-			OwnerID:          ownerID,
-			TenantID:         tenantID,
-			AgentType:        agentType,
-			Provider:         provider,
-			Model:            model,
-			Workspace:        ws,
-			ContextWindow:     params.ContextWindow,
-			MaxToolIterations: params.MaxToolIterations,
-			BudgetMonthlyCents: params.BudgetCents,
-			Status:           store.AgentStatusActive,
-			ToolsConfig:      params.ToolsConfig,
-			SubagentsConfig:  params.SubagentsConfig,
-			SandboxConfig:    params.SandboxConfig,
-			MemoryConfig:     params.MemoryConfig,
-			CompactionConfig: params.CompactionConfig,
-			ContextPruning:   params.ContextPruning,
+			AgentKey:            agentID,
+			DisplayName:         params.Name,
+			OwnerID:             ownerID,
+			TenantID:            tenantID,
+			AgentType:           agentType,
+			Provider:            provider,
+			Model:               model,
+			Workspace:           ws,
+			ContextWindow:       params.ContextWindow,
+			MaxToolIterations:   params.MaxToolIterations,
+			BudgetMonthlyCents:  params.BudgetCents,
+			Status:              store.AgentStatusActive,
+			ToolsConfig:         params.ToolsConfig,
+			SubagentsConfig:     params.SubagentsConfig,
+			SandboxConfig:       params.SandboxConfig,
+			MemoryConfig:        params.MemoryConfig,
+			CompactionConfig:    params.CompactionConfig,
+			ContextPruning:      params.ContextPruning,
 			OtherConfig:         params.OtherConfig,
 			Emoji:               params.Emoji,
 			AgentDescription:    params.AgentDescription,
-			ThinkingLevel:       params.ThinkingLevel,
+			ThinkingLevel:       thinkingLevel,
 			MaxTokens:           params.MaxTokens,
 			SelfEvolve:          params.SelfEvolve,
 			SkillEvolve:         params.SkillEvolve,
@@ -207,4 +218,18 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 		"workspace": ws,
 	}))
 	emitAudit(m.eventBus, client, "agent.created", "agent", agentID)
+}
+
+// defaultThinkingLevelForNewAgent returns the reasoning effort stamped on a
+// newly created agent when the request omits both reasoning_config (JSONB,
+// non-trivial payload) and thinking_level. Returns "" when nothing should be
+// stamped ("inherit", or an explicit reasoning_config in the request).
+func defaultThinkingLevelForNewAgent(cfg *config.Config, reasoningConfig json.RawMessage) string {
+	if len(reasoningConfig) > 2 && strings.TrimSpace(string(reasoningConfig)) != "null" {
+		return "" // advanced reasoning config wins; don't double-stamp
+	}
+	if def := cfg.AgentReasoningDefault(); def != "inherit" {
+		return def
+	}
+	return ""
 }

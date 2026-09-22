@@ -519,6 +519,7 @@ type DatabaseConfig struct {
 type SkillsConfig struct {
 	StorageDir      string                  `json:"storage_dir,omitempty"`        // directory for skill content (default: dataDir/skills-store/)
 	MaxUploadSizeMB int                     `json:"max_upload_size_mb,omitempty"` // per-file ZIP upload limit
+	SeedMode        string                  `json:"seed_mode,omitempty"`          // startup seeding: all|core|none (empty = all; env GOCLAW_SKILLS_SEED_MODE overrides)
 	SlashCommands   SkillSlashCommandConfig `json:"slash_commands"`
 }
 
@@ -620,6 +621,12 @@ type BindingPeer struct {
 type AgentsConfig struct {
 	Defaults AgentDefaults        `json:"defaults"`
 	List     map[string]AgentSpec `json:"list,omitempty"`
+	// ReasoningDefault is the reasoning effort stamped on NEW agents created
+	// via agents.create when the request omits both reasoning_config and
+	// thinking_level. Values: inherit|off|low|medium|high|auto. Empty resolves
+	// to "auto" (see Config.AgentReasoningDefault); "inherit" stamps nothing,
+	// preserving the pre-Phase-7 behavior. Existing agents are never touched.
+	ReasoningDefault string `json:"reasoning_default,omitempty"`
 }
 
 // AgentDefaults are default settings for all agents.
@@ -998,6 +1005,11 @@ type SubagentDefinition struct {
 	AllowedTools   []string `json:"allowedTools,omitempty"`   // exact tool names; empty = all (deny lists still apply)
 	SystemPrompt   string   `json:"systemPrompt,omitempty"`   // replaces the default subagent context prompt
 	InjectAgentsMd bool     `json:"injectAgentsMd,omitempty"` // prepend the workspace AGENTS.md content
+	// Optional LLM parameter overrides. Nil/empty means "inherit the parent
+	// agent's effective config" (Phase 7 chat-quality work). JSONB, no migration.
+	MaxTokens     *int     `json:"maxTokens,omitempty"`     // max_tokens override (>0 required to apply)
+	Temperature   *float64 `json:"temperature,omitempty"`   // temperature override
+	ThinkingLevel string   `json:"thinkingLevel,omitempty"` // reasoning effort override (off|low|medium|high)
 }
 
 // AgentSpec is the per-agent configuration override.

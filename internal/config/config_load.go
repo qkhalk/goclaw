@@ -77,6 +77,7 @@ func Default() *Config {
 	return &Config{
 		DataDir: "~/.goclaw/data",
 		Agents: AgentsConfig{
+			ReasoningDefault: DefaultReasoningEffort,
 			Defaults: AgentDefaults{
 				Workspace:           "~/.goclaw/workspace",
 				RestrictToWorkspace: true,
@@ -512,6 +513,31 @@ func (c *Config) WorkspacePath() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return ExpandHome(c.Agents.Defaults.Workspace)
+}
+
+// AgentReasoningDefault returns the normalized agents.reasoning_default value
+// used when creating NEW agents whose request omits a reasoning setting.
+// Empty resolves to DefaultReasoningEffort ("auto"); unknown values normalize
+// to "inherit" so a config typo never silently enables paid reasoning on new
+// agents; "inherit" means "stamp nothing".
+func (c *Config) AgentReasoningDefault() string {
+	c.mu.RLock()
+	raw := c.Agents.ReasoningDefault
+	c.mu.RUnlock()
+	return NormalizeReasoningDefault(raw)
+}
+
+// NormalizeReasoningDefault canonicalizes an agents.reasoning_default value.
+func NormalizeReasoningDefault(value string) string {
+	v := strings.ToLower(strings.TrimSpace(value))
+	switch v {
+	case "":
+		return DefaultReasoningEffort
+	case "inherit", "off", "low", "medium", "high", "auto":
+		return v
+	default:
+		return "inherit"
+	}
 }
 
 // ResolveAgent returns the effective config for a given agent ID,
