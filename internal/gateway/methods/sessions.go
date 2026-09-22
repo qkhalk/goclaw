@@ -37,6 +37,8 @@ func (m *SessionsMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodSessionsReset, m.handleReset)
 	router.Register(protocol.MethodSessionsCompact, m.handleCompact)
 	router.Register(protocol.MethodSessionsBranch, m.handleBranch)
+	router.Register(protocol.MethodSessionsArchive, m.handleArchive)
+	router.Register(protocol.MethodSessionsRestore, m.handleRestore)
 }
 
 type sessionsListParams struct {
@@ -44,6 +46,10 @@ type sessionsListParams struct {
 	Channel string `json:"channel"` // optional: filter by channel prefix ("ws", "telegram")
 	Limit   int    `json:"limit"`
 	Offset  int    `json:"offset"`
+	// IncludeArchived lifts the default archived_at IS NULL filter so the
+	// archived sidebar section can list hidden sessions too (rows then carry
+	// archivedAt for client-side splitting). Default false = hide archived.
+	IncludeArchived bool `json:"includeArchived"`
 }
 
 func (m *SessionsMethods) handleList(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
@@ -57,11 +63,12 @@ func (m *SessionsMethods) handleList(ctx context.Context, client *gateway.Client
 	}
 
 	opts := store.SessionListOpts{
-		AgentID:  params.AgentID,
-		Channel:  params.Channel,
-		Limit:    params.Limit,
-		Offset:   params.Offset,
-		TenantID: store.TenantIDFromContext(ctx),
+		AgentID:         params.AgentID,
+		Channel:         params.Channel,
+		Limit:           params.Limit,
+		Offset:          params.Offset,
+		TenantID:        store.TenantIDFromContext(ctx),
+		IncludeArchived: params.IncludeArchived,
 	}
 	// Role-based filtering: admins/owners see all sessions; regular users see only their own.
 	// Tenant scope is always applied above — admin sees all sessions within the tenant.
@@ -208,6 +215,83 @@ func (m *SessionsMethods) handleDelete(ctx context.Context, client *gateway.Clie
 		"ok": true,
 	}))
 	emitAudit(m.eventBus, client, "session.deleted", "session", params.Key)
+}
+
+// handleArchive soft-hides a session from default listings (sessions.archived_at
+// stamped; messages untouched). Ownership mirrors handleDelete exactly: admins
+// and configured owners see all sessions, otherwise only the session's user.
+func (m *SessionsMethods) handleArchive(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	var params sessionKeyParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidJSON)))
+		return
+	}
+
+	if !canSeeAll(client.Role(), m.cfg.Gateway.OwnerIDs, client.UserID()) {
+		sess := m.sessions.Get(ctx, params.Key)
+		if sess == nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "session", params.Key)))
+			return
+		}
+		if sess.UserID != client.UserID() {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "session")))
+			return
+		}
+	}
+
+	archivist, ok := m.sessions.(store.SessionArchiveStore)
+	if !ok {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgInvalidRequest, "session archiving unavailable")))
+		return
+	}
+	if err := archivist.ArchiveSession(ctx, params.Key); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		return
+	}
+
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
+		"ok": true,
+	}))
+	emitAudit(m.eventBus, client, "session.archived", "session", params.Key)
+}
+
+// handleRestore un-hides an archived session (sessions.archived_at cleared).
+// Ownership mirrors handleDelete exactly.
+func (m *SessionsMethods) handleRestore(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	var params sessionKeyParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidJSON)))
+		return
+	}
+
+	if !canSeeAll(client.Role(), m.cfg.Gateway.OwnerIDs, client.UserID()) {
+		sess := m.sessions.Get(ctx, params.Key)
+		if sess == nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "session", params.Key)))
+			return
+		}
+		if sess.UserID != client.UserID() {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "session")))
+			return
+		}
+	}
+
+	archivist, ok := m.sessions.(store.SessionArchiveStore)
+	if !ok {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgInvalidRequest, "session archiving unavailable")))
+		return
+	}
+	if err := archivist.RestoreSession(ctx, params.Key); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		return
+	}
+
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
+		"ok": true,
+	}))
+	emitAudit(m.eventBus, client, "session.restored", "session", params.Key)
 }
 
 // cliSessionReset clears the Claude CLI-backed session for a key. It is a

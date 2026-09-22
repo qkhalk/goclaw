@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 89
+const SchemaVersion = 90
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -1678,6 +1678,12 @@ CREATE INDEX IF NOT EXISTS idx_video_jobs_expires
 );
 CREATE INDEX IF NOT EXISTS idx_mcp_installed_packages_tenant
 	ON mcp_installed_packages (tenant_id);`,
+
+	// Version 89 → 90: session archive (platform expansion Phase 8; PG 000128).
+	// Soft-hide marker for finished chats: default session listings filter
+	// `archived_at IS NULL`; messages/metadata stay untouched. Key is the
+	// SOURCE version: applied when upgrading from 89 to reach SchemaVersion 90.
+	89: `ALTER TABLE sessions ADD COLUMN archived_at TEXT;`,
 }
 
 // usageCapTablesMigration is the SQLite incremental migration for schema v66 → v67.
@@ -2454,6 +2460,11 @@ func idempotentColumnMigration(version int) (string, string, bool) {
 		return "webhook_calls", "last_heartbeat_at", true
 	case 55:
 		return "mcp_servers", "require_user_credentials", true
+	case 89:
+		// Session archive column (PG 000128). Guarded so test DBs built from
+		// the full schema.sql with the version rewound (openTestDBAtVersion)
+		// don't fail on duplicate column.
+		return "sessions", "archived_at", true
 	default:
 		return "", "", false
 	}

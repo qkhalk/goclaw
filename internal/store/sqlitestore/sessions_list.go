@@ -42,6 +42,12 @@ func buildSessionFilter(opts store.SessionListOpts, tableAlias string) (string, 
 	if opts.TokenFilter {
 		conditions = append(conditions, "("+prefix+"input_tokens > 0 OR "+prefix+"output_tokens > 0)")
 	}
+	// Default: hide archived sessions (session archive phase). Callers that
+	// need the full set — the archived sidebar section, usage rollups — pass
+	// IncludeArchived=true and filter/split client-side via ArchivedAt.
+	if !opts.IncludeArchived {
+		conditions = append(conditions, prefix+"archived_at IS NULL")
+	}
 
 	if len(conditions) == 0 {
 		return "", nil
@@ -124,7 +130,7 @@ func (s *SQLiteSessionStore) ListPaged(ctx context.Context, opts store.SessionLi
 	}
 
 	// Use json_array_length (SQLite built-in) instead of jsonb_array_length.
-	selectQ := fmt.Sprintf(`SELECT session_key, json_array_length(messages), created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}')
+	selectQ := fmt.Sprintf(`SELECT session_key, json_array_length(messages), created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}'), archived_at
 		FROM sessions%s ORDER BY updated_at DESC LIMIT ? OFFSET ?`, where)
 	selectArgs := append(append([]any{}, whereArgs...), limit, offset)
 
@@ -141,7 +147,8 @@ func (s *SQLiteSessionStore) ListPaged(ctx context.Context, opts store.SessionLi
 		stCreated, stUpdated := scanTimePair()
 		var label, channel, userID *string
 		var metaJSON []byte
-		if err := rows.Scan(&key, &msgCount, stCreated, stUpdated, &label, &channel, &userID, &metaJSON); err != nil {
+		var archivedAt nullSqliteTime
+		if err := rows.Scan(&key, &msgCount, stCreated, stUpdated, &label, &channel, &userID, &metaJSON, &archivedAt); err != nil {
 			continue
 		}
 		var meta map[string]string
@@ -157,6 +164,7 @@ func (s *SQLiteSessionStore) ListPaged(ctx context.Context, opts store.SessionLi
 			Channel:      derefStr(channel),
 			UserID:       derefStr(userID),
 			Metadata:     meta,
+			ArchivedAt:   archivedAtPtr(archivedAt),
 		})
 	}
 	if result == nil {
@@ -191,7 +199,8 @@ func (s *SQLiteSessionStore) ListPagedRich(ctx context.Context, opts store.Sessi
 		  length(s.messages) / 4 + 12000
 		),
 		COALESCE(a.context_window, 200000),
-		s.compaction_count`
+		s.compaction_count,
+		s.archived_at`
 
 	selectQ := fmt.Sprintf(`SELECT %s
 		FROM sessions s LEFT JOIN agents a ON s.agent_id = a.id
@@ -215,9 +224,10 @@ func (s *SQLiteSessionStore) ListPagedRich(ctx context.Context, opts store.Sessi
 		var inputTokens, outputTokens int64
 		var agentName string
 		var estimatedTokens, contextWindow, compactionCount int
+		var archivedAt nullSqliteTime
 		if err := rows.Scan(&key, &msgCount, stCreated, stUpdated, &label, &channel, &userID, &metaJSON,
 			&model, &provider, &inputTokens, &outputTokens, &agentName,
-			&estimatedTokens, &contextWindow, &compactionCount); err != nil {
+			&estimatedTokens, &contextWindow, &compactionCount, &archivedAt); err != nil {
 			continue
 		}
 		var meta map[string]string
@@ -234,6 +244,7 @@ func (s *SQLiteSessionStore) ListPagedRich(ctx context.Context, opts store.Sessi
 				Channel:      derefStr(channel),
 				UserID:       derefStr(userID),
 				Metadata:     meta,
+				ArchivedAt:   archivedAtPtr(archivedAt),
 			},
 			Model:           derefStr(model),
 			Provider:        derefStr(provider),
