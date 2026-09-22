@@ -3,7 +3,6 @@
     "core": "Основное",
     "conversations": "Беседы",
     "cloud": "Облака",
-    "tools": "Инструменты",
     "connectivity": "Подключения",
     "capabilities": "Возможности",
     "data": "Данные",
@@ -49,10 +48,6 @@
     "tenants": "Арендаторы",
     "backupRestore": "Резервное копирование и восстановление",
     "workstations": "Рабочие станции",
-    "cloud": "Облака",
-    "videoEditor": "Видеоредактор",
-    "watermarkRemover": "Удаление водяных знаков",
-    "pptxStudio": "PPTX Студия",
-    "store": "Магазин"
+    "cloud": "Облака"
   }
 }

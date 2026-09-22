@@ -142,6 +142,10 @@
     "noResults": "没有匹配的命令或技能",
     "gcHint": "GoClaw 工作流命令"
   },
+  "sessionCommand": {
+    "clear": "清空全部会话历史（重新开始）",
+    "compact": "压缩历史 — 仅保留最近几条消息"
+  },
   "composer": {
     "provider": "提供商",
     "providerDefault": "代理默认",

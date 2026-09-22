@@ -9,6 +9,10 @@ interface UseChatSendOptions {
   agentId: string;
   onMessageAdded: (msg: ChatMessage, sessionKey?: string) => void;
   onExpectRun: () => void;
+  /** /clear succeeded — drop the local message list for the session. */
+  onHistoryCleared?: (sessionKey: string) => void;
+  /** /compact succeeded — reload history from the server (truncated). */
+  onHistoryReloaded?: (sessionKey: string) => void;
 }
 
 interface MediaUploadResponse {
@@ -25,6 +29,8 @@ export function useChatSend({
   agentId,
   onMessageAdded,
   onExpectRun,
+  onHistoryCleared,
+  onHistoryReloaded,
 }: UseChatSendOptions) {
   const { t } = useTranslation("chat");
   const ws = useWs();
@@ -43,6 +49,29 @@ export function useChatSend({
       if ((!hasMessage && !hasFiles) || !sessionKey) return;
 
       const trimmed = message.trim();
+
+      // Session control commands (Claude Code-style). Executed client-side
+      // against sessions.reset / sessions.compact — never sent to the LLM.
+      // Bare command only: "/clear extra text" stays a normal message.
+      if (!hasFiles && (trimmed === "/clear" || trimmed === "/compact")) {
+        setError(null);
+        setSending(true);
+        try {
+          if (trimmed === "/clear") {
+            await ws.call(Methods.SESSIONS_RESET, { key: sessionKey });
+            onHistoryCleared?.(sessionKey);
+          } else {
+            await ws.call(Methods.SESSIONS_COMPACT, { key: sessionKey });
+            onHistoryReloaded?.(sessionKey);
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : `Failed to run ${trimmed}`);
+        } finally {
+          setSending(false);
+        }
+        return;
+      }
+
       setError(null);
       setSending(true);
 
@@ -111,7 +140,7 @@ export function useChatSend({
         setSending(false);
       }
     },
-    [ws, http, agentId, onMessageAdded, onExpectRun],
+    [ws, http, agentId, onMessageAdded, onExpectRun, onHistoryCleared, onHistoryReloaded],
   );
 
   const abort = useCallback(

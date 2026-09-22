@@ -142,6 +142,10 @@
     "noResults": "No matching commands or skills",
     "gcHint": "GoClaw workflow commands"
   },
+  "sessionCommand": {
+    "clear": "Clear the whole conversation history (fresh start)",
+    "compact": "Compact history — keep only the last few messages"
+  },
   "composer": {
     "provider": "Provider",
     "providerDefault": "Agent provider",

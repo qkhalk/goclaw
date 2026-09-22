@@ -40,6 +40,13 @@ interface PaletteItem {
  * doctor, approve) were removed — they have dedicated pages (/runs, /approvals)
  * and the palette only inserts text; it cannot execute anything.
  */
+/** Client-executed session commands — handled in use-chat-send before the
+ * message ever reaches chat.send (sessions.reset / sessions.compact). */
+const SESSION_COMMANDS: Array<{ token: string }> = [
+  { token: "clear" },
+  { token: "compact" },
+];
+
 const GC_COMMANDS: Array<{ kind: string }> = [
   { kind: "plan" },
   { kind: "fix" },
@@ -53,7 +60,13 @@ const GC_COMMANDS: Array<{ kind: string }> = [
   { kind: "mission" },
 ];
 
-function buildItems(skills: SkillInfo[], describe: (kind: string) => string): PaletteItem[] {
+function buildItems(skills: SkillInfo[], describe: (kind: string) => string, describeSession: (token: string) => string): PaletteItem[] {
+  const sessionCommands: PaletteItem[] = SESSION_COMMANDS.map(({ token }) => ({
+    token,
+    label: `/${token}`,
+    description: describeSession(token),
+    badge: "session",
+  }));
   const commands: PaletteItem[] = GC_COMMANDS.map(({ kind }) => ({
     token: `gc:${kind}`,
     label: `/gc:${kind}`,
@@ -68,7 +81,7 @@ function buildItems(skills: SkillInfo[], describe: (kind: string) => string): Pa
       description: s.description,
       name: s.name,
     }));
-  return [...commands, ...skillItems];
+  return [...sessionCommands, ...commands, ...skillItems];
 }
 
 function filterItems(items: PaletteItem[], query: string): PaletteItem[] {
@@ -102,7 +115,10 @@ export function CommandPalette({ open, query, onSelect, onClose }: CommandPalett
   });
 
   const items = useMemo(
-    () => filterItems(buildItems(skills, (kind) => t(`command.${kind}`)), query),
+    () => filterItems(
+        buildItems(skills, (kind) => t(`command.${kind}`), (token) => t(`sessionCommand.${token}`)),
+        query,
+      ),
     [skills, query, t],
   );
   const clampedIndex = Math.min(activeIndex, Math.max(items.length - 1, 0));

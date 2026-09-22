@@ -187,7 +187,8 @@ export interface CloudFileEntry {
 export interface CloudStatus {
   enabled: boolean;
   edition: string;
-  providers: Partial<Record<CloudProvider, { configured: boolean }>>;
+  /** GET /v1/cloud/status returns provider → configured as a flat boolean map. */
+  providers: Partial<Record<CloudProvider, boolean>>;
 }
 
 export interface CloudStartResponse {

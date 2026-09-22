@@ -164,7 +164,7 @@ export function CloudPage() {
 
   // Credential providers are always "configured" server-side (no app
   // registration); OAuth providers report their credential state.
-  const isConfigured = (p: CloudProvider) => cloudStatus?.providers?.[p]?.configured ?? false;
+  const isConfigured = (p: CloudProvider) => cloudStatus?.providers?.[p] ?? false;
   const providersReady = CLOUD_PROVIDERS.filter((p) => isConfigured(p.id)).length;
   const activeAccounts = accounts.filter((a) => a.status === "active").length;
 

@@ -102,6 +102,8 @@ export function ChatPage() {
     teamTasks,
     expectRun,
     addLocalMessage,
+    loadHistory,
+    replaceAllMessages,
   } = useChatMessages(sessionKey, agentId);
 
   // Refresh sessions when all work completes (main agent + team tasks)
@@ -126,6 +128,10 @@ export function ChatPage() {
     agentId,
     onMessageAdded: handleMessageAdded,
     onExpectRun: expectRun,
+    // /clear wipes the local list (server history already reset);
+    // /compact reloads the truncated history from the server.
+    onHistoryCleared: (key) => replaceAllMessages(key, []),
+    onHistoryReloaded: () => { void loadHistory(); },
   });
 
   const handleNewChat = useCallback(() => {
