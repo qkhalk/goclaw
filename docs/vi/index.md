@@ -6,7 +6,7 @@ hero:
   text: Nền tảng AI Agent đa thuê
   tagline: Multi-agent AI gateway viết bằng Go. Hơn 40 nhà cung cấp LLM, 10 kênh nhắn tin, PostgreSQL đa thuê. Một binary duy nhất, đã kiểm chứng thực tế — agent tự điều phối và tự tạo slide, video, hình ảnh cho bạn.
   image:
-    src: /logo.svg
+    src: /goclaw-hero.svg
     alt: GoClaw
   actions:
     - theme: brand
@@ -20,32 +20,23 @@ hero:
       link: https://github.com/qkhalk/goclaw
 
 features:
-  - icon: 🧠
-    title: Pipeline Agent 8 tầng
+  - title: Pipeline Agent 8 tầng
     details: context → history → prompt → think → act → observe → memory → summarize. Tầng cắm được (pluggable), luôn chạy, hệ thống prompt 4 chế độ tối ưu ranh giới cache.
-  - icon: 🗂️
-    title: Bộ nhớ 3 tầng
+  - title: Bộ nhớ 3 tầng
     details: Working (hội thoại) → Episodic (tóm tắt phiên) → Semantic (knowledge graph), nạp tiến triển theo mức, kèm Knowledge Vault với tài liệu liên kết [[wikilink]].
-  - icon: 🔌
-    title: Hơn 40 nhà cung cấp LLM
+  - title: Hơn 40 nhà cung cấp LLM
     details: "Anthropic, OpenAI, OpenRouter, Groq, DeepSeek, Gemini, Mistral, xAI, DashScope và mọi endpoint tương thích OpenAI — cùng đăng ký OAuth: ChatGPT, Claude Pro/Max, GitHub Copilot."
-  - icon: 💬
-    title: 10 kênh nhắn tin
+  - title: 10 kênh nhắn tin
     details: Telegram (inline picker, skill phân trang, lệnh bản địa hóa), Discord, Slack, Facebook/Messenger, Zalo, Feishu/Lark, WhatsApp, Bitrix24, Pancake.
-  - icon: 🎨
-    title: Studio sáng tạo
+  - title: Studio sáng tạo
     details: PPTX Studio xuất .pptx thật, trình chỉnh sửa video timeline kèm TTS, render video phía server bằng ffmpeg worker riêng, và công cụ xóa watermark chạy hoàn toàn trong trình duyệt.
-  - icon: 🧩
-    title: Thư viện Skill + Chợ Skill
+  - title: Thư viện Skill + Chợ Skill
     details: Hơn 110 skill sẵn có với tìm kiếm lai BM25 + ngữ nghĩa, và chợ skill — chỉ cài những gì bạn cần thay vì cả bộ.
-  - icon: 👥
-    title: Team Agent & Subagent
+  - title: Team Agent & Subagent
     details: Bảng nhiệm vụ dùng chung, ủy quyền giữa các agent (đồng bộ/bất đồng bộ), ba chế độ orchestration, và subagent có thể theo dõi, hủy, lưu trữ ngay từ chat hoặc Telegram.
-  - icon: 🔐
-    title: Bảo mật production
+  - title: Bảo mật production
     details: PostgreSQL đa thuê với RBAC, mã hóa API key AES-256-GCM, giới hạn tốc độ, phát hiện prompt injection, chống SSRF.
-  - icon: ⚡
-    title: Một binary duy nhất
+  - title: Một binary duy nhất
     details: Binary Go tĩnh ~25 MB, không cần Node.js runtime, khởi động dưới 1 giây, chạy được trên VPS 5 đô. Có phiên bản desktop dùng SQLite.
 ---
 
