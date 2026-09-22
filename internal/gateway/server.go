@@ -921,8 +921,6 @@ func (s *Server) SetRestoreHandler(h *httpapi.RestoreHandler) { s.handlers = app
 // SetBackupS3Handler sets the S3 backup integration handler.
 func (s *Server) SetBackupS3Handler(h *httpapi.BackupS3Handler) { s.handlers = append(s.handlers, h) }
 
-// SetBackupScheduleHandler sets the scheduled-backup handler.
-func (s *Server) SetBackupScheduleHandler(h *httpapi.BackupScheduleHandler) { s.handlers = append(s.handlers, h) }
 
 // SetTenantBackupHandler sets the tenant-scoped backup/restore handler.
 func (s *Server) SetTenantBackupHandler(h *httpapi.TenantBackupHandler) {

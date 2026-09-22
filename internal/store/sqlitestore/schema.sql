@@ -282,7 +282,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     tenant_id                     TEXT NOT NULL REFERENCES tenants(id),
     team_id                       TEXT REFERENCES agent_teams(id) ON DELETE SET NULL,
     created_at                    TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at                    TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    updated_at                    TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    archived_at                   TEXT
 );
 
 -- tenant-scoped unique session_key (migration 27 Phase I)

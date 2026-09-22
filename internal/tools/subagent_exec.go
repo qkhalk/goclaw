@@ -280,14 +280,16 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 			return iteration
 		}
 
+		// Fresh options map per iteration (providers may mutate req.Options,
+		// e.g. DashScope deletes the thinking key), derived from the parent
+		// agent's effective config (definition overrides > parent > config
+		// defaults) — replaces the old hardcoded max_tokens=4096 /
+		// temperature=0.5 literals.
 		chatReq := providers.ChatRequest{
 			Messages: messages,
 			Tools:    toolsReg.ProviderDefs(),
 			Model:    model,
-			Options: map[string]any{
-				"max_tokens":  4096,
-				"temperature": 0.5,
-			},
+			Options:  subagentLLMOptions(task),
 		}
 
 		llmStart := time.Now().UTC()

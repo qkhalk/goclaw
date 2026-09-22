@@ -23,7 +23,7 @@ const (
 	defaultFetchMaxRedirect = 3
 	defaultErrorMaxChars    = 4000
 	fetchTimeoutSeconds     = 30
-	fetchUserAgent          = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+	fetchUserAgent          = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
 // WebFetchTool implements the web_fetch tool matching TS src/agents/tools/web-fetch.ts.
@@ -322,7 +322,6 @@ func (t *WebFetchTool) fetchRawContent(ctx context.Context, rawURL, extractMode 
 	}
 	req.Header.Set("User-Agent", fetchUserAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en,*;q=0.5")
 
 	resp, err := newWebFetchClient(pol).Do(req)
 	if err != nil {
@@ -392,21 +391,12 @@ func (t *WebFetchTool) fetchRawHTML(ctx context.Context, rawURL string, pol webF
 	}
 	req.Header.Set("User-Agent", fetchUserAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en,*;q=0.5")
 
 	resp, err := newWebFetchClient(pol).Do(req)
 	if err != nil {
 		return fetchRawResult{}, err
 	}
 	defer resp.Body.Close()
-
-	// A 403 bot-wall or 404 must not be relayed as if it were the page:
-	// surface a typed status error so both the agent result and the panel
-	// error state can say "blocked" vs "not found".
-	if resp.StatusCode >= 400 {
-		sniff, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-		return fetchRawResult{}, fmt.Errorf("http %d: %s", resp.StatusCode, strings.TrimSpace(string(sniff)))
-	}
 
 	// Relay cap: the sanitized document must stay small — the whole point of
 	// the relay is that only this one document transits the server while the

@@ -20,10 +20,11 @@ func TestEnrichImageIDs_BareTag(t *testing.T) {
 		Role:    "user",
 		Content: `check <media:image>`,
 	}}
-	refs := []providers.MediaRef{{ID: "img-1", Kind: "image", Path: "/tmp/a.jpg"}}
+	ws := t.TempDir()
+	refs := []providers.MediaRef{{ID: "img-1", Kind: "image", Path: filepath.Join(ws, "a.jpg")}}
 
 	var loop Loop
-	loop.enrichImageIDs(messages, refs, "/tmp")
+	loop.enrichImageIDs(messages, refs, ws)
 
 	got := messages[0].Content
 	want := `check <media:image id="img-1" path="a.jpg">`
@@ -80,6 +81,7 @@ func TestEnrichInputMedia_DelegateRehomesCallerAttachment(t *testing.T) {
 }
 
 func TestEnrichImageIDs_PreservesExistingTagAttributes(t *testing.T) {
+	ws := t.TempDir()
 	messages := []providers.Message{{
 		Role:    "user",
 		Content: `see this <media:image url="https://cdn.discordapp.com/attachments/1/2/photo.jpg">`,
@@ -87,11 +89,11 @@ func TestEnrichImageIDs_PreservesExistingTagAttributes(t *testing.T) {
 	refs := []providers.MediaRef{{
 		ID:   "image-1",
 		Kind: "image",
-		Path: "/tmp/photo.jpg",
+		Path: filepath.Join(ws, "photo.jpg"),
 	}}
 
 	var loop Loop
-	loop.enrichImageIDs(messages, refs, "/tmp")
+	loop.enrichImageIDs(messages, refs, ws)
 
 	got := messages[0].Content
 	if !strings.Contains(got, `url="https://cdn.discordapp.com/attachments/1/2/photo.jpg"`) {
@@ -272,17 +274,18 @@ func TestEnrichImagePaths_AttributeOrderIndependence(t *testing.T) {
 }
 
 func TestEnrichImageIDs_MultipleRefs(t *testing.T) {
+	ws := t.TempDir()
 	messages := []providers.Message{{
 		Role:    "user",
 		Content: "first <media:image>\nsecond <media:image>",
 	}}
 	refs := []providers.MediaRef{
-		{ID: "img-a", Kind: "image", Path: "/tmp/a.jpg"},
-		{ID: "img-b", Kind: "image", Path: "/tmp/b.jpg"},
+		{ID: "img-a", Kind: "image", Path: filepath.Join(ws, "a.jpg")},
+		{ID: "img-b", Kind: "image", Path: filepath.Join(ws, "b.jpg")},
 	}
 
 	var loop Loop
-	loop.enrichImageIDs(messages, refs, "/tmp")
+	loop.enrichImageIDs(messages, refs, ws)
 
 	want := `first <media:image id="img-a" path="a.jpg">` + "\n" + `second <media:image id="img-b" path="b.jpg">`
 	if messages[0].Content != want {
@@ -480,13 +483,16 @@ func TestEnrichImageIDs_MoreRefsThanTags(t *testing.T) {
 		Role:    "user",
 		Content: "only one <media:image>",
 	}}
+	// filepath.Join keeps this test cross-platform: on Windows "/tmp/a.jpg"
+	// is not absolute, so the relativization branch would never trigger.
+	ws := t.TempDir()
 	refs := []providers.MediaRef{
-		{ID: "img-a", Kind: "image", Path: "/tmp/a.jpg"},
-		{ID: "img-b", Kind: "image", Path: "/tmp/b.jpg"},
+		{ID: "img-a", Kind: "image", Path: filepath.Join(ws, "a.jpg")},
+		{ID: "img-b", Kind: "image", Path: filepath.Join(ws, "b.jpg")},
 	}
 
 	var loop Loop
-	loop.enrichImageIDs(messages, refs, "/tmp")
+	loop.enrichImageIDs(messages, refs, ws)
 
 	want := `only one <media:image id="img-a" path="a.jpg">`
 	if messages[0].Content != want {
@@ -500,12 +506,13 @@ func TestEnrichImageIDs_MoreTagsThanRefs(t *testing.T) {
 		Role:    "user",
 		Content: "first <media:image>\nsecond <media:image>",
 	}}
+	ws := t.TempDir()
 	refs := []providers.MediaRef{
-		{ID: "img-a", Kind: "image", Path: "/tmp/a.jpg"},
+		{ID: "img-a", Kind: "image", Path: filepath.Join(ws, "a.jpg")},
 	}
 
 	var loop Loop
-	loop.enrichImageIDs(messages, refs, "/tmp")
+	loop.enrichImageIDs(messages, refs, ws)
 
 	want := `first <media:image id="img-a" path="a.jpg">` + "\n" + `second <media:image>`
 	if messages[0].Content != want {

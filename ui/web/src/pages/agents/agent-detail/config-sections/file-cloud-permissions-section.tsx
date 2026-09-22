@@ -9,11 +9,9 @@ import type { AgentData } from "@/types/agent";
 /** Per-agent file/cloud capability toggles (agents.other_config.file_policy).
  * Read gates file/cloud browsing tools (list_files, read_file, cloud_ls,
  * cloud_read, cloud_fetch, cloud_about, media readers), write gates modifying
- * existing content (write_file overwrite, edit, and the cloud mutations
- * cloud_write/cloud_delete/cloud_move/cloud_share), create gates new files,
- * folders and drive copies (write_file to a new path, cloud_mkdir,
- * cloud_copy). Unset capabilities default to enabled on the backend, so the
- * UI treats a missing file_policy as all-on. */
+ * existing files (write_file overwrite, edit), create gates new files and
+ * folders. Unset capabilities default to enabled on the backend, so the UI
+ * treats a missing file_policy as all-on. */
 
 interface FilePolicyState {
   read: boolean;

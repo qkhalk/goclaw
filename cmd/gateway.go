@@ -51,8 +51,8 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/systemmessages"
-	"github.com/nextlevelbuilder/goclaw/internal/browse"
 	"github.com/nextlevelbuilder/goclaw/internal/pptx"
+	"github.com/nextlevelbuilder/goclaw/internal/browse"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
 	usagepricing "github.com/nextlevelbuilder/goclaw/internal/usage/pricing"
@@ -678,6 +678,12 @@ func runGateway() {
 	// server exists because the tool needs its browser-panel bridge.
 	browseStore := browse.NewStore()
 	webBrowseTool := tools.NewWebBrowseTool(webFetchTool, browseStore)
+	if browserMgr != nil {
+		// Headless render fallback for JS-only shells / challenge pages in the
+		// browse relay — gated on the browser tool being enabled
+		// (cfg.Tools.Browser.Enabled decides whether browserMgr exists).
+		webBrowseTool.SetPageRenderer(browserMgr)
+	}
 	webBrowseTool.SetClientInvoker(server.BrowserPanelBridge())
 	webBrowseTool.SetRelayTokenSigner(func(path string) string {
 		return httpapi.SignFileToken(path, httpapi.FileSigningKey(), httpapi.FileTokenTTL)
@@ -915,12 +921,6 @@ func runGateway() {
 	// S3 backup integration — admin + owner only.
 	server.SetBackupS3Handler(httpapi.NewBackupS3Handler(cfg, cfg.Database.PostgresDSN, Version, pgStores.ConfigSecrets, permPE.IsOwner))
 
-	// Scheduled cloud/S3 backups — ticker loop + owner-only config API.
-	backupSchedStop, backupSched := startBackupSchedule(cfg, pgStores, cloudMgr, cloudStorage)
-	if backupSched != nil {
-		defer backupSchedStop()
-		server.SetBackupScheduleHandler(httpapi.NewBackupScheduleHandler(backupSched, permPE.IsOwner))
-	}
 
 	// Tenant-scoped backup/restore — owner or tenant admin.
 	if pgStores.Tenants != nil {
@@ -938,6 +938,9 @@ func runGateway() {
 	// Node runtime (inheritance plan Phase 2): nodes.* RPC + node_exec tool.
 	wireNodeRuntime(pgStores, toolsReg, server, msgBus)
 	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Tracing, pgStores.RunTimeline, pgStores.Runs, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Approval, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, pgStores.AgentLinks, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc, providerRegistry, pgStores.Providers, teamWorkEmbedder, pgStores.Contracts, pgStores.CheckpointSnapshots, pgStores.Missions, pgStores.TenantPolicies, pgStores.TenantRoles, pgStores.NodeLeases, pgStores.Workspaces, pgStores.AgentJobs, pgStores.TaskGraph, pgStores.MemoryFabric, pgStores.Terminals, pgStores.RoutingRules, webBrowseTool, browserMgr)
+	// Subagent task surface (subagents.* RPC) — needs stores + manager that are
+	// outside registerAllMethods' parameter list; mirrors wireNodeRuntime.
+	wireSubagentMethods(cfg, server, pgStores.Agents, pgStores.SubagentTasks, subagentMgr)
 
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {

@@ -14,6 +14,10 @@
     "messages": "消息",
     "updated": "更新时间"
   },
+  "origin": {
+    "webChat": "网页聊天",
+    "videoEditor": "视频编辑器"
+  },
   "contextBar": {
     "compacted": "已压缩 {{count}} 次"
   },

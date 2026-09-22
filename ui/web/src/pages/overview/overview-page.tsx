@@ -7,13 +7,12 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuthStore } from "@/stores/use-auth-store";
-import { useUiStore } from "@/stores/use-ui-store";
 import { useWsCall } from "@/hooks/use-ws-call";
 import { useWsEvent } from "@/hooks/use-ws-event";
 import { useProviders } from "@/pages/providers/hooks/use-providers";
 import { Methods, Events } from "@/api/protocol";
 import { ROUTES } from "@/lib/constants";
-import { formatTokens, formatApiCost, resolveTimezone } from "@/lib/format";
+import { formatTokens, formatApiCost } from "@/lib/format";
 
 import type {
   HealthPayload,
@@ -29,7 +28,6 @@ import { ConnectedClientsCard } from "./connected-clients-card";
 import { RecentRequestsCard } from "./recent-requests-card";
 import { RoutingGraphCard } from "./routing-graph-card";
 import { QuotaUsageCard } from "./quota-usage-card";
-import { SystemCard } from "./system-card";
 import { useRuntimes } from "@/pages/skills/hooks/use-runtimes";
 import {
   getChannelAttentionPriority,
@@ -47,7 +45,6 @@ const MAX_OVERVIEW_CHANNEL_INSTANCES = 200;
 export function OverviewPage() {
   const { t } = useTranslation("overview");
   const connected = useAuthStore((s) => s.connected);
-  const timezone = useUiStore((s) => s.timezone);
   const { call: fetchHealth, data: health } =
     useWsCall<HealthPayload>(Methods.HEALTH);
   const { call: fetchStatus, data: status } =
@@ -73,10 +70,9 @@ export function OverviewPage() {
   const fetchAll = useCallback(() => {
     fetchHealth();
     fetchStatus();
-    // Server counts "today" from the user's local midnight, not UTC
-    fetchQuota({ tz: resolveTimezone(timezone) });
+    fetchQuota();
     fetchChannels();
-  }, [fetchHealth, fetchStatus, fetchQuota, fetchChannels, timezone]);
+  }, [fetchHealth, fetchStatus, fetchQuota, fetchChannels]);
 
   useEffect(() => {
     if (!connected) return;
@@ -253,36 +249,35 @@ export function OverviewPage() {
             />
           </div>
 
-          {/* Surface topology (9router-style) + live Recent Requests */}
+          {/* System Health + Connected Clients */}
           <div className="grid gap-4 lg:grid-cols-5">
             <div className="lg:col-span-3">
-              <RoutingGraphCard
+              <SystemHealthCard
+                health={health}
+                liveUptime={liveUptime}
+                enabledProviderCount={enabledProviders.length}
+                sessions={status?.sessions ?? 0}
+                clientCount={clientList.length}
                 channelEntries={channelEntries}
+                runtimeEntries={runtimes?.runtimes}
               />
             </div>
             <div className="lg:col-span-2">
-              <RecentRequestsCard />
+              <ConnectedClientsCard
+                clients={clientList}
+                currentId={health?.currentId}
+              />
             </div>
           </div>
 
-          {/* System Health */}
-          <SystemHealthCard
-            health={health}
-            liveUptime={liveUptime}
-            enabledProviderCount={enabledProviders.length}
-            sessions={status?.sessions ?? 0}
-            clientCount={clientList.length}
-            channelEntries={channelEntries}
-            runtimeEntries={runtimes?.runtimes}
-          />
-
-          {/* Host system (CPU/mem/disk) + Connected Clients */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <SystemCard />
-            <ConnectedClientsCard
-              clients={clientList}
-              currentId={health?.currentId}
-            />
+          {/* Routing graph + Recent Requests (9router-style dashboard) */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-2">
+              <RoutingGraphCard />
+            </div>
+            <div className="lg:col-span-3">
+              <RecentRequestsCard />
+            </div>
           </div>
 
           {/* Quota Usage */}

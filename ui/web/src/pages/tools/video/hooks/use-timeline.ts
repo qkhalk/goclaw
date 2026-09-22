@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { SceneTransition } from "../components/scene-transition";
 
 // ── Types (matching storyboard types) ──
@@ -12,108 +12,26 @@ interface Caption {
   text: string;
   position?: "top" | "center" | "bottom";
   font_size?: number;
-  /** Visual style: "" plain | chip | mono — mirrored by preview + server. */
-  style?: "" | "chip" | "mono";
 }
-/** One timed overlay inside a scene — mirrors internal/video.Layer (Go).
- * Geometry is normalized 0..1 (top-left origin); a layer is visible while
- * start <= t < start+duration (duration 0 = until the scene ends).
- * The motion kinds (counter/toggle_grid/compare_bars/stack/stamp/cta) and
- * their fields mirror contract.Layer in the worker — the same formulas run
- * in the browser painter (render-shared.ts) and the ffmpeg burn-in. */
-export interface Layer {
-  kind:
-    | "text"
-    | "shape"
-    | "image"
-    | "icon"
-    | "card"
-    | "counter"
-    | "toggle_grid"
-    | "compare_bars"
-    | "stack"
-    | "stamp"
-    | "cta";
-  text?: string;
-  source?: string;
-  shape?: string; // "rect"
-  icon?: string; // icon layers: one of FEATHER_ICONS
-  anim?: "" | "fade" | "up" | "down" | "left" | "right" | "pop";
-  font?: "" | "body" | "display" | "mono"; // text layers
-  chip?: boolean; // icon layers: tinted tile behind the glyph
-  border?: boolean; // card layers: contrast edge ring
-  radius?: number; // card corner radius, 0..0.2 of canvas width
-  start?: number;
-  duration?: number;
-  x?: number;
-  y?: number;
-  w?: number;
-  h?: number;
-  fill?: string;
-  opacity?: number;
-  font_size?: number;
-  align?: "left" | "center" | "right";
-  // ── Motion-layer primitives (multi-form engine), all optional ──
-  highlights?: { word: string; color: string }[]; // text layers: colored keywords (case-sensitive)
-  from?: number; // counter: start value
-  to?: number; // counter: count-up target (> from)
-  suffix?: string; // counter: appended after the animated value
-  decimals?: number; // counter: 0..2 decimal places
-  cols?: number; // toggle_grid: 1..4 (default 3)
-  rows?: number; // toggle_grid: 1..4 (default 3)
-  cadence?: number; // toggle_grid: flip period seconds, 0.2..2 (default 0.6)
-  label_a?: string; // compare_bars: first row label
-  label_b?: string; // compare_bars: second row label
-  width_a?: number; // compare_bars: bar A width 0..1 (default 0.62)
-  width_b?: number; // compare_bars: bar B width 0..1 (default 0.38)
-  fill_b?: string; // secondary color (off cells / bar B / stack gradient end / cta end)
-  n?: number; // stack: slab count 1..6 (default 3)
-  labels?: string[]; // stack: optional per-slab labels
-  angle?: number; // stamp: rotation degrees -30..30 (default -8)
-}
-
-/** The embedded icon set — mirrors contract.ValidIcons in the worker (the
- * golden fixture test keeps the two packages honest; this mirrors both). */
-export const FEATHER_ICONS = [
-  "check", "zap", "users", "user", "cpu", "database", "git-branch",
-  "globe", "heart", "star", "trending-up", "shield", "layers", "code",
-  "terminal", "book-open", "message-circle", "clock", "eye", "lock",
-  "package", "settings", "bar-chart-2", "arrow-right", "download", "play",
-  "target", "search", "calendar", "camera", "music", "wifi", "cloud",
-  "coffee",
-] as const;
-
 export interface Scene {
-  type: "image" | "video" | "color";
+  /** `icon` scenes are browser-only: the canvas preview and client export
+   * draw them, the server renderer does not (see render-panel warning). */
+  type: "image" | "video" | "color" | "icon";
   source?: string;
   color?: string;
-  /** Color scenes: second gradient stop — empty = darker shade of color
-   * (mirrors the server's gradients c0/c1 derivation). */
-  color2?: string;
-  /** Color scenes: faint blueprint grid overlay (server drawgrid). */
-  grid?: boolean;
-  /** Color scenes: drifting radial glow orbs tinted with this color
-   * (server overlay PNGs, visual v2). */
-  glow?: string;
-  /** Darkened frame edges (server vignette filter, visual v2). */
-  vignette?: boolean;
-  /** Subtle animated film grain — server render only, preview skips. */
-  grain?: boolean;
-  /** Scene-level look preset: tech_dark (the default dark look), neon_lab,
-   * paper_light, bold_red. Expands to color/color2/grid (color scenes) and
-   * glow (all scenes), plus the default text/accent colors of layers that
-   * don't set fill. Empty = no pack. */
-  style_pack?: "" | "tech_dark" | "neon_lab" | "paper_light" | "bold_red";
+  /** Optional two-stop background gradient (browser-only; the server render
+   * falls back to the flat `color`). */
+  gradient?: { from: string; to: string };
+  /** Icon-scene glyph: a bundled line icon, optionally tinted. */
+  icon?: { name: string; color?: string };
   duration_sec: number;
   fit?: "cover" | "contain";
   mute?: boolean;
   ken_burns?: KenBurns;
   caption?: Caption;
   narration?: string;
-  /** Per-scene TTS voice override (edge-tts id); empty = storyboard default. */
-  narration_voice?: string;
-  /** How this scene ENTERS — browser preview, client export, and the server
-   * render (xfade) all honor it. */
+  /** How this scene ENTERS (browser preview + client export; the server
+   * render pipeline ignores it and cuts hard). */
   transition?: SceneTransition;
   /** OpenCut-style per-scene transform (image/video scenes): scale multiple
    * around the frame center, x/y offset in % of frame size, rotation in
@@ -132,16 +50,6 @@ export interface Scene {
     saturate?: number;
     blur?: number;
   };
-  /** Timed overlays drawn on the base visual (and under the caption), in
-   * array order. Rendered by the browser preview AND the server worker. */
-  layers?: Layer[];
-}
-
-/** Resolve a layer's visible window within its scene (duration 0 = to end). */
-export function layerWindow(l: Layer, sceneSec: number): { start: number; end: number } {
-  const start = Math.max(0, l.start ?? 0);
-  const end = start + (l.duration && l.duration > 0 ? l.duration : sceneSec - start);
-  return { start, end };
 }
 
 const MAX_HISTORY = 50;
@@ -162,10 +70,6 @@ export interface UseTimelineReturn {
   removeScene: (index: number) => void;
   moveScene: (from: number, to: number) => void;
   updateScene: (index: number, patch: Partial<Scene>) => void;
-  addLayer: (sceneIndex: number, layer: Layer) => void;
-  updateLayer: (sceneIndex: number, layerIndex: number, patch: Partial<Layer>) => void;
-  removeLayer: (sceneIndex: number, layerIndex: number) => void;
-  moveLayer: (sceneIndex: number, layerIndex: number, dir: -1 | 1) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -173,18 +77,37 @@ export interface UseTimelineReturn {
   replaceScenes: (scenes: Scene[]) => void;
 }
 
-export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
+export interface TimelineMetaSync {
+  /** Read the editor's current storyboard meta (canvas/audio/output). */
+  getMeta?: () => unknown;
+  /** Restore storyboard meta during undo/redo when the entry carries one. */
+  setMeta?: (meta: unknown) => void;
+}
+
+interface HistoryEntry {
+  scenes: Scene[];
+  /** Meta snapshot at the time this entry was recorded (undo/redo restore). */
+  meta?: unknown;
+}
+
+export function useTimeline(initialScenes?: Scene[], metaSync?: TimelineMetaSync): UseTimelineReturn {
+  const metaSyncRef = useRef(metaSync);
+  metaSyncRef.current = metaSync;
   const [scenes, setScenes] = useState<Scene[]>(() => initialScenes ?? [emptyScene()]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [history, setHistory] = useState<Scene[][]>(() => [initialScenes ?? [emptyScene()]]);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => [
+    { scenes: initialScenes ?? [emptyScene()], meta: metaSyncRef.current?.getMeta?.() },
+  ]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
   /** Record the next state: drop any redo tail, append, cap the stack.
-   * Pure updater — no side effects (React may double-invoke updaters). */
+   * Pure updater — no side effects (React may double-invoke updaters). The
+   * current storyboard meta rides along so undo/redo can restore it. */
   const pushHistory = useCallback((next: Scene[]) => {
+    const entry: HistoryEntry = { scenes: next, meta: metaSyncRef.current?.getMeta?.() };
     setHistory((prev) => {
       const trimmed = prev.slice(0, historyIndex + 1);
-      trimmed.push(next);
+      trimmed.push(entry);
       if (trimmed.length > MAX_HISTORY) trimmed.shift();
       return trimmed;
     });
@@ -242,83 +165,27 @@ export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
     [scenes, pushHistory],
   );
 
-  // ── Layer ops (edits ride updateScene's history snapshots) ──
-
-  const addLayer = useCallback(
-    (sceneIndex: number, layer: Layer) => {
-      const target = scenes[sceneIndex];
-      if (!target || (target.layers?.length ?? 0) >= 8) return;
-      const next = scenes.map((s, i) =>
-        i === sceneIndex ? { ...s, layers: [...(s.layers ?? []), layer] } : s,
-      );
-      setScenes(next);
-      pushHistory(next);
-    },
-    [scenes, pushHistory],
-  );
-
-  const updateLayer = useCallback(
-    (sceneIndex: number, layerIndex: number, patch: Partial<Layer>) => {
-      const next = scenes.map((s, i) => {
-        if (i !== sceneIndex) return s;
-        return {
-          ...s,
-          layers: (s.layers ?? []).map((l, j) => (j === layerIndex ? { ...l, ...patch } : l)),
-        };
-      });
-      setScenes(next);
-      pushHistory(next);
-    },
-    [scenes, pushHistory],
-  );
-
-  const removeLayer = useCallback(
-    (sceneIndex: number, layerIndex: number) => {
-      const next = scenes.map((s, i) =>
-        i === sceneIndex ? { ...s, layers: (s.layers ?? []).filter((_, j) => j !== layerIndex) } : s,
-      );
-      setScenes(next);
-      pushHistory(next);
-    },
-    [scenes, pushHistory],
-  );
-
-  const moveLayer = useCallback(
-    (sceneIndex: number, layerIndex: number, dir: -1 | 1) => {
-      const target = scenes[sceneIndex];
-      if (!target?.layers) return;
-      const to = layerIndex + dir;
-      if (to < 0 || to >= target.layers.length) return;
-      const layers = [...target.layers];
-      const [moved] = layers.splice(layerIndex, 1);
-      if (!moved) return;
-      layers.splice(to, 0, moved);
-      const next = scenes.map((s, i) => (i === sceneIndex ? { ...s, layers } : s));
-      setScenes(next);
-      pushHistory(next);
-    },
-    [scenes, pushHistory],
-  );
-
   const undo = useCallback(() => {
     if (historyIndex <= 0) return;
     const prevIndex = historyIndex - 1;
-    const prevScenes = history[prevIndex];
-    if (prevScenes) {
-      setScenes(prevScenes);
+    const prev = history[prevIndex];
+    if (prev) {
+      setScenes(prev.scenes);
       setHistoryIndex(prevIndex);
-      setSelectedIndex((i) => Math.min(i, prevScenes.length - 1));
+      setSelectedIndex((i) => Math.min(i, prev.scenes.length - 1));
+      if (prev.meta !== undefined) metaSyncRef.current?.setMeta?.(prev.meta);
     }
   }, [history, historyIndex]);
 
   const redo = useCallback(() => {
     if (historyIndex >= history.length - 1) return;
     const nextIndex = historyIndex + 1;
-    const nextScenes = history[nextIndex];
-    if (nextScenes) {
-      setScenes(nextScenes);
+    const next = history[nextIndex];
+    if (next) {
+      setScenes(next.scenes);
       setHistoryIndex(nextIndex);
-      setSelectedIndex((i) => Math.min(i, nextScenes.length - 1));
+      setSelectedIndex((i) => Math.min(i, next.scenes.length - 1));
+      if (next.meta !== undefined) metaSyncRef.current?.setMeta?.(next.meta);
     }
   }, [history, historyIndex]);
 
@@ -339,10 +206,6 @@ export function useTimeline(initialScenes?: Scene[]): UseTimelineReturn {
     removeScene,
     moveScene,
     updateScene,
-    addLayer,
-    updateLayer,
-    removeLayer,
-    moveLayer,
     undo,
     redo,
     canUndo: historyIndex > 0,

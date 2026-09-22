@@ -94,6 +94,9 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	// a browser.panel.invoke it received (web_browse tool correlation), and
 	// navigates its own panel via browser.panel.open (web_browse pipeline).
 	methods.NewBrowserPanelMethods(server.BrowserPanelBridge(), webBrowseTool).Register(router)
+	// Scheduled periodic cloud backup: WS surface (owner+master scope) and
+	// the 30s scheduler tick both live behind this registration.
+	methods.NewBackupScheduleMethods(cfg, cfg.Database.PostgresDSN, Version, configSecretsStore, msgBus).Register(router)
 	if browserMgr != nil {
 		methods.NewBrowserRemoteMethods(browserMgr, cfg, server.BrowserPanelBridge()).Register(router)
 	}
@@ -196,4 +199,50 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	)
 
 	return pairingMethods, heartbeatMethods, chatMethods, cfgPerms
+}
+
+// wireSubagentMethods wires the subagents.* WS surface (platform expansion
+// Phase 5) over the durable subagent task store, with live-run cancellation
+// delegated to the shared SubagentManager.
+//
+// Kept out of registerAllMethods (which has neither the subagent task store
+// nor the manager in scope), mirroring wireNodeRuntime's single-wiring-line
+// convention. Call once from the gateway setup after the manager and stores
+// exist:
+//
+//	wireSubagentMethods(cfg, server, pgStores.Agents, pgStores.SubagentTasks, subagentMgr)
+func wireSubagentMethods(
+	cfg *config.Config,
+	server *gateway.Server,
+	agentStore store.AgentStore,
+	taskStore store.SubagentTaskStore,
+	mgr *tools.SubagentManager,
+) {
+	if taskStore == nil {
+		slog.Warn("subagent methods skipped: subagent task store not initialised")
+		return
+	}
+	m := methods.NewSubagentMethods(cfg, taskStore, agentStore)
+	m.SetCancelFn(func(_ context.Context, task *store.SubagentTaskData) bool {
+		if mgr == nil || task == nil {
+			return false
+		}
+		runtimeID, _ := task.Metadata["runtime_task_id"].(string)
+		if runtimeID == "" {
+			return false
+		}
+		return mgr.CancelTask(tools.TaskScope{
+			TenantID:     task.TenantID,
+			RootAgentID:  task.RootAgentID,
+			RootAgentKey: task.ParentAgentKey,
+		}, runtimeID)
+	})
+	m.Register(server.Router())
+	slog.Info("subagents.* RPC methods registered", "methods", []string{
+		protocol.MethodSubagentsList,
+		protocol.MethodSubagentsGet,
+		protocol.MethodSubagentsArchive,
+		protocol.MethodSubagentsArchiveCompleted,
+		protocol.MethodSubagentsCancel,
+	})
 }

@@ -3,11 +3,6 @@
  * contract (internal/pptx/designer_agent.go) and the web-side validation in
  * lib/parse-deck-blocks.ts. Slides are 16:9; the studio renders them at a
  * 1280×720 stage and exports via pptxgenjs at 13.33×7.5in.
- *
- * v2 adds free-form editing: a slide may carry `elements` (explicit prim
- * list, Canva-style) and a `transition`. Slides without elements stay
- * layout-driven and compile through lib/slide-spec.ts — both surfaces render
- * from the same primitive shapes, so v1 decks preview and export unchanged.
  */
 
 export interface DeckTheme {
@@ -22,12 +17,57 @@ export interface DeckTheme {
 export interface StatsItem {
   value: string;
   label: string;
+  /** Optional leading icon (icon-library name), rendered above the value. */
+  icon?: string;
 }
 
 export interface ColumnContent {
   heading: string;
   bullets: string[];
 }
+
+/** Preview-only entrance animation. Skipped silently in the .pptx export. */
+export type AnimEffect = "fade-in" | "slide-up" | "slide-left" | "scale-in";
+
+export interface AnimSpec {
+  effect: AnimEffect;
+  /** Stagger delay in milliseconds (0 by default). */
+  delayMs?: number;
+}
+
+export type FrameVariant = "corner" | "outline" | "band" | "dots" | "ring";
+
+/** Positioned line icon on the 1280×720 stage (icon-library name). */
+export interface IconDecor {
+  type: "icon";
+  icon: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** #RRGGBB; defaults to the theme accent. */
+  color?: string;
+  /** Stroke width in 24-unit viewBox coordinates (default 2). */
+  strokeWidth?: number;
+  anim?: AnimSpec;
+}
+
+/** Decorative frame. Pure geometry in both preview and export. */
+export interface FrameDecor {
+  type: "frame";
+  variant: FrameVariant;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** #RRGGBB; defaults depend on the variant (band → accent, rest → muted). */
+  color?: string;
+  /** Stroke/strip thickness in stage px (default 2, band 10). */
+  weight?: number;
+  anim?: AnimSpec;
+}
+
+export type DecorPrim = IconDecor | FrameDecor;
 
 export type SlideLayout =
   | "title"
@@ -39,57 +79,6 @@ export type SlideLayout =
   | "image"
   | "end";
 
-/** PowerPoint-honored slide transitions (exported via OOXML injection). */
-export type SlideTransition = "none" | "fade" | "push" | "wipe" | "zoom";
-
-export const SLIDE_TRANSITIONS: SlideTransition[] = ["none", "fade", "push", "wipe", "zoom"];
-
-/** One free-form element on the 1280×720 stage. Shape mirrors the slide-spec
- * prims plus identity/rotation; a text element may pin an explicit font
- * family (empty = theme heading/body mapping). */
-export type SlideElement = {
-  id: string;
-  rotate?: number;
-  locked?: boolean;
-} & (
-  | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; radius?: number }
-  | { kind: "ellipse"; x: number; y: number; w: number; h: number; fill: string }
-  | {
-      kind: "frame";
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-      color: string;
-      width: number;
-      radius?: number;
-      dash?: boolean;
-    }
-  | {
-      kind: "text";
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-      text: string;
-      font: "heading" | "body";
-      fontFamily?: string;
-      size: number;
-      bold?: boolean;
-      italic?: boolean;
-      color: string;
-      align?: "left" | "center" | "right";
-      valign?: "top" | "middle" | "bottom";
-      lineHeight?: number;
-    }
-  | { kind: "image"; x: number; y: number; w: number; h: number; source: string; alt: string }
-);
-
-/** New-element id generator (monotonic per session is enough for keys). */
-export function newElementId(): string {
-  return `el-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
 interface SlideBase {
   notes?: string;
 }
@@ -99,6 +88,9 @@ export interface Slide extends SlideBase {
   title?: string;
   subtitle?: string;
   bullets?: string[];
+  /** Parallel to `bullets`: per-bullet leading icon (icon-library name) or
+   * null for the default square marker. */
+  bullet_icons?: (string | null)[];
   left?: ColumnContent;
   right?: ColumnContent;
   quote?: string;
@@ -106,16 +98,14 @@ export interface Slide extends SlideBase {
   stats?: StatsItem[];
   source?: string;
   caption?: string;
-  /** v2: when present, the slide renders/export THIS explicit element list
-   * (compiled layout prims are ignored). */
-  elements?: SlideElement[];
-  /** v2: transition used in the in-app presentation and injected into the
-   * exported .pptx. */
-  transition?: SlideTransition;
+  /** Slide icon: title renders an icon chip, section a big leading icon. */
+  icon?: string;
+  /** Decor primitives layered on top of the layout (icons + frames). */
+  decor?: DecorPrim[];
 }
 
 export interface Deck {
-  version: 1 | 2;
+  version: 1;
   theme: DeckTheme;
   slides: Slide[];
 }
@@ -220,7 +210,7 @@ export const THEME_PRESETS: { key: string; theme: DeckTheme }[] = [
 
 export function defaultDeck(): Deck {
   return {
-    version: 2,
+    version: 1,
     theme: { ...THEME_PRESETS[0]!.theme },
     slides: [
       { layout: "title", title: "Presentation title", subtitle: "One-line promise" },

@@ -7,23 +7,8 @@
     "onedrive": "Connect OneDrive account",
     "another": "Connect another account",
     "dropbox": "Connect Dropbox account",
+    "yandex": "Connect Yandex Disk account",
     "s3": "Connect S3-compatible storage"
-  },
-  "s3": {
-    "title": "Connect S3-compatible storage",
-    "description": "Works with AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO and DO Spaces. Keys are validated against the endpoint before being saved.",
-    "label": "Label (optional)",
-    "label_placeholder": "Team archive",
-    "endpoint": "Endpoint",
-    "endpoint_hint": "Leave empty for AWS S3. Path-style addressing is used automatically.",
-    "region": "Region (optional)",
-    "bucket": "Bucket",
-    "access_key": "Access key ID",
-    "secret_key": "Secret access key",
-    "secret_hint": "Stored encrypted at rest; it is never returned by the API after saving.",
-    "cancel": "Cancel",
-    "connect": "Connect",
-    "connecting": "Validating…"
   },
   "disconnect": "Disconnect",
   "readonly_badge": "Read-only",
@@ -54,7 +39,9 @@
     "coming_soon": "Coming soon",
     "google_desc": "Google Drive via your own GCP OAuth client. Gmail tools included.",
     "onedrive_desc": "Microsoft OneDrive (personal or work/school) via your own Azure app.",
-    "more_via_rclone": "More storages (WebDAV, …) planned on the same native engine",
+    "more_via_rclone": "More storages (Dropbox, S3, WebDAV, …) planned on the same rclone engine",
+    "dropbox_desc": "Dropbox via the built-in rclone client — zero setup. Add your own app for higher quota.",
+    "yandex_desc": "Yandex Disk via the built-in rclone client — zero setup. Add your own app for higher quota.",
     "s3_desc": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces — connect with access keys."
   },
   "provider": {
@@ -85,14 +72,23 @@
     "update": "Update credentials",
     "advanced": "Use your own OAuth client (advanced)",
     "embedded_note": "Quick connect uses the shared rclone OAuth client — no setup needed, with shared rate limits. The embedded client now grants full Drive access. Gmail tools still require your own OAuth client (see Cloud settings).",
+    "showMore": "Show setup",
+    "showLess": "Hide setup",
+    "requiredHint": "Setup required",
+    "title_dropbox": "Dropbox is not configured yet",
+    "title_yandex": "Yandex Disk is not configured yet",
+    "dropbox_client_id": "Dropbox App key",
+    "yandex_client_id": "Yandex App ID (client_id)",
+    "dropbox_step1": "Create a \"Scoped app\" in the Dropbox App Console and enable the permissions: files.metadata.write, files.content.write, files.content.read, sharing.write, account_info.read.",
+    "dropbox_step2": "Under Settings → OAuth2, choose the access type (\"Full Dropbox\" — an App folder starts the drive inside that folder).",
+    "dropbox_step3": "Enter the App key and App secret below and press Save — the credentials are stored encrypted and this form will not appear again.",
+    "dropbox_step4": "Register this exact redirect URI in the Dropbox app (Settings → OAuth2 → Redirect URIs):",
+    "yandex_step1": "Create a new app at oauth.yandex.com and enable the \"Yandex Disk REST API\" permission (read and write).",
+    "yandex_step2": "On the Platforms tab pick \"Web services\", choose who can access the app, and prepare the Callback URI from step 4.",
+    "yandex_step3": "Enter the App ID (client_id) and Client secret below and press Save — the credentials are stored encrypted and this form will not appear again.",
+    "yandex_step4": "Register this exact redirect URI in the Yandex app (Platforms → Web services → Callback URI):",
     "expand": "Set up now",
     "configured": "OAuth client saved",
-    "title_dropbox": "Dropbox is not configured yet",
-    "dropbox_client_id": "Dropbox App key",
-    "dropbox_step1": "Create an app at dropbox.com/developers/apps (scopes: files.metadata.read/write, files.content.read/write, sharing.write).",
-    "dropbox_step2": "Add the redirect URI <base>/v1/cloud/oauth/callback to the app.",
-    "dropbox_step3": "Copy the App key and App secret.",
-    "dropbox_step4": "Paste the App key + secret and save.",
     "dropbox_note": "Dropbox requires your own app (no shared client) — registration is free."
   },
   "disconnect_confirm": {
@@ -134,7 +130,6 @@
     "title": "Usage scopes",
     "description": "Pick which account the agent uses here: explicit request wins, then group, then user, then the organization default, then personal accounts.",
     "tenant_default": "Organization default",
-    "tenant_default_hint": "When an agent or action doesn't name an account, the system uses this organization-wide default account.",
     "none": "None",
     "group": "Group",
     "user": "User",
@@ -157,7 +152,8 @@
     "table_empty": "No rules yet",
     "personal_accounts": "Personal accounts",
     "shared_accounts": "Shared (business) accounts",
-    "accounts_explainer": "Personal = your own cloud accounts. Shared (business) = tenant-wide accounts, bound to groups/users with priority."
+    "accounts_explainer": "Personal accounts are your own connected clouds. Shared (business) accounts are tenant-wide — bind them to groups or users below with priority rules.",
+    "tenant_default_hint": "When an agent or action doesn't name an account, the system uses this organization-wide default account."
   },
   "detail": {
     "mail_btn": "Mailbox",
@@ -166,12 +162,12 @@
     "used_of": "Used {{used}} of {{total}}",
     "root": "Root",
     "loading_files": "Loading files…",
-    "files_unavailable": "Could not list files (check the account connection and refresh)",
+    "files_unavailable": "Could not list files (is rclone installed on the server?)",
     "no_files": "This folder is empty",
     "col_name": "Name",
     "col_size": "Size",
     "col_modified": "Modified",
-    "readonly_note": "Read-only view ({{provider}}). Ask your agent to fetch or organize files for you.",
+    "readonly_note": "Read-only view via rclone ({{provider}}). Ask the agent to fetch or organize files.",
     "mailbox": "Mailbox",
     "loading_mail": "Loading mailbox…",
     "mail_unavailable": "Could not read the mailbox",
@@ -182,7 +178,6 @@
   "drive": {
     "my_drives": "My drives",
     "my_drive": "My Drive",
-    "dashboard": "Dashboard",
     "providers": "Providers",
     "accounts": "Accounts",
     "shared_tag": "Shared",
@@ -206,6 +201,7 @@
     "back_home": "Back to Clouds",
     "toggle_accounts": "Toggle accounts",
     "quick_views": "Quick views",
+    "dashboard": "Dashboard",
     "search_accounts": "Search accounts…",
     "no_accounts_match": "No matching accounts",
     "up": "Go up one folder"
@@ -332,6 +328,148 @@
     "next": "Next",
     "close": "Close"
   },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "description": "Shortcuts are ignored while typing in a field.",
+    "next": "Next item",
+    "prev": "Previous item",
+    "open": "Open",
+    "up": "Go up one folder",
+    "delete": "Delete selection",
+    "select_all": "Select all",
+    "search": "Focus search",
+    "help": "Shortcut help"
+  },
+  "credentials": {
+    "section_title": "{{provider}} — connect with keys",
+    "section_description": "No OAuth app registration needed: enter your keys and they are verified with rclone before the account is saved.",
+    "section_connect": "Connect {{provider}}",
+    "title": "Connect {{provider}}",
+    "description": "Enter your {{provider}} credentials — they are verified before the account is saved. No OAuth app registration needed.",
+    "display_name": "Account name",
+    "display_name_placeholder": "My {{provider}} storage",
+    "display_name_hint": "Shown in your drives list; two accounts of the same provider need different names.",
+    "connect": "Connect",
+    "verifying": "Verifying credentials…",
+    "connected": "{{name}} connected",
+    "probe_failed": "Connection failed: {{error}}",
+    "cancel": "Cancel",
+    "fields": {
+      "s3": {
+        "access_key_id": "Access key ID",
+        "access_key_id_hint": "The access key of your S3 user or bucket.",
+        "secret_access_key": "Secret access key",
+        "secret_access_key_hint": "The secret that pairs with the access key ID.",
+        "region": "Region",
+        "region_hint": "e.g. us-east-1 — optional for R2 / MinIO.",
+        "endpoint": "Endpoint",
+        "endpoint_hint": "https://… — required for R2, Spaces, MinIO; leave empty for AWS.",
+        "provider": "Service type",
+        "provider_hint": "aws | cloudflare_r2 | digitalocean | other (auto-detect)."
+      },
+      "b2": {
+        "account": "Key ID",
+        "account_hint": "Backblaze application key ID.",
+        "key": "Application key",
+        "key_hint": "The application key secret that pairs with the key ID."
+      },
+      "pcloud": {
+        "username": "Username",
+        "username_hint": "Your pCloud account email.",
+        "password": "Password",
+        "password_hint": "Your pCloud account password."
+      },
+      "webdav": {
+        "url": "Server URL",
+        "url_hint": "e.g. https://cloud.example.com/remote.php/dav",
+        "vendor": "Server type",
+        "vendor_hint": "nextcloud | owncloud | other.",
+        "user": "Username",
+        "user_hint": "Your WebDAV login.",
+        "pass": "Password",
+        "pass_hint": "Your WebDAV password or app password."
+      },
+      "azureblob": {
+        "account": "Storage account name",
+        "account_hint": "The name of your Azure storage account.",
+        "key": "Storage account key",
+        "key_hint": "The access key of the storage account (Settings → Access keys).",
+        "endpoint": "Endpoint",
+        "endpoint_hint": "e.g. https://<account>.blob.core.windows.net — optional; plain http works for Azurite."
+      },
+      "gcs": {
+        "service_account_credentials": "Service account JSON",
+        "service_account_credentials_hint": "Paste the whole service-account key JSON file (Google Cloud → IAM & Admin → Service accounts → Keys).",
+        "project_number": "Project number",
+        "project_number_hint": "Your Google Cloud project number — required to list buckets."
+      },
+      "ftp": {
+        "host": "Host",
+        "host_hint": "Hostname or IP address, without scheme.",
+        "port": "Port",
+        "port_hint": "Leave empty for the default port 21.",
+        "user": "Username",
+        "user_hint": "\"anonymous\" for public FTP servers.",
+        "pass": "Password",
+        "pass_hint": "Your FTP password.",
+        "explicit_tls": "Explicit TLS (FTPS)",
+        "explicit_tls_hint": "true for FTPS, false (or empty) for plain FTP."
+      },
+      "sftp": {
+        "host": "Host",
+        "host_hint": "Hostname or IP address, without scheme.",
+        "port": "Port",
+        "port_hint": "Leave empty for the default port 22.",
+        "user": "Username",
+        "user_hint": "Your SSH login.",
+        "pass": "Password",
+        "pass_hint": "Your SSH password — or leave empty and use a private key below.",
+        "key_pem": "Private key (PEM)",
+        "key_pem_hint": "Paste an unencrypted private key (OpenSSH or PEM). Newlines are handled automatically.",
+        "key_file_pass": "Key passphrase",
+        "key_file_pass_hint": "Only for private keys protected by a passphrase."
+      },
+      "smb": {
+        "host": "Host",
+        "host_hint": "Hostname or IP address of the NAS / Windows machine.",
+        "user": "Username",
+        "user_hint": "Your SMB user — \"guest\" for guest shares.",
+        "pass": "Password",
+        "pass_hint": "Your SMB password.",
+        "domain": "Domain",
+        "domain_hint": "Leave empty for the default WORKGROUP.",
+        "port": "Port",
+        "port_hint": "Leave empty for the default port 445."
+      }
+    },
+    "providers": {
+      "s3": "Amazon S3 / compatible",
+      "b2": "Backblaze B2",
+      "pcloud": "pCloud",
+      "webdav": "WebDAV",
+      "azureblob": "Azure Blob Storage",
+      "gcs": "Google Cloud Storage",
+      "ftp": "FTP",
+      "sftp": "SFTP / SSH",
+      "smb": "SMB"
+    }
+  },
+  "s3": {
+    "title": "Connect S3-compatible storage",
+    "description": "Works with AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO and DO Spaces. Keys are validated against the endpoint before being saved.",
+    "label": "Label (optional)",
+    "label_placeholder": "Team archive",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "Leave empty for AWS S3. Path-style addressing is used automatically.",
+    "region": "Region (optional)",
+    "bucket": "Bucket",
+    "access_key": "Access key ID",
+    "secret_key": "Secret access key",
+    "secret_hint": "Stored encrypted at rest; it is never returned by the API after saving.",
+    "cancel": "Cancel",
+    "connect": "Connect",
+    "connecting": "Validating…"
+  },
   "agent_access": {
     "title": "Agent access",
     "cap_read": "Read files",
@@ -344,18 +482,6 @@
     "read": "Read only",
     "write": "Read + write",
     "full": "Full access"
-  },
-  "shortcuts": {
-    "title": "Keyboard shortcuts",
-    "description": "Shortcuts are ignored while typing in a field.",
-    "next": "Next item",
-    "prev": "Previous item",
-    "open": "Open",
-    "up": "Go up one folder",
-    "delete": "Delete selection",
-    "select_all": "Select all",
-    "search": "Focus search",
-    "help": "Shortcut help"
   },
   "webdav": {
     "title": "Connect WebDAV storage",

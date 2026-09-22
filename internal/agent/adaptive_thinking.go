@@ -13,8 +13,11 @@ import (
 // no extra LLM call — so it stays cheap enough for constrained hosts.
 //
 // Effort ladder: score 0 → off, 1 → low, 2 → medium, ≥3 → high.
-// Background channels (cron, subagent delegation) are capped at "low" because
-// unattended jobs rarely justify deep reasoning spend.
+// Background channels (cron, ASYNC subagent delegation) are capped at "low"
+// because unattended jobs rarely justify deep reasoning spend. SYNC delegation
+// (channel types carrying a "sync" marker, e.g. "subagent:sync") keeps the
+// agent-level effort: the result returns straight into the caller's
+// conversation, where answer quality matters.
 
 // AdaptiveSignals carries the inputs for one effort estimation.
 type AdaptiveSignals struct {
@@ -90,9 +93,13 @@ func EstimateAdaptiveEffort(s AdaptiveSignals) AdaptiveDecision {
 		effort = "low"
 	}
 
-	// Background jobs run unattended; cap the effort at low.
+	// Background jobs run unattended; cap the effort at low. Sync delegation
+	// (marker "sync" in the channel type, e.g. "subagent:sync") is exempt:
+	// its result is returned directly to the calling conversation, so it keeps
+	// the agent-level effort for answer quality.
 	ch := strings.ToLower(s.ChannelType)
-	if ch == "cron" || strings.Contains(ch, "subagent") {
+	isSyncDelegation := strings.Contains(ch, "sync")
+	if ch == "cron" || (strings.Contains(ch, "subagent") && !isSyncDelegation) {
 		if effortRank(effort) > effortRank("low") {
 			effort = "low"
 			reasons = append(reasons, "background_channel_cap")

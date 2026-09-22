@@ -14,6 +14,10 @@
     "messages": "Messages",
     "updated": "Updated"
   },
+  "origin": {
+    "webChat": "Web Chat",
+    "videoEditor": "Video Editor"
+  },
   "contextBar": {
     "compacted": "Compacted {{count}} time(s)"
   },

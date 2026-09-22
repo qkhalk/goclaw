@@ -45,7 +45,12 @@ const (
 	// new session key (fork). Mirrors POST /v1/chat/sessions/{key}/branch;
 	// handler lives in internal/gateway/methods/sessions.go.
 	MethodSessionsBranch = "sessions.branch"
-	MethodRunTimelineGet = "run.timeline.get"
+	// sessions.archive/restore soft-hide a finished session from the default
+	// session list and bring it back; messages stay untouched. Handlers live
+	// in internal/gateway/methods/sessions.go.
+	MethodSessionsArchive = "sessions.archive"
+	MethodSessionsRestore = "sessions.restore"
+	MethodRunTimelineGet  = "run.timeline.get"
 
 	// Durable run records (agent_runs state machine). Follow the naming
 	// pattern of run.timeline.get; handlers live in
@@ -142,6 +147,15 @@ const (
 	MethodMissionResume = "mission.resume"
 	MethodMissionDelete = "mission.delete"
 
+	// Subagent tasks (platform expansion Phase 5): durable subagent task
+	// list/get/archive/cancel over the subagent_tasks store. Handlers live in
+	// internal/gateway/methods/subagents.go.
+	MethodSubagentsList             = "subagents.list"
+	MethodSubagentsGet              = "subagents.get"
+	MethodSubagentsArchive          = "subagents.archive"
+	MethodSubagentsArchiveCompleted = "subagents.archive_completed"
+	MethodSubagentsCancel           = "subagents.cancel"
+
 	// System
 	MethodConnect = "connect"
 	MethodHealth  = "health"
@@ -182,6 +196,11 @@ const (
 	MethodCronStatus = "cron.status"
 	MethodCronRun    = "cron.run"
 	MethodCronRuns   = "cron.runs"
+
+	// Backup schedule (periodic backup-to-cloud, user item 18)
+	MethodBackupScheduleGet = "backup.schedule.get"
+	MethodBackupScheduleSet = "backup.schedule.set"
+	MethodBackupScheduleRun = "backup.schedule.run"
 
 	MethodChannelsList   = "channels.list"
 	MethodChannelsStatus = "channels.status"

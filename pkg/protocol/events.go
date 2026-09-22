@@ -200,7 +200,10 @@ const (
 	// AgentEventLLMStarted / AgentEventLLMCompleted bracket one think-stage
 	// LLM call (including internal guard retries: the pair closes with the
 	// total duration). Payloads: started — provider, model, iteration;
-	// completed — duration_ms, input_tokens, output_tokens, is_error.
+	// completed — provider, model, duration_ms, input_tokens, output_tokens,
+	// is_error, and (Phase 7 additive key) effort: the effective reasoning
+	// effort of the call. Consumers must treat a missing effort key as
+	// unknown — the emitter fills it from the run's reasoning decision.
 	AgentEventLLMStarted   = "llm.started"
 	AgentEventLLMCompleted = "llm.completed"
 )

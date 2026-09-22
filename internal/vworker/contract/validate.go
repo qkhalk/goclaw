@@ -13,9 +13,6 @@ const (
 	defaultFPS     = 30
 	defaultHeight  = 720
 	allowedHeights = "480, 720 or 1080"
-	maxLayers      = 8
-	// maxHighlights caps colored-keyword entries on one text layer.
-	maxHighlights = 6
 )
 
 // Validate checks the storyboard against v1 constraints.
@@ -64,210 +61,59 @@ func (sc *Scene) validate() error {
 			return fmt.Errorf("source is required for %s scenes", sc.Type)
 		}
 	case SceneColor:
-		// An explicit color/color2/glow must be #RRGGBB; with a style_pack an
-		// unset color is fine — the pack supplies the backdrop.
-		if sc.Color == "" && sc.StylePack == "" {
-			return fmt.Errorf("color scenes need a #RRGGBB color (or a style_pack)")
-		}
-		if sc.Color != "" && !hexColor(sc.Color) {
+		if !hexColor(sc.Color) {
 			return fmt.Errorf("color scenes need a #RRGGBB color, got %q", sc.Color)
-		}
-		if sc.Color2 != "" && !hexColor(sc.Color2) {
-			return fmt.Errorf("color2 must be #RRGGBB, got %q", sc.Color2)
-		}
-		if sc.Glow != "" && !hexColor(sc.Glow) {
-			return fmt.Errorf("glow must be #RRGGBB, got %q", sc.Glow)
 		}
 	default:
 		return fmt.Errorf("unknown scene type %q", sc.Type)
 	}
-	if !ValidStylePacks[sc.StylePack] {
-		return fmt.Errorf("unknown style_pack %q (tech_dark, neon_lab, paper_light, bold_red)", sc.StylePack)
-	}
-	if sc.Caption != nil {
-		switch sc.Caption.Style {
-		case "", "chip", "mono":
-		default:
-			return fmt.Errorf("caption style %q not supported (chip, mono)", sc.Caption.Style)
-		}
-	}
 	if sc.DurationSec < 1 || sc.DurationSec > maxSceneSec {
 		return fmt.Errorf("duration_sec %.1f out of range 1..%.0f", sc.DurationSec, maxSceneSec)
 	}
-	if sc.Transition != "" && sc.Transition != "none" {
-		switch sc.Transition {
-		case "fade", "crossfade", "slide_left", "slide_up":
-		default:
-			return fmt.Errorf("transition %q not supported (none, fade, crossfade, slide_left, slide_up)", sc.Transition)
-		}
+	switch sc.Transition {
+	case "", TransitionNone, TransitionFade, TransitionCrossfade, TransitionSlideLeft, TransitionSlideUp:
+	default:
+		return fmt.Errorf("unknown transition type %q (want none, fade, crossfade, slide_left or slide_up)", sc.Transition)
 	}
-	if len(sc.Layers) > maxLayers {
-		return fmt.Errorf("at most %d layers per scene, got %d", maxLayers, len(sc.Layers))
-	}
-	for j := range sc.Layers {
-		if err := sc.Layers[j].validate(sc.DurationSec); err != nil {
-			return fmt.Errorf("layer %d: %w", j, err)
-		}
+	if err := sc.validateFx(); err != nil {
+		return err
 	}
 	return nil
 }
 
-// validate checks one layer against its host scene's duration — mirror of
-// internal/video Layer.validate.
-func (l *Layer) validate(sceneSec float64) error {
-	switch l.Kind {
-	case LayerText:
-		if strings.TrimSpace(l.Text) == "" {
-			return fmt.Errorf("text layers need text")
+// validateFx bounds the optional per-scene transform and color grade so a
+// hostile or buggy storyboard cannot drive the filtergraph into giant pad
+// allocations or Inf parameters. Zero counts as unset (omitempty) and always
+// passes.
+func (sc *Scene) validateFx() error {
+	if tr := sc.Transform; tr != nil {
+		if s := tr.Scale; s != 0 && (s < 0.01 || s > 16) {
+			return fmt.Errorf("transform scale %.3f out of range 0.01..16", s)
 		}
-		if len(l.Highlights) > maxHighlights {
-			return fmt.Errorf("at most %d highlights per text layer, got %d", maxHighlights, len(l.Highlights))
+		if tr.X < -100 || tr.X > 100 || tr.Y < -100 || tr.Y > 100 {
+			return fmt.Errorf("transform x/y %.1f/%.1f out of range -100..100 (%% of frame)", tr.X, tr.Y)
 		}
-		for k, hl := range l.Highlights {
-			if strings.TrimSpace(hl.Word) == "" {
-				return fmt.Errorf("highlight %d needs a word", k)
-			}
-			if !hexColor(hl.Color) {
-				return fmt.Errorf("highlight %d color must be #RRGGBB, got %q", k, hl.Color)
-			}
+		if tr.Rotate < -360 || tr.Rotate > 360 {
+			return fmt.Errorf("transform rotate %.1f out of range -360..360 degrees", tr.Rotate)
 		}
-	case LayerShape:
-		if l.Shape == "" {
-			l.Shape = "rect"
+		if tr.Opacity < 0 || tr.Opacity > 1 {
+			return fmt.Errorf("transform opacity %.3f out of range 0..1", tr.Opacity)
 		}
-		if l.Shape != "rect" {
-			return fmt.Errorf("shape %q not supported (rect)", l.Shape)
-		}
-		if !hexColor(l.Fill) {
-			return fmt.Errorf("shape layers need a #RRGGBB fill, got %q", l.Fill)
-		}
-	case LayerImage:
-		if strings.TrimSpace(l.Source) == "" {
-			return fmt.Errorf("image layers need source")
-		}
-	case LayerIcon:
-		if !ValidIcons[l.Icon] {
-			return fmt.Errorf("unknown icon %q (see ValidIcons for the embedded set)", l.Icon)
-		}
-	case LayerCard:
-		if !hexColor(l.Fill) {
-			return fmt.Errorf("card layers need a #RRGGBB fill, got %q", l.Fill)
-		}
-	case LayerCounter:
-		if l.To <= 0 {
-			return fmt.Errorf("counter layers need to > 0 (count-up target)")
-		}
-		if l.From < 0 || l.From >= l.To {
-			return fmt.Errorf("counter from must satisfy 0 <= from < to (got from=%.3g, to=%.3g)", l.From, l.To)
-		}
-		if l.Decimals < 0 || l.Decimals > 2 {
-			return fmt.Errorf("counter decimals %d out of range 0..2", l.Decimals)
-		}
-	case LayerToggleGrid:
-		if l.Cols < 0 || l.Cols > 4 || l.Rows < 0 || l.Rows > 4 {
-			return fmt.Errorf("toggle_grid cols/rows must be 0 (default 3) or 1..4, got %d×%d", l.Cols, l.Rows)
-		}
-		if l.Cadence < 0 || l.Cadence > 2 {
-			return fmt.Errorf("toggle_grid cadence must be 0 (default 0.6) or 0.2..2, got %g", l.Cadence)
-		}
-		if l.Fill != "" && !hexColor(l.Fill) {
-			return fmt.Errorf("toggle_grid fill must be #RRGGBB, got %q", l.Fill)
-		}
-		if l.FillB != "" && !hexColor(l.FillB) {
-			return fmt.Errorf("toggle_grid fill_b must be #RRGGBB, got %q", l.FillB)
-		}
-	case LayerCompareBars:
-		if l.WidthA < 0 || l.WidthA > 1 {
-			return fmt.Errorf("compare_bars width_a must be within 0..1 (0 = default), got %g", l.WidthA)
-		}
-		if l.WidthB < 0 || l.WidthB > 1 {
-			return fmt.Errorf("compare_bars width_b must be within 0..1 (0 = default), got %g", l.WidthB)
-		}
-		if l.Fill != "" && !hexColor(l.Fill) {
-			return fmt.Errorf("compare_bars fill must be #RRGGBB, got %q", l.Fill)
-		}
-		if l.FillB != "" && !hexColor(l.FillB) {
-			return fmt.Errorf("compare_bars fill_b must be #RRGGBB, got %q", l.FillB)
-		}
-	case LayerStack:
-		if l.N < 0 || l.N > 6 {
-			return fmt.Errorf("stack n must be 0 (default 3) or 1..6, got %d", l.N)
-		}
-		if len(l.Labels) > 6 {
-			return fmt.Errorf("at most 6 stack labels, got %d", len(l.Labels))
-		}
-		if l.Fill != "" && !hexColor(l.Fill) {
-			return fmt.Errorf("stack fill must be #RRGGBB, got %q", l.Fill)
-		}
-		if l.FillB != "" && !hexColor(l.FillB) {
-			return fmt.Errorf("stack fill_b must be #RRGGBB, got %q", l.FillB)
-		}
-	case LayerStamp:
-		if strings.TrimSpace(l.Text) == "" {
-			return fmt.Errorf("stamp layers need text")
-		}
-		if l.Angle < -30 || l.Angle > 30 {
-			return fmt.Errorf("stamp angle %.1f out of range -30..30", l.Angle)
-		}
-	case LayerCTA:
-		if strings.TrimSpace(l.Text) == "" {
-			return fmt.Errorf("cta layers need text")
-		}
-		if l.Fill != "" && !hexColor(l.Fill) {
-			return fmt.Errorf("cta fill must be #RRGGBB, got %q", l.Fill)
-		}
-		if l.FillB != "" && !hexColor(l.FillB) {
-			return fmt.Errorf("cta fill_b must be #RRGGBB, got %q", l.FillB)
-		}
-	default:
-		return fmt.Errorf("unknown layer kind %q (text, shape, image, icon, card, counter, toggle_grid, compare_bars, stack, stamp, cta)", l.Kind)
 	}
-	if !ValidAnims[l.Anim] {
-		return fmt.Errorf("unknown anim %q (fade, up, down, left, right, pop)", l.Anim)
-	}
-	if !ValidFonts[l.Font] {
-		return fmt.Errorf("unknown font %q (body, display, mono)", l.Font)
-	}
-	if l.Radius < 0 || l.Radius > 0.2 {
-		return fmt.Errorf("radius %.3f out of range 0..0.2 (fraction of canvas width)", l.Radius)
-	}
-	if l.Start < 0 || l.Start >= sceneSec {
-		return fmt.Errorf("start %.2fs out of range 0..%.2f", l.Start, sceneSec)
-	}
-	dur := l.Duration
-	if dur == 0 {
-		dur = sceneSec - l.Start
-	}
-	if dur <= 0 {
-		return fmt.Errorf("duration %.2fs must be positive", l.Duration)
-	}
-	if l.Start+dur > sceneSec+1e-9 {
-		return fmt.Errorf("layer ends at %.2fs, past the scene's %.2fs", l.Start+dur, sceneSec)
-	}
-	if !unitRange(l.X) || !unitRange(l.Y) {
-		return fmt.Errorf("x/y must be within 0..1 (got %.2f, %.2f)", l.X, l.Y)
-	}
-	if !unitRange(l.W) || l.W <= 0 {
-		return fmt.Errorf("w must be within 0..1 and positive (got %.2f)", l.W)
-	}
-	if l.Kind == LayerShape && (!unitRange(l.H) || l.H <= 0) {
-		return fmt.Errorf("shape layers need h within 0..1 and positive (got %.2f)", l.H)
-	}
-	if !unitRange(l.Opacity) {
-		return fmt.Errorf("opacity must be within 0..1 (got %.2f)", l.Opacity)
-	}
-	if l.FontSize < 0 || l.FontSize > 300 {
-		return fmt.Errorf("font_size %d out of range 0..300", l.FontSize)
-	}
-	switch l.Align {
-	case "", "left", "center", "right":
-	default:
-		return fmt.Errorf("align %q not supported (left, center, right)", l.Align)
+	if f := sc.Filter; f != nil {
+		switch {
+		case f.Brightness < 0 || f.Brightness > 2:
+			return fmt.Errorf("filter brightness %.2f out of range 0..2", f.Brightness)
+		case f.Contrast < 0 || f.Contrast > 3:
+			return fmt.Errorf("filter contrast %.2f out of range 0..3", f.Contrast)
+		case f.Saturate < 0 || f.Saturate > 3:
+			return fmt.Errorf("filter saturate %.2f out of range 0..3", f.Saturate)
+		case f.Blur < 0 || f.Blur > 100:
+			return fmt.Errorf("filter blur %.1f out of range 0..100 px", f.Blur)
+		}
 	}
 	return nil
 }
-
-func unitRange(v float64) bool { return v >= 0 && v <= 1 }
 
 func (c Canvas) effective() (w, h, fps int) {
 	w, h, fps = c.Width, c.Height, c.FPS

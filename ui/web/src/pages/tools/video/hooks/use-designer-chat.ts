@@ -6,10 +6,12 @@ import type { AttachedFile, ComposerOverrides } from "@/components/chat/chat-inp
 import type { ChatMessage } from "@/types/chat";
 
 /**
- * Chat brain of the video designer column. It is a thin re-wiring of the
- * main chat hooks onto a dedicated session of the design-only
+ * Chat brain of the video designer column: a thin re-wiring of the main
+ * chat hooks onto a dedicated session of the storyboard-only
  * "video-designer" agent, so streaming, run activity and history replay all
- * behave exactly like /chat.
+ * behave exactly like /chat. The agent is seeded server-side; this hook
+ * only needs the session-key shape and works before the agent exists in any
+ * list.
  *
  * The conversation id persists in localStorage so the designer keeps its
  * thread across reloads; "New chat" rotates it and the old session stays in

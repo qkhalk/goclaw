@@ -1,39 +1,24 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Circle, Image as ImageIcon, Video } from "lucide-react";
+import { Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getIconDef } from "../lib/icon-library";
 import type { ParsedStoryboard } from "../lib/parse-storyboard-blocks";
+import type { Scene } from "../hooks/use-timeline";
 
 interface StoryboardCardProps {
   parsed: ParsedStoryboard;
   /** A storyboard was applied and this card's JSON matches it. */
   applied: boolean;
-  onApply: () => void;
-}
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
-}
-
-function aspectLabel(w: number, h: number): string {
-  if (!w || !h) return "";
-  for (const [rw, rh, label] of [
-    [9, 16, "9:16"],
-    [16, 9, "16:9"],
-    [1, 1, "1:1"],
-  ] as const) {
-    if (Math.abs(w / h - rw / rh) < 0.01) return label;
-  }
-  const d = gcd(w, h);
-  return `${Math.round(w / d)}:${Math.round(h / d)}`;
+  onApply: (storyboard: Extract<ParsedStoryboard, { ok: true }>["storyboard"]) => void;
 }
 
 /**
- * Preview card rendered under an assistant reply that ended with a
- * ```storyboard block: aspect + scene count + duration at a glance, a mini
- * strip of the scenes, Apply, and an expandable raw JSON view. Invalid
+ * Preview card rendered under an assistant reply that carries a
+ * ```storyboard block: canvas ratio + scene count + duration at a glance, a
+ * mini strip of the scenes, Apply, and an expandable raw JSON view. Invalid
  * blocks stay visible as an error card so the conversation keeps flowing.
  */
 export function StoryboardCard({ parsed, applied, onApply }: StoryboardCardProps) {
@@ -55,23 +40,26 @@ export function StoryboardCard({ parsed, applied, onApply }: StoryboardCardProps
     );
   }
 
-  const { sb } = parsed;
-  const w = sb.canvas?.width ?? 1080;
-  const h = sb.canvas?.height ?? 1920;
-  const totalSec = sb.scenes.reduce((acc, s) => acc + (Number(s.duration_sec) || 0), 0);
+  const { storyboard } = parsed;
+  const totalSec = storyboard.scenes.reduce(
+    (acc, s) => acc + (Number(s.duration_sec) || 0),
+    0,
+  );
+  const { width, height } = storyboard.canvas;
+  const ratioLabel = ratioOf(width, height);
 
   return (
     <div className="mt-2 rounded-lg border bg-muted/30 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="shrink-0 font-medium tabular-nums">
-          {aspectLabel(w, h)}
+        <span className="text-sm text-muted-foreground tabular-nums">
+          {t("video.designer.sceneCount", { n: storyboard.scenes.length })}
+        </span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {t("video.designer.durationSec", { sec: totalSec.toFixed(1) })}
+        </span>
+        <Badge variant="outline" className="shrink-0 text-muted-foreground tabular-nums">
+          {ratioLabel} · {width}x{height}
         </Badge>
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {t("video.designer.sceneCount", { n: sb.scenes.length })}
-        </span>
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {t("video.designer.duration", { sec: totalSec.toFixed(0) })}
-        </span>
         {applied && (
           <Badge variant="outline" className="ml-auto shrink-0 border-green-600/40 text-green-600">
             <Check className="mr-1 h-3 w-3" />
@@ -80,53 +68,37 @@ export function StoryboardCard({ parsed, applied, onApply }: StoryboardCardProps
         )}
       </div>
 
-      {/* Mini scene strip: one cell per scene, colored swatch for color scenes */}
+      {/* Mini scene strip: gradient/color/icon/image thumbnails, numbered,
+          capped at 12 */}
       <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-0.5">
-        {sb.scenes.slice(0, 12).map((s, i) => (
+        {storyboard.scenes.slice(0, 12).map((s, i) => (
           <div
             key={i}
-            className="flex h-9 min-w-9 shrink-0 items-center justify-center gap-0.5 rounded-md border bg-background px-1.5"
-            style={s.type === "color" && s.color ? { backgroundColor: s.color } : undefined}
-            title={`${i + 1}. ${s.type} · ${s.duration_sec}s${s.caption?.text ? ` · ${s.caption.text}` : ""}`}
+            className="relative h-14 w-10 shrink-0 overflow-hidden rounded-md border"
+            title={`${i + 1}. ${sceneTitle(s)}`}
           >
-            {s.type === "image" && <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-            {s.type === "video" && <Video className="h-3.5 w-3.5 text-muted-foreground" />}
-            {s.type === "color" && (
-              <Circle
-                className={cn("h-2.5 w-2.5", isDark(s.color) ? "text-white/80" : "text-black/60")}
-                fill="currentColor"
-              />
-            )}
-            <span
-              className={cn(
-                "text-[10px] tabular-nums",
-                s.type === "color" && isDark(s.color) ? "text-white/90" : "text-muted-foreground",
-              )}
-            >
-              {Number(s.duration_sec).toFixed(0)}
+            <SceneMiniThumb scene={s} />
+            <span className="absolute left-0.5 top-0.5 rounded bg-background/80 px-1 text-[9px] leading-[14px] tabular-nums text-muted-foreground">
+              {i + 1}
             </span>
           </div>
         ))}
-        {sb.scenes.length > 12 && (
-          <div className="flex h-9 items-center px-1 text-xs text-muted-foreground tabular-nums">
-            +{sb.scenes.length - 12}
+        {storyboard.scenes.length > 12 && (
+          <div className="flex h-14 items-center px-1 text-xs text-muted-foreground tabular-nums">
+            +{storyboard.scenes.length - 12}
           </div>
         )}
       </div>
 
-      <div className="mt-2.5 flex items-center gap-2">
-        <Button
-          size="sm"
-          onClick={onApply}
-          className="min-h-11 sm:min-h-8"
-        >
+      <div className={cn("mt-2.5 flex items-center gap-2")}>
+        <Button size="sm" onClick={() => onApply(storyboard)} className="min-h-11 sm:min-h-8">
           {t("video.designer.apply")}
         </Button>
         <Button
           size="sm"
           variant="ghost"
           onClick={() => setShowJson((v) => !v)}
-          className="min-h-11 sm:min-h-8 text-muted-foreground"
+          className="min-h-11 text-muted-foreground sm:min-h-8"
         >
           {showJson ? t("video.designer.hideJson") : t("video.designer.viewJson")}
         </Button>
@@ -134,18 +106,70 @@ export function StoryboardCard({ parsed, applied, onApply }: StoryboardCardProps
 
       {showJson && (
         <pre className="mt-2 max-h-48 overflow-auto rounded-md border bg-background p-2 font-mono text-xs leading-relaxed">
-          {JSON.stringify(sb, null, 2)}
+          {JSON.stringify(storyboard, null, 2)}
         </pre>
       )}
     </div>
   );
 }
 
-function isDark(hex?: string): boolean {
-  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return false;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  // Rec. 709 luma — dark swatches need light foreground
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
+function SceneMiniThumb({ scene }: { scene: Scene }) {
+  const background = scene.gradient
+    ? `linear-gradient(135deg, ${scene.gradient.from}, ${scene.gradient.to})`
+    : (scene.color ?? "#000000");
+
+  if (scene.type === "image" || scene.type === "video") {
+    if (scene.source) {
+      return (
+        <img
+          src={scene.source}
+          alt=""
+          className="h-full w-full object-cover"
+          crossOrigin="anonymous"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
+        />
+      );
+    }
+    return <div className="h-full w-full bg-muted" />;
+  }
+
+  const def = scene.type === "icon" ? getIconDef(scene.icon?.name) : undefined;
+  return (
+    <div className="flex h-full w-full items-center justify-center" style={{ background }}>
+      {def && (
+        <svg
+          viewBox="0 0 24 24"
+          className="h-3.5 w-3.5"
+          fill="none"
+          stroke={scene.icon?.color || "#ffffff"}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          {def.d.map((d, i) => (
+            <path key={i} d={d} />
+          ))}
+        </svg>
+      )}
+    </div>
+  );
+}
+
+function ratioOf(width: number, height: number): string {
+  const g = (a: number, b: number): number => (b === 0 ? a : g(b, a % b));
+  const d = g(width, height) || 1;
+  const w = Math.round(width / d);
+  const h = Math.round(height / d);
+  // Collapse verbose ratios (1080:1920 → 9:16 already collapses; guard odd ones).
+  if (w <= 32 && h <= 32) return `${w}:${h}`;
+  return `${(width / height).toFixed(2)}:1`;
+}
+
+function sceneTitle(s: Scene): string {
+  const kind = s.type;
+  const text = s.caption?.text ?? s.narration ?? "";
+  return text ? `${kind} · ${text}` : kind;
 }

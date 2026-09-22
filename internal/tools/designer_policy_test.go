@@ -27,8 +27,9 @@ func (m *designerPolicyMockTool) Execute(context.Context, map[string]any) *tools
 func TestFilterTools_DesignerAgentExposesOnlyKnowledgeTools(t *testing.T) {
 	reg := tools.NewRegistry()
 	for _, name := range []string{
-		// designer allowlist (read_file: skill protocol SKILL.md loading)
-		"skill_search", "use_skill", "read_file", "session_status",
+		// designer allowlist (read_file: skill protocol SKILL.md loading;
+		// ask_options: the single clarifying question before designing)
+		"skill_search", "use_skill", "read_file", "session_status", "ask_options",
 		"web_fetch", "image_search",
 		// system-touching tools the designer must never see
 		"exec", "write_file", "edit_file", "apply_patch",
@@ -51,7 +52,7 @@ func TestFilterTools_DesignerAgentExposesOnlyKnowledgeTools(t *testing.T) {
 	}
 	slices.Sort(got)
 
-	want := []string{"image_search", "read_file", "session_status", "skill_search", "use_skill", "web_fetch"}
+	want := []string{"ask_options", "read_file", "session_status", "skill_search", "use_skill"}
 	if !slices.Equal(got, want) {
 		t.Errorf("designer tool surface = %v, want exactly %v", got, want)
 	}

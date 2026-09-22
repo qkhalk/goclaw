@@ -77,6 +77,7 @@ func Default() *Config {
 	return &Config{
 		DataDir: "~/.goclaw/data",
 		Agents: AgentsConfig{
+			ReasoningDefault: DefaultReasoningEffort,
 			Defaults: AgentDefaults{
 				Workspace:           "~/.goclaw/workspace",
 				RestrictToWorkspace: true,
@@ -207,9 +208,11 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GOCLAW_VERTEX_MODEL", &c.Providers.Vertex.Model)
 	envStr("GOCLAW_GATEWAY_TOKEN", &c.Gateway.Token)
 	envStr("GOCLAW_MCP_SERVER_TOKEN", &c.Gateway.MCPServerToken)
-	// Cloud accounts (Google/Microsoft OAuth client secrets — never in config.json).
+	// Cloud accounts (OAuth client secrets — never in config.json).
 	envStr("GOCLAW_CLOUD_GOOGLE_CLIENT_SECRET", &c.Cloud.Google.ClientSecret)
 	envStr("GOCLAW_CLOUD_MICROSOFT_CLIENT_SECRET", &c.Cloud.Microsoft.ClientSecret)
+	envStr("GOCLAW_CLOUD_DROPBOX_CLIENT_SECRET", &c.Cloud.Dropbox.ClientSecret)
+	envStr("GOCLAW_CLOUD_YANDEX_CLIENT_SECRET", &c.Cloud.Yandex.ClientSecret)
 	// Video render pipeline worker secret (never in config.json).
 	envStr("GOCLAW_VIDEO_WORKER_TOKEN", &c.Video.WorkerToken)
 	// Additional model providers (OpenClaw-parity set).
@@ -510,6 +513,31 @@ func (c *Config) WorkspacePath() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return ExpandHome(c.Agents.Defaults.Workspace)
+}
+
+// AgentReasoningDefault returns the normalized agents.reasoning_default value
+// used when creating NEW agents whose request omits a reasoning setting.
+// Empty resolves to DefaultReasoningEffort ("auto"); unknown values normalize
+// to "inherit" so a config typo never silently enables paid reasoning on new
+// agents; "inherit" means "stamp nothing".
+func (c *Config) AgentReasoningDefault() string {
+	c.mu.RLock()
+	raw := c.Agents.ReasoningDefault
+	c.mu.RUnlock()
+	return NormalizeReasoningDefault(raw)
+}
+
+// NormalizeReasoningDefault canonicalizes an agents.reasoning_default value.
+func NormalizeReasoningDefault(value string) string {
+	v := strings.ToLower(strings.TrimSpace(value))
+	switch v {
+	case "":
+		return DefaultReasoningEffort
+	case "inherit", "off", "low", "medium", "high", "auto":
+		return v
+	default:
+		return "inherit"
+	}
 }
 
 // ResolveAgent returns the effective config for a given agent ID,

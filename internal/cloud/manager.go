@@ -23,7 +23,7 @@ import (
 type Manager struct {
 	cfg      CloudProviderConfig
 	store    store.CloudAccountStore
-	bindings store.CloudBindingStore // optional per-scope account bindings
+	bindings store.CloudBindingStore  // optional per-scope account bindings
 	secrets  store.ConfigSecretsStore // optional dynamic provider credentials (saved from the web UI)
 	encKey   string
 	storage  *StorageService // optional; deletes rclone remotes on disconnect
@@ -31,7 +31,7 @@ type Manager struct {
 
 // CloudProviderConfig carries the static provider credentials for the
 // manager (env/config). Dynamic credentials saved from the web UI take
-// precedence (see googleCredentials/microsoftCredentials).
+// precedence (see googleCredentials/microsoftCredentials/...).
 type CloudProviderConfig struct {
 	GoogleClientID        string
 	GoogleClientSecret    string
@@ -39,6 +39,8 @@ type CloudProviderConfig struct {
 	MicrosoftClientSecret string
 	DropboxClientID       string
 	DropboxClientSecret   string
+	YandexClientID        string
+	YandexClientSecret    string
 }
 
 // config_secrets keys for credentials saved from the web UI (first-run setup).
@@ -51,11 +53,19 @@ const (
 
 	SecretKeyDropboxClientID     = "cloud.dropbox.client_id"
 	SecretKeyDropboxClientSecret = "cloud.dropbox.client_secret"
+
+	SecretKeyYandexClientID     = "cloud.yandex.client_id"
+	SecretKeyYandexClientSecret = "cloud.yandex.client_secret"
 )
 
 // SupportedProviders lists the storage providers the manager can connect,
-// in UI display order.
-var SupportedProviders = []string{GoogleProvider, MicrosoftProvider, DropboxProvider, S3Provider, WebDAVProvider}
+// in UI display order: the OAuth providers (google, onedrive, dropbox,
+// yandex) followed by the credential-based ones (s3, b2, azureblob, gcs,
+// pcloud, webdav, ftp, sftp, smb — keys/passwords typed by the user, no OAuth
+// app; see providers.go). Credential providers have no OAuth client, so
+// ProviderConfigured answers them from the registry (always true — they need
+// zero server-side setup).
+var SupportedProviders = append([]string{GoogleProvider, MicrosoftProvider, DropboxProvider, YandexProvider}, CredentialProviderIDs()...)
 
 // IsSupportedProvider reports whether the provider id can be connected.
 func IsSupportedProvider(provider string) bool {
@@ -122,16 +132,8 @@ func (m *Manager) MicrosoftConfigured(ctx context.Context) bool {
 	return true // embedded shared client
 }
 
-// DropboxConfigured reports whether a Dropbox OAuth client is present.
-// BYO-only: there is no embedded shared client, so an unset client means the
-// provider stays "not configured" (the UI hides its connect affordance).
-func (m *Manager) DropboxConfigured(ctx context.Context) bool {
-	id, secret := m.dropboxCredentials(ctx)
-	return id != "" && secret != ""
-}
-
 // dropboxCredentials resolves the Dropbox OAuth client at call time
-// (web-UI saved credentials win over env/config, same as the others).
+// (web-UI saved credentials win over env/config, same as Google).
 func (m *Manager) dropboxCredentials(ctx context.Context) (clientID, clientSecret string) {
 	if m.secrets != nil {
 		sctx := store.WithTenantID(ctx, store.MasterTenantID)
@@ -145,7 +147,45 @@ func (m *Manager) dropboxCredentials(ctx context.Context) (clientID, clientSecre
 	return m.cfg.DropboxClientID, m.cfg.DropboxClientSecret
 }
 
+// DropboxConfigured reports whether the Dropbox OAuth client is present
+// (embedded shared client always available).
+func (m *Manager) DropboxConfigured(ctx context.Context) bool {
+	id, secret := m.dropboxCredentials(ctx)
+	if id != "" && secret != "" {
+		return true
+	}
+	return true // embedded shared client
+}
+
+// yandexCredentials resolves the Yandex OAuth client at call time
+// (web-UI saved credentials win over env/config, same as Google).
+func (m *Manager) yandexCredentials(ctx context.Context) (clientID, clientSecret string) {
+	if m.secrets != nil {
+		sctx := store.WithTenantID(ctx, store.MasterTenantID)
+		if id, err := m.secrets.Get(sctx, SecretKeyYandexClientID); err == nil && id != "" {
+			secret, serr := m.secrets.Get(sctx, SecretKeyYandexClientSecret)
+			if serr == nil && secret != "" {
+				return id, secret
+			}
+		}
+	}
+	return m.cfg.YandexClientID, m.cfg.YandexClientSecret
+}
+
+// YandexConfigured reports whether the Yandex OAuth client is present
+// (embedded shared client always available).
+func (m *Manager) YandexConfigured(ctx context.Context) bool {
+	id, secret := m.yandexCredentials(ctx)
+	if id != "" && secret != "" {
+		return true
+	}
+	return true // embedded shared client
+}
+
 // ProviderConfigured dispatches the per-provider OAuth client check.
+// Credential-based providers (s3, b2, azureblob, gcs, …) need no OAuth
+// client — the user supplies keys per account — so they are always
+// "configured".
 func (m *Manager) ProviderConfigured(ctx context.Context, provider string) bool {
 	switch provider {
 	case GoogleProvider:
@@ -154,16 +194,10 @@ func (m *Manager) ProviderConfigured(ctx context.Context, provider string) bool 
 		return m.MicrosoftConfigured(ctx)
 	case DropboxProvider:
 		return m.DropboxConfigured(ctx)
-	case S3Provider:
-		// Static access keys — always "configured"; validation happens at
-		// connect time (ConnectS3).
-		return true
-	case WebDAVProvider:
-		// Static credentials — always "configured"; validation happens at
-		// connect time (ConnectWebDAV).
-		return true
+	case YandexProvider:
+		return m.YandexConfigured(ctx)
 	default:
-		return false
+		return IsCredentialProvider(provider)
 	}
 }
 
@@ -192,9 +226,15 @@ func (m *Manager) SaveGoogleCredentials(ctx context.Context, clientID, clientSec
 }
 
 // SaveDropboxCredentials stores the Dropbox OAuth client from the web-UI
-// setup form. An empty secret keeps the one already saved.
+// setup form (same shape as Google).
 func (m *Manager) SaveDropboxCredentials(ctx context.Context, clientID, clientSecret string) error {
 	return m.saveProviderCredentials(ctx, SecretKeyDropboxClientID, SecretKeyDropboxClientSecret, clientID, clientSecret)
+}
+
+// SaveYandexCredentials stores the Yandex OAuth client from the web-UI setup
+// form (same shape as Google).
+func (m *Manager) SaveYandexCredentials(ctx context.Context, clientID, clientSecret string) error {
+	return m.saveProviderCredentials(ctx, SecretKeyYandexClientID, SecretKeyYandexClientSecret, clientID, clientSecret)
 }
 
 func (m *Manager) saveProviderCredentials(ctx context.Context, idKey, secretKey, clientID, clientSecret string) error {
@@ -224,9 +264,15 @@ func (m *Manager) MicrosoftCredentialsStatus(ctx context.Context) (clientID stri
 }
 
 // DropboxCredentialsStatus returns the configured Dropbox client ID and
-// whether a secret is set (same shape as Google/Microsoft).
+// whether a secret is set (same shape as GoogleCredentialsStatus).
 func (m *Manager) DropboxCredentialsStatus(ctx context.Context) (clientID string, secretSet bool) {
 	return m.credentialsStatus(ctx, SecretKeyDropboxClientID, SecretKeyDropboxClientSecret, m.cfg.DropboxClientID, m.cfg.DropboxClientSecret)
+}
+
+// YandexCredentialsStatus returns the configured Yandex client ID and
+// whether a secret is set (same shape as GoogleCredentialsStatus).
+func (m *Manager) YandexCredentialsStatus(ctx context.Context) (clientID string, secretSet bool) {
+	return m.credentialsStatus(ctx, SecretKeyYandexClientID, SecretKeyYandexClientSecret, m.cfg.YandexClientID, m.cfg.YandexClientSecret)
 }
 
 func (m *Manager) credentialsStatus(ctx context.Context, idKey, secretKey, envID, envSecret string) (clientID string, secretSet bool) {
@@ -241,8 +287,8 @@ func (m *Manager) credentialsStatus(ctx context.Context, idKey, secretKey, envID
 }
 
 // BuildAuthURL returns the consent URL for the given storage provider
-// ("google" | "onedrive") for a (tenant, user), plus the redirect URI that
-// must be registered in the provider's console.
+// ("google" | "onedrive" | "dropbox" | "yandex") for a (tenant, user), plus
+// the redirect URI that must be registered in the provider's console.
 func (m *Manager) BuildAuthURL(ctx context.Context, provider, baseURL, tenantID, userID string) (authURL, redirectURI, mode string, err error) {
 	switch provider {
 	case GoogleProvider:
@@ -251,10 +297,8 @@ func (m *Manager) BuildAuthURL(ctx context.Context, provider, baseURL, tenantID,
 		return m.buildMicrosoftAuthURL(ctx, baseURL, tenantID, userID)
 	case DropboxProvider:
 		return m.buildDropboxAuthURL(ctx, baseURL, tenantID, userID)
-	case S3Provider:
-		return "", "", "", errors.New("cloud: s3 connects with access keys, not OAuth — use the access-key connect form")
-	case WebDAVProvider:
-		return "", "", "", errors.New("cloud: webdav connects with username/password, not OAuth — use the credential connect form")
+	case YandexProvider:
+		return m.buildYandexAuthURL(ctx, baseURL, tenantID, userID)
 	default:
 		return "", "", "", fmt.Errorf("cloud: unsupported provider %q", provider)
 	}
@@ -375,15 +419,15 @@ func (m *Manager) buildMicrosoftAuthURL(ctx context.Context, baseURL, tenantID, 
 	return url, redirectURI, mode, nil
 }
 
-// buildDropboxAuthURL builds the Dropbox consent URL. BYO-only: without
-// saved credentials the flow cannot start (the UI already gates connect).
 func (m *Manager) buildDropboxAuthURL(ctx context.Context, baseURL, tenantID, userID string) (authURL, redirectURI, mode string, err error) {
 	creds, byo := m.dropboxCredentialsAll(ctx)
-	if !byo {
-		return "", "", "", fmt.Errorf("cloud: dropbox is not configured — save a Dropbox app client id/secret in Cloud settings first")
-	}
 	mode = "callback"
-	redirectURI = RedirectURI(baseURL)
+	if byo {
+		redirectURI = RedirectURI(baseURL)
+	} else {
+		mode = "paste"
+		redirectURI = LoopbackRedirectDropbox
+	}
 	cfg := NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, redirectURI)
 
 	verifier, err := NewVerifier()
@@ -400,48 +444,42 @@ func (m *Manager) buildDropboxAuthURL(ctx context.Context, baseURL, tenantID, us
 	if err != nil {
 		return "", "", "", err
 	}
-	// token_access_type=offline is mandatory — without it Dropbox issues no
-	// refresh token and the account dies with its first access token.
+
+	// token_access_type=offline is MANDATORY: Dropbox otherwise issues an
+	// online-only ~4h token with no refresh_token (rclone + MCP-flow same).
 	url := cfg.AuthCodeURL(state,
+		oauth2.SetAuthURLParam("token_access_type", "offline"),
 		oauth2.SetAuthURLParam("code_challenge", VerifierChallenge(verifier)),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-		oauth2.SetAuthURLParam("token_access_type", "offline"),
 	)
 	return url, redirectURI, mode, nil
 }
 
-// handleDropboxCallback exchanges the code and upserts the account row.
-func (m *Manager) handleDropboxCallback(ctx context.Context, code string, payload StatePayload) (*store.CloudAccount, error) {
-	creds, _ := m.dropboxCredentialsAll(ctx)
-	cfg := NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, payload.Redirect)
-	tok, err := ExchangeDropboxCode(ctx, cfg, code, payload.Verifier)
-	if err != nil {
-		return nil, fmt.Errorf("cloud: token exchange: %w", err)
+func (m *Manager) buildYandexAuthURL(ctx context.Context, baseURL, tenantID, userID string) (authURL, redirectURI, mode string, err error) {
+	creds, byo := m.yandexCredentialsAll(ctx)
+	mode = "callback"
+	if byo {
+		redirectURI = RedirectURI(baseURL)
+	} else {
+		mode = "paste"
+		redirectURI = LoopbackRedirectYandex
 	}
+	cfg := NewYandexTokenConfig(creds.ClientID, creds.ClientSecret, redirectURI)
 
-	profile, err := FetchDropboxProfile(ctx, tok.AccessToken)
+	// Yandex OAuth has no PKCE support and no scope parameter (app-level
+	// permissions) — the state's Verifier stays empty and the exchange is
+	// plain authorization_code.
+	state, err := EncodeState(StatePayload{
+		Provider: YandexProvider,
+		TenantID: tenantID,
+		UserID:   userID,
+		Redirect: redirectURI,
+	}, m.encKey)
 	if err != nil {
-		return nil, fmt.Errorf("cloud: profile: %w", err)
+		return "", "", "", err
 	}
-	if profile.Mail() == "" {
-		return nil, errors.New("cloud: dropbox profile returned no email")
-	}
-
-	scopes, _ := json.Marshal([]string{"dropbox.files.readwrite"})
-	expires := tok.Expiry
-	acct := &store.CloudAccount{
-		Provider:       DropboxProvider,
-		Email:          profile.Mail(),
-		DisplayName:    profile.DisplayName(),
-		Scopes:         string(scopes),
-		AccessToken:    tok.AccessToken,
-		RefreshToken:   tok.RefreshToken,
-		TokenExpiresAt: &expires,
-		Status:         "active",
-	}
-	// Stamp the issuing client so refreshes use the same OAuth client.
-	acct.Settings = stampSettings("", map[string]string{"client_id": creds.ClientID})
-	return acct, nil
+	url := cfg.AuthCodeURL(state)
+	return url, redirectURI, mode, nil
 }
 
 // HandleCallback verifies the signed state, exchanges the code with the
@@ -472,6 +510,8 @@ func (m *Manager) HandleCallback(ctx context.Context, code, state string) (*stor
 		acct, err = m.handleMicrosoftCallback(ctx, code, *payload)
 	case DropboxProvider:
 		acct, err = m.handleDropboxCallback(ctx, code, *payload)
+	case YandexProvider:
+		acct, err = m.handleYandexCallback(ctx, code, *payload)
 	default:
 		err = fmt.Errorf("cloud: unsupported provider %q", payload.Provider)
 	}
@@ -587,6 +627,81 @@ func (m *Manager) handleMicrosoftCallback(ctx context.Context, code string, payl
 	return acct, nil
 }
 
+// handleDropboxCallback finishes the Dropbox flow: exchange (PKCE) → profile
+// (get_current_account) → account row with the issuing client stamped.
+func (m *Manager) handleDropboxCallback(ctx context.Context, code string, payload StatePayload) (*store.CloudAccount, error) {
+	creds, _ := m.dropboxCredentialsAll(ctx)
+	cfg := NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, payload.Redirect)
+	tok, err := ExchangeDropboxCode(ctx, cfg, code, payload.Verifier)
+	if err != nil {
+		return nil, fmt.Errorf("cloud: token exchange: %w", err)
+	}
+
+	profile, err := fetchDropboxProfile(ctx, tok.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("cloud: profile: %w", err)
+	}
+	if profile.Email == "" {
+		return nil, errors.New("cloud: profile returned no email")
+	}
+
+	// Dropbox token responses include the granted granular scopes; fall back
+	// to the requested set when the endpoint omits them.
+	scopes, _ := json.Marshal(tok.Extra("scope"))
+	if string(scopes) == "null" || string(scopes) == "" {
+		scopes, _ = json.Marshal(DropboxScopes)
+	}
+	expires := tok.Expiry
+	acct := &store.CloudAccount{
+		Provider:       DropboxProvider,
+		Email:          profile.Email,
+		DisplayName:    profile.Name.DisplayName,
+		Scopes:         string(scopes),
+		AccessToken:    tok.AccessToken,
+		RefreshToken:   tok.RefreshToken,
+		TokenExpiresAt: &expires,
+		Status:         "active",
+	}
+	acct.Settings = stampSettings("", map[string]string{"client_id": creds.ClientID})
+	return acct, nil
+}
+
+// handleYandexCallback finishes the Yandex flow: plain code exchange (no
+// PKCE) → login.yandex.ru profile → account row with the issuing client
+// stamped. Scopes carry the observability marker only — Yandex grants
+// app-level Disk permissions (see scopes.go / yandex.go).
+func (m *Manager) handleYandexCallback(ctx context.Context, code string, payload StatePayload) (*store.CloudAccount, error) {
+	creds, _ := m.yandexCredentialsAll(ctx)
+	cfg := NewYandexTokenConfig(creds.ClientID, creds.ClientSecret, payload.Redirect)
+	tok, err := ExchangeYandexCode(ctx, cfg, code)
+	if err != nil {
+		return nil, fmt.Errorf("cloud: token exchange: %w", err)
+	}
+
+	info, err := fetchYandexInfo(ctx, tok.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("cloud: profile: %w", err)
+	}
+	if info.Email() == "" {
+		return nil, errors.New("cloud: profile returned no login")
+	}
+
+	scopes, _ := json.Marshal([]string{YandexScopesMarker})
+	expires := tok.Expiry
+	acct := &store.CloudAccount{
+		Provider:       YandexProvider,
+		Email:          info.Email(),
+		DisplayName:    info.Email(),
+		Scopes:         string(scopes),
+		AccessToken:    tok.AccessToken,
+		RefreshToken:   tok.RefreshToken,
+		TokenExpiresAt: &expires,
+		Status:         "active",
+	}
+	acct.Settings = stampSettings("", map[string]string{"client_id": creds.ClientID})
+	return acct, nil
+}
+
 // Delete removes a connected account (scoped by ctx identity). When a storage
 // service is attached, the account's rclone remote is also deleted so its
 // tokens do not linger in the shared rclone.conf on disk.
@@ -630,10 +745,9 @@ func (m *Manager) TokenSource(ctx context.Context, accountID string) (oauth2.Tok
 	case DropboxProvider:
 		creds := m.credentialsForAccount(ctx, acct)
 		cfg = NewDropboxTokenConfig(creds.ClientID, creds.ClientSecret, "")
-	case S3Provider:
-		return nil, errors.New("cloud: s3 accounts use static access keys — no token source")
-	case WebDAVProvider:
-		return nil, errors.New("cloud: webdav accounts use static credentials — no token source")
+	case YandexProvider:
+		creds := m.credentialsForAccount(ctx, acct)
+		cfg = NewYandexTokenConfig(creds.ClientID, creds.ClientSecret, "")
 	default:
 		return nil, fmt.Errorf("cloud: unsupported provider %q", acct.Provider)
 	}

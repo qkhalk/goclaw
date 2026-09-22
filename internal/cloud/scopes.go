@@ -23,6 +23,11 @@ const GoogleDriveWriteScope = "https://www.googleapis.com/auth/drive"
 // of Files.Read.All).
 const MicrosoftFilesWriteScope = "Files.ReadWrite.All"
 
+// DropboxFilesWriteScope is the Dropbox content-write granular scope (the
+// grant rclone requests for upload/mkdir; metadata.write is the rename/move
+// counterpart and is always requested alongside).
+const DropboxFilesWriteScope = "files.content.write"
+
 // scopesFromJSON parses the stored account scopes into individual scope
 // strings. Rows persist two shapes depending on what the token endpoint
 // returned (see Manager.handleGoogleCallback): a JSON array of strings, or a
@@ -70,9 +75,23 @@ func HasMicrosoftWriteScopes(scopesJSON string) bool {
 	return slices.Contains(scopesFromJSON(scopesJSON), MicrosoftFilesWriteScope)
 }
 
+// HasDropboxWriteScopes reports whether the stored scope set contains
+// files.content.write.
+func HasDropboxWriteScopes(scopesJSON string) bool {
+	return slices.Contains(scopesFromJSON(scopesJSON), DropboxFilesWriteScope)
+}
+
 // AccountCanWrite reports whether the account's stored OAuth grant includes
 // the provider's write scope. Accounts connected before the write upgrade
 // report false until their owner re-grants; every read path stays usable.
+//
+// Credential-based providers (s3, b2, azureblob, gcs, ftp, sftp, smb, …) are
+// inherently full-access: the user typed the key/password themselves and
+// there is no scope grant that could be narrower, so they always report
+// true. Yandex is registry-based too: its tokens carry app-level Disk
+// permissions with no per-token scope concept. Rows carry observability
+// markers in the scopes column; the authoritative checks are the provider
+// registry and the per-provider scope matchers here.
 func AccountCanWrite(acct *store.CloudAccount) bool {
 	if acct == nil {
 		return false
@@ -83,17 +102,15 @@ func AccountCanWrite(acct *store.CloudAccount) bool {
 	case MicrosoftProvider:
 		return HasMicrosoftWriteScopes(acct.Scopes)
 	case DropboxProvider:
-		// Dropbox app permissions live in the app console, not the grant;
-		// the connect flow stores a fixed readwrite marker (manager.go).
-		return strings.Contains(acct.Scopes, "readwrite")
-	case S3Provider:
-		// Access keys are inherently readwrite on the target bucket.
-		return true
-	case WebDAVProvider:
-		// WebDAV credentials are inherently readwrite on the collection.
+		// Dropbox token responses include the granted granular scopes; a
+		// scope-less row means the endpoint omitted them — treat it as the
+		// full app permission set rather than permanently read-only.
+		scopes := scopesFromJSON(acct.Scopes)
+		return len(scopes) == 0 || slices.Contains(scopes, DropboxFilesWriteScope)
+	case YandexProvider:
 		return true
 	default:
-		return false
+		return IsCredentialProvider(acct.Provider)
 	}
 }
 

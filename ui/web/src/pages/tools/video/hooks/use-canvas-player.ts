@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Scene } from "../hooks/use-timeline";
-import type { NarrationAudioController } from "./use-narration-audio";
+import type { Scene } from "./use-timeline";
 import { drawStoryboardFrame } from "../components/render-shared";
-import { getIconImage, setIconLoadListener } from "../lib/feather-icons";
 
-// ── Types (Scene is the canonical model from use-timeline) ──
+// ── Types ──
 
 interface Storyboard {
   version: number;
@@ -20,9 +18,6 @@ export interface CanvasPlayerState {
   currentSceneIndex: number;
   fps: number;
   totalDuration: number;
-  /** Narration-audio progress (0..1) of the current scene, when its TTS clip
-   * is synthesized — drives the caption karaoke reveal. */
-  narrProgress: number | undefined;
 }
 
 export interface UseCanvasPlayerReturn {
@@ -63,12 +58,11 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+// ── Canvas rendering ──
+
 // ── Hook ──
 
-export function useCanvasPlayer(
-  storyboard: Storyboard,
-  narration?: NarrationAudioController,
-): UseCanvasPlayerReturn {
+export function useCanvasPlayer(storyboard: Storyboard): UseCanvasPlayerReturn {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [state, setState] = useState<CanvasPlayerState>({
     isPlaying: false,
@@ -76,7 +70,6 @@ export function useCanvasPlayer(
     currentSceneIndex: 0,
     fps: storyboard.canvas.fps,
     totalDuration: totalDuration(storyboard.scenes),
-    narrProgress: undefined,
   });
 
   const isPlayingRef = useRef(false);
@@ -88,121 +81,29 @@ export function useCanvasPlayer(
   // Reusable offscreen buffers for transition compositing.
   const scratchARef = useRef<HTMLCanvasElement | null>(null);
   const scratchBRef = useRef<HTMLCanvasElement | null>(null);
-  // The narration clip currently sounding (scene-keyed so scene switches and
-  // loop restarts hand the element back correctly).
-  const activeNarrRef = useRef<{ el: HTMLAudioElement; key: string } | null>(null);
-  const narrationRef = useRef<NarrationAudioController | undefined>(narration);
-  narrationRef.current = narration;
-  // Thaw the frame identity so callbacks below don't rebuild per keystroke.
-  const scenesRef = useRef(storyboard.scenes);
-  scenesRef.current = storyboard.scenes;
-  // Server render width for font normalization: storyboard font_size is
-  // absolute pixels on the output-size render (output.height is the short
-  // side = the render width for 9:16).
-  const renderWidthRef = useRef(storyboard.output?.height ?? 720);
-  renderWidthRef.current = storyboard.output?.height ?? 720;
 
-  // Preload images (scene sources + image-layer sources)
+  // Preload images
   useEffect(() => {
-    const wanted = new Set<string>();
     for (const scene of storyboard.scenes) {
       if ((scene.type === "image" || scene.type === "video") && scene.source) {
-        wanted.add(scene.source);
-      }
-      for (const layer of scene.layers ?? []) {
-        if (layer.kind === "image" && layer.source) wanted.add(layer.source);
-      }
-    }
-    for (const src of wanted) {
-      if (imageCacheRef.current.has(src) || loadingImagesRef.current.has(src)) continue;
-      loadingImagesRef.current.add(src);
-      loadImage(src)
-        .then((img) => {
-          imageCacheRef.current.set(src, img);
-          loadingImagesRef.current.delete(src);
-          // Force re-render after image loads
-          if (!isPlayingRef.current) {
-            renderCurrentFrame();
-          }
-        })
-        .catch(() => {
-          loadingImagesRef.current.delete(src);
-        });
-    }
-    // Warm the icon image cache (icon layers) — draws skip until each glyph
-    // arrives, then the load listener repaints.
-    for (const scene of storyboard.scenes) {
-      for (const layer of scene.layers ?? []) {
-        if (layer.kind === "icon") getIconImage(layer);
+        if (!imageCacheRef.current.has(scene.source) && !loadingImagesRef.current.has(scene.source)) {
+          loadingImagesRef.current.add(scene.source);
+          loadImage(scene.source)
+            .then((img) => {
+              imageCacheRef.current.set(scene.source!, img);
+              loadingImagesRef.current.delete(scene.source!);
+              // Force re-render after image loads
+              if (!isPlayingRef.current) {
+                renderCurrentFrame();
+              }
+            })
+            .catch(() => {
+              loadingImagesRef.current.delete(scene.source!);
+            });
+        }
       }
     }
   }, [storyboard.scenes]);
-
-  /** Keep the current scene's narration clip aligned with the playhead:
-   * start/pause/resync the HTMLAudioElement, lazily synthesize missing
-   * clips (cached by the controller), and pre-synthesize the next scene's
-   * audio near the scene tail so playback stays gapless. */
-  const syncNarration = useCallback((index: number, localTime: number, playing: boolean) => {
-    const narr = narrationRef.current;
-    const scenes = scenesRef.current;
-    if (!narr) return;
-    const scene = scenes[index];
-    const text = typeof scene?.narration === "string" ? scene.narration.trim() : "";
-    const voice = scene?.narration_voice;
-    const key = `${voice ?? ""}::${text}`;
-
-    // Scene switched (or narration edited) — silence the previous clip.
-    if (activeNarrRef.current && activeNarrRef.current.key !== key) {
-      activeNarrRef.current.el.pause();
-      activeNarrRef.current = null;
-    }
-    if (!text) return;
-
-    const el = narr.get(text, voice);
-    if (!el) {
-      // Missing clip: synthesize in the background; the next frame picks it
-      // up from the controller's cache (single-flight, so rAF spam is safe).
-      narr.prepare(text, voice).catch(() => {});
-      if (playing) {
-        const next = scenes[index + 1];
-        if (typeof next?.narration === "string" && next.narration.trim()) {
-          narr.prepare(next.narration, next.narration_voice).catch(() => {});
-        }
-      }
-      return;
-    }
-
-    const dur = Number.isFinite(el.duration) ? el.duration : 0;
-    const offset = Math.max(0, Math.min(localTime, dur - 0.05));
-    if (playing) {
-      if (el.paused && localTime < dur) {
-        el.currentTime = offset;
-        activeNarrRef.current = { el, key };
-        void el.play().catch(() => {});
-      } else if (!el.paused && Math.abs(el.currentTime - localTime) > 0.35 && localTime < dur) {
-        // Chase desyncs (tab throttling, loop restart, manual seek).
-        el.currentTime = offset;
-      }
-      if (localTime >= dur + 0.05 && !el.paused) {
-        el.pause();
-      }
-      // Lookahead: warm the next scene's clip while this one plays out.
-      if (scene && localTime > scene.duration_sec - 1.2) {
-        const next = scenes[index + 1];
-        if (typeof next?.narration === "string" && next.narration.trim()) {
-          narr.prepare(next.narration, next.narration_voice).catch(() => {});
-        }
-      }
-    } else {
-      // Paused scrub: park the clip at the playhead without playing.
-      if (!el.paused) el.pause();
-      try {
-        el.currentTime = offset;
-      } catch {
-        /* seek before metadata — ignored */
-      }
-    }
-  }, []);
 
   const renderCurrentFrame = useCallback(() => {
     const canvas = canvasRef.current;
@@ -211,37 +112,21 @@ export function useCanvasPlayer(
     if (!ctx) return;
 
     const time = currentTimeRef.current;
-    const scenes = scenesRef.current;
-    const { index, localTime } = sceneAtTime(scenes, time);
-    const scene = scenes[index];
+    const { index, localTime } = sceneAtTime(storyboard.scenes, time);
+    const scene = storyboard.scenes[index];
     if (!scene) return;
-
-    syncNarration(index, localTime, isPlayingRef.current);
-
-    // Karaoke progress from the sounding clip (or the parked playhead when
-    // paused) — undefined leaves the caption fully visible.
-    let narrProgress: number | undefined;
-    const text = typeof scene.narration === "string" ? scene.narration.trim() : "";
-    if (text) {
-      const el = narrationRef.current?.get(text, scene.narration_voice);
-      if (el && Number.isFinite(el.duration) && el.duration > 0) {
-        narrProgress = Math.max(0, Math.min(1, el.currentTime / el.duration));
-      }
-    }
 
     if (!scratchARef.current) scratchARef.current = document.createElement("canvas");
     if (!scratchBRef.current) scratchBRef.current = document.createElement("canvas");
     drawStoryboardFrame(
       ctx,
       canvas,
-      scenes,
+      storyboard.scenes,
       index,
       localTime,
       imageCacheRef.current,
       scratchARef.current,
       scratchBRef.current,
-      narrProgress,
-      canvas.width / renderWidthRef.current,
     );
 
     setState((prev) => ({
@@ -249,10 +134,9 @@ export function useCanvasPlayer(
       currentTime: time,
       currentSceneIndex: index,
       fps: storyboard.canvas.fps,
-      totalDuration: totalDuration(scenes),
-      narrProgress,
+      totalDuration: totalDuration(storyboard.scenes),
     }));
-  }, [storyboard.canvas.fps, syncNarration]);
+  }, [storyboard]);
 
   const frameLoop = useCallback(
     (timestamp: number) => {
@@ -265,7 +149,7 @@ export function useCanvasPlayer(
       const delta = (timestamp - lastFrameTimeRef.current) / 1000;
       lastFrameTimeRef.current = timestamp;
 
-      const total = totalDuration(scenesRef.current);
+      const total = totalDuration(storyboard.scenes);
       currentTimeRef.current = Math.min(currentTimeRef.current + delta, total);
 
       if (currentTimeRef.current >= total) {
@@ -276,7 +160,7 @@ export function useCanvasPlayer(
       renderCurrentFrame();
       rafRef.current = requestAnimationFrame(frameLoop);
     },
-    [renderCurrentFrame],
+    [storyboard.scenes, renderCurrentFrame],
   );
 
   const play = useCallback(() => {
@@ -289,16 +173,15 @@ export function useCanvasPlayer(
   const pause = useCallback(() => {
     isPlayingRef.current = false;
     cancelAnimationFrame(rafRef.current);
-    activeNarrRef.current?.el.pause();
     setState((prev) => ({ ...prev, isPlaying: false }));
   }, []);
 
   const seek = useCallback(
     (time: number) => {
-      currentTimeRef.current = Math.max(0, Math.min(time, totalDuration(scenesRef.current)));
+      currentTimeRef.current = Math.max(0, Math.min(time, totalDuration(storyboard.scenes)));
       renderCurrentFrame();
     },
-    [renderCurrentFrame],
+    [storyboard.scenes, renderCurrentFrame],
   );
 
   const stepFrame = useCallback(
@@ -306,11 +189,11 @@ export function useCanvasPlayer(
       const frameDuration = 1 / storyboard.canvas.fps;
       currentTimeRef.current = Math.max(
         0,
-        Math.min(currentTimeRef.current + delta * frameDuration, totalDuration(scenesRef.current)),
+        Math.min(currentTimeRef.current + delta * frameDuration, totalDuration(storyboard.scenes)),
       );
       renderCurrentFrame();
     },
-    [storyboard.canvas.fps, renderCurrentFrame],
+    [storyboard.canvas.fps, storyboard.scenes, renderCurrentFrame],
   );
 
   const resize = useCallback(
@@ -324,31 +207,18 @@ export function useCanvasPlayer(
     [renderCurrentFrame],
   );
 
-  // Initial render + repaint paused edits (scene/color/duration changes
-  // while paused must show up without a play/seek nudge).
+  // Initial render
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas && canvas.width > 0 && canvas.height > 0 && !isPlayingRef.current) {
+    if (canvas && canvas.width > 0 && canvas.height > 0) {
       renderCurrentFrame();
     }
-  }, [storyboard.scenes, renderCurrentFrame]);
-
-  // Repaint when an icon glyph finishes loading (preview draws skip icons
-  // until their image arrives).
-  const renderRef = useRef(renderCurrentFrame);
-  renderRef.current = renderCurrentFrame;
-  useEffect(() => {
-    setIconLoadListener(() => {
-      if (!isPlayingRef.current) renderRef.current();
-    });
-    return () => setIconLoadListener(null);
-  }, []);
+  }, [storyboard, renderCurrentFrame]);
 
   // Cleanup
   useEffect(() => {
     return () => {
       cancelAnimationFrame(rafRef.current);
-      activeNarrRef.current?.el.pause();
     };
   }, []);
 

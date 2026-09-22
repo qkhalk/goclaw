@@ -12,6 +12,7 @@ import { ChatInput, type AttachedFile, type ComposerOverrides } from "@/componen
 import { ChatTopBar } from "@/components/chat/chat-top-bar";
 import { DropZone } from "@/components/shared/drop-zone";
 import { TeamTasksPill } from "@/components/chat/team-tasks-pill";
+import { SubagentsPill } from "@/components/chat/subagents-pill";
 import { useChatSessions } from "./hooks/use-chat-sessions";
 import { useWs } from "@/hooks/use-ws";
 import { Methods } from "@/api/protocol";
@@ -58,10 +59,13 @@ export function ChatPage() {
 
   const {
     sessions,
+    archivedSessions,
     loading: sessionsLoading,
     refresh: refreshSessions,
     buildNewSessionKey,
     deleteSession,
+    archiveSession,
+    restoreSession,
   } = useChatSessions(agentId);
   const ws = useWs();
 
@@ -93,6 +97,7 @@ export function ChatPage() {
     isBusy,
     loading: messagesLoading,
     activity,
+    llmMeta,
     blockReplies,
     teamTasks,
     expectRun,
@@ -273,6 +278,9 @@ export function ChatPage() {
               activeSessionKey={sessionKey}
               onSessionSelect={handleSessionSelectMobile}
               onDeleteSession={handleDeleteSession}
+              onArchiveSession={archiveSession}
+              archivedSessions={archivedSessions}
+              onRestoreSession={restoreSession}
               onNewChat={handleNewChatMobile}
               agentSelectorOpenSignal={agentSelectorOpenSignal}
             />
@@ -289,6 +297,9 @@ export function ChatPage() {
             activeSessionKey={sessionKey}
             onSessionSelect={handleSessionSelect}
             onDeleteSession={handleDeleteSession}
+            onArchiveSession={archiveSession}
+            archivedSessions={archivedSessions}
+            onRestoreSession={restoreSession}
             onNewChat={handleNewChat}
             agentSelectorOpenSignal={agentSelectorOpenSignal}
             width={chatSidebarWidth}
@@ -351,6 +362,8 @@ export function ChatPage() {
               isBusy={isBusy}
               loading={messagesLoading}
               scrollTrigger={scrollTrigger}
+              agentId={agentId}
+              llmMeta={llmMeta}
             />
           </AskOptionsProvider>
 
@@ -379,6 +392,7 @@ export function ChatPage() {
           ) : (
             <>
               <TeamTasksPill tasks={teamTasks} />
+              <SubagentsPill agentId={agentId} />
               <ChatInput
                 onSend={handleSend}
                 onAbort={handleAbort}

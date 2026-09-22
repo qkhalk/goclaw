@@ -182,3 +182,118 @@ func TestWebBrowseActionRouter(t *testing.T) {
 		t.Fatalf("extract on telegram: %+v", r)
 	}
 }
+
+// mockPageRenderer stubs the headless render fallback for unit tests.
+type mockPageRenderer struct {
+	result *PageRenderResult
+	err    error
+	calls  int
+}
+
+func (m *mockPageRenderer) RenderHTML(ctx context.Context, rawURL string) (*PageRenderResult, error) {
+	m.calls++
+	return m.result, m.err
+}
+
+func TestWebBrowseRelayNeedsRender(t *testing.T) {
+	shell := fetchRawResult{
+		content:     "<html><head><title>9Router</title></head><body><div>Loading...</div></body></html>",
+		contentType: "text/html; charset=utf-8",
+		statusCode:  200,
+	}
+	if !relayNeedsRender(shell) {
+		t.Fatal("JS-only shell should need render")
+	}
+	rich := fetchRawResult{
+		content:     "<html><body>" + strings.Repeat("<p>meaningful body text here</p>", 20) + "</body></html>",
+		contentType: "text/html",
+		statusCode:  200,
+	}
+	if relayNeedsRender(rich) {
+		t.Fatal("rich static page should not need render")
+	}
+	challenge := fetchRawResult{content: "<html></html>", contentType: "text/html", statusCode: 403}
+	if !relayNeedsRender(challenge) {
+		t.Fatal("403 challenge should need render")
+	}
+	rateLimited := fetchRawResult{content: "", contentType: "text/html", statusCode: 429}
+	if !relayNeedsRender(rateLimited) {
+		t.Fatal("429 should need render")
+	}
+	serverError := fetchRawResult{content: "", contentType: "text/html", statusCode: 503}
+	if !relayNeedsRender(serverError) {
+		t.Fatal("503 should need render")
+	}
+	notFound := fetchRawResult{content: "<html><body>page not found</body></html>", contentType: "text/html", statusCode: 404}
+	if relayNeedsRender(notFound) {
+		t.Fatal("404 should relay as-is")
+	}
+	jsonDoc := fetchRawResult{content: `{"ok":true}`, contentType: "application/json", statusCode: 200}
+	if relayNeedsRender(jsonDoc) {
+		t.Fatal("JSON documents never need render")
+	}
+}
+
+func TestWebBrowseMaybeRender(t *testing.T) {
+	shell := fetchRawResult{
+		content:     "<html><body><div>Loading...</div></body></html>",
+		contentType: "text/html",
+		finalURL:    "https://example.com/login",
+		statusCode:  200,
+	}
+	rendered := &PageRenderResult{
+		HTML:     "<html><body>" + strings.Repeat("<p>rendered login form text</p>", 30) + "</body></html>",
+		FinalURL: "https://example.com/login",
+		Title:    "Sign in",
+	}
+
+	// No renderer wired: doc unchanged, no render flag.
+	tool := newTestWebBrowseTool(&mockBrowserInvoker{})
+	got, renderedFlag := tool.maybeRender(context.Background(), shell, "https://example.com/login")
+	if renderedFlag || got.statusCode != shell.statusCode {
+		t.Fatal("nil renderer must keep the fetched document")
+	}
+
+	// Successful render: adopted, flagged, content-type forced to HTML.
+	renderer := &mockPageRenderer{result: rendered}
+	tool.renderer = renderer
+	got, renderedFlag = tool.maybeRender(context.Background(), shell, "https://example.com/login")
+	if !renderedFlag {
+		t.Fatal("improved render should be adopted")
+	}
+	if renderer.calls != 1 {
+		t.Fatalf("renderer calls = %d, want 1", renderer.calls)
+	}
+	if got.extractor != "headless-render" || !strings.Contains(got.content, "rendered login form text") {
+		t.Fatalf("rendered doc not adopted: %+v", got)
+	}
+	if got.contentType != "text/html; charset=utf-8" || got.finalURL != "https://example.com/login" {
+		t.Fatalf("rendered doc metadata wrong: %+v", got)
+	}
+
+	// Renderer failure: original document kept.
+	tool.renderer = &mockPageRenderer{err: context.DeadlineExceeded}
+	got, renderedFlag = tool.maybeRender(context.Background(), shell, "https://example.com/login")
+	if renderedFlag || got.extractor == "headless-render" {
+		t.Fatal("failed render must keep the fetched document")
+	}
+
+	// Render no better than the fetch: not adopted.
+	tool.renderer = &mockPageRenderer{result: &PageRenderResult{HTML: "<html><body><div>still thin</div></body></html>"}}
+	got, renderedFlag = tool.maybeRender(context.Background(), shell, "https://example.com/login")
+	if renderedFlag || got.extractor == "headless-render" {
+		t.Fatal("no-better render must keep the fetched document")
+	}
+
+	// Rich page skips the renderer entirely.
+	renderer2 := &mockPageRenderer{result: rendered}
+	tool.renderer = renderer2
+	rich := fetchRawResult{
+		content:     "<html><body>" + strings.Repeat("<p>meaningful body text here</p>", 20) + "</body></html>",
+		contentType: "text/html",
+		statusCode:  200,
+	}
+	if _, flag := tool.maybeRender(context.Background(), rich, "https://example.com"); flag || renderer2.calls != 0 {
+		t.Fatal("rich fetch must not invoke the renderer")
+	}
+}

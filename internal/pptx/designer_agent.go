@@ -28,26 +28,26 @@ var designerSkillSlugs = []string{
 	"pptx-visual-style",
 }
 
+// designerAllowToolsV1 is the pre-decoration-era allowlist. Kept verbatim so
+// boot can upgrade agents created before read_file was added (they would
+// otherwise keep the broken policy forever — see upgradeDesignerTools).
+const designerAllowToolsV1 = `{"profile":"minimal","allow":["skill_search","use_skill","session_status"]}`
+
 // designerAllowTools is the complete tool surface of the designer agent:
 // skill discovery, read-only skill loading, session introspection.
 //
 // read_file is NOT optional: the platform skill protocol (injected into every
 // agent's system prompt) is use_skill → read_file the SKILL.md <location>,
 // and the use_skill tool itself is a deliberate no-op that answers "Proceed
-// to read the skill's SKILL.md with read_file." Without read_file in this
-// allowlist the fail-closed execution gate denies that read every time, so
-// the designer can never actually load the design skills granted exclusively
-// to it and errors through its opening turns retrying. read_file is
-// workspace-restricted (RestrictToWs) and read-only. No exec, no write_file,
-// no delegate, no cron — the enforcement is the fail-closed execution gate
-// that intersects the registry with this allowlist.
+// to read the skill's SKILL.md with read_file." With the old v1 allowlist
+// the fail-closed execution gate denied that read every time ("tool not
+// allowed by policy: read_file"), so the designer could never actually load
+// the design skills granted exclusively to it and errored through its
+// opening turns retrying. read_file is workspace-restricted (RestrictToWs)
+// and read-only. No exec, no write_file, no delegate, no cron — the
+// enforcement is the fail-closed execution gate that intersects the registry
+// with this allowlist.
 const designerAllowTools = `{"profile":"minimal","allow":["skill_search","use_skill","read_file","session_status"]}`
-
-// designerAllowToolsV1 is the pre-read_file surface. Kept verbatim so
-// upgradeDesignerTools can recognize agents seeded by earlier builds and
-// bring them to the current surface (admin-customized configs are left
-// alone, mirroring the identity migration rule).
-const designerAllowToolsV1 = `{"profile":"minimal","allow":["skill_search","use_skill","session_status"]}`
 
 // DesignerToolPolicy returns the parsed tool policy of the designer agent.
 // Single source of truth for the designer's tool surface: the loop's
@@ -57,9 +57,10 @@ func DesignerToolPolicy() *config.ToolPolicySpec {
 	return agent.ParseToolsConfig()
 }
 
-// designerIdentity is the IDENTITY.md persona (English, LLM consumption).
-// The deck contract mirrors the web studio's parse-deck-blocks validation.
-const designerIdentity = `# Identity
+// designerIdentityV1 is the initial persona (2026-09-15), superseded by the
+// icon/frame/anim contract. Kept byte-for-byte so boot can upgrade personas
+// that were never admin-edited.
+const designerIdentityV1 = `# Identity
 
 Name: PPTX Designer
 Emoji: 🖼️
@@ -104,12 +105,87 @@ title. notes, when used, is a plain string. Emit ONLY the JSON inside the
 fence, no comments.
 `
 
+// designerIdentity is the IDENTITY.md persona (English, LLM consumption).
+// The deck contract mirrors the web studio's parse-deck-blocks validation.
+const designerIdentity = `# Identity
+
+Name: PPTX Designer
+Emoji: 🖼️
+Role: You are a senior presentation designer who plans slide decks.
+
+You have ONE job: design decks. You cannot run commands, write files, or
+export presentations. The only files you may touch are your design skill
+documents (read_file for a skill's SKILL.md after use_skill). If asked to
+run commands, change server settings, or export a .pptx file yourself,
+politely decline and remind the user you only produce deck designs.
+
+## How you design
+
+- Deck length: 6 to 15 slides for most topics. Ask before going longer.
+- Narrative arc: title → agenda or context → 3 to 5 content sections →
+  takeaway → end. One idea per slide, never a wall of text.
+- Bullets: at most 6 per slide, at most 12 words each, written in the user's
+  language. Prefer concrete specifics over abstractions.
+- Numbers: only use figures the user provided or asked you to estimate, and
+  label estimates as such. Never invent statistics.
+- Stats layout is for 2 to 4 key figures; quote layout for testimonials and
+  sayings; image layout only when the user gave an image URL or path.
+- Icons beat photos: decorate with line icons and frames, never with stock
+  imagery. One meaningful icon beats three decorative ones — a title or
+  section icon sets the slide's motif, per-bullet icons only when every
+  bullet is a parallel concept, stat icons when each figure is a distinct
+  dimension. At most one frame decor per slide.
+- Theme: harmonious palette, background/foreground contrast at least 4.5:1,
+  accent used sparingly. Headings and body pick two distinct fonts from
+  Arial, Calibri, Georgia, Verdana, Tahoma, Trebuchet MS, Times New Roman,
+  Courier New. Load your design skills (use_skill, then read_file the
+  SKILL.md) for detailed guidance before your first design of a session.
+
+## Output contract (MANDATORY)
+
+ALWAYS end a completed design reply with one fenced block:
+
+` + "```deck" + `
+{"version":1,"theme":{"background":"#0f172a","foreground":"#f8fafc","accent":"#38bdf8","muted":"#94a3b8","font_heading":"Arial","font_body":"Calibri"},"slides":[{"layout":"title","title":"DECK TITLE","subtitle":"One-line promise","icon":"rocket"},{"layout":"bullets","title":"Section","bullets":["First point","Second point"],"bullet_icons":["zap","shield"],"notes":"Speaker notes are optional"}]}
+` + "```" + `
+
+Rules: version must be 1. 1 to 40 slides. Valid layouts: title, section,
+bullets, two_column, quote, stats, image, end. theme colors are "#RRGGBB".
+two_column needs left and right objects with heading and bullets arrays.
+stats needs 2 to 4 stats objects with value and label (each may carry an
+icon). quote needs quote and author. image needs a non-empty source (URL or
+workspace path) and a title. notes, when used, is a plain string.
+
+Decoration fields (all optional):
+- icon on a slide: icon name for the title chip (title layout) or the big
+  section marker (section layout).
+- bullet_icons: array parallel to bullets; entries are icon names or null.
+- decor: array of positioned primitives on the 1280x720 stage:
+  {"type":"icon","icon":"cloud","x":1020,"y":64,"w":48,"h":48,
+   "color":"#38bdf8","strokeWidth":2}
+  {"type":"frame","variant":"corner","x":48,"y":48,"w":1184,"h":624,
+   "color":"#94a3b8","weight":2}
+  variant is one of corner, outline, band, dots, ring. color is "#RRGGBB".
+  Every decor entry may carry "anim":{"effect":"fade-in","delayMs":0} —
+  effect: fade-in | slide-up | slide-left | scale-in (preview only).
+Icon vocabulary — use EXACTLY these names: rocket, chart-bar, cog, cloud,
+shield, zap, globe, users, briefcase, lightbulb, target, trending-up,
+database, code, check-circle, star, heart, calendar, mail, phone, map-pin,
+camera, music, book-open, flag, award, clock, layers, package, search,
+filter, arrow-right, play, wifi, lock, eye, message-circle, thumbs-up,
+dollar-sign, percent.
+
+Emit ONLY the JSON inside the fence, no comments.
+`
+
 // designerIdentityHistory lists every system-authored persona version, oldest
 // first. A boot-time migration upgrades an existing agent's IDENTITY.md only
 // when its content still matches one of these byte-for-byte — a persona an
 // admin edited in the UI is never touched.
 var designerIdentityHistory = []string{
 	// v1 (2026-09-15): initial persona.
+	designerIdentityV1,
+	// v2 (2026-09-18): icon/frame/anim decoration contract + skill read fix.
 	designerIdentity,
 }
 
@@ -135,8 +211,8 @@ func EnsureDesignerAgent(ctx context.Context, cfg *config.Config, agentStore sto
 		if err := upgradeDesignerIdentity(ctx, agentStore, agentID); err != nil {
 			slog.Warn("pptx: designer agent identity upgrade failed", "error", err)
 		}
-		if err := upgradeDesignerTools(ctx, agentStore, existing); err != nil {
-			slog.Warn("pptx: designer agent tools upgrade failed", "error", err)
+		if err := upgradeDesignerTools(ctx, agentStore, agentID); err != nil {
+			slog.Warn("pptx: designer agent tool upgrade failed", "error", err)
 		}
 	} else {
 		provider := cfg.Agents.Defaults.Provider
@@ -210,26 +286,30 @@ func upgradeDesignerIdentity(ctx context.Context, agentStore store.AgentStore, a
 	return nil // custom content — leave it alone
 }
 
-// upgradeDesignerTools brings an existing agent's tools_config to the
-// current allowlist, but only when the stored value still matches a known
-// system version (JSON-semantic compare). An admin-customized policy stays
-// untouched.
-func upgradeDesignerTools(ctx context.Context, agentStore store.AgentStore, existing *store.AgentData) error {
-	equal := func(a, b string) bool {
-		var ja, jb any
-		return json.Unmarshal([]byte(a), &ja) == nil &&
-			json.Unmarshal([]byte(b), &jb) == nil &&
-			fmt.Sprintf("%v", ja) == fmt.Sprintf("%v", jb)
+// upgradeDesignerTools brings an existing agent's stored tool policy to the
+// current allowlist, but only when it still matches a known system version
+// byte-for-byte (v1 shipped without read_file, which the platform skill
+// protocol requires — use_skill answers "read the SKILL.md with read_file"
+// and the fail-closed gate denied it, so granted skills never loaded). A
+// policy an admin customized is never touched.
+func upgradeDesignerTools(ctx context.Context, agentStore store.AgentStore, agentID uuid.UUID) error {
+	ag, err := agentStore.GetByID(ctx, agentID)
+	if err != nil || ag == nil {
+		return fmt.Errorf("read agent: %w", err)
 	}
-	if equal(string(existing.ToolsConfig), designerAllowTools) {
+	current := string(ag.ToolsConfig)
+	if current == designerAllowTools {
 		return nil // already current
 	}
-	if equal(string(existing.ToolsConfig), designerAllowToolsV1) {
-		if err := agentStore.Update(ctx, existing.ID, map[string]any{"tools_config": json.RawMessage(designerAllowTools)}); err != nil {
-			return fmt.Errorf("write tools_config: %w", err)
-		}
-		slog.Info("pptx: designer agent tools_config upgraded (read_file granted)", "agent_id", existing.ID)
+	if current != designerAllowToolsV1 {
+		return nil // custom policy — leave it alone
 	}
+	if err := agentStore.Update(ctx, agentID, map[string]any{
+		"tools_config": []byte(designerAllowTools),
+	}); err != nil {
+		return fmt.Errorf("write upgraded tools config: %w", err)
+	}
+	slog.Info("pptx: designer agent tool policy upgraded", "agent_id", agentID)
 	return nil
 }
 

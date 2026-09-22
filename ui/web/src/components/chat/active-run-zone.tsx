@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { GoclawAvatar } from "@/components/chat/goclaw-avatar";
-import { ActivityIndicator } from "./activity-indicator";
+import { ActivityIndicator, type RunLlmMeta } from "./activity-indicator";
 import { BlockReplyBubble } from "./block-reply-bubble";
 import { ThinkingBlock } from "./thinking-block";
 import { StreamingText } from "./streaming-text";
@@ -14,6 +14,7 @@ interface ActiveRunZoneProps {
   streamText: string | null;
   toolStream: ToolStreamEntry[];
   blockReplies: ChatMessage[];
+  llmMeta?: RunLlmMeta | null;
 }
 
 export const ActiveRunZone = memo(function ActiveRunZone({
@@ -23,6 +24,7 @@ export const ActiveRunZone = memo(function ActiveRunZone({
   streamText,
   toolStream,
   blockReplies,
+  llmMeta,
 }: ActiveRunZoneProps) {
   const hasContent =
     blockReplies.length > 0 ||
@@ -65,7 +67,7 @@ export const ActiveRunZone = memo(function ActiveRunZone({
         )}
 
         {(isRunning || activity?.phase === "leader_processing") && (
-          <ActivityIndicator activity={activity} isRunning={isRunning} />
+          <ActivityIndicator activity={activity} isRunning={isRunning} llmMeta={llmMeta} />
         )}
       </div>
     </div>

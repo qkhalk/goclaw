@@ -38,6 +38,10 @@ export const queryKeys = {
     codexPoolActivity: (agentId: string, limit: number) => ["agents", agentId, "codex-pool-activity", limit] as const,
     systemPromptPreview: (agentKey: string, mode: string) => ["agents", agentKey, "system-prompt-preview", mode] as const,
   },
+  subagents: {
+    all: ["subagents"] as const,
+    list: (agentId: string) => ["subagents", agentId] as const,
+  },
   sessions: {
     all: ["sessions"] as const,
     list: (params: Record<string, unknown>) => ["sessions", params] as const,

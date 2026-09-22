@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Braces, Clapperboard, History, Loader2, MessageSquarePlus, X } from "lucide-react";
+import { Braces, History, Loader2, MessageSquarePlus, Clapperboard, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ResizeHandle } from "@/components/shared/resize-handle";
@@ -11,13 +11,10 @@ import { useHttp } from "@/hooks/use-ws";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/format";
 import { useIsTablet } from "@/hooks/use-media-query";
+import { useUiStore } from "@/stores/use-ui-store";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { useAgents } from "@/pages/agents/hooks/use-agents";
-import {
-  useUiStore,
-  VIDEO_DESIGNER_WIDTH,
-} from "@/stores/use-ui-store";
-import type { Storyboard } from "../video-tool-page";
+import type { Storyboard } from "../hooks/use-video-export";
 import {
   extractStoryboardBlocks,
   parseStoryboard,
@@ -29,16 +26,17 @@ import { useDesignerChat, DESIGNER_AGENT_KEY } from "../hooks/use-designer-chat"
 
 /** Widening the designer column must never squeeze the editor below this. */
 const MIN_EDITOR_COLUMN_PX = 480;
+const DESIGNER_WIDTH = { min: 320, max: 560, default: 384 } as const;
 
 interface DesignerColumnProps {
   /** Apply a parsed storyboard to the editor (page owns the timeline). */
-  onApplyStoryboard: (sb: Storyboard) => void;
+  onApplyStoryboard: (storyboard: Storyboard) => void;
   /** Live storyboard from the editor, for the "attach current" button. */
   currentStoryboard: Storyboard;
 }
 
 /**
- * The video-designer chat column beside the Video Editor: a design-only
+ * The video-designer chat column beside the video editor: a storyboard-only
  * agent session with the same chat primitives as /chat, plus storyboard
  * cards under replies that carry a ```storyboard block. Desktop: resizable
  * right rail; mobile: bottom sheet.
@@ -50,12 +48,16 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
   const isCompact = useIsTablet();
   useVirtualKeyboard();
 
-  const open = useUiStore((s) => s.videoDesignerOpen);
-  const setOpen = useUiStore((s) => s.setVideoDesignerOpen);
-  const width = useUiStore((s) => s.videoDesignerWidth);
-
   const chat = useDesignerChat();
   const http = useHttp();
+  // Visibility + width live in the shared ui store (clamped, persisted) —
+  // the page toggles via setVideoDesignerOpen, the rail resizes via
+  // setVideoDesignerWidth. Same pattern as the pptx designer column.
+  const open = useUiStore((st) => st.videoDesignerOpen);
+  const setOpen = useUiStore((st) => st.setVideoDesignerOpen);
+  const width = useUiStore((st) => st.videoDesignerWidth);
+  const setWidth = useUiStore((st) => st.setVideoDesignerWidth);
+
   const [appliedRaw, setAppliedRaw] = useState<string | null>(null);
   const [attached, setAttached] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -103,21 +105,24 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
   );
 
   // Feed the composer's model picker with the designer agent's own provider
-  // so a model can be picked without switching provider.
+  // so a model can be picked without switching provider. The agent may not
+  // exist yet — the picker simply falls back to the default provider.
   const { agents } = useAgents();
   const designerProvider = useMemo(
     () => agents.find((a) => a.agent_key === DESIGNER_AGENT_KEY)?.provider,
     [agents],
   );
 
-  const resizeDesigner = useCallback((dx: number) => {
-    const s = useUiStore.getState();
-    const dynamicMax = Math.max(
-      VIDEO_DESIGNER_WIDTH.min,
-      Math.min(VIDEO_DESIGNER_WIDTH.max, window.innerWidth - MIN_EDITOR_COLUMN_PX),
-    );
-    s.setVideoDesignerWidth(Math.min(s.videoDesignerWidth - dx, dynamicMax));
-  }, []);
+  const resizeDesigner = useCallback(
+    (dx: number) => {
+      const dynamicMax = Math.max(
+        DESIGNER_WIDTH.min,
+        Math.min(DESIGNER_WIDTH.max, window.innerWidth - MIN_EDITOR_COLUMN_PX),
+      );
+      setWidth(Math.min(width - dx, dynamicMax));
+    },
+    [width, setWidth],
+  );
 
   // Keep the latest reply in view: jump on new messages and while streaming.
   useEffect(() => {
@@ -149,7 +154,7 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
     (parsed: ParsedStoryboard) => {
       if (!parsed.ok) return;
       setAppliedRaw(parsed.raw);
-      onApplyStoryboard(parsed.sb);
+      onApplyStoryboard(parsed.storyboard);
     },
     [onApplyStoryboard],
   );
@@ -192,31 +197,31 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
               newChatLabel={t("video.designer.newChat")}
               closeLabel={t("video.designer.close")}
             />
-            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
-              {historyOpen && (
-                <HistoryPanel
-                  sessions={history}
-                  loading={historyLoading}
-                  currentKey={chat.sessionKey}
-                  onOpen={openFromHistory}
-                  onClose={() => setHistoryOpen(false)}
-                  title={t("video.designer.history")}
-                  emptyLabel={t("video.designer.historyEmpty")}
-                  messagesLabel={historyMessagesLabel}
-                />
-              )}
-              <MessageList
-                items={items}
-                streamBlocks={streamBlocks}
-                streamProps={chat}
-                appliedRaw={appliedRaw}
-                onApply={handleApply}
-                emptyHint={t("video.designer.emptyHint")}
-                chips={[t("video.designer.chip1"), t("video.designer.chip2"), t("video.designer.chip3")]}
-                onChip={chat.send}
-                designerBadge={t("video.designer.badge")}
-              />
-            </div>
+            <MessageArea
+              scrollRef={scrollRef}
+              historyOpen={historyOpen}
+              history={history}
+              historyLoading={historyLoading}
+              currentKey={chat.sessionKey}
+              onOpenHistory={openFromHistory}
+              onCloseHistory={() => setHistoryOpen(false)}
+              historyTitle={t("video.designer.history")}
+              historyEmpty={t("video.designer.historyEmpty")}
+              historyMessagesLabel={historyMessagesLabel}
+              items={items}
+              streamBlocks={streamBlocks}
+              streamProps={chat}
+              appliedRaw={appliedRaw}
+              onApply={handleApply}
+              emptyHint={t("video.designer.emptyHint")}
+              chips={[
+                t("video.designer.chip1"),
+                t("video.designer.chip2"),
+                t("video.designer.chip3"),
+              ]}
+              onChip={chat.send}
+              designerBadge={t("video.designer.badge")}
+            />
             <ComposerRow
               chat={chat}
               onSend={handleSend}
@@ -241,9 +246,9 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
       <ResizeHandle
         side="left"
         onResize={resizeDesigner}
-        onReset={() => useUiStore.getState().setVideoDesignerWidth(VIDEO_DESIGNER_WIDTH.default)}
+        onReset={() => setWidth(DESIGNER_WIDTH.default)}
         onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}
+        onDragEnd={() => setWidth(width)}
         ariaLabel={tCommon("pane.resize")}
       />
       <div
@@ -264,31 +269,31 @@ export function DesignerColumn({ onApplyStoryboard, currentStoryboard }: Designe
           newChatLabel={t("video.designer.newChat")}
           closeLabel={t("video.designer.close")}
         />
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
-          {historyOpen && (
-            <HistoryPanel
-              sessions={history}
-              loading={historyLoading}
-              currentKey={chat.sessionKey}
-              onOpen={openFromHistory}
-              onClose={() => setHistoryOpen(false)}
-              title={t("video.designer.history")}
-              emptyLabel={t("video.designer.historyEmpty")}
-              messagesLabel={historyMessagesLabel}
-            />
-          )}
-          <MessageList
-            items={items}
-            streamBlocks={streamBlocks}
-            streamProps={chat}
-            appliedRaw={appliedRaw}
-            onApply={handleApply}
-            emptyHint={t("video.designer.emptyHint")}
-            chips={[t("video.designer.chip1"), t("video.designer.chip2"), t("video.designer.chip3")]}
-            onChip={chat.send}
-            designerBadge={t("video.designer.badge")}
-          />
-        </div>
+        <MessageArea
+          scrollRef={scrollRef}
+          historyOpen={historyOpen}
+          history={history}
+          historyLoading={historyLoading}
+          currentKey={chat.sessionKey}
+          onOpenHistory={openFromHistory}
+          onCloseHistory={() => setHistoryOpen(false)}
+          historyTitle={t("video.designer.history")}
+          historyEmpty={t("video.designer.historyEmpty")}
+          historyMessagesLabel={historyMessagesLabel}
+          items={items}
+          streamBlocks={streamBlocks}
+          streamProps={chat}
+          appliedRaw={appliedRaw}
+          onApply={handleApply}
+          emptyHint={t("video.designer.emptyHint")}
+          chips={[
+            t("video.designer.chip1"),
+            t("video.designer.chip2"),
+            t("video.designer.chip3"),
+          ]}
+          onChip={chat.send}
+          designerBadge={t("video.designer.badge")}
+        />
         <ComposerRow
           chat={chat}
           onSend={handleSend}
@@ -344,9 +349,7 @@ function ColumnHeader({
 }) {
   return (
     <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-500">
-        <Clapperboard className="h-3.5 w-3.5" />
-      </span>
+      <Clapperboard className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className="truncate text-sm font-medium">{title}</span>
       <span
         aria-hidden
@@ -392,7 +395,7 @@ function ColumnHeader({
           onClick={onNewChat}
           title={newChatLabel}
           aria-label={newChatLabel}
-          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors sm:h-8 sm:w-8"
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground sm:h-8 sm:w-8"
         >
           <MessageSquarePlus className="h-4 w-4" />
         </button>
@@ -401,11 +404,83 @@ function ColumnHeader({
           onClick={onClose}
           title={closeLabel}
           aria-label={closeLabel}
-          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors sm:h-8 sm:w-8"
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground sm:h-8 sm:w-8"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Scrollable message list + optional history overlay (shared by both
+ * desktop rail and mobile sheet layouts). */
+function MessageArea({
+  scrollRef,
+  historyOpen,
+  history,
+  historyLoading,
+  currentKey,
+  onOpenHistory,
+  onCloseHistory,
+  historyTitle,
+  historyEmpty,
+  historyMessagesLabel,
+  items,
+  streamBlocks,
+  streamProps,
+  appliedRaw,
+  onApply,
+  emptyHint,
+  chips,
+  onChip,
+  designerBadge,
+}: {
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  historyOpen: boolean;
+  history: DesignerSession[] | null;
+  historyLoading: boolean;
+  currentKey: string;
+  onOpenHistory: (key: string) => void;
+  onCloseHistory: () => void;
+  historyTitle: string;
+  historyEmpty: string;
+  historyMessagesLabel: (n: number) => string;
+  items: MessageListItem[];
+  streamBlocks: ParsedStoryboard[];
+  streamProps: ChatView;
+  appliedRaw: string | null;
+  onApply: (parsed: ParsedStoryboard) => void;
+  emptyHint: string;
+  chips: string[];
+  onChip: (text: string) => void;
+  designerBadge: string;
+}) {
+  return (
+    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+      {historyOpen && (
+        <HistoryPanel
+          sessions={history}
+          loading={historyLoading}
+          currentKey={currentKey}
+          onOpen={onOpenHistory}
+          onClose={onCloseHistory}
+          title={historyTitle}
+          emptyLabel={historyEmpty}
+          messagesLabel={historyMessagesLabel}
+        />
+      )}
+      <MessageList
+        items={items}
+        streamBlocks={streamBlocks}
+        streamProps={streamProps}
+        appliedRaw={appliedRaw}
+        onApply={onApply}
+        emptyHint={emptyHint}
+        chips={chips}
+        onChip={onChip}
+        designerBadge={designerBadge}
+      />
     </div>
   );
 }
@@ -555,9 +630,7 @@ function EmptyDesigner({
 }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-2 text-center">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
-        <Clapperboard className="h-5 w-5" />
-      </span>
+      <Clapperboard className="h-6 w-6 text-muted-foreground" />
       <p className="max-w-[260px] text-sm text-muted-foreground">{emptyHint}</p>
       <div className="flex flex-col items-stretch gap-2 pt-1">
         {chips.map((chip) => (
@@ -565,7 +638,7 @@ function EmptyDesigner({
             key={chip}
             type="button"
             onClick={() => onChip(chip)}
-            className="rounded-full border px-3 py-2 text-sm text-primary hover:bg-accent transition-colors min-h-11 sm:min-h-9"
+            className="rounded-full border px-3 py-2 text-sm text-primary transition-colors hover:bg-accent min-h-11 sm:min-h-9"
           >
             {chip}
           </button>
@@ -624,7 +697,6 @@ function ComposerRow({
         onFilesChange={setFiles}
         storageKey={storageKey}
         defaultProviderName={defaultProviderName}
-        showPermissionMode={false}
       />
     </div>
   );

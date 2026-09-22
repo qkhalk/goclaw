@@ -1,26 +1,54 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { Deck, DeckTheme, Slide, SlideElement } from "../types";
-import { cssFont } from "../types";
-import { STAGE_H, STAGE_W } from "../lib/slide-spec";
-import { elementsOf } from "../lib/elements";
+import type { AnimSpec, Deck, DeckTheme, Slide } from "../types";
+import { buildSlidePrims, STAGE_H, STAGE_W, type SlidePrim } from "../lib/slide-spec";
+import { getIcon } from "../lib/icon-library";
 
 /**
- * HTML preview of one deck slide. The slide is either an explicit element
- * list (v2 free-form) or compiled to a flat primitive list on the fixed
- * 1280×720 stage (lib/slide-spec.ts) and scaled with a CSS transform to the
- * wrapper's width, so the preview keeps exact proportions at any size (full
- * preview and thumbnails alike) and renders exactly what
+ * HTML preview of one deck slide. The slide is authored as a flat primitive
+ * list on a fixed 1280×720 stage (lib/slide-spec.ts) and scaled with a CSS
+ * transform to the wrapper's width, so the preview keeps exact proportions
+ * at any size (full preview and thumbnails alike) and renders exactly what
  * lib/pptx-export.ts writes into the .pptx.
+ *
+ * When `animate` is set (the main stage only — never thumbnails), primitives
+ * carrying an `anim` spec play a one-shot CSS entrance animation on mount.
+ * The .pptx export has no equivalent: animation is a preview-only layer, so
+ * the keyframes live here instead of the global stylesheet.
  */
+
+const ANIM_STYLE_ID = "pptx-prim-anim-styles";
+
+/** One-shot entrance keyframes for animated primitives (preview only). */
+const ANIM_CSS = `
+@keyframes pptx-anim-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pptx-anim-slide-up { from { opacity: 0; transform: translateY(24px) } to { opacity: 1; transform: none } }
+@keyframes pptx-anim-slide-left { from { opacity: 0; transform: translateX(36px) } to { opacity: 1; transform: none } }
+@keyframes pptx-anim-scale-in { from { opacity: 0; transform: scale(0.85) } to { opacity: 1; transform: none } }
+.pptx-prim-anim { animation-duration: 0.55s; animation-timing-function: cubic-bezier(0.22, 0.9, 0.34, 1); animation-fill-mode: both; }
+.pptx-anim-fade-in { animation-name: pptx-anim-fade-in }
+.pptx-anim-slide-up { animation-name: pptx-anim-slide-up }
+.pptx-anim-slide-left { animation-name: pptx-anim-slide-left }
+.pptx-anim-scale-in { animation-name: pptx-anim-scale-in }
+`;
+
+function ensureAnimStyles(): void {
+  if (typeof document === "undefined" || document.getElementById(ANIM_STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = ANIM_STYLE_ID;
+  el.textContent = ANIM_CSS;
+  document.head.appendChild(el);
+}
 
 interface SlideViewProps {
   slide: Slide;
   theme: Deck["theme"];
   className?: string;
+  /** Play `anim` entrance effects on mount (main stage only). */
+  animate?: boolean;
 }
 
-export function SlideView({ slide, theme, className }: SlideViewProps) {
+export function SlideView({ slide, theme, className, animate }: SlideViewProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
 
@@ -34,7 +62,11 @@ export function SlideView({ slide, theme, className }: SlideViewProps) {
     return () => ro.disconnect();
   }, []);
 
-  const prims = useMemo(() => elementsOf(slide, theme), [slide, theme]);
+  const prims = useMemo(() => buildSlidePrims(slide, theme), [slide, theme]);
+
+  useEffect(() => {
+    if (animate) ensureAnimStyles();
+  }, [animate]);
 
   return (
     <div
@@ -55,25 +87,37 @@ export function SlideView({ slide, theme, className }: SlideViewProps) {
           color: theme.foreground,
         }}
       >
-        {prims.map((p) => (
-          <PrimView key={p.id} prim={p} theme={theme} />
+        {prims.map((p, i) => (
+          <PrimView key={i} prim={p} theme={theme} animate={animate} />
         ))}
       </div>
     </div>
   );
 }
 
-export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme }) {
+/** className + delay for an animated primitive; undefined when static. */
+function animProps(
+  anim: AnimSpec | undefined,
+  animate: boolean,
+): { className?: string; style?: { animationDelay?: string } } {
+  if (!anim || !animate) return {};
+  return {
+    className: `pptx-prim-anim pptx-anim-${anim.effect}`,
+    style: anim.delayMs ? { animationDelay: `${Math.min(anim.delayMs, 60000) / 1000}s` } : undefined,
+  };
+}
+
+function PrimView({ prim, theme, animate }: { prim: SlidePrim; theme: DeckTheme; animate?: boolean }) {
   const heading = cssStack(theme.font_heading);
   const body = cssStack(theme.font_body);
 
-  const rotate = prim.rotate ? { transform: `rotate(${prim.rotate}deg)` } : undefined;
-
   switch (prim.kind) {
-    case "rect":
+    case "rect": {
+      const anim = animProps(prim.anim, !!animate);
       return (
         <div
           aria-hidden
+          className={anim.className}
           style={{
             position: "absolute",
             left: prim.x,
@@ -82,15 +126,18 @@ export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme
             height: prim.h,
             backgroundColor: prim.fill,
             borderRadius: prim.radius,
-            ...rotate,
+            ...anim.style,
           }}
         />
       );
+    }
 
-    case "ellipse":
+    case "ellipse": {
+      const anim = animProps(prim.anim, !!animate);
       return (
         <div
           aria-hidden
+          className={anim.className}
           style={{
             position: "absolute",
             left: prim.x,
@@ -99,15 +146,18 @@ export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme
             height: prim.h,
             backgroundColor: prim.fill,
             borderRadius: "50%",
-            ...rotate,
+            ...anim.style,
           }}
         />
       );
+    }
 
-    case "frame":
+    case "frame": {
+      const anim = animProps(prim.anim, !!animate);
       return (
         <div
           aria-hidden
+          className={anim.className}
           style={{
             position: "absolute",
             left: prim.x,
@@ -116,10 +166,41 @@ export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme
             height: prim.h,
             border: `${prim.width}px ${prim.dash ? "dashed" : "solid"} ${prim.color}`,
             borderRadius: prim.radius,
-            ...rotate,
+            ...anim.style,
           }}
         />
       );
+    }
+
+    case "icon": {
+      const anim = animProps(prim.anim, !!animate);
+      const icon = getIcon(prim.name);
+      if (!icon) return null; // unknown name: skip like the export does
+      return (
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          className={anim.className}
+          style={{
+            position: "absolute",
+            left: prim.x,
+            top: prim.y,
+            width: prim.w,
+            height: prim.h,
+            ...anim.style,
+          }}
+          fill="none"
+          stroke={prim.color}
+          strokeWidth={prim.strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {icon.paths.map((d, i) => (
+            <path key={i} d={d} />
+          ))}
+        </svg>
+      );
+    }
 
     case "text":
       return (
@@ -133,7 +214,7 @@ export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme
             display: "flex",
             alignItems:
               prim.valign === "middle" ? "center" : prim.valign === "bottom" ? "flex-end" : "flex-start",
-            fontFamily: prim.fontFamily ? cssFont(prim.fontFamily) : prim.font === "heading" ? heading : body,
+            fontFamily: prim.font === "heading" ? heading : body,
             fontSize: prim.size,
             fontWeight: prim.bold ? 700 : 400,
             fontStyle: prim.italic ? "italic" : undefined,
@@ -141,7 +222,6 @@ export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme
             lineHeight: prim.lineHeight ?? 1.3,
             textAlign: prim.align ?? "left",
             overflowWrap: "break-word",
-            ...rotate,
           }}
         >
           <span style={{ width: "100%" }}>{prim.text}</span>
@@ -151,7 +231,7 @@ export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme
     case "image":
       return (
         <img
-          src={prim.source}
+          src={prim.source.startsWith("/") ? prim.source : prim.source}
           alt={prim.alt}
           draggable={false}
           style={{
@@ -161,13 +241,31 @@ export function PrimView({ prim, theme }: { prim: SlideElement; theme: DeckTheme
             width: prim.w,
             height: prim.h,
             objectFit: "contain",
-            ...rotate,
           }}
         />
       );
   }
 }
 
-export function cssStack(font: string | undefined): string {
-  return cssFont(font);
+function cssStack(font: string | undefined): string {
+  switch (font) {
+    case "Arial":
+      return "Arial, 'Liberation Sans', 'Helvetica Neue', sans-serif";
+    case "Calibri":
+      return "Calibri, Carlito, 'Segoe UI', sans-serif";
+    case "Georgia":
+      return "Georgia, 'Times New Roman', serif";
+    case "Verdana":
+      return "Verdana, DejaVu Sans, sans-serif";
+    case "Tahoma":
+      return "Tahoma, Verdana, sans-serif";
+    case "Trebuchet MS":
+      return "'Trebuchet MS', 'Segoe UI', sans-serif";
+    case "Times New Roman":
+      return "'Times New Roman', Times, serif";
+    case "Courier New":
+      return "'Courier New', monospace";
+    default:
+      return "'Segoe UI', sans-serif";
+  }
 }

@@ -434,6 +434,13 @@ func init() {
 		"telegram.status.queue":          " · 🪢 Очередь: %s %d/%d активных, %d в ожидании",
 		"telegram.status.fullhint":       "/status full — показать всё",
 
+		// Telegram subagent archive buttons
+		"telegram.subagent.archiveallconfirm": "🗄 В архив перемещено завершённых задач: %d.",
+		"telegram.subagent.archiveallbtn":     "🗄 Архивировать все завершённые (%d)",
+		"telegram.subagent.archivedone":       "🗄 Задача в архиве — она больше не в списке.",
+		"telegram.subagent.notterminal":       "⏳ Задача ещё выполняется — архивировать можно только после завершения.",
+		"telegram.subagent.archivebtn":        "🗄 В архив",
+
 		// Video render pipeline
 		MsgVideoJobCreated:    "задача рендера видео %s создана",
 		MsgVideoJobFailed:     "задача рендера видео %s завершилась ошибкой: %s",

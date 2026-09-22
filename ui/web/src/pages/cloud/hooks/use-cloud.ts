@@ -18,9 +18,6 @@ export interface CloudAccount {
   user_id: string;
   /** Tenant-wide shared (enterprise "company drive") — admin-set. */
   shared: boolean;
-  /** What agents may do with this account via cloud/mail tools:
-   * none | read | write | full (admin-set on the Clouds page). */
-  agent_access?: "none" | "read" | "write" | "full";
   /** True when the stored OAuth grant includes the provider's write scope.
    * False for accounts connected before the write upgrade — read-only until
    * the owner re-grants. */
@@ -44,7 +41,107 @@ export interface CloudBinding {
   priority: number;
 }
 
-export type CloudProvider = "google" | "onedrive" | "dropbox" | "s3" | "webdav";
+export type CloudProvider =
+  | "google"
+  | "onedrive"
+  | "dropbox"
+  | "yandex"
+  | "s3"
+  | "b2"
+  | "pcloud"
+  | "webdav"
+  | "azureblob"
+  | "gcs"
+  | "ftp"
+  | "sftp"
+  | "smb";
+
+/** Credential-based provider ids (typed keys/passwords — no OAuth flow).
+ * KEEP IN SYNC with the backend registry in internal/cloud/providers.go:
+ * same ids, same field keys (they are the API param names), same required /
+ * secret flags. Field labels/hints live in i18n (cloud:credentials.fields). */
+export type CredentialProviderId = "s3" | "b2" | "pcloud" | "webdav" | "azureblob" | "gcs" | "ftp" | "sftp" | "smb";
+
+export const CREDENTIAL_PROVIDER_IDS: CredentialProviderId[] = [
+  "s3",
+  "b2",
+  "pcloud",
+  "webdav",
+  "azureblob",
+  "gcs",
+  "ftp",
+  "sftp",
+  "smb",
+];
+
+export function isCredentialProvider(p: CloudProvider): p is CredentialProviderId {
+  return (CREDENTIAL_PROVIDER_IDS as string[]).includes(p);
+}
+
+/** Frontend copy of one credential field spec (mirror of FieldSpec).
+ * "password" = masked single-line input; "secret_textarea" = multi-line
+ * secret (PEM key, service-account JSON) — both are stored server-side in
+ * the encrypted column, never in plaintext settings. */
+export interface CredentialFieldSpec {
+  key: string;
+  type: "text" | "password" | "secret_textarea";
+  required: boolean;
+}
+
+export const CREDENTIAL_PROVIDER_FIELDS: Record<CredentialProviderId, CredentialFieldSpec[]> = {
+  s3: [
+    { key: "access_key_id", type: "text", required: true },
+    { key: "secret_access_key", type: "password", required: true },
+    { key: "region", type: "text", required: false },
+    { key: "endpoint", type: "text", required: false },
+    { key: "provider", type: "text", required: false },
+  ],
+  b2: [
+    { key: "account", type: "text", required: true },
+    { key: "key", type: "password", required: true },
+  ],
+  pcloud: [
+    { key: "username", type: "text", required: true },
+    { key: "password", type: "password", required: true },
+  ],
+  webdav: [
+    { key: "url", type: "text", required: true },
+    { key: "vendor", type: "text", required: false },
+    { key: "user", type: "text", required: true },
+    { key: "pass", type: "password", required: true },
+  ],
+  azureblob: [
+    { key: "account", type: "text", required: true },
+    { key: "key", type: "password", required: true },
+    { key: "endpoint", type: "text", required: false },
+  ],
+  gcs: [
+    { key: "service_account_credentials", type: "secret_textarea", required: true },
+    { key: "project_number", type: "text", required: true },
+  ],
+  ftp: [
+    { key: "host", type: "text", required: true },
+    { key: "port", type: "text", required: false },
+    { key: "user", type: "text", required: true },
+    { key: "pass", type: "password", required: true },
+    { key: "explicit_tls", type: "text", required: false },
+  ],
+  sftp: [
+    { key: "host", type: "text", required: true },
+    { key: "port", type: "text", required: false },
+    { key: "user", type: "text", required: true },
+    { key: "pass", type: "password", required: false },
+    { key: "key_pem", type: "secret_textarea", required: false },
+    { key: "key_file_pass", type: "password", required: false },
+  ],
+  smb: [
+    { key: "host", type: "text", required: true },
+    { key: "user", type: "text", required: true },
+    { key: "pass", type: "password", required: true },
+    { key: "domain", type: "text", required: false },
+    { key: "port", type: "text", required: false },
+  ],
+};
 
 /** One tenant-level one-way folder sync pair (source → target, additive
  * mirror — files deleted at the source are never deleted at the target). */
@@ -90,13 +187,7 @@ export interface CloudFileEntry {
 export interface CloudStatus {
   enabled: boolean;
   edition: string;
-  providers: {
-    google?: { configured: boolean };
-    onedrive?: { configured: boolean };
-    dropbox?: { configured: boolean };
-    s3?: { configured: boolean };
-    webdav?: { configured: boolean };
-  };
+  providers: Partial<Record<CloudProvider, { configured: boolean }>>;
 }
 
 export interface CloudStartResponse {
@@ -171,33 +262,28 @@ export function useCloudAccounts() {
     [http],
   );
 
-  /** S3-compatible connect (R2/B2/Wasabi/MinIO/DO/AWS): static access keys,
-   * validated server-side against the endpoint — no OAuth round trip. */
-  const connectS3 = useCallback(
-    async (input: { label?: string; endpoint?: string; region?: string; bucket: string; access_key: string; secret_key: string }) => {
-      const res = await http.post<CloudAccount>("/v1/cloud/accounts/s3", input);
-      await invalidate();
-      return res;
-    },
-    [http, invalidate],
-  );
-
-  /** WebDAV connect (Nextcloud/Synology/...): static credentials, validated
-   * server-side with one PROPFIND — no OAuth round trip. */
-  const connectWebDAV = useCallback(
-    async (input: { label?: string; endpoint: string; username: string; password: string }) => {
-      const res = await http.post<CloudAccount>("/v1/cloud/accounts/webdav", input);
-      await invalidate();
-      return res;
-    },
-    [http, invalidate],
-  );
-
   /** Finish the paste-back flow: submit the address-bar URL the browser
    * landed on after consent (loopback redirect, nothing listening). */
   const completeConnect = useCallback(
     async (provider: CloudProvider, url: string) => {
       const res = await http.post<{ email: string }>(`/v1/cloud/oauth/${provider}/complete`, { url });
+      await invalidate();
+      return res;
+    },
+    [http, invalidate],
+  );
+
+  /** Connect a credential-based provider (s3/b2/pcloud/webdav): the server
+   * validates the params against its whitelist, probes the credentials with
+   * rclone, and only persists on success — a rejected probe throws with
+   * rclone's own error text. */
+  const connectCredentials = useCallback(
+    async (provider: CredentialProviderId, displayName: string, params: Record<string, string>) => {
+      const res = await http.post<{ email: string }>("/v1/cloud/connect", {
+        provider,
+        display_name: displayName,
+        params,
+      });
       await invalidate();
       return res;
     },
@@ -213,16 +299,7 @@ export function useCloudAccounts() {
     [http, invalidate],
   );
 
-  /** Set the per-account agent access level (admin). */
-  const setAgentAccess = useCallback(
-    async (id: string, access: "none" | "read" | "write" | "full") => {
-      await http.put(`/v1/cloud/accounts/${id}/agent-access`, { access });
-      await invalidate();
-    },
-    [http, invalidate],
-  );
-
-  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, connectS3, connectWebDAV, setShared, setAgentAccess };
+  return { accounts: query.data ?? [], loading: query.isLoading, refresh: invalidate, disconnect, startConnect, completeConnect, connectCredentials, setShared };
 }
 
 export function useCloudBindings(enabled: boolean) {

@@ -4,7 +4,7 @@ import { submitRenderJob, type VideoRenderJob } from "./use-video";
 import type { Scene } from "./use-timeline";
 import { drawStoryboardFrame } from "../components/render-shared";
 
-// ── Types (Scene is the canonical model from use-timeline) ──
+// ── Types ──
 
 export interface Storyboard {
   version: number;
@@ -130,32 +130,24 @@ async function exportWithMediaRecorder(
   scratchB.height = height;
 
   // Preload all images (video scenes fall back to the dark placeholder —
-  // same as the preview player). Image-layer sources preload too.
+  // same as the preview player).
   const imageCache = new Map<string, HTMLImageElement>();
-  const wanted = new Set<string>();
   for (const scene of storyboard.scenes) {
     if ((scene.type === "image" || scene.type === "video") && scene.source) {
-      wanted.add(scene.source);
-    }
-    for (const layer of scene.layers ?? []) {
-      if (layer.kind === "image" && layer.source) wanted.add(layer.source);
-    }
-  }
-  for (const src of wanted) {
-    if (imageCache.has(src)) continue;
-    try {
-      const img = await loadImage(src);
-      imageCache.set(src, img);
-    } catch {
-      // Skip failed images
+      if (!imageCache.has(scene.source)) {
+        try {
+          const img = await loadImage(scene.source);
+          imageCache.set(scene.source, img);
+        } catch {
+          // Skip failed images
+        }
+      }
     }
   }
 
   const drawFrame = (time: number) => {
     const { index, localTime } = sceneAtTime(storyboard.scenes, time);
-    // Font sizes are absolute on the server's output-size render — mirror
-    // that even when the export canvas is bigger than the delivery width.
-    drawStoryboardFrame(ctx, canvas, storyboard.scenes, index, localTime, imageCache, scratchA, scratchB, undefined, canvas.width / (storyboard.output?.height ?? 720));
+    drawStoryboardFrame(ctx, canvas, storyboard.scenes, index, localTime, imageCache, scratchA, scratchB);
   };
 
   // Manual frame capture: captureStream(0) + requestFrame() per drawn frame.

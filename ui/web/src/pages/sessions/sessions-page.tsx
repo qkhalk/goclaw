@@ -1,19 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import {
-  Clapperboard,
-  Clock,
-  Globe,
-  HeartPulse,
-  History,
-  MessageSquare,
-  Presentation,
-  RefreshCw,
-  Send,
-  Users,
-  Workflow,
-} from "lucide-react";
+import { History, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
@@ -24,8 +12,8 @@ import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { useUiStore } from "@/stores/use-ui-store";
 import { useSessions } from "./hooks/use-sessions";
 import { SessionDetailPage } from "./session-detail-page";
+import { resolveSessionOrigin } from "./sessions-origin";
 import { parseSessionKey } from "@/lib/session-key";
-import { sessionOrigin, type SessionOrigin } from "@/lib/session-origin";
 import { formatRelativeTime, formatTokens } from "@/lib/format";
 import type { SessionInfo } from "@/types/session";
 
@@ -154,6 +142,7 @@ function SessionRow({
 }) {
   const { t } = useTranslation("sessions");
   const parsed = parseSessionKey(session.key);
+  const origin = resolveSessionOrigin(session);
 
   return (
     <tr
@@ -169,7 +158,7 @@ function SessionRow({
         </div>
       </td>
       <td className="px-4 py-3">
-        <OriginBadge session={session} />
+        <OriginBadge origin={origin} t={t} />
       </td>
       <td className="px-4 py-3">
         <Badge variant="outline">{session.agentName || parsed.agentId}</Badge>
@@ -190,31 +179,27 @@ function SessionRow({
   );
 }
 
-/** Where this session lives: studio surface, web chat, channel, or runner. */
-function OriginBadge({ session }: { session: SessionInfo }) {
-  const { t } = useTranslation("sessions");
-  const origin = sessionOrigin(session.key, session.channel);
-
-  const config: Record<SessionOrigin, { icon: React.ElementType; label: string; className: string }> = {
-    web: { icon: Globe, label: t("origin.web"), className: "text-sky-600 dark:text-sky-400" },
-    telegram: { icon: Send, label: t("origin.telegram"), className: "text-blue-500" },
-    video: { icon: Clapperboard, label: t("origin.video"), className: "text-rose-500" },
-    pptx: { icon: Presentation, label: t("origin.pptx"), className: "text-amber-500" },
-    subagent: { icon: Workflow, label: t("origin.subagent"), className: "text-violet-500" },
-    cron: { icon: Clock, label: t("origin.cron"), className: "text-muted-foreground" },
-    team: { icon: Users, label: t("origin.team"), className: "text-teal-500" },
-    heartbeat: { icon: HeartPulse, label: t("origin.heartbeat"), className: "text-red-400" },
-    channel: {
-      icon: MessageSquare,
-      label: session.channel ? t("origin.channel", { channel: session.channel }) : t("origin.web"),
-      className: "text-muted-foreground",
-    },
-  };
-  const { icon: Icon, label, className } = config[origin];
-
+/** Always-on "Origin" badge: platform (channel-borne), studio designer
+ * agents, or Web Chat. Distinct tones per kind. */
+function OriginBadge({
+  origin,
+  t,
+}: {
+  origin: ReturnType<typeof resolveSessionOrigin>;
+  t: (key: string) => string;
+}) {
+  if (!origin) return <span className="text-xs text-muted-foreground">—</span>;
+  const label = origin.labelKey ? t(origin.labelKey) : origin.label ?? "";
+  const variant =
+    origin.kind === "platform"
+      ? "secondary"
+      : origin.kind === "designer"
+        ? origin.label === "PPTX"
+          ? "warning"
+          : "info"
+        : "outline";
   return (
-    <Badge variant="secondary" className={`gap-1 px-1.5 ${className}`} title={session.key}>
-      <Icon className="h-3 w-3" />
+    <Badge variant={variant} className="text-2xs px-1.5 py-0">
       {label}
     </Badge>
   );

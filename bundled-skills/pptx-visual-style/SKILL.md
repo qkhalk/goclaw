@@ -1,7 +1,7 @@
 ---
 name: PPTX Visual Style
-description: Theme systems for the PPTX Studio - palette construction with contrast rules, dark and light deck themes, PowerPoint-safe font pairings, and per-layout typography scale for slide JSON.
-version: 1
+description: Theme systems for the PPTX Studio - palette construction with contrast rules, dark and light deck themes, PowerPoint-safe font pairings, per-layout typography scale, and icon/frame decoration color roles for slide JSON.
+version: 2
 ---
 
 # PPTX Visual Style
@@ -66,6 +66,23 @@ Trebuchet MS, Times New Roman, Courier New. Pair on a contrast axis:
 - `stats`: values are the heroes (near title-slide size, accent color),
   labels small and muted.
 - `quote`: quote text large and italic-feeling, author small and muted.
+
+## Icon and frame color roles
+
+Decks are decorated with line icons and geometric frames (see the
+pptx-deck-design skill for the vocabulary and JSON fields). Decoration colors
+follow the same one-accent discipline:
+
+- Icons read in the accent color by default — the studio fills `color`
+  from the theme accent when omitted. Keep it that way unless the icon sits
+  on an accent-filled chip; then use the background color for contrast.
+- Frames: `band` takes the accent; `corner`, `outline`, `dots` and `ring`
+  look best in the muted color (or omitted — muted is their default). A
+  frame in full-strength accent competes with the type.
+- Decoration must never be the loudest thing on the slide: if squinting at
+  the slide shows the frame before the title, lower the decoration contrast.
+- No real photos, no gradients, no shadows. Icons and frames are flat
+  geometry, exactly like the palette.
 
 ## Self-check before emitting the theme
 

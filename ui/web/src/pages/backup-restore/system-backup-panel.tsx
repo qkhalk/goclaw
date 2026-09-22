@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { OperationProgress } from "@/components/shared/operation-progress";
 import { BackupPreflightPanel } from "./backup-preflight-panel";
+import { BackupScheduleCard } from "./backup-schedule-card";
 import { useSystemBackup } from "./hooks/use-system-backup";
 import { useS3Config } from "./hooks/use-s3-config";
 import { useS3Backups, type S3BackupEntry } from "./hooks/use-s3-backups";
@@ -180,6 +181,9 @@ export function SystemBackupPanel() {
           {t("backup.start")}
         </Button>
       </div>
+
+      {/* Scheduled periodic backup (requires S3 storage) */}
+      {s3Configured && <BackupScheduleCard />}
 
       {/* S3 history */}
       {s3Configured && s3Backups.data?.backups && (

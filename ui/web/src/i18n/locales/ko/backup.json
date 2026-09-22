@@ -93,6 +93,48 @@
     "saveSuccess": "S3 설정이 저장되었고 연결이 확인되었습니다",
     "saveError": "S3 설정 저장 실패"
   },
+  "schedule": {
+    "title": "예약 백업",
+    "description": "일정에 따라 자동으로 백업을 생성하고 S3에 업로드합니다",
+    "enable": "일정 활성화",
+    "frequency": {
+      "label": "빈도",
+      "daily": "매일",
+      "weekly": "매주",
+      "hours": "N시간마다"
+    },
+    "everyHours": "간격",
+    "hourValue": "{{hours}}시간마다",
+    "hour": "실행 시간",
+    "weekday": "요일",
+    "weekdays": {
+      "sun": "일요일",
+      "mon": "월요일",
+      "tue": "화요일",
+      "wed": "수요일",
+      "thu": "목요일",
+      "fri": "금요일",
+      "sat": "토요일"
+    },
+    "retention": "보관할 백업 수",
+    "retentionHint": "0은 모든 백업 보관",
+    "nextRun": "다음 실행",
+    "lastRun": "마지막 실행",
+    "never": "실행 없음",
+    "status": {
+      "ok": "성공",
+      "error": "실패",
+      "running": "실행 중"
+    },
+    "runNow": "지금 실행",
+    "save": "일정 저장",
+    "toast": {
+      "saved": "백업 일정이 저장되었습니다",
+      "saveFailed": "백업 일정 저장 실패",
+      "runStarted": "백업이 시작되었습니다",
+      "runFailed": "백업을 시작할 수 없습니다"
+    }
+  },
   "tenant": {
     "title": "테넌트 백업 & 복원",
     "description": "개별 테넌트 데이터 백업 또는 복원",

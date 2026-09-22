@@ -7,23 +7,8 @@
     "onedrive": "Подключить аккаунт OneDrive",
     "another": "Подключить другой аккаунт",
     "dropbox": "Подключить аккаунт Dropbox",
+    "yandex": "Подключить аккаунт Yandex Disk",
     "s3": "Подключить S3-совместимое хранилище"
-  },
-  "s3": {
-    "title": "Подключить S3-совместимое хранилище",
-    "description": "Поддерживаются AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO и DO Spaces. Ключи проверяются на endpoint перед сохранением.",
-    "label": "Название (необязательно)",
-    "label_placeholder": "Архив команды",
-    "endpoint": "Endpoint",
-    "endpoint_hint": "Для AWS S3 оставьте пустым. Автоматически используется path-style.",
-    "region": "Регион (необязательно)",
-    "bucket": "Бакет",
-    "access_key": "Access Key ID",
-    "secret_key": "Secret Access Key",
-    "secret_hint": "Хранится в зашифрованном виде; API не возвращает ключ после сохранения.",
-    "cancel": "Отмена",
-    "connect": "Подключить",
-    "connecting": "Проверка…"
   },
   "disconnect": "Отключить",
   "readonly_badge": "Только чтение",
@@ -54,7 +39,9 @@
     "coming_soon": "Скоро",
     "google_desc": "Google Drive через ваш собственный OAuth-клиент GCP. Включая инструменты Gmail.",
     "onedrive_desc": "Microsoft OneDrive (личный или рабочий/учебный) через ваше собственное приложение Azure.",
-    "more_via_rclone": "Другие хранилища (WebDAV, …) появятся на том же движке",
+    "more_via_rclone": "Больше хранилищ (Dropbox, S3, WebDAV, …) планируется на том же движке rclone",
+    "dropbox_desc": "Dropbox через встроенный клиент rclone — настройка не нужна. Создайте своё приложение для большей квоты.",
+    "yandex_desc": "Yandex Disk через встроенный клиент rclone — настройка не нужна. Создайте своё приложение для большей квоты.",
     "s3_desc": "AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO, DO Spaces — подключение по ключам доступа."
   },
   "provider": {
@@ -85,14 +72,23 @@
     "update": "Обновить данные",
     "advanced": "Использовать свой OAuth-клиент (расширенно)",
     "embedded_note": "Быстрое подключение использует общий OAuth-клиент rclone — настройка не нужна, но действуют общие лимиты. Общий клиент теперь выдаёт полный доступ к Drive. Инструментам Gmail по-прежнему нужен собственный OAuth-клиент (см. настройки облаков).",
+    "showMore": "Показать настройку",
+    "showLess": "Скрыть настройку",
+    "requiredHint": "Требуется настройка",
+    "title_dropbox": "Dropbox ещё не настроен",
+    "title_yandex": "Yandex Disk ещё не настроен",
+    "dropbox_client_id": "App key приложения Dropbox",
+    "yandex_client_id": "App ID Яндекса (client_id)",
+    "dropbox_step1": "Создайте \"Scoped app\" в консоли Dropbox и включите разрешения: files.metadata.write, files.content.write, files.content.read, sharing.write, account_info.read.",
+    "dropbox_step2": "В Settings → OAuth2 выберите тип доступа (\"Full Dropbox\" — при выборе App folder диск начинается внутри этой папки).",
+    "dropbox_step3": "Введите App key и App secret ниже и нажмите «Сохранить» — учётные данные шифруются, и эта форма больше не появится.",
+    "dropbox_step4": "Зарегистрируйте этот redirect URI в приложении Dropbox (Settings → OAuth2 → Redirect URIs):",
+    "yandex_step1": "Создайте новое приложение на oauth.yandex.com и включите доступ \"Yandex Disk REST API\" (чтение и запись).",
+    "yandex_step2": "На вкладке Platforms выберите «Веб-сервисы», задайте, кому доступно приложение, и подготовьте Callback URI из шага 4.",
+    "yandex_step3": "Введите App ID (client_id) и Client secret ниже и нажмите «Сохранить» — учётные данные шифруются, и эта форма больше не появится.",
+    "yandex_step4": "Зарегистрируйте этот redirect URI в приложении Яндекса (Platforms → Веб-сервисы → Callback URI):",
     "expand": "Настроить сейчас",
     "configured": "OAuth-клиент сохранён",
-    "title_dropbox": "Dropbox ещё не настроен",
-    "dropbox_client_id": "Dropbox App key",
-    "dropbox_step1": "Создайте приложение на dropbox.com/developers/apps (scopes: files.metadata.read/write, files.content.read/write, sharing.write).",
-    "dropbox_step2": "Добавьте в приложение redirect URI <base>/v1/cloud/oauth/callback.",
-    "dropbox_step3": "Скопируйте App key и App secret.",
-    "dropbox_step4": "Вставьте App key + secret и сохраните.",
     "dropbox_note": "Dropbox требует собственное приложение (общего клиента нет) — регистрация бесплатна."
   },
   "disconnect_confirm": {
@@ -134,7 +130,6 @@
     "title": "Области использования",
     "description": "Выберите, какой аккаунт использует агент: явный запрос главнее, затем группа, затем пользователь, затем настройка по умолчанию для организации и, наконец, личные аккаунты.",
     "tenant_default": "По умолчанию для организации",
-    "tenant_default_hint": "Если агент или действие не указывают аккаунт, используется этот общий аккаунт организации.",
     "none": "Нет",
     "group": "Группа",
     "user": "Пользователь",
@@ -157,7 +152,8 @@
     "table_empty": "Правил пока нет",
     "personal_accounts": "Личные аккаунты",
     "shared_accounts": "Общие (корпоративные) аккаунты",
-    "accounts_explainer": "Личные = ваши собственные облачные аккаунты. Общие (корпоративные) = аккаунты всего тенанта, привязываются к группам/пользователям с приоритетом."
+    "accounts_explainer": "Личные аккаунты — это ваши собственные подключённые облака. Общие (корпоративные) аккаунты действуют на весь тенант — привяжите их к группам или пользователям ниже с помощью правил приоритета.",
+    "tenant_default_hint": "Если агент или действие не указывают аккаунт, используется этот общий аккаунт организации."
   },
   "detail": {
     "mail_btn": "Почта",
@@ -166,12 +162,12 @@
     "used_of": "Использовано {{used}} из {{total}}",
     "root": "Корень",
     "loading_files": "Загрузка файлов…",
-    "files_unavailable": "Не удалось получить список файлов (проверьте подключение аккаунта и обновите)",
+    "files_unavailable": "Не удалось получить список файлов (rclone установлен на сервере?)",
     "no_files": "Эта папка пуста",
     "col_name": "Имя",
     "col_size": "Размер",
     "col_modified": "Изменён",
-    "readonly_note": "Просмотр только для чтения ({{provider}}). Попросите агента скачать или упорядочить файлы.",
+    "readonly_note": "Просмотр только для чтения через rclone ({{provider}}). Попросите агента скачать или упорядочить файлы.",
     "mailbox": "Почтовый ящик",
     "loading_mail": "Загрузка почты…",
     "mail_unavailable": "Не удалось прочитать почту",
@@ -182,7 +178,6 @@
   "drive": {
     "my_drives": "Мои диски",
     "my_drive": "Мой диск",
-    "dashboard": "Панель",
     "providers": "Провайдеры",
     "accounts": "Аккаунты",
     "shared_tag": "Общий",
@@ -206,6 +201,7 @@
     "back_home": "Вернуться к облакам",
     "toggle_accounts": "Показать/скрыть аккаунты",
     "quick_views": "Быстрый доступ",
+    "dashboard": "Панель",
     "search_accounts": "Поиск аккаунтов…",
     "no_accounts_match": "Нет подходящих аккаунтов",
     "up": "На папку выше"
@@ -332,6 +328,148 @@
     "next": "Далее",
     "close": "Закрыть"
   },
+  "shortcuts": {
+    "title": "Горячие клавиши",
+    "description": "Горячие клавиши отключены при вводе в поля.",
+    "next": "Следующий элемент",
+    "prev": "Предыдущий элемент",
+    "open": "Открыть",
+    "up": "На папку выше",
+    "delete": "Удалить выбранное",
+    "select_all": "Выделить всё",
+    "search": "Перейти к поиску",
+    "help": "Справка по клавишам"
+  },
+  "credentials": {
+    "section_title": "{{provider}} — подключение по ключам",
+    "section_description": "Регистрация OAuth-приложения не нужна: введите ключи — они будут проверены через rclone перед сохранением аккаунта.",
+    "section_connect": "Подключить {{provider}}",
+    "title": "Подключить {{provider}}",
+    "description": "Введите учётные данные {{provider}} — они будут проверены перед сохранением аккаунта. Регистрация OAuth-приложения не нужна.",
+    "display_name": "Название аккаунта",
+    "display_name_placeholder": "Моё хранилище {{provider}}",
+    "display_name_hint": "Отображается в списке дисков; двум аккаунтам одного провайдера нужны разные имена.",
+    "connect": "Подключить",
+    "verifying": "Проверка учётных данных…",
+    "connected": "{{name}} подключён",
+    "probe_failed": "Не удалось подключиться: {{error}}",
+    "cancel": "Отмена",
+    "fields": {
+      "s3": {
+        "access_key_id": "ID ключа доступа",
+        "access_key_id_hint": "Ключ доступа вашего пользователя или корзины S3.",
+        "secret_access_key": "Секретный ключ доступа",
+        "secret_access_key_hint": "Секрет, парный к ID ключа доступа.",
+        "region": "Регион",
+        "region_hint": "напр. us-east-1 — для R2 / MinIO не обязательно.",
+        "endpoint": "Endpoint",
+        "endpoint_hint": "https://… — обязателен для R2, Spaces, MinIO; для AWS оставьте пустым.",
+        "provider": "Тип сервиса",
+        "provider_hint": "aws | cloudflare_r2 | digitalocean | other (автоопределение)."
+      },
+      "b2": {
+        "account": "ID ключа",
+        "account_hint": "ID ключа приложения Backblaze.",
+        "key": "Ключ приложения",
+        "key_hint": "Секрет ключа приложения, парный к ID ключа."
+      },
+      "pcloud": {
+        "username": "Имя пользователя",
+        "username_hint": "Email вашего аккаунта pCloud.",
+        "password": "Пароль",
+        "password_hint": "Пароль вашего аккаунта pCloud."
+      },
+      "webdav": {
+        "url": "URL сервера",
+        "url_hint": "напр. https://cloud.example.com/remote.php/dav",
+        "vendor": "Тип сервера",
+        "vendor_hint": "nextcloud | owncloud | other.",
+        "user": "Имя пользователя",
+        "user_hint": "Ваш логин WebDAV.",
+        "pass": "Пароль",
+        "pass_hint": "Ваш пароль WebDAV или пароль приложения."
+      },
+      "azureblob": {
+        "account": "Имя учётной записи хранилища",
+        "account_hint": "Имя вашей учётной записи хранилища Azure.",
+        "key": "Ключ учётной записи хранилища",
+        "key_hint": "Ключ доступа учётной записи хранилища (Настройки → Ключи доступа).",
+        "endpoint": "Endpoint",
+        "endpoint_hint": "напр. https://<account>.blob.core.windows.net — необязательно; plain http для Azurite."
+      },
+      "gcs": {
+        "service_account_credentials": "JSON сервисного аккаунта",
+        "service_account_credentials_hint": "Вставьте весь JSON-файл ключа сервисного аккаунта (Google Cloud → IAM и администрирование → Сервисные аккаунты → Ключи).",
+        "project_number": "Номер проекта",
+        "project_number_hint": "Номер вашего проекта Google Cloud — нужен для списка корзин."
+      },
+      "ftp": {
+        "host": "Хост",
+        "host_hint": "Имя хоста или IP-адрес, без схемы.",
+        "port": "Порт",
+        "port_hint": "Пусто — порт по умолчанию 21.",
+        "user": "Имя пользователя",
+        "user_hint": "\"anonymous\" для публичных FTP-серверов.",
+        "pass": "Пароль",
+        "pass_hint": "Ваш пароль FTP.",
+        "explicit_tls": "Явный TLS (FTPS)",
+        "explicit_tls_hint": "true для FTPS, false (или пусто) для обычного FTP."
+      },
+      "sftp": {
+        "host": "Хост",
+        "host_hint": "Имя хоста или IP-адрес, без схемы.",
+        "port": "Порт",
+        "port_hint": "Пусто — порт по умолчанию 22.",
+        "user": "Имя пользователя",
+        "user_hint": "Ваш логин SSH.",
+        "pass": "Пароль",
+        "pass_hint": "Ваш пароль SSH — или оставьте пустым и используйте приватный ключ ниже.",
+        "key_pem": "Приватный ключ (PEM)",
+        "key_pem_hint": "Вставьте незашифрованный приватный ключ (OpenSSH или PEM). Переносы строк обрабатываются автоматически.",
+        "key_file_pass": "Парольная фраза ключа",
+        "key_file_pass_hint": "Только для приватных ключей, защищённых фразой."
+      },
+      "smb": {
+        "host": "Хост",
+        "host_hint": "Имя хоста или IP-адрес NAS/Windows-машины.",
+        "user": "Имя пользователя",
+        "user_hint": "Ваш пользователь SMB — \"guest\" для гостевых ресурсов.",
+        "pass": "Пароль",
+        "pass_hint": "Ваш пароль SMB.",
+        "domain": "Домен",
+        "domain_hint": "Пусто — WORKGROUP по умолчанию.",
+        "port": "Порт",
+        "port_hint": "Пусто — порт по умолчанию 445."
+      }
+    },
+    "providers": {
+      "s3": "Amazon S3 / совместимые",
+      "b2": "Backblaze B2",
+      "pcloud": "pCloud",
+      "webdav": "WebDAV",
+      "azureblob": "Azure Blob Storage",
+      "gcs": "Google Cloud Storage",
+      "ftp": "FTP",
+      "sftp": "SFTP / SSH",
+      "smb": "SMB"
+    }
+  },
+  "s3": {
+    "title": "Подключить S3-совместимое хранилище",
+    "description": "Поддерживаются AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO и DO Spaces. Ключи проверяются на endpoint перед сохранением.",
+    "label": "Название (необязательно)",
+    "label_placeholder": "Архив команды",
+    "endpoint": "Endpoint",
+    "endpoint_hint": "Для AWS S3 оставьте пустым. Автоматически используется path-style.",
+    "region": "Регион (необязательно)",
+    "bucket": "Бакет",
+    "access_key": "Access Key ID",
+    "secret_key": "Secret Access Key",
+    "secret_hint": "Хранится в зашифрованном виде; API не возвращает ключ после сохранения.",
+    "cancel": "Отмена",
+    "connect": "Подключить",
+    "connecting": "Проверка…"
+  },
   "agent_access": {
     "title": "Доступ агентов",
     "cap_read": "Чтение файлов",
@@ -344,18 +482,6 @@
     "read": "Только чтение",
     "write": "Чтение и запись",
     "full": "Полный доступ"
-  },
-  "shortcuts": {
-    "title": "Горячие клавиши",
-    "description": "Горячие клавиши отключены при вводе в поля.",
-    "next": "Следующий элемент",
-    "prev": "Предыдущий элемент",
-    "open": "Открыть",
-    "up": "На папку выше",
-    "delete": "Удалить выбранное",
-    "select_all": "Выделить всё",
-    "search": "Перейти к поиску",
-    "help": "Справка по клавишам"
   },
   "webdav": {
     "title": "Подключить WebDAV-хранилище",

@@ -14,6 +14,10 @@
     "messages": "메시지",
     "updated": "업데이트됨"
   },
+  "origin": {
+    "webChat": "웹 채팅",
+    "videoEditor": "비디오 편집기"
+  },
   "contextBar": {
     "compacted": "{{count}}회 압축됨"
   },

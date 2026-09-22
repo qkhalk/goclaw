@@ -1222,13 +1222,13 @@
   },
   "fileCloudPermissions": {
     "title": "Quyền tệp & đám mây",
-    "description": "Chọn agent được làm gì với tệp. Công cụ trên cloud drive tuân theo cùng công tắc: duyệt/đọc cần Đọc; ghi đè, xoá, đổi tên và chia sẻ cần Ghi; thư mục mới và bản sao cần Tạo.",
+    "description": "Chọn agent này được làm gì với tệp. Công cụ đọc đám mây tuân theo quyền đọc tệp.",
     "read": "Đọc tệp",
     "readDesc": "Liệt kê và đọc tệp trong workspace và các đám mây đã kết nối (read_file, list_files, duyệt đám mây).",
     "write": "Ghi tệp",
-    "writeDesc": "Sửa nội dung hiện có — tệp workspace (write_file vào đường dẫn đã có, edit) và cloud drive (cloud_write, cloud_delete, cloud_move, cloud_share).",
+    "writeDesc": "Sửa nội dung tệp đã có (write_file vào tệp hiện có, edit).",
     "create": "Tạo tệp",
-    "createDesc": "Tạo tệp và thư mục mới — workspace (write_file vào đường dẫn mới) và cloud drive (cloud_mkdir, cloud_copy).",
+    "createDesc": "Tạo tệp và thư mục mới (write_file vào đường dẫn mới).",
     "save": "Lưu quyền",
     "saving": "Đang lưu…",
     "saved": "Đã cập nhật quyền tệp & đám mây"

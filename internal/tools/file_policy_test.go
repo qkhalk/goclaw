@@ -189,27 +189,3 @@ func TestFilePolicyAllowedDefaults(t *testing.T) {
 		t.Fatal("partial policy must default unset caps to allow")
 	}
 }
-
-func TestFilePolicyActionCoversCloudMutations(t *testing.T) {
-	cases := map[string]struct {
-		action FileAction
-		ok     bool
-	}{
-		"cloud_ls":      {FileActionRead, true},
-		"cloud_read":    {FileActionRead, true},
-		"cloud_write":   {FileActionWrite, true},
-		"cloud_delete":  {FileActionWrite, true},
-		"cloud_move":    {FileActionWrite, true},
-		"cloud_share":   {FileActionWrite, true},
-		"cloud_mkdir":   {FileActionCreate, true},
-		"cloud_copy":    {FileActionCreate, true},
-		"cloud_account": {"", false}, // metadata tool — outside the policy
-		"send_file":     {"", false}, // documented gap: exec-class stays outside
-	}
-	for name, want := range cases {
-		action, ok := filePolicyAction(name)
-		if action != want.action || ok != want.ok {
-			t.Errorf("filePolicyAction(%q) = (%q, %v), want (%q, %v)", name, action, ok, want.action, want.ok)
-		}
-	}
-}

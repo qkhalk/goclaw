@@ -367,6 +367,27 @@ func isWriteMethod(method string) bool {
 		protocol.MethodSessionsCompact,
 		// Branch (fork) inserts a new session row derived from the source.
 		protocol.MethodSessionsBranch,
+		// Archive/restore flip sessions.archived_at (soft hide/show) — same
+		// ownership class as delete, so operator-or-above.
+		protocol.MethodSessionsArchive,
+		protocol.MethodSessionsRestore,
+
+		// Subagent task lifecycle — archive/cancel mutate durable task state
+		// (operator-or-above, mirrors sessions archive class).
+		protocol.MethodSubagentsArchive,
+		protocol.MethodSubagentsArchiveCompleted,
+		protocol.MethodSubagentsCancel,
+
+		// Scheduled periodic backup — set mutates the schedule; run triggers
+		// an immediate backup job (provider/disk side effects).
+		protocol.MethodBackupScheduleSet,
+		protocol.MethodBackupScheduleRun,
+
+		// Browser remote control — open/act/screenshot drive the shared
+		// browser instance (side-effectful control plane).
+		protocol.MethodBrowserRemoteOpen,
+		protocol.MethodBrowserRemoteAct,
+		protocol.MethodBrowserRemoteScreenshot,
 		protocol.MethodCronCreate,
 		protocol.MethodCronUpdate,
 		protocol.MethodCronDelete,
@@ -506,6 +527,11 @@ func isReadMethod(method string) bool {
 		// Sessions read
 		protocol.MethodSessionsList,
 		protocol.MethodSessionsPreview,
+
+		// Subagent task roster + backup schedule reads
+		protocol.MethodSubagentsList,
+		protocol.MethodSubagentsGet,
+		protocol.MethodBackupScheduleGet,
 		protocol.MethodRunTimelineGet,
 		protocol.MethodRunsGet,
 		protocol.MethodRunsList,
@@ -633,13 +659,6 @@ func isReadMethod(method string) bool {
 		// through the same SSRF/domain-policy pipeline as the web_browse tool
 		// and the relayed document is only readable by the requesting client.
 		protocol.MethodBrowserPanelOpen,
-		// browser.remote.* drives the SERVER-side headless browser on behalf
-		// of the caller's own panel (same SSRF/domain policy; tabs are
-		// namespaced per session and screenshots relay only to the requesting
-		// client) — browsing actions, not gateway mutations.
-		protocol.MethodBrowserRemoteOpen,
-		protocol.MethodBrowserRemoteAct,
-		protocol.MethodBrowserRemoteScreenshot,
 	}
 	return slices.Contains(readMethods, method)
 }

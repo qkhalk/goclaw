@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { GripVertical, Plus, VolumeX } from "lucide-react";
+import { Plus, Undo2, Redo2, GripVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { renderSceneBase } from "./render-shared";
+import { getIconDef } from "../lib/icon-library";
 import type { Scene } from "../hooks/use-timeline";
 
 // ── Types ──
@@ -12,48 +13,47 @@ interface TimelineProps {
   selectedIndex: number;
   onSelect: (index: number) => void;
   onAdd: () => void;
+  onRemove: (index: number) => void;
+  onMove: (from: number, to: number) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
 // ── Scene thumbnail ──
 
-/** True-paint thumbnail for color scenes: the same renderSceneBase the
- * player uses (gradient + grid + glow + caption chip) on a small offscreen
- * canvas, redrawn when the scene changes or the caption fonts finish
- * loading. Image scenes keep the plain <img> below — the photo is the
- * preview. */
-function ColorSceneThumb({ scene }: { scene: Scene }) {
-  const ref = useRef<HTMLCanvasElement | null>(null);
-  const sceneKey = JSON.stringify(scene);
-
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const paint = () => {
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      renderSceneBase(ctx, canvas, scene, 0.7, new Map(), undefined, canvas.width / 720);
-    };
-    paint();
-    // Repaint once the bundled caption fonts arrive (canvas falls back to a
-    // system face until then).
-    document.fonts?.ready.then(paint);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneKey]);
-
-  return (
-    <canvas
-      ref={ref}
-      width={216}
-      height={384}
-      className="h-full w-full rounded-[5px] object-cover"
-      aria-hidden
-    />
-  );
-}
-
 function SceneThumb({ scene, index }: { scene: Scene; index: number }) {
-  if (scene.type === "color") {
-    return <ColorSceneThumb scene={scene} />;
+  if (scene.type === "color" || scene.type === "icon") {
+    const def = scene.type === "icon" ? getIconDef(scene.icon?.name) : undefined;
+    return (
+      <div
+        className="flex h-full w-full items-center justify-center rounded"
+        style={{
+          background: scene.gradient
+            ? `linear-gradient(135deg, ${scene.gradient.from}, ${scene.gradient.to})`
+            : undefined,
+          backgroundColor: scene.gradient ? undefined : scene.color || "#000000",
+        }}
+      >
+        {def && (
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke={scene.icon?.color || "#ffffff"}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            {def.d.map((d, i) => (
+              <path key={i} d={d} />
+            ))}
+          </svg>
+        )}
+      </div>
+    );
   }
 
   if (scene.source) {
@@ -61,7 +61,7 @@ function SceneThumb({ scene, index }: { scene: Scene; index: number }) {
       <img
         src={scene.source}
         alt={`Scene ${index + 1}`}
-        className="h-full w-full rounded-[5px] object-cover"
+        className="h-full w-full rounded object-cover"
         crossOrigin="anonymous"
         onError={(e) => {
           (e.target as HTMLImageElement).style.display = "none";
@@ -71,56 +71,27 @@ function SceneThumb({ scene, index }: { scene: Scene; index: number }) {
   }
 
   return (
-    <div className="flex h-full w-full items-center justify-center rounded-[5px] bg-white/[0.06] text-xs text-zinc-500">
+    <div className="flex h-full w-full items-center justify-center rounded bg-muted text-xs text-muted-foreground">
       {index + 1}
-    </div>
-  );
-}
-
-// ── Ruler helpers ──
-
-function formatRulerTime(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-const RULER_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
-
-/** Smallest tick step whose pixel spacing stays readable at pxPerSec. */
-function rulerStep(pxPerSec: number): number {
-  for (const step of RULER_STEPS) {
-    if (step * pxPerSec >= 64) return step;
-  }
-  return RULER_STEPS[RULER_STEPS.length - 1]!;
-}
-
-/** Track gutter label (Filmora-style "V1"), sticky at the strip's left. */
-function TrackGutter() {
-  return (
-    <div className="sticky left-0 z-10 flex w-7 shrink-0 items-end justify-center border-r border-white/[0.06] bg-[#1b1d23] pb-1">
-      <span className="font-mono text-[10px] font-medium text-zinc-500">V1</span>
     </div>
   );
 }
 
 // ── Component ──
 
-/**
- * Filmora-style bottom timeline: dark surface, timecode tick ruler aligned
- * with time-proportional scene clips (gradient thumbnails, rounded clip
- * bodies), sticky V1 track gutter, and an add-scene slot at the end.
- */
 export function Timeline({
   scenes,
   selectedIndex,
   onSelect,
   onAdd,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }: TimelineProps) {
   const { t } = useTranslation("toolbox");
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
-  const [viewportW, setViewportW] = useState(0);
 
   // Auto-scroll to selected scene
   useEffect(() => {
@@ -131,149 +102,112 @@ export function Timeline({
     });
   }, [selectedIndex]);
 
-  // Track the viewport width so the strip can fit scenes without scrolling
-  // when there is room (and stay readable when there is not).
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const update = () => setViewportW(el.clientWidth);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const durations = scenes.map((s) => Number(s.duration_sec) || 0);
-  const totalSec = durations.reduce((a, b) => a + b, 0);
-  const minSceneSec = durations.length > 0 ? Math.min(...durations) : 0;
-
-  // px per second: fill the viewport when possible, but never let the
-  // shortest clip shrink below ~56px; clamped so pathological inputs still
-  // render (6..90 px/s).
-  const pxPerSec = useMemo(() => {
-    const fit = viewportW > 56 && totalSec > 0 ? (viewportW - 56 - 16) / totalSec : 0;
-    const readable = minSceneSec > 0 ? 56 / minSceneSec : 0;
-    return Math.min(90, Math.max(fit, readable, 6));
-  }, [viewportW, totalSec, minSceneSec]);
-
-  const stripWidth = Math.round(totalSec * pxPerSec);
-  const step = rulerStep(pxPerSec);
-  const ticks = useMemo(() => {
-    const out: number[] = [];
-    for (let s = 0; s <= Math.floor(totalSec); s += step) out.push(s);
-    return out;
-  }, [totalSec, step]);
-
   return (
-    <div className="bg-[#1b1d23]">
+    <div className="flex flex-col gap-2">
+      {/* Header */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-sm font-medium">{t("video.timeline.title")}</span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onUndo}
+            disabled={!canUndo}
+            aria-label={t("video.timeline.undo")}
+            className="min-h-9 min-w-9"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onRedo}
+            disabled={!canRedo}
+            aria-label={t("video.timeline.redo")}
+            className="min-h-9 min-w-9"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Scrollable scene strip */}
       <div
         ref={scrollRef}
-        className="overflow-x-auto overscroll-contain"
+        className="flex gap-2 overflow-x-auto pb-1 overscroll-contain"
       >
-        <div className="flex min-w-full flex-col">
-          {/* Timecode tick ruler (aligned with the clip row below — both rows
-              are TrackGutter + a strip with identical horizontal geometry and
-              no inter-row padding, so tick left = clip left for time t).
-              Clips clamp to a 28px minimum width; scenes narrower than that
-              break strict proportionality by design. */}
-          <div aria-hidden className="flex">
-            <TrackGutter />
-            <div
-              className="relative h-6 shrink-0 border-b border-white/[0.06]"
-              style={{ width: stripWidth || undefined, minWidth: stripWidth || "100%" }}
-            >
-              {ticks.map((sec) => (
-                <div
-                  key={sec}
-                  className="absolute bottom-0 flex flex-col items-start"
-                  style={{ left: sec * pxPerSec }}
-                >
-                  <span className="pl-1 font-mono text-[9px] leading-none tabular-nums text-zinc-500">
-                    {formatRulerTime(sec)}
-                  </span>
-                  <span className="mt-0.5 h-1.5 w-px bg-white/20" />
-                </div>
-              ))}
-            </div>
-          </div>
+        {scenes.map((scene, i) => {
+          const isSelected = i === selectedIndex;
+          const totalDur = scenes.reduce((a, s) => a + (Number(s.duration_sec) || 0), 0);
+          const sceneDur = Number(scene.duration_sec) || 0;
+          const widthPct = totalDur > 0 ? Math.max(80, (sceneDur / totalDur) * 200) : 80;
 
-          {/* Clip row — py only: horizontal padding would offset the clips
-              from the ruler above. */}
-          <div role="listbox" aria-label={t("video.timeline.title")} className="flex py-1">
-            <TrackGutter />
-            {scenes.map((scene, i) => {
-              const isSelected = i === selectedIndex;
-              const sceneDur = durations[i] ?? 0;
-              return (
-                <div
-                  key={i}
-                  className="shrink-0"
-                  style={{ width: Math.max(28, sceneDur * pxPerSec) }}
-                >
-                  <button
-                    ref={isSelected ? selectedRef : undefined}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => onSelect(i)}
-                    className={cn(
-                      "group relative flex h-[68px] w-full flex-col overflow-hidden rounded-md transition-all",
-                      isSelected
-                        ? "ring-2 ring-primary"
-                        : "ring-1 ring-white/10 hover:ring-white/25",
-                    )}
-                  >
-                    {/* Brand gradient accent marks the selected clip only —
-                        unselected clips already read as clips via the ring. */}
-                    {isSelected && (
-                      <span
-                        aria-hidden
-                        className="absolute inset-x-0 top-0 z-10 h-0.5 bg-gradient-to-r from-rose-500 to-orange-400"
-                      />
-                    )}
-                    {/* Thumbnail */}
-                    <div className="relative h-12 w-full overflow-hidden rounded-[5px] bg-black/40">
-                      <SceneThumb scene={scene} index={i} />
-                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/10" />
-                      {/* Drag handle (visual only) */}
-                      <div className="absolute left-0.5 top-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                        <GripVertical className="h-3 w-3 text-white drop-shadow" />
-                      </div>
-                      {scene.mute && (
-                        <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-black/60">
-                          <VolumeX className="h-2.5 w-2.5 text-zinc-200" />
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Label + duration */}
-                    <div className="flex items-center justify-between gap-1 bg-white/[0.04] px-1 py-0.5">
-                      <span className="truncate text-[10px] font-medium text-zinc-300">
-                        {t("video.scene_n", { n: i + 1 })}
-                      </span>
-                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-zinc-500">
-                        {sceneDur.toFixed(1)}s
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              );
-            })}
-
-            {/* Add scene slot (sits past the ruler's end, like empty track) */}
+          return (
             <button
+              key={i}
+              ref={isSelected ? selectedRef : undefined}
               type="button"
-              onClick={onAdd}
-              aria-label={t("video.add_scene")}
-              className="ml-1 flex h-[68px] w-14 shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-white/15 transition-colors hover:border-primary/50 hover:bg-primary/5"
+              onClick={() => onSelect(i)}
+              className={cn(
+                "group relative flex-shrink-0 flex flex-col gap-1 rounded-lg border-2 p-1 transition-all cursor-pointer",
+                "hover:border-primary/50",
+                isSelected
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-transparent bg-muted/30",
+              )}
+              style={{ width: widthPct, minWidth: 80 }}
             >
-              <Plus className="h-4 w-4 text-zinc-500" />
-              <span className="px-1 text-center text-[9px] leading-tight text-zinc-500">
-                {t("video.add_scene")}
-              </span>
+              {/* Thumbnail */}
+              <div className="relative h-12 w-full overflow-hidden rounded">
+                <SceneThumb scene={scene} index={i} />
+                {/* Drag handle (visual only) */}
+                <div className="absolute left-0.5 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <GripVertical className="h-3 w-3 text-white drop-shadow" />
+                </div>
+              </div>
+
+              {/* Label + duration */}
+              <div className="flex items-center justify-between px-0.5">
+                <span className="truncate text-[10px] font-medium">
+                  {t("video.scene_n", { n: i + 1 })}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {sceneDur}s
+                </span>
+              </div>
             </button>
+          );
+        })}
+
+        {/* Add scene button */}
+        <button
+          type="button"
+          onClick={onAdd}
+          className={cn(
+            "flex flex-shrink-0 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-1",
+            "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer",
+          )}
+          style={{ width: 80, minWidth: 80 }}
+        >
+          <div className="flex h-12 w-full items-center justify-center rounded bg-muted/30">
+            <Plus className="h-4 w-4 text-muted-foreground" />
           </div>
-        </div>
+          <span className="text-[10px] text-muted-foreground">
+            {t("video.add_scene")}
+          </span>
+        </button>
+      </div>
+
+      {/* Drag reorder hint */}
+      <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground">
+        <span>
+          {t("video.scenes_count", { n: scenes.length })} ·{" "}
+          {t("video.total_duration", {
+            sec: scenes
+              .reduce((a, s) => a + (Number(s.duration_sec) || 0), 0)
+              .toFixed(1),
+          })}
+        </span>
       </div>
     </div>
   );

@@ -455,6 +455,13 @@ func init() {
 		"telegram.status.queue":          " · 🪢 队列：%s %d/%d 活跃，%d 等待",
 		"telegram.status.fullhint":       "/status full — 显示全部",
 
+		// Telegram subagent archive buttons
+		"telegram.subagent.archiveallconfirm": "🗄 已归档 %d 个已完成任务。",
+		"telegram.subagent.archiveallbtn":     "🗄 归档全部已完成 (%d)",
+		"telegram.subagent.archivedone":       "🗄 任务已归档 — 不再显示在列表中。",
+		"telegram.subagent.notterminal":       "⏳ 该任务仍在运行 — 完成后才能归档。",
+		"telegram.subagent.archivebtn":        "🗄 归档",
+
 		// Video render pipeline
 		MsgVideoJobCreated:    "视频渲染任务 %s 已创建",
 		MsgVideoJobFailed:     "视频渲染任务 %s 失败：%s",

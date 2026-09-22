@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useCanvasPlayer } from "../hooks/use-canvas-player";
-import type { NarrationAudioController } from "../hooks/use-narration-audio";
 import type { Scene } from "../hooks/use-timeline";
-import { TransportBar } from "./studio/transport-bar";
 
-// ── Types (Scene is the canonical model from use-timeline) ──
+// ── Types ──
 
 interface Storyboard {
   version: number;
@@ -17,61 +24,30 @@ interface Storyboard {
 
 interface CanvasPlayerProps {
   storyboard: Storyboard;
-  narration?: NarrationAudioController;
-  /** Storyboard-level default TTS voice (edge-tts id), applied at submit. */
-  defaultVoice?: string;
-  onDefaultVoiceChange?: (voice: string) => void;
+}
+
+// ── Time formatting ──
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 // ── Component ──
 
-/**
- * Studio preview stage: the canvas centered on a dark surface with a
- * Filmora-style transport strip underneath. Playback logic is unchanged —
- * this component owns only chrome (stage sizing + fullscreen).
- */
-export function CanvasPlayer({ storyboard, narration, defaultVoice, onDefaultVoiceChange }: CanvasPlayerProps) {
+export function CanvasPlayer({ storyboard }: CanvasPlayerProps) {
   const { t } = useTranslation("toolbox");
-  const player = useCanvasPlayer(storyboard, narration);
+  const player = useCanvasPlayer(storyboard);
   const containerRef = useRef<HTMLDivElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
-  // The resize effect must not depend on the player's identity: player.state
-  // changes every frame during playback, which would tear down and rebuild
-  // the ResizeObserver per frame.
-  const playerRef = useRef(player);
-  playerRef.current = player;
 
-  // Fullscreen is pure player chrome: the ResizeObserver below re-fits the
-  // canvas when the stage enters/leaves fullscreen. The fullscreen element is
-  // the component ROOT (stage + transport bar) — promoting only the stage
-  // would hide the transport controls behind the fullscreen layer and leave
-  // no way to leave fullscreen except Esc.
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  useEffect(() => {
-    const onFsChange = () => setIsFullscreen(document.fullscreenElement === rootRef.current);
-    document.addEventListener("fullscreenchange", onFsChange);
-    return () => document.removeEventListener("fullscreenchange", onFsChange);
-  }, []);
-
-  const toggleFullscreen = useCallback(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) {
-      void document.exitFullscreen();
-    } else if (typeof el.requestFullscreen === "function") {
-      void el.requestFullscreen();
-    }
-  }, []);
-
-  // Auto-resize canvas to container. Padding is handled by the container's
-  // box (the stage centers the sized canvas), so the observer can use the
-  // full box and clamp via maxWidth/maxHeight.
+  // Auto-resize canvas to container (16px = the container's p-2 padding)
   const handleResize = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const { width: sbW, height: sbH } = storyboard.canvas;
-    const containerW = container.clientWidth;
-    const containerH = container.clientHeight;
+    const containerW = container.clientWidth - 16;
+    const containerH = container.clientHeight - 16;
     if (containerW <= 0 || containerH <= 0) return;
 
     // Fit inside container maintaining aspect ratio
@@ -79,8 +55,8 @@ export function CanvasPlayer({ storyboard, narration, defaultVoice, onDefaultVoi
     const displayW = Math.round(sbW * scale);
     const displayH = Math.round(sbH * scale);
 
-    playerRef.current.resize(displayW, displayH);
-  }, [storyboard.canvas]);
+    player.resize(displayW, displayH);
+  }, [storyboard.canvas, player]);
 
   useEffect(() => {
     handleResize();
@@ -91,14 +67,10 @@ export function CanvasPlayer({ storyboard, narration, defaultVoice, onDefaultVoi
     return () => observer.disconnect();
   }, [handleResize]);
 
-  // Keyboard shortcuts. The handler reads the player through playerRef so
-  // the listener is bound once — the hook returns a new controller object
-  // every render (per frame during playback), which would otherwise
-  // re-subscribe this listener at frame rate.
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      const player = playerRef.current;
       switch (e.key) {
         case " ":
           e.preventDefault();
@@ -121,51 +93,103 @@ export function CanvasPlayer({ storyboard, narration, defaultVoice, onDefaultVoi
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [player]);
 
-  // iOS Safari lacks element requestFullscreen — gate the button on the
-  // function existing, not just the (absent) fullscreenEnabled flag.
-  const [fullscreenSupported, setFullscreenSupported] = useState(false);
-  useEffect(() => {
-    setFullscreenSupported(
-      document.fullscreenEnabled !== false &&
-        typeof rootRef.current?.requestFullscreen === "function",
-    );
-  }, []);
+  const { isPlaying, currentTime, totalDuration, currentSceneIndex } = player.state;
 
   return (
-    <div ref={rootRef} className="flex h-full min-h-0 flex-col gap-3 p-3 sm:p-4">
-      {/* Canvas stage — centered on the dark surface. Fixed height on mobile
-          so the ResizeObserver → resize → layout loop cannot feed back into
-          itself; fills the remaining editor height on desktop and in
-          fullscreen (that feedback half-painted the bitmap and hid
-          captions). */}
-      <div className="flex min-h-0 flex-1 items-center justify-center">
-        <div
-          ref={containerRef}
-          className="flex items-center justify-center rounded-xl bg-black ring-1 ring-white/10 max-lg:h-[min(60vh,560px)] max-lg:w-full lg:h-full lg:w-full"
-        >
-          <canvas
-            ref={player.canvasRef}
-            className="block"
-            style={{ maxWidth: "100%", maxHeight: "100%" }}
-            aria-label={t("video.title")}
-          />
-        </div>
+    <div className="flex flex-col gap-3">
+      {/* Canvas container — fixed height so the ResizeObserver → resize →
+          layout loop cannot feed back into itself (that feedback half-painted
+          the bitmap and hid captions). */}
+      <div
+        ref={containerRef}
+        className="flex items-center justify-center rounded-lg border bg-black/90 p-2"
+        style={{ height: "min(60vh, 560px)" }}
+      >
+        <canvas
+          ref={player.canvasRef}
+          className="block rounded"
+          style={{ maxWidth: "100%", maxHeight: "100%" }}
+        />
       </div>
 
-      {/* Transport controls */}
-      <TransportBar
-        player={player}
-        sceneCount={storyboard.scenes.length}
-        narration={narration}
-        defaultVoice={defaultVoice}
-        onDefaultVoiceChange={onDefaultVoiceChange}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={() => {
-          if (fullscreenSupported) toggleFullscreen();
-        }}
-      />
+      {/* Controls */}
+      <div className="flex items-center gap-2 px-1">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => player.seek(0)}
+          aria-label={t("video.canvas.start")}
+          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+        >
+          <SkipBack className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => player.stepFrame(-1)}
+          aria-label={t("video.canvas.prev_frame")}
+          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => (isPlaying ? player.pause() : player.play())}
+          aria-label={isPlaying ? t("video.canvas.pause") : t("video.canvas.play")}
+          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+        >
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => player.stepFrame(1)}
+          aria-label={t("video.canvas.next_frame")}
+          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => player.seek(totalDuration)}
+          aria-label={t("video.canvas.end")}
+          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+        >
+          <SkipForward className="h-4 w-4" />
+        </Button>
+
+        {/* Seek bar */}
+        <div className="relative mx-2 flex-1">
+          <input
+            type="range"
+            min={0}
+            max={totalDuration * 100 || 1}
+            value={currentTime * 100}
+            onChange={(e) => player.seek(Number(e.target.value) / 100)}
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+          />
+        </div>
+
+        {/* Time display */}
+        <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+          {formatTime(currentTime)} / {formatTime(totalDuration)}
+        </span>
+      </div>
+
+      {/* Scene indicator */}
+      <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+        <span>
+          {t("video.scene_n", { n: currentSceneIndex + 1 })} / {storyboard.scenes.length}
+        </span>
+      </div>
     </div>
   );
 }

@@ -1,54 +1,47 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Clapperboard,
+  ChevronDown,
+  ChevronUp,
   Download,
-  Eraser,
+  Loader2,
   RefreshCw,
   Trash2,
+  Wand2,
   X,
-  Pencil,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { applyTheme } from "@/components/providers/theme-provider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useHttp } from "@/hooks/use-ws";
-import { useUiStore } from "@/stores/use-ui-store";
 import { toast } from "@/stores/use-toast-store";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
+import { useIsTablet } from "@/hooks/use-media-query";
+import { useUiStore } from "@/stores/use-ui-store";
 import {
+  submitRenderJob,
   useVideoCancel,
   useVideoDelete,
   useVideoJobs,
   type VideoRenderJob,
 } from "./hooks/use-video";
 import { useTimeline, type Scene } from "./hooks/use-timeline";
-import { useNarrationAudio } from "./hooks/use-narration-audio";
-import { normalizeEditorScenes } from "./lib/storyboard-wire";
-import { useVideoExport, exportExtension } from "./hooks/use-video-export";
+import { useVideoExport, exportExtension, type Storyboard } from "./hooks/use-video-export";
+import { getIconDef } from "./lib/icon-library";
+import { parseStoryboard } from "./lib/parse-storyboard-blocks";
 import { CanvasPlayer } from "./components/canvas-player";
 import { Timeline } from "./components/timeline";
 import { SceneCard } from "./components/scene-card";
 import { RenderPanel } from "./components/render-panel";
+import { TemplateGallery } from "./components/template-gallery";
 import { DesignerColumn } from "./components/designer-column";
-import { StudioTopbar } from "./components/studio/studio-topbar";
-import {
-  MediaRail,
-  type RailSection,
-} from "./components/studio/media-rail";
-import {
-  InspectorPanel,
-  LayersQuickPanel,
-  type InspectorTab,
-} from "./components/studio/inspector-panel";
-import { TimelineToolbar } from "./components/studio/timeline-toolbar";
 
 // ── Storyboard (non-scene fields; scenes live in the timeline) ──
 
@@ -57,21 +50,7 @@ interface StoryboardMeta {
   canvas: { width: number; height: number; fps: number };
   audio?: { bgm_path?: string; bgm_volume?: number };
   output?: { format?: string; height?: number };
-  /** Client-only default TTS voice for scene narrations (edge-tts id);
-   * applied per scene at submit time, stripped from the wire payload. */
-  narration_voice?: string;
 }
-
-export interface Storyboard extends StoryboardMeta {
-  scenes: Scene[];
-}
-
-/** localStorage draft key — the storyboard survives tab/app reloads. */
-const DRAFT_KEY = "goclaw:video-draft:v1";
-/** Client-only project title (never sent to the server). */
-const TITLE_KEY = "goclaw:video-project-title:v1";
-/** Client-only rail state: full quick panel vs icon-only strip. */
-const RAIL_EXPANDED_KEY = "goclaw:video-rail-expanded:v1";
 
 const ASPECTS = {
   "9:16": { width: 1080, height: 1920 },
@@ -89,9 +68,13 @@ function defaultStoryboard(): StoryboardMeta {
 
 function hasValidationErrors(sb: Storyboard): boolean {
   return sb.scenes.some(
-    (s) => (s.type === "image" || s.type === "video") && !s.source?.trim(),
+    (s) =>
+      ((s.type === "image" || s.type === "video") && !s.source?.trim()) ||
+      (s.type === "icon" && !getIconDef(s.icon?.name)),
   );
 }
+
+
 
 function statusClass(status: VideoRenderJob["status"]): string {
   switch (status) {
@@ -114,47 +97,24 @@ function isTerminal(status: VideoRenderJob["status"]): boolean {
 export function VideoToolPage() {
   const { t } = useTranslation("toolbox");
   const http = useHttp();
-  const designerOpen = useUiStore((s) => s.videoDesignerOpen);
-  const setDesignerOpen = useUiStore((s) => s.setVideoDesignerOpen);
   const { jobs, loading, refresh, progressById } = useVideoJobs(true);
   const cancel = useVideoCancel();
   const removeJob = useVideoDelete();
 
   const [meta, setMeta] = useState<StoryboardMeta>(defaultStoryboard);
-  const [jsonOpen, setJsonOpen] = useState(false);
-  const [jobsOpen, setJobsOpen] = useState(false);
+  const [showJson, setShowJson] = useState(false);
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<VideoRenderJob | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VideoRenderJob | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("scene");
-  const [railSection, setRailSection] = useState<RailSection>("media");
-  const [railExpanded, setRailExpanded] = useState(() => {
-    try {
-      return localStorage.getItem(RAIL_EXPANDED_KEY) !== "0";
-    } catch {
-      return true;
-    }
-  });
-  const toggleRailExpanded = useCallback(() => {
-    setRailExpanded((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(RAIL_EXPANDED_KEY, next ? "1" : "0");
-      } catch {
-        // Best-effort persistence — the default (expanded) is fine.
-      }
-      return next;
-    });
-  }, []);
-  const [selectedLayer, setSelectedLayer] = useState(0);
-  const [projectTitle, setProjectTitle] = useState(() => {
-    try {
-      return localStorage.getItem(TITLE_KEY) ?? "";
-    } catch {
-      return "";
-    }
-  });
+  const [jobsOpen, setJobsOpen] = useState(true);
+
+  // Designer column (chat rail on desktop, bottom sheet on tablets/phones).
+  // Visibility lives in the shared ui store (persisted) — same as pptx.
+  const isCompact = useIsTablet();
+  const designerOpen = useUiStore((st) => st.videoDesignerOpen);
+  const setDesignerOpen = useUiStore((st) => st.setVideoDesignerOpen);
 
   // Feature gate
   const { data: gate, error: gateError } = useQuery({
@@ -165,30 +125,13 @@ export function VideoToolPage() {
   });
   const enabled = gateError === null || gate !== undefined;
 
-  // The studio is a forced-dark, Filmora-style surface (its editors and
-  // Radix portals all key off the root .dark class). Leaving the page
-  // re-applies the user's CURRENT theme rather than a mount-time snapshot —
-  // the theme may have changed (or follow the OS) while they were here.
-  // Applies only once the gate allows the studio; the gate-denied screen
-  // renders in the user's own theme.
-  useEffect(() => {
-    if (!enabled) return;
-    document.documentElement.classList.add("dark");
-    return () => {
-      applyTheme(useUiStore.getState().theme);
-    };
-  }, [enabled]);
-
   // Timeline hook — the single source of truth for scenes. The full
   // storyboard is derived, so undo/redo and scene edits can never desync
   // the canvas player or the submit payload from the timeline strip.
-  const timeline = useTimeline();
-
-  // Real-TTS narration audio shared by the player, the per-scene listen
-  // button, and the duration-fit hint. Falls back to the storyboard-level
-  // default voice when a scene has no override.
-  const defaultVoice = meta.narration_voice && meta.narration_voice !== "auto" ? meta.narration_voice : undefined;
-  const narrationAudio = useNarrationAudio(defaultVoice);
+  const timeline = useTimeline(undefined, {
+    getMeta: () => meta,
+    setMeta: (m) => setMeta(m as StoryboardMeta),
+  });
 
   const sb: Storyboard = useMemo(
     () => ({ ...meta, scenes: timeline.state.scenes }),
@@ -199,86 +142,24 @@ export function VideoToolPage() {
     setMeta((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const updateProjectTitle = useCallback((title: string) => {
-    setProjectTitle(title);
-    try {
-      // Empty title clears back to the "Untitled project" placeholder.
-      if (title === "") localStorage.removeItem(TITLE_KEY);
-      else localStorage.setItem(TITLE_KEY, title);
-    } catch {
-      // Storage unavailable — the title is cosmetic, keep going.
-    }
-  }, []);
-
-  // Draft persistence: restore once on mount, save debounced on every edit.
-  const draftRestoredRef = useRef(false);
-  useEffect(() => {
-    if (draftRestoredRef.current) return;
-    draftRestoredRef.current = true;
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Storyboard;
-      if (!parsed || !Array.isArray(parsed.scenes) || parsed.scenes.length === 0) return;
-      const { scenes, ...parsedMeta } = parsed;
-      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
-      timeline.replaceScenes(normalizeEditorScenes(scenes));
-      toast.success(t("video.draft_restored"));
-    } catch {
-      // Corrupted draft — start fresh rather than blocking the page.
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const id = setTimeout(() => {
-      try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(sb));
-      } catch {
-        // Storage full/unavailable — drafts are best-effort.
-      }
-    }, 800);
-    return () => clearTimeout(id);
-  }, [sb]);
-
-  function clearDraft() {
-    localStorage.removeItem(DRAFT_KEY);
-    setMeta(defaultStoryboard());
-    timeline.replaceScenes([{ type: "image", source: "", duration_sec: 5, fit: "cover" }]);
-    toast.success(t("video.draft_cleared"));
-  }
-
-  /** Apply a designer-produced storyboard: meta fields go to the form,
-   * scenes replace the timeline (one history entry, undo works). */
-  const applyStoryboard = useCallback((next: Storyboard) => {
-    setMeta((prev) => ({
-      version: next.version ?? 1,
-      canvas: next.canvas ?? defaultStoryboard().canvas,
-      audio: next.audio,
-      output: next.output,
-      narration_voice: next.narration_voice ?? prev.narration_voice,
-    }));
-    timeline.replaceScenes(
-      next.scenes?.length
-        ? normalizeEditorScenes(next.scenes)
-        : [{ type: "image", source: "", duration_sec: 5, fit: "cover" }],
-    );
-  }, [timeline]);
-
-  /** Pull a finished job's storyboard back into the editor — tweak and
-   * re-render without starting over. */
-  const editJob = useCallback(
-    (job: VideoRenderJob) => {
-      try {
-        applyStoryboard(JSON.parse(job.storyboard_json) as Storyboard);
-        setInspectorTab("scene");
-        setJobsOpen(false);
-        toast.success(t("video.job_edit_loaded"));
-      } catch {
-        toast.error(t("video.job_edit_failed"));
-      }
+  // The one Apply path shared by the designer column and the JSON mode, so
+  // the canvas player, timeline strip and render payload stay consistent.
+  // replaceScenes records an undo step and selects scene 1, so applying is
+  // always reversible.
+  const applyStoryboard = useCallback(
+    (next: Storyboard) => {
+      const { scenes, ...nextMeta } = next;
+      setMeta({ ...defaultStoryboard(), ...nextMeta, version: 1 });
+      timeline.replaceScenes(scenes ?? []);
     },
-    [applyStoryboard, t],
+    [timeline],
+  );
+
+  const applyTemplate = useCallback(
+    (scenes: Scene[]) => {
+      timeline.replaceScenes(scenes);
+    },
+    [timeline],
   );
 
   // Export
@@ -296,22 +177,35 @@ export function VideoToolPage() {
     [sb.scenes],
   );
 
-  function loadJson() {
+  async function handleSubmit() {
+    setSubmitting(true);
     try {
-      const parsed = JSON.parse(jsonDraft) as Storyboard;
-      if (!parsed || typeof parsed !== "object") throw new Error("not an object");
-      const { scenes, ...parsedMeta } = parsed;
-      setMeta({ ...defaultStoryboard(), ...parsedMeta, version: 1 });
-      timeline.replaceScenes(normalizeEditorScenes(scenes ?? []));
-      setJsonError("");
-      setJsonOpen(false);
+      await submitRenderJob(http, sb);
+      toast.success(t("video.created"));
+      setJobsOpen(true);
+      await refresh();
     } catch (e) {
-      setJsonError(
-        t("video.json_invalid", {
-          error: e instanceof Error ? e.message : String(e),
-        }),
+      toast.error(
+        e instanceof Error && e.message
+          ? `${t("video.create_failed")}: ${e.message}`
+          : t("video.create_failed"),
       );
+    } finally {
+      setSubmitting(false);
     }
+  }
+
+  function loadJson() {
+    const parsed = parseStoryboard(jsonDraft);
+    if (!parsed.ok) {
+      setJsonError(
+        t("video.json_invalid", { error: parsed.error }),
+      );
+      return;
+    }
+    applyStoryboard(parsed.storyboard);
+    setJsonError("");
+    setShowJson(false);
   }
 
   function handleExportClient() {
@@ -339,62 +233,10 @@ export function VideoToolPage() {
       toast.success(t("video.created"));
       setJobsOpen(true);
       await refresh();
-    } catch (e) {
-      toast.error(
-        e instanceof Error && e.message
-          ? `${t("video.create_failed")}: ${e.message}`
-          : t("video.create_failed"),
-      );
+    } catch {
+      toast.error(t("video.render_panel.server_failed"));
     }
   }
-
-  // ── Studio navigation helpers ──
-
-  const sceneCardWrapRef = useRef<HTMLDivElement>(null);
-  const inspectorRef = useRef<HTMLElement>(null);
-
-  /** Rail mic / toolbar mic: reveal the selected scene's narration field
-   * inside the inspector's Scene tab and focus it. */
-  const scrollToNarration = useCallback(() => {
-    setInspectorTab("scene");
-    requestAnimationFrame(() => {
-      const wrap = sceneCardWrapRef.current;
-      if (!wrap) return;
-      wrap.scrollIntoView({ behavior: "smooth", block: "start" });
-      // The narration textarea is the last <textarea> in the scene editor.
-      const boxes = wrap.querySelectorAll("textarea");
-      const box = boxes[boxes.length - 1] as HTMLTextAreaElement | undefined;
-      box?.scrollIntoView({ behavior: "smooth", block: "center" });
-      box?.focus({ preventScroll: true });
-    });
-  }, []);
-
-  /** Top bar Export: jump to the Render inspector tab (scroll to it on
-   * stacked mobile layouts). */
-  const openRenderTab = useCallback(() => {
-    setInspectorTab("render");
-    requestAnimationFrame(() => {
-      inspectorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
-  }, []);
-
-  /** Rail action: open the Layers tab AND reveal the inspector on stacked
-   * mobile layouts (the rail renders below it in the DOM order). */
-  const openLayersTab = useCallback(() => {
-    setInspectorTab("layers");
-    requestAnimationFrame(() => {
-      inspectorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
-  }, []);
-
-  const selectedIndex = timeline.state.selectedIndex;
-  const selectedScene: Scene | undefined = sb.scenes[selectedIndex];
-  const selectedLayerCount = selectedScene?.layers?.length ?? 0;
-  /** Clamp a stored layer index against the CURRENT scene's layer list. */
-  const safeLayerIndex = Math.max(
-    0,
-    Math.min(selectedLayer, selectedLayerCount - 1),
-  );
 
   if (!enabled) {
     return (
@@ -406,175 +248,64 @@ export function VideoToolPage() {
   }
 
   return (
-    // Studio shell: forced-dark Filmora-style editor. On desktop it is a
-    // fixed-viewport 3-column layout (rail | canvas | inspector) with the
-    // toolbar + timeline docked at the bottom; on mobile everything stacks
-    // into one scrollable column (player → timeline → inspector → rail).
-    <div className="relative flex h-full min-h-0 flex-col bg-[#141519] text-foreground">
-      <StudioTopbar
-        title={projectTitle}
-        onTitleChange={updateProjectTitle}
-        sceneCount={sb.scenes.length}
-        totalSec={totalSec}
-        jobsCount={jobs.length}
-        onOpenJobs={() => setJobsOpen(true)}
-        designerOpen={designerOpen}
-        onToggleDesigner={() => setDesignerOpen(!designerOpen)}
-        onExport={openRenderTab}
-        exportDisabled={totalSec <= 0 || hasValidationErrors(sb)}
-        isExporting={isExporting}
+    // The page fills the app scrollport exactly (h-full of <main>): the
+    // editor column scrolls internally and the designer rail always fits
+    // the viewport (same layout contract as the PPTX studio).
+    <div className="h-full min-h-0">
+      <div className="mx-auto flex h-full w-full items-stretch">
+        <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-6">
+      <PageHeader
+        title={t("video.title")}
+        description={t("video.description")}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refresh()}
+              className="min-h-11 sm:min-h-9"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {t("video.jobs_refresh")}
+            </Button>
+            <Button
+              variant={designerOpen ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDesignerOpen(!designerOpen)}
+              className="min-h-11 sm:min-h-9"
+              title={t("video.designer.toggle")}
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              {t("video.designer.title")}
+            </Button>
+          </>
+        }
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain lg:grid-cols-[auto_minmax(0,1fr)_360px] lg:grid-rows-[minmax(0,1fr)_auto] lg:overflow-hidden">
-        {/* Center: preview stage + transport */}
-        <section className="order-1 flex min-h-0 flex-col max-lg:border-b max-lg:border-white/[0.06] lg:col-start-2 lg:row-start-1">
-          <CanvasPlayer
-            storyboard={sb}
-            narration={narrationAudio}
-            defaultVoice={defaultVoice}
-            onDefaultVoiceChange={(v) => updateMeta({ narration_voice: v === "auto" ? undefined : v })}
-          />
-        </section>
-
-        {/* Toolbar + timeline (bottom dock on desktop) */}
-        <section className="order-2 lg:col-span-3 lg:col-start-1 lg:row-start-2">
-          <TimelineToolbar
-            canUndo={timeline.canUndo}
-            canRedo={timeline.canRedo}
-            onUndo={timeline.undo}
-            onRedo={timeline.redo}
-            onAddScene={() => timeline.addScene()}
-            onScrollToNarration={scrollToNarration}
-          />
-          <Timeline
-            scenes={timeline.state.scenes}
-            selectedIndex={selectedIndex}
-            onSelect={timeline.selectScene}
-            onAdd={() => timeline.addScene()}
-          />
-        </section>
-
-        {/* Right: inspector (Scene | Layers | Render). With no scene to edit
-            (only reachable via an empty JSON load) it collapses to a one-line
-            empty state instead of three empty tab groups. */}
-        <section
-          ref={inspectorRef}
-          className={cn(
-            "order-3 flex min-h-0 flex-col border-white/[0.06] max-lg:border-t lg:col-start-3 lg:row-start-1 lg:max-h-full lg:overflow-hidden lg:border-l",
-            selectedScene ? "max-lg:min-h-[320px]" : "max-lg:min-h-[120px]",
-          )}
+      {/* Jobs list (collapsible) */}
+      <div className="rounded-lg border">
+        <button
+          type="button"
+          onClick={() => setJobsOpen((v) => !v)}
+          className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium"
         >
-          {selectedScene ? (
-          <InspectorPanel
-            tab={inspectorTab}
-            onTabChange={setInspectorTab}
-            sceneTab={
-              <div ref={sceneCardWrapRef} className="p-3">
-                {selectedScene && (
-                  <SceneCard
-                    key={selectedIndex}
-                    scene={selectedScene}
-                    index={selectedIndex}
-                    total={sb.scenes.length}
-                    narration={narrationAudio}
-                    onUpdate={(patch) => timeline.updateScene(selectedIndex, patch)}
-                    onRemove={() => timeline.removeScene(selectedIndex)}
-                    onMoveUp={() => timeline.moveScene(selectedIndex, selectedIndex - 1)}
-                    onMoveDown={() => timeline.moveScene(selectedIndex, selectedIndex + 1)}
-                  />
-                )}
-              </div>
-            }
-            layersTab={
-              <LayersQuickPanel
-                scene={selectedScene}
-                selectedLayer={safeLayerIndex}
-                onSelectLayer={setSelectedLayer}
-                onAddLayer={(layer) => timeline.addLayer(selectedIndex, layer)}
-                onUpdateLayerTiming={(li, timing) =>
-                  timeline.updateLayer(selectedIndex, li, timing)
-                }
-                onRemoveLayer={(li) => timeline.removeLayer(selectedIndex, li)}
-                defaultText={t("video.layer.new_text")}
-              />
-            }
-            renderTab={
-              <div className="p-3">
-                <RenderPanel
-                  storyboard={sb}
-                  onStoryboardChange={(next) => {
-                    const { scenes: _scenes, ...nextMeta } = next;
-                    updateMeta(nextMeta);
-                  }}
-                  hardware={hardware}
-                  isExporting={isExporting}
-                  progress={progress}
-                  hasErrors={hasValidationErrors(sb)}
-                  onExportClient={handleExportClient}
-                  onExportServer={handleExportServer}
-                  onCancel={cancelExport}
-                />
-              </div>
-            }
-          />
+          {jobsOpen ? (
+            <ChevronUp className="h-4 w-4" />
           ) : (
-            <div className="flex flex-1 items-center justify-center p-4">
-              <p className="text-sm text-zinc-500">
-                {t("video.studio.inspector.empty", "Select a scene or layer")}
-              </p>
-            </div>
+            <ChevronDown className="h-4 w-4" />
           )}
-        </section>
-
-        {/* Left: quick-insert rail (vertical on desktop, strip on mobile) */}
-        <section className="order-4 lg:col-start-1 lg:row-start-1">
-          <MediaRail
-            scenes={timeline.state.scenes}
-            selectedIndex={selectedIndex}
-            active={railSection}
-            onActiveChange={setRailSection}
-            expanded={railExpanded}
-            onToggleExpanded={toggleRailExpanded}
-            onSelectScene={timeline.selectScene}
-            onAddScene={() => timeline.addScene()}
-            onUpdateScene={(patch) => timeline.updateScene(selectedIndex, patch)}
-            onAddLayer={(layer) => timeline.addLayer(selectedIndex, layer)}
-            layerCount={selectedLayerCount}
-            onOpenLayersTab={openLayersTab}
-            onOpenJson={() => setJsonOpen(true)}
-          />
-        </section>
-      </div>
-
-      {/* AI designer chat: overlay drawer on desktop, portal bottom sheet on
-          compact screens (handled inside the component). */}
-      <div className="absolute inset-y-0 right-0 z-40">
-        <DesignerColumn onApplyStoryboard={applyStoryboard} currentStoryboard={sb} />
-      </div>
-
-      {/* ── Render jobs dialog ── */}
-      <Dialog open={jobsOpen} onOpenChange={setJobsOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {t("video.jobs_title")}
-              {jobs.length > 0 && (
-                <Badge variant="outline" className="text-muted-foreground">
-                  {jobs.length}
-                </Badge>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => refresh()}
-                className="ml-auto min-h-11 sm:min-h-9"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                {t("video.jobs_refresh")}
-              </Button>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[60dvh] overflow-y-auto overscroll-contain">
+          {t("video.jobs_title")}
+          {jobs.length > 0 && (
+            <Badge
+              variant="outline"
+              className="ml-auto shrink-0 text-muted-foreground"
+            >
+              {jobs.length}
+            </Badge>
+          )}
+        </button>
+        {jobsOpen && (
+          <div className="border-t p-3">
             {loading && jobs.length === 0 ? (
               <p className="px-1 py-3 text-sm text-muted-foreground">
                 {t("video.submitting")}
@@ -609,18 +340,6 @@ export function VideoToolPage() {
                         </span>
                       )}
                       <div className="ml-auto flex items-center gap-1">
-                        {job.status === "done" && job.storyboard_json && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="min-h-11 sm:min-h-9"
-                            title={t("video.job_edit_hint")}
-                            onClick={() => editJob(job)}
-                          >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            {t("video.job_edit")}
-                          </Button>
-                        )}
                         {job.status === "done" && job.output_path && (
                           <Button
                             variant="outline"
@@ -629,7 +348,7 @@ export function VideoToolPage() {
                             className="min-h-11 sm:min-h-9"
                           >
                             <a
-                              href={job.download_url ?? `/v1/files/videos/${job.id}.mp4`}
+                              href={`/v1/files/videos/${job.id}.mp4`}
                               download
                             >
                               <Download className="mr-2 h-4 w-4" />
@@ -663,16 +382,6 @@ export function VideoToolPage() {
                         )}
                       </div>
                     </div>
-                    {job.status === "done" && (
-                      /* Watch right in the job card — no download round-trip
-                         to see what the agent produced. */
-                      <video
-                        controls
-                        preload="metadata"
-                        src={job.download_url ?? `/v1/files/videos/${job.id}.mp4`}
-                        className="mt-2 max-h-72 w-full max-w-[180px] rounded-md border bg-black"
-                      />
-                    )}
                     {(job.status === "queued" ||
                       job.status === "rendering") && (
                       <div className="mt-2">
@@ -699,51 +408,146 @@ export function VideoToolPage() {
               </ul>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
 
-      {/* ── JSON mode dialog ── */}
-      <Dialog open={jsonOpen} onOpenChange={setJsonOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t("video.json_mode")}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-2">
-            <Textarea
-              value={jsonDraft || JSON.stringify(sb, null, 2)}
-              onChange={(e) => setJsonDraft(e.target.value)}
-              rows={16}
-              /* No text-* override: the base Textarea enforces
-                 text-base md:text-sm (16px on mobile — no iOS zoom). */
-              className="font-mono"
+      {/* Main editor with tabs */}
+      <Tabs defaultValue="editor">
+        <TabsList>
+          <TabsTrigger value="editor">{t("video.tabs.editor")}</TabsTrigger>
+          <TabsTrigger value="render">{t("video.tabs.render")}</TabsTrigger>
+        </TabsList>
+
+        {/* ── Editor Tab ── */}
+        <TabsContent value="editor" className="flex flex-col gap-4">
+          {/* Canvas Player */}
+          <CanvasPlayer storyboard={sb} />
+
+          {/* Template gallery */}
+          <TemplateGallery onApply={applyTemplate} />
+
+          {/* Timeline */}
+          <div className="rounded-lg border p-3">
+            <Timeline
+              scenes={timeline.state.scenes}
+              selectedIndex={timeline.state.selectedIndex}
+              onSelect={timeline.selectScene}
+              onAdd={() => timeline.addScene()}
+              onRemove={timeline.removeScene}
+              onMove={timeline.moveScene}
+              canUndo={timeline.canUndo}
+              canRedo={timeline.canRedo}
+              onUndo={timeline.undo}
+              onRedo={timeline.redo}
             />
-            {jsonError && (
-              <p className="text-xs text-destructive">{jsonError}</p>
-            )}
-            <div className="flex justify-between gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearDraft}
-                title={t("video.draft_clear_hint")}
-                className="min-h-11 sm:min-h-9"
-              >
-                <Eraser className="mr-2 h-4 w-4" />
-                {t("video.draft_clear")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadJson}
-                disabled={!jsonDraft.trim()}
-                className="min-h-11 sm:min-h-9"
-              >
-                {t("video.json_load")}
-              </Button>
-            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+
+          {/* Scene Editor (selected scene) */}
+          {timeline.state.scenes[timeline.state.selectedIndex] && (
+            <SceneCard
+              key={timeline.state.selectedIndex}
+              scene={timeline.state.scenes[timeline.state.selectedIndex]!}
+              index={timeline.state.selectedIndex}
+              total={timeline.state.scenes.length}
+              onUpdate={(patch) =>
+                timeline.updateScene(timeline.state.selectedIndex, patch)
+              }
+              onRemove={() => timeline.removeScene(timeline.state.selectedIndex)}
+              onMoveUp={() =>
+                timeline.moveScene(
+                  timeline.state.selectedIndex,
+                  timeline.state.selectedIndex - 1,
+                )
+              }
+              onMoveDown={() =>
+                timeline.moveScene(
+                  timeline.state.selectedIndex,
+                  timeline.state.selectedIndex + 1,
+                )
+              }
+            />
+          )}
+
+          {/* JSON mode toggle */}
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <span className="text-sm text-muted-foreground">
+              {t("video.total_duration", { sec: totalSec.toFixed(1) })} ·{" "}
+              {t("video.scenes_count", { n: sb.scenes.length })}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowJson((v) => !v)}
+              className="min-h-11 sm:min-h-9"
+            >
+              {t("video.json_mode")}
+            </Button>
+          </div>
+
+          {showJson && (
+            <div className="flex flex-col gap-2 rounded-lg border p-3">
+              <Textarea
+                value={jsonDraft || JSON.stringify(sb, null, 2)}
+                onChange={(e) => setJsonDraft(e.target.value)}
+                rows={16}
+                className="font-mono text-xs"
+              />
+              {jsonError && (
+                <p className="text-xs text-destructive">{jsonError}</p>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadJson}
+                  disabled={!jsonDraft.trim()}
+                  className="min-h-11 sm:min-h-9"
+                >
+                  {t("video.json_load")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Render Tab ── */}
+        <TabsContent value="render" className="flex flex-col gap-4">
+          <RenderPanel
+            storyboard={sb}
+            onStoryboardChange={(next) => {
+              const { scenes: _scenes, ...nextMeta } = next;
+              updateMeta(nextMeta);
+            }}
+            hardware={hardware}
+            isExporting={isExporting}
+            progress={progress}
+            onExportClient={handleExportClient}
+            onExportServer={handleExportServer}
+            onCancel={cancelExport}
+          />
+
+          {/* Submit to server button */}
+          <div className="flex items-center justify-end gap-2 rounded-lg border p-3">
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || totalSec <= 0 || hasValidationErrors(sb)}
+              className="min-h-11 sm:min-h-9"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("video.submitting")}
+                </>
+              ) : (
+                <>
+                  <Clapperboard className="mr-2 h-4 w-4" />
+                  {t("video.submit")}
+                </>
+              )}
+            </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <ConfirmDialog
         open={cancelTarget !== null}
@@ -781,6 +585,15 @@ export function VideoToolPage() {
           }
         }}
       />
+        </div>
+
+        {/* Designer column: full-height chat rail on desktop; on compact
+            screens it renders itself as a portal bottom sheet, so the
+            wrapper stays empty. */}
+        <div className={cn("h-full shrink-0", !isCompact && "min-w-0")}>
+          <DesignerColumn onApplyStoryboard={applyStoryboard} currentStoryboard={sb} />
+        </div>
+      </div>
     </div>
   );
 }

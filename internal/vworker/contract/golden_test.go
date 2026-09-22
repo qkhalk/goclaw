@@ -54,134 +54,44 @@ var goldenFixtures = []struct {
 			}]
 		}`,
 	},
-	{
-		name: "empty_audio",
-		json: `{
-			"version": 1,
-			"scenes": [{ "type": "color", "color": "#ABCDEF", "duration_sec": 2 }],
-			"audio": {}
-		}`,
-	},
-	{
-		// LLM-authored storyboards sometimes emit pan as a coordinate box
-		// instead of a direction string; both parsers must reduce it the
-		// same way instead of failing the whole storyboard.
-		name: "kenburns_pan_object",
-		json: `{
-			"version": 1,
-			"scenes": [
-				{
-					"type": "image", "source": "media/a.jpg", "duration_sec": 4,
-					"ken_burns": { "zoom_from": 1, "zoom_to": 1.12,
-						"pan": { "from_x": 0, "from_y": 0, "to_x": 0.03, "to_y": 0.02 } }
-				},
-				{
-					"type": "image", "source": "media/b.jpg", "duration_sec": 4,
-					"ken_burns": { "zoom_from": 1, "zoom_to": 1.1,
-						"pan": { "from_x": 0, "from_y": 0, "to_x": -0.02, "to_y": 0.02 } }
-				}
-			]
-		}`,
-	},
-	{
-		// Timed overlay layers must survive both parsers identically —
-		// geometry, timing and style defaults resolve the same on both sides.
-		name: "layers",
-		json: `{
-			"version": 1,
-			"canvas": { "width": 1080, "height": 1920, "fps": 30 },
-			"scenes": [
-				{
-					"type": "color", "color": "#0f172a", "duration_sec": 6,
-					"caption": { "text": "Bottom caption" },
-					"layers": [
-						{ "kind": "text", "text": "Sale 50%", "y": 0.2, "font_size": 72, "fill": "#FACC15" },
-						{ "kind": "shape", "shape": "rect", "x": 0.1, "y": 0.15, "w": 0.8, "h": 0.18, "fill": "#000000", "opacity": 0.55, "start": 0.5, "duration": 3 },
-						{ "kind": "image", "source": "media/logo.png", "x": 0.4, "y": 0.6, "w": 0.2, "h": 0.2, "start": 1, "duration": 2, "align": "left" }
-					]
-				}
-			]
-		}`,
-	},
-	{
-		// Scene enter transitions must survive both parsers so server renders
-		// can xfade exactly what the browser preview shows.
-		name: "scene_transitions",
-		json: `{
-			"version": 1,
-			"scenes": [
-				{ "type": "color", "color": "#0f172a", "duration_sec": 3 },
-				{ "type": "color", "color": "#1e293b", "duration_sec": 3, "transition": "crossfade" },
-				{ "type": "color", "color": "#334155", "duration_sec": 3, "transition": "slide_up" }
-			]
-		}`,
-	},
-	{
-		// Visual v2: caption styles (chip/mono) and the color-scene extras
-		// (glow orbs, vignette, grain) must parse identically on both sides.
-		name: "visuals_v2",
-		json: `{
-			"version": 1,
-			"scenes": [
-				{
-					"type": "color", "color": "#0D1117", "color2": "#1E293B",
-					"grid": true, "glow": "#F97316", "vignette": true, "grain": true,
-					"duration_sec": 4,
-					"caption": { "text": "SỰ THẬT VỀ OPEN SOURCE", "position": "center", "font_size": 64, "style": "chip" },
-					"narration": { "text": "Sự thật về open source", "voice": "vi-VN-HoaiMyNeural" }
-				},
-				{
-					"type": "color", "color": "#101820", "duration_sec": 3,
-					"caption": { "text": "// epoch 2", "style": "mono" }
-				}
-			]
-		}`,
-	},
-	{
-		// Composed frames: embedded icon layers, card panels and entrance
-		// animations must survive both parsers identically.
-		name: "layers_v2",
-		json: `{
-			"version": 1,
-			"canvas": { "width": 1080, "height": 1920, "fps": 30 },
-			"scenes": [
-				{
-					"type": "color", "color": "#0D1117", "color2": "#1E293B",
-					"grid": true, "glow": "#38BDF8", "vignette": true,
-					"duration_sec": 5,
-					"layers": [
-						{ "kind": "card", "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.3, "fill": "#1E293B", "opacity": 0.45, "radius": 0.03, "border": true, "anim": "up", "start": 0.6 },
-						{ "kind": "icon", "icon": "zap", "x": 0.14, "y": 0.34, "w": 0.1, "fill": "#FACC15", "chip": true, "anim": "pop", "start": 0.9 },
-						{ "kind": "text", "text": "Cộng đồng cùng xây", "x": 0.28, "y": 0.38, "w": 0.6, "font_size": 56, "fill": "#FFFFFF", "font": "display", "anim": "left", "start": 1.1 }
-					]
-				}
-			]
-		}`,
-	},
-	{
-		// Motion primitives (multi-form engine): style packs, highlighted
-		// text, counter, toggle_grid, compare_bars, stack, stamp and cta
-		// layers must survive both parsers identically.
-		name: "motion_v3",
-		json: `{
-			"version": 1,
-			"scenes": [
-				{
-					"type": "color", "style_pack": "neon_lab", "duration_sec": 6,
-					"layers": [
-						{ "kind": "text", "text": "Chip giảm 30 giá", "y": 0.2, "font_size": 64, "highlights": [{"word": "30", "color": "#F97316"}] },
-						{ "kind": "counter", "text": "▲ ", "to": 20, "suffix": " tỷ", "from": 0, "decimals": 0, "y": 0.35, "font_size": 96, "start": 0.5, "duration": 3 },
-						{ "kind": "toggle_grid", "cols": 3, "rows": 3, "cadence": 0.6, "y": 0.55, "w": 0.5, "start": 0.8 },
-						{ "kind": "compare_bars", "label_a": "CPU", "label_b": "GPU", "width_a": 0.7, "width_b": 0.4, "y": 0.62, "start": 1, "duration": 3 },
-						{ "kind": "stack", "n": 3, "labels": ["L1", "L2", "L3"], "y": 0.3, "start": 0.4 },
-						{ "kind": "stamp", "text": "MỚI", "angle": -8, "y": 0.15, "w": 0.4, "fill": "#F87171" },
-						{ "kind": "cta", "text": "Xem ngay", "y": 0.82, "start": 2 }
-					]
-				},
-				{ "type": "color", "style_pack": "paper_light", "duration_sec": 3 }
-			]
-		}`,
-	},
+		{
+			name: "empty_audio",
+			json: `{
+				"version": 1,
+				"scenes": [{ "type": "color", "color": "#ABCDEF", "duration_sec": 2 }],
+				"audio": {}
+			}`,
+		},
+		{
+			name: "fx_and_transitions",
+			json: `{
+				"version": 1,
+				"canvas": { "width": 1080, "height": 1920, "fps": 30 },
+				"scenes": [
+					{
+						"type": "image",
+						"source": "media/a.png",
+						"duration_sec": 5,
+						"transform": { "scale": 1.15, "x": 4, "y": -2, "rotate": 8, "opacity": 0.9 },
+						"filter": { "brightness": 1.1, "contrast": 1.2, "saturate": 0.8, "blur": 1.5 }
+					},
+					{
+						"type": "video",
+						"source": "media/b.mp4",
+						"duration_sec": 4,
+						"transition": "crossfade",
+						"transform": { "scale": 0.9 },
+						"filter": { "blur": 2 }
+					},
+					{
+						"type": "color",
+						"color": "#101820",
+						"duration_sec": 3,
+						"transition": "slide_left"
+					}
+				]
+			}`,
+		},
 }
 
 // TestGoldenParseMatchGateway verifies that the worker contract parser
@@ -227,35 +137,6 @@ func TestGoldenParseMatchGateway(t *testing.T) {
 	}
 }
 
-// TestGoldenIconAnimSetsMatch verifies the worker contract and the gateway
-// video package agree on the embedded icon names and animation modes.
-func TestGoldenIconAnimSetsMatch(t *testing.T) {
-	if len(ValidIcons) != len(gwvideo.ValidIcons) {
-		t.Fatalf("ValidIcons size drift: worker=%d gateway=%d", len(ValidIcons), len(gwvideo.ValidIcons))
-	}
-	for name := range ValidIcons {
-		if !gwvideo.ValidIcons[name] {
-			t.Errorf("icon %q missing from gateway ValidIcons", name)
-		}
-	}
-	if len(ValidAnims) != len(gwvideo.ValidAnims) {
-		t.Fatalf("ValidAnims size drift: worker=%d gateway=%d", len(ValidAnims), len(gwvideo.ValidAnims))
-	}
-	for a := range ValidAnims {
-		if !gwvideo.ValidAnims[a] {
-			t.Errorf("anim %q missing from gateway ValidAnims", a)
-		}
-	}
-	if len(ValidFonts) != len(gwvideo.ValidFonts) {
-		t.Fatalf("ValidFonts size drift: worker=%d gateway=%d", len(ValidFonts), len(gwvideo.ValidFonts))
-	}
-	for f := range ValidFonts {
-		if !gwvideo.ValidFonts[f] {
-			t.Errorf("font %q missing from gateway ValidFonts", f)
-		}
-	}
-}
-
 // TestGoldenValidateMatchGateway ensures both Validate() implementations
 // reject the same invalid inputs.
 func TestGoldenValidateMatchGateway(t *testing.T) {
@@ -267,6 +148,11 @@ func TestGoldenValidateMatchGateway(t *testing.T) {
 		{"no_scenes", `{"version":1,"scenes":[]}`},
 		{"bad_height", `{"version":1,"output":{"height":1440},"scenes":[{"type":"color","color":"#000","duration_sec":5}]}`},
 		{"bad_format", `{"version":1,"output":{"format":"webm"},"scenes":[{"type":"color","color":"#000","duration_sec":5}]}`},
+		{"bad_transition", `{"version":1,"scenes":[{"type":"color","color":"#000000","duration_sec":5,"transition":"wipe"}]}`},
+		{"good_transitions", `{"version":1,"scenes":[
+			{"type":"color","color":"#000000","duration_sec":5},
+			{"type":"color","color":"#111111","duration_sec":5,"transition":"fade"},
+			{"type":"color","color":"#222222","duration_sec":5,"transition":"slide_up"}]}`},
 	}
 
 	for _, tc := range invalidCases {

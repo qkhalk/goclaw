@@ -642,6 +642,7 @@ func (l *Loop) makeCallLLM(req *RunRequest, bridgeRS *runState, emitRun func(Age
 				"model":       state.Model,
 				"duration_ms": strconv.FormatInt(time.Since(start).Milliseconds(), 10),
 				"is_error":    err != nil,
+				"effort":      reasoningDecision.EffectiveEffort,
 			}
 			if err == nil && resp != nil && resp.Usage != nil {
 				payload["input_tokens"] = strconv.Itoa(resp.Usage.PromptTokens)

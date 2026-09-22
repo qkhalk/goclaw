@@ -455,6 +455,13 @@ func init() {
 		"telegram.status.queue":          " · 🪢 Hàng đợi: %s %d/%d đang chạy, %d chờ",
 		"telegram.status.fullhint":       "/status full — xem đầy đủ",
 
+		// Telegram subagent archive buttons
+		"telegram.subagent.archiveallconfirm": "🗄 Đã lưu trữ %d task đã hoàn thành.",
+		"telegram.subagent.archiveallbtn":     "🗄 Lưu trữ tất cả đã xong (%d)",
+		"telegram.subagent.archivedone":       "🗄 Đã lưu trữ task — task không còn trong danh sách.",
+		"telegram.subagent.notterminal":       "⏳ Task này vẫn đang chạy — chỉ lưu trữ được khi hoàn tất.",
+		"telegram.subagent.archivebtn":        "🗄 Lưu trữ",
+
 		// Video render pipeline
 		MsgVideoJobCreated:    "đã tạo job render video %s",
 		MsgVideoJobFailed:     "job render video %s thất bại: %s",

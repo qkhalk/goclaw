@@ -10,6 +10,7 @@ import { ChatImageGalleryProvider } from "@/components/chat/chat-image-gallery-c
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { dayKey, formatDayLabel } from "@/lib/format";
 import type { ChatMessage, ToolStreamEntry, RunActivity } from "@/types/chat";
+import type { RunLlmMeta } from "@/components/chat/activity-indicator";
 import type { LightboxImage } from "@/components/shared/image-lightbox";
 
 interface ChatThreadProps {
@@ -23,6 +24,10 @@ interface ChatThreadProps {
   isBusy: boolean;
   loading?: boolean;
   scrollTrigger?: number;
+  /** Agent id — announce cards use it to archive finished subagent tasks. */
+  agentId?: string;
+  /** Latest llm.started/llm.completed metadata for the run-phase indicator. */
+  llmMeta?: RunLlmMeta | null;
 }
 
 /** Check if a message is tool-only (no user-visible text content) */
@@ -74,7 +79,7 @@ function buildDisplayItems(messages: ChatMessage[]): DisplayItem[] {
 
 export const ChatThread = memo(function ChatThread({
   messages, streamText, thinkingText, toolStream, blockReplies,
-  activity, isRunning, isBusy, loading, scrollTrigger = 0,
+  activity, isRunning, isBusy, loading, scrollTrigger = 0, agentId, llmMeta,
 }: ChatThreadProps) {
   const { t } = useTranslation("chat");
   const { ref, onScroll } = useAutoScroll<HTMLDivElement>(
@@ -171,7 +176,7 @@ export const ChatThread = memo(function ChatThread({
                 case "notification":
                   return <SystemNotification key={`notif-${item.idx}`} message={item.msg} />;
                 case "message":
-                  return <MessageBubble key={`msg-${item.idx}`} message={item.msg} />;
+                  return <MessageBubble key={`msg-${item.idx}`} message={item.msg} agentId={agentId} />;
                 case "merged-tools":
                   return <MergedToolGroup key={`tools-${item.idx}`} msgs={item.msgs} />;
               }
@@ -186,6 +191,7 @@ export const ChatThread = memo(function ChatThread({
             streamText={streamText}
             toolStream={toolStream}
             blockReplies={blockReplies}
+            llmMeta={llmMeta}
           />
         </div>
       </div>

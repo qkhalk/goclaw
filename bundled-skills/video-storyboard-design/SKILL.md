@@ -1,177 +1,113 @@
 ---
 name: Video Storyboard Design
-description: Structure short vertical videos like a pro editor - hook, pacing, scene rhythm, captions, and the storyboard JSON contract for the video pipeline.
-version: 2
+description: Structure short-form videos like a pro editor - scene pacing and narrative arcs (tech news, product teaser, quote, photo story), transition choice, ken_burns motion, punchy captions, TTS narration tone, scene-source strategy, and the storyboard JSON contract for the Video Studio.
+version: 1
 ---
 
 # Video Storyboard Design
 
-You are designing storyboards for short vertical videos (9:16, 1080x1920).
-The goal is videos people watch to the end: a strong hook in the first 3
-seconds, steady rhythm, one idea per scene.
+You are designing storyboards for the Video Studio (vertical 1080x1920 by
+default). The editor previews your storyboard in the browser and can render
+it to video, so every scene you emit becomes real footage — no filler scenes.
 
-## Target shape
+## Pacing
 
-- Total length 20 to 60 seconds. Never open with a 2-minute plan.
-- 3 to 8 scenes. Fewer, better scenes beat many weak ones.
-- 2 to 4 seconds per scene for energy; 5 to 6 seconds only for slow, calm
-  moods. The hard cap per scene is 30s but staying under 6 keeps retention.
+- 2 to 5 seconds per scene for most beats. Under 2s only for hard cuts in a
+  rapid montage; over 5s only when narration genuinely needs the room.
+- 8 to 20 scenes covers most short-form videos (30-75 seconds total).
+  Ask before designing anything longer; never exceed 60 scenes.
+- The first 2 scenes are the hook: the strongest visual plus the boldest
+  claim. Viewers decide in 3 seconds whether to keep watching.
+- Vary rhythm: follow a long narration-heavy scene with a short punchy one.
+  Three same-length scenes in a row feels mechanical.
 
-## The 3-beat structure
+## Narrative arcs
 
-1. HOOK (scene 1, 2-3s): a color scene with one bold line, font_size 56-72.
-   State the most surprising fact or the promise. No throat-clearing like
-   "Welcome back" or "Today we will".
-2. BODY (middle scenes): alternate image scenes and color scenes. Each scene
-   carries exactly one fact or one step. Pair every image with a short
-   caption (max 8 words, bottom position) so it reads like news footage.
-3. CLOSE (last scene, 3-4s): a color scene with a takeaway line or question
-   that invites comments ("What would you build?").
+- **Tech news**: hook (the headline) → what happened → why it matters →
+  concrete number or demo → what to watch next. Keep it to 6-10 scenes.
+- **Product teaser**: hook (the pain or the promise) → problem in one scene
+  → product reveal → 2-4 feature beats, one feature per scene → call to
+  action. Features go slow (4-5s), the reveal fast (2-3s).
+- **Quote**: the quote itself, split across 2-3 scenes if long → who said it
+  and why it matters → takeaway. Color scenes with generous captions work
+  well here; keep transitions gentle (fade, crossfade).
+- **Photo story**: one scene per photo, chronological or emotional order →
+  ken_burns every photo → end on the strongest image with the takeaway.
 
-## Image scenes
+## Scene sources: browser vs server
 
-- Real imagery is the DEFAULT, not the fallback. When the user gives no
-  photos, run image_search yourself: 2-4 English keywords per visual beat
-  (e.g. "halong bay sunset", "server room datacenter") and pick the direct
-  image URLs for your image scenes. Aim for images in half to two-thirds of
-  the scenes — a video of only colored cards reads as unfinished.
-- When the request references an article or page (news recaps, product
-  launches), fetch it with web_fetch and mine real image URLs before
-  designing: the og:image meta tag, the hero photo, and inline article
-  photos. Use DIRECT image URLs (ends .jpg/.jpeg/.png/.webp, or a CDN image
-  link) as scene "source"; the render worker downloads them at render time.
-- Skip logos, avatars, icons, ads and tracking pixels — photos only. Pick
-  the 2-4 strongest, visually distinct images that map to your scene facts.
-- Only go all-color when the user asks for text-only or neither image_search
-  nor web_fetch yields anything usable. Never invent or guess image URLs —
-  only URLs returned by image_search, found via web_fetch, or given by the
-  user.
-- Apply subtle ken_burns to every static image (zoom_from 1.0, zoom_to 1.12)
-  and vary pan between scenes using the direction words left, up, right
-  (e.g. "ken_burns": {"zoom_from": 1.0, "zoom_to": 1.12, "pan": "left"}).
-- Never place two image scenes back to back without different pan or zoom
-  directions; never place two color scenes with similar colors back to back.
+- `icon` and `gradient` scenes render in the browser editor only — the
+  server render pipeline skips them. When the user will render on the
+  server, build on `color` scenes with captions or real `image`/`video`
+  sources instead.
+- Only use `image`/`video` sources the user provided or approved. Never
+  invent URLs.
+- `icon` scenes are great for hook beats in browser-only workflows: one
+  symbol (zap, flame, trending-up) on a strong color field says more than a
+  caption.
+- `color` scenes are the workhorse for text beats, section breaks and
+  quotes — pair a deep background with a large centered caption.
+
+## Motion (ken_burns)
+
+- Every static `image` scene gets ken_burns: zoom from 1.0 to 1.08-1.15.
+  Static photos read dead on screen; slight motion reads cinematic.
+- Zoom in (1 → 1.1) to build energy, zoom out (1.1 → 1) to settle or close.
+- Pan (left/right/up/down) when the image has an off-center subject; combine
+  with mild zoom, not both aggressively.
+- Skip ken_burns on `video` scenes (they already move) and on `color` scenes
+  (nothing to move).
+
+## Transitions
+
+| Transition | Use for |
+|---|---|
+| `fade` | Default scene change, chapter breaks, quiet moments |
+| `crossfade` | Photo stories, mood shifts between similar scenes |
+| `slide_left` / `slide_up` | Lists, steps, progressions ("next point") |
+| `none` | Rapid montage cuts, hard beats on the music |
+
+- Never mix more than two transition types in one video unless it is a
+  deliberate montage. Consistency reads as craft.
+- The final scene fades or crossfades out; never ends on a hard `none` cut
+  unless the content is punchy by design.
 
 ## Captions
 
-- Max 8 words. If the line does not fit, split the scene in two.
-- Write captions in the user's language. Use their tone: punchy for social,
-  neutral for news.
-- font_size: 56-72 for the hook and close, 40-52 for image captions.
-- Position: center for color scenes, bottom for image scenes.
-- Style per beat: "chip" (rounded dark chip behind the text) for hooks,
-  prices and stat lines; "mono" (monospace, reads like a code eyebrow,
-  e.g. "// PHAN 1") for section labels; plain for the rest. Add the style
-  inside the caption object: {"text": "...", "style": "chip"}.
-- With narration, captions reveal word-by-word in sync with the voice —
-  write the caption as the compressed headline of the narration sentence,
-  never the same full sentence twice.
+- At most 8 words per caption. Punchy fragments, not sentences, in the user's
+  language. Position `bottom` by default, `center` for quotes and hooks.
+- Font size 48-64 for vertical video; 40 minimum so phones stay readable.
+- Captions are not narration read back — they compress the narration to its
+  sharpest 3-8 words.
 
-## Voice-over (narration)
+## Narration (TTS)
 
-- When the user asks for voice, spoken audio, TTS, or a narrated video, add a
-  narration object to every scene: "narration": {"text": "..."}.
-- Narration text is spoken, not read: full natural sentences in the user's
-  language. Pacing depends on language speed: Vietnamese is spoken at
-  ~2.3 words/sec so use 9-11 words for 4s, 6-8 words for 3s. English is
-  faster (~2.8 wps) so 11-12 words for 4s, 8-9 for 3s. Never paste the
-  caption into narration; the caption is the on-screen headline, narration
-  is the voice-over sentence.
-- Vietnamese is spoken well by the default voice, so voice can stay omitted.
-  Only set "voice" when the user names a specific voice.
-- Without an explicit voice request, omit narration entirely — captions only.
+- One short spoken sentence per scene, 8-20 words. Active voice, present
+  tense where possible. Natural speech: contractions, no stage directions,
+  no "scene" language ("in this scene we see..." is never emitted).
+- Match the user's tone: formal for business news, direct and energetic for
+  product teasers, warm for photo stories.
+- Numbers: only figures the user provided or approved; label estimates as
+  such in the narration, never invent statistics.
 
-## Layers (timed overlays)
+## Palette
 
-Scenes support timed overlay layers (max 8 per scene) drawn over the visual
-and under the caption — use them to emphasize a price, badge, keyword or a
-logo instead of stuffing everything into the caption:
-
-- `{"kind": "text", "text": "SALE 50%", "y": 0.3, "font_size": 72,
-  "fill": "#FACC15", "start": 0.5, "duration": 2}` — keyword/price pop.
-- `{"kind": "shape", "shape": "rect", "x": 0.1, "y": 0.15, "w": 0.8,
-  "h": 0.18, "fill": "#000000", "opacity": 0.55}` — translucent scrim behind
-  a caption or text layer.
-- `{"kind": "image", "source": "media/logo.png", "x": 0.75, "y": 0.08,
-  "w": 0.18}` — corner logo/watermark.
-
-Geometry is normalized 0..1 from the top-left (x, y, w; shapes also h).
-Timing is scene-relative seconds via `start` + `duration` (duration 0 = to
-the scene end). All layers accept `opacity` 0..1; text layers also `align`
-(left/center/right within the box). Layers render on every surface: browser
-preview, client export and the server renderer.
+- Dark base works best for vertical video: background `#0F172A` or similar
+  deep slate, foreground `#F8FAFC`, one accent (`#38BDF8`, `#F97316`,
+  `#A78BFA`) used sparingly for hooks and calls to action, muted `#94A3B8`.
+- Light themes need foreground/background contrast of at least 4.5:1.
+- One accent color per video. Two accents compete with the footage.
+- Alternate scene backgrounds subtly (e.g. `#0F172A` and `#1E293B`) so long
+  color-scene runs do not strobe between identical frames.
 
 ## The JSON contract
 
-Always end the design reply with one fenced ```storyboard block:
+End every completed design with one fenced ```storyboard block:
 
 ```storyboard
-{"version":1,"canvas":{"width":1080,"height":1920,"fps":30},"output":{"height":720},"scenes":[{"type":"color","color":"#0f172a","duration_sec":3,"caption":{"text":"HOOK LINE","position":"center","font_size":64},"transition":"none"},{"type":"image","source":"https://example.com/photo.jpg","duration_sec":4,"ken_burns":{"zoom_from":1.0,"zoom_to":1.12,"pan":"left"},"caption":{"text":"Key fact here","position":"bottom","font_size":44},"layers":[{"kind":"text","text":"NEW","x":0.68,"y":0.1,"w":0.25,"font_size":56,"fill":"#FACC15","start":0.5,"duration":2}],"transition":"crossfade"},{"type":"color","color":"#0f172a","duration_sec":3,"caption":{"text":"What would you build?","position":"center","font_size":56},"transition":"fade"}]}
+{"version":1,"canvas":{"width":1080,"height":1920,"fps":30},"audio":{"bgm_path":"audio/bgm.mp3","bgm_volume":0.2},"output":{"height":720},"scenes":[{"type":"color","color":"#0F172A","duration_sec":3,"caption":{"text":"AI renders got faster","position":"center","font_size":56},"narration":"AI renders just got faster.","transition":"fade"},{"type":"image","source":"https://example.com/hero.jpg","fit":"cover","duration_sec":4,"ken_burns":{"zoom_from":1,"zoom_to":1.1,"pan":"none"},"caption":{"text":"Ten times quicker","position":"bottom","font_size":48},"transition":"crossfade"}]}
 ```
 
-Field rules that fail rendering when broken:
-- version is always 1; canvas defaults to 1080x1920 at 30 fps.
-- image and video scenes MUST have source (https URL or workspace path).
-- color scenes MUST have color as #RRGGBB.
-- duration_sec is required, 1 to 30 per scene.
-- ken_burns.pan is a single word: "none", "left", "right", "up" or "down" —
-  never a coordinate object like {"from_x":...}. Vary pan between scenes.
-- caption.position is one of top, center, bottom.
-- narration, when used, is an object: {"text": "...", "voice": "optional"}.
-- layers, when used, is an array (max 8) of layer objects: text layers need
-  text; shape layers are kind "shape" with shape "rect" and a #RRGGBB fill;
-  image layers need source; card layers take fill + opacity (0.08..0.25
-  reads as a glass panel) + radius 0..0.2; icon layers take "icon": "<name>"
-  (check, zap, users, cpu, database, git-branch, globe, heart, star,
-  trending-up, shield, layers, code, terminal, book-open, message-circle,
-  clock, eye, lock, package, settings, bar-chart-2, arrow-right, download,
-  play, target, search, calendar, camera, music, wifi, cloud, coffee) with
-  fill as the stroke color; "chip": true puts the glyph on a tinted rounded
-  tile in the same color. Text layers accept "font": "body" (default),
-  "display" (bold — headlines, big numbers) or "mono" (eyebrow labels like
-  // PART 1, code, metrics). Card layers accept "border": true (contrast
-  ring — use it when the card tone sits close to the background). Any layer
-  accepts "anim": "fade"|"up"|"down"|"left"|"right"|"pop" (a ~0.45s
-  entrance at its start). start must be inside the scene and
-  start+duration must not exceed the scene's duration_sec.
-- transition is the enter transition for each scene: "none", "fade",
-  "crossfade", "slide_left", or "slide_up". Default to "crossfade" for the
-  first body scene and "fade" for the closing scene. Omit or "none" only
-  when a hard cut is intentional (e.g. hook scene).
-- output.height is 480, 720 or 1080. Use 720 for social posts.
-
-## Composed frames (no photo needed)
-
-When a beat has no strong photo, don't settle for a bare caption — build the
-frame from layers: a translucent card panel as the stage, an icon carrying
-the meaning, and a short text layer. Give each an entrance animation and
-stagger starts 0.25-0.35s apart so the frame builds up while the narrator
-speaks. Example:
-
-```json
-{"type":"color","color":"#0D1117","color2":"#1E293B","grid":true,"glow":"#38BDF8","vignette":true,"duration_sec":4,
- "layers":[
-   {"kind":"card","x":0.1,"y":0.34,"w":0.8,"h":0.22,"fill":"#1E293B","opacity":0.5,"radius":0.03,"anim":"up","start":0.4},
-   {"kind":"icon","icon":"git-branch","x":0.14,"y":0.38,"w":0.11,"fill":"#A78BFA","anim":"pop","start":0.7},
-   {"kind":"text","text":"2.000 contributors","x":0.3,"y":0.41,"font_size":56,"fill":"#FFFFFF","anim":"left","start":0.95}
- ]}
-```
-
-Use one composed-frame grammar across the video: same card opacity, one
-icon stroke color family, one entrance direction family.
-
-## Typography discipline
-
-- Headlines: "font": "display", max 14 characters per line. Split longer
-  headlines into two stacked text layers (second line starts ~0.2s later) —
-  never shrink below 48px or let text overflow its box.
-- Eyebrows: "font": "mono", short uppercase labels with a // prefix, in the
-  accent color, above the headline.
-- Add a thin accent bar between eyebrow and headline: a card layer with
-  h ≈ 0.008, w ≈ 0.1, full opacity, in the accent color, "anim": "left".
-
-## Revision etiquette
-
-When the user sends the current storyboard back with a request ("shorter",
-"bluer", "more energy"), return a FULL new storyboard block with the change
-applied, not a diff. Keep what worked; change only what they asked.
+- version must be 1. Canvas edges max 1920px; output.height 480, 720 or
+  1080. duration_sec 1..30 per scene, 60 scenes max.
+- Emit ONLY the JSON inside the fence, no comments, no trailing prose.

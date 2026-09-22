@@ -61,7 +61,8 @@
     "modelDefault": "Модель агента",
     "loadingModels": "Загрузка моделей…",
     "thinking": "Уровень размышлений",
-    "permissionMode": "Режим разрешений"
+    "permissionMode": "Режим разрешений",
+    "devMode": "Режим разработки"
   },
   "thinkingLevels": {
     "adaptive": "Адаптивно",
@@ -86,7 +87,13 @@
     "retrying": "Повтор ({{attempt}}/{{max}})…",
     "leaderProcessing": "Обработка результатов команды…",
     "working": "Работаю…",
-    "step": "Шаг {{n}}"
+    "step": "Шаг {{n}}",
+    "metaFull": "{{provider}} · {{model}} · {{effort}}",
+    "metaModelEffort": "{{model}} · {{effort}}",
+    "metaProviderModel": "{{provider}} · {{model}}",
+    "metaModel": "{{model}}",
+    "metaProviderEffort": "{{provider}} · {{effort}}",
+    "metaProvider": "{{provider}}"
   },
   "teamTasks": {
     "pill": "Команда: активных задач: {{n}}",
@@ -159,9 +166,9 @@
     "other": "Другое…",
     "otherPlaceholder": "Введите свой ответ…",
     "send": "Отправить ответ",
+    "recommended": "Рекомендуется",
     "confirm": "✔ Подтвердить",
-    "back": "◀ Назад",
-    "recommended": "Рекомендуется"
+    "back": "◀ Назад"
   },
   "devMode": {
     "label": "Dev",
@@ -171,5 +178,47 @@
   "daySep": {
     "today": "Сегодня",
     "yesterday": "Вчера"
+  },
+  "subagents": {
+    "title": "Субагенты",
+    "description": "Задачи субагентов этого агента — статус, отмена и архивация.",
+    "pillActive": "{{running}} выполняется · {{completed}} завершено",
+    "pillDone": "{{n}} завершено",
+    "pillCountRunning": "{{n}} выполняется",
+    "pillCountDone": "{{n}} завершено",
+    "emptyTitle": "Задач субагентов пока нет",
+    "empty": "Ваш агент может сам создавать субагентов — попробуйте: «Разбей эту работу на 3 субагента».",
+    "archive": "В архив",
+    "archive_all": "Архивировать завершённые ({{n}})",
+    "archive_all_hint": "Архивировать все завершённые задачи субагентов",
+    "cancel": "Отменить задачу",
+    "cancelConfirmTitle": "Отменить эту задачу?",
+    "cancelConfirmBody": "Выполняющийся субагент будет остановлен. Это действие нельзя отменить.",
+    "announceTitle": "Субагент завершил работу",
+    "statuses": {
+      "queued": "В очереди",
+      "running": "Выполняется",
+      "waiting": "Ожидание",
+      "waitingChild": "Ожидание дочерней задачи",
+      "completed": "Завершено",
+      "failed": "Ошибка",
+      "cancelled": "Отменено"
+    },
+    "toast": {
+      "archived": "Задача архивирована",
+      "archiveFailed": "Не удалось архивировать задачу",
+      "archivedCount": "Задач архивировано: {{count}}",
+      "cancelled": "Задача отменена",
+      "cancelFailed": "Не удалось отменить задачу"
+    }
+  },
+  "sessions": {
+    "archive": "В архив",
+    "restore": "Восстановить",
+    "archivedSection": "Архив ({{n}})",
+    "archived": "Сессия добавлена в архив",
+    "archiveFailed": "Не удалось архивировать сессию",
+    "restored": "Сессия восстановлена",
+    "restoreFailed": "Не удалось восстановить сессию"
   }
 }

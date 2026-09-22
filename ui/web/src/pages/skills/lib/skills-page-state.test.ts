@@ -17,6 +17,10 @@ describe("skills page state", () => {
     expect(state).toMatchObject({ tab: "core", filter: "all", sort: "name", q: "pdf" });
   });
 
+  it("parses the market tab", () => {
+    expect(parseSkillsPageState(new URLSearchParams("tab=market")).tab).toBe("market");
+  });
+
   it("serializes non-default filters while preserving modal params", () => {
     const params = new URLSearchParams("skill=abc&detailTab=evolution&file=SKILL.md");
     const next = serializeSkillsPageState(params, { tab: "custom", q: "pdf", filter: "missing-deps", sort: "deps" });
@@ -27,6 +31,11 @@ describe("skills page state", () => {
     expect(next.get("skill")).toBe("abc");
     expect(next.get("detailTab")).toBe("evolution");
     expect(next.get("file")).toBe("SKILL.md");
+  });
+
+  it("serializes the market tab into the url", () => {
+    const next = serializeSkillsPageState(new URLSearchParams(), { tab: "market" });
+    expect(next.get("tab")).toBe("market");
   });
 
   it("removes default values instead of making noisy URLs", () => {

@@ -1238,13 +1238,13 @@
   },
   "fileCloudPermissions": {
     "title": "File & cloud permissions",
-    "description": "Choose what this agent may do with files. Cloud drive tools follow the same toggles: browse/read needs Read; overwrite, delete, rename and share need Write; new folders and copies need Create.",
+    "description": "Choose what this agent may do with files. Cloud read tools follow file read access.",
     "read": "Read files",
     "readDesc": "List and read workspace files and connected cloud drives (read_file, list_files, cloud browse).",
     "write": "Write files",
-    "writeDesc": "Modify existing content — workspace files (write_file to an existing path, edit) and cloud drives (cloud_write, cloud_delete, cloud_move, cloud_share).",
+    "writeDesc": "Modify existing file content (write_file to an existing path, edit).",
     "create": "Create files",
-    "createDesc": "Create new files and folders — workspace (write_file to a new path) and cloud drives (cloud_mkdir, cloud_copy).",
+    "createDesc": "Create new files and folders (write_file to a new path).",
     "save": "Save permissions",
     "saving": "Saving…",
     "saved": "File & cloud permissions updated"

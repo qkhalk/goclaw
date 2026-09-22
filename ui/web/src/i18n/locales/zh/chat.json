@@ -127,7 +127,8 @@
       "empty": "输入 URL 以在服务器浏览器中打开（真实 Chrome、可运行 JS — 代理共用此浏览器）。",
       "note": "服务器浏览器 — 页面由网关渲染；代理可以读取并控制即使被 JS/iframe 拦截的网站。",
       "noCapture": "页面已打开但未捕获截图 — 请尝试刷新。"
-    }
+    },
+    "renderedNote": "已通过服务端浏览器渲染 — JavaScript 页面可正常显示，但无法在表单中输入。"
   },
   "taskTree": {
     "empty": "暂无任务",
@@ -148,7 +149,8 @@
     "modelDefault": "代理默认模型",
     "loadingModels": "正在加载模型…",
     "thinking": "思考级别",
-    "permissionMode": "权限模式"
+    "permissionMode": "权限模式",
+    "devMode": "开发模式"
   },
   "thinkingLevels": {
     "adaptive": "自适应",
@@ -173,7 +175,13 @@
     "retrying": "重试 ({{attempt}}/{{max}})…",
     "leaderProcessing": "正在处理团队结果…",
     "working": "工作中…",
-    "step": "第 {{n}} 步"
+    "step": "第 {{n}} 步",
+    "metaFull": "{{provider}} · {{model}} · {{effort}}",
+    "metaModelEffort": "{{model}} · {{effort}}",
+    "metaProviderModel": "{{provider}} · {{model}}",
+    "metaModel": "{{model}}",
+    "metaProviderEffort": "{{provider}} · {{effort}}",
+    "metaProvider": "{{provider}}"
   },
   "teamTasks": {
     "pill": "团队：{{n}} 个任务进行中",
@@ -209,9 +217,9 @@
     "other": "其他…",
     "otherPlaceholder": "输入你自己的回答…",
     "send": "发送回答",
+    "recommended": "推荐",
     "confirm": "✔ 确认",
-    "back": "◀ 返回",
-    "recommended": "推荐"
+    "back": "◀ 返回"
   },
   "devMode": {
     "label": "Dev",
@@ -221,5 +229,47 @@
   "daySep": {
     "today": "今天",
     "yesterday": "昨天"
+  },
+  "subagents": {
+    "title": "子代理",
+    "description": "此代理派生的子代理任务 — 查看状态、取消与归档。",
+    "pillActive": "{{running}} 运行中 · {{completed}} 已完成",
+    "pillDone": "{{n}} 已完成",
+    "pillCountRunning": "{{n}} 运行中",
+    "pillCountDone": "{{n}} 已完成",
+    "emptyTitle": "暂无子代理任务",
+    "empty": "你的代理可以自动派生子代理 — 试试：“把这项工作拆成 3 个子代理”。",
+    "archive": "归档",
+    "archive_all": "归档全部已完成 ({{n}})",
+    "archive_all_hint": "归档全部已完成的子代理任务",
+    "cancel": "取消任务",
+    "cancelConfirmTitle": "取消此任务？",
+    "cancelConfirmBody": "正在运行的子代理将被停止，此操作无法撤销。",
+    "announceTitle": "子代理已完成",
+    "statuses": {
+      "queued": "排队中",
+      "running": "运行中",
+      "waiting": "等待中",
+      "waitingChild": "等待子任务",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
+    "toast": {
+      "archived": "任务已归档",
+      "archiveFailed": "归档任务失败",
+      "archivedCount": "已归档 {{count}} 个任务",
+      "cancelled": "任务已取消",
+      "cancelFailed": "取消任务失败"
+    }
+  },
+  "sessions": {
+    "archive": "归档",
+    "restore": "恢复",
+    "archivedSection": "已归档 ({{n}})",
+    "archived": "会话已归档",
+    "archiveFailed": "归档会话失败",
+    "restored": "会话已恢复",
+    "restoreFailed": "恢复会话失败"
   }
 }

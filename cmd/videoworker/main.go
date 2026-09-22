@@ -31,8 +31,6 @@ func main() {
 		maxQueue    int
 		narrVoice   string
 		ttlMinutes  int
-		cloneEp     string
-		cloneTok    string
 	)
 
 	flag.StringVar(&addr, "addr", "127.0.0.1:18791", "HTTP listen address")
@@ -45,8 +43,6 @@ func main() {
 	flag.IntVar(&maxQueue, "max-queue", 5, "Maximum queued jobs")
 	flag.StringVar(&narrVoice, "narr-voice", "vi-VN-HoaiMyNeural", "Default narration voice")
 	flag.IntVar(&ttlMinutes, "ttl-minutes", 120, "TTL in minutes for orphan temp cleanup")
-	flag.StringVar(&cloneEp, "clone-endpoint", "", "Voice-clone worker base URL (enables clone:* narration voices)")
-	flag.StringVar(&cloneTok, "clone-token", "", "Bearer token for the voice-clone worker")
 	flag.Parse()
 
 	// Setup structured logging
@@ -74,13 +70,6 @@ func main() {
 	ttl := time.Duration(ttlMinutes) * time.Minute
 	vworker.CleanupSweep(workDir, ttl)
 
-	// Extract the bundled display/body/mono fonts once — captions and text
-	// layers render with them (chip styles + karaoke need real faces).
-	fonts, err := vworker.ExtractFonts(workDir)
-	if err != nil {
-		slog.Warn("bundled fonts extraction failed, captions fall back to drawtext", "err", err)
-	}
-
 	// Create runner and server
 	cfg := vworker.WorkerConfig{
 		Addr:          addr,
@@ -93,21 +82,17 @@ func main() {
 		MaxSceneSec:   maxSceneSec,
 		MaxQueue:      maxQueue,
 		NarratorVoice: narrVoice,
-		CloneEndpoint: cloneEp,
-		CloneAPIKey:   cloneTok,
-		Fonts:         fonts,
 	}
 
 	runner := vworker.NewRunner(cfg)
 	srv := vworker.NewServer(runner, token)
 
-	// Periodic cleanup ticker — protected dirs keep in-flight jobs safe
-	// from the age-based sweep.
+	// Periodic cleanup ticker
 	go func() {
 		ticker := time.NewTicker(15 * time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
-			vworker.CleanupSweep(workDir, ttl, runner.ActiveWorkDirs()...)
+			vworker.CleanupSweep(workDir, ttl)
 		}
 	}()
 

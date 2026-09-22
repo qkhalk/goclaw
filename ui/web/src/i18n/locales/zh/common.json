@@ -1,7 +1,4 @@
 {
-  "pane": {
-    "resize": "拖动调整宽度 — 双击恢复默认"
-  },
   "actions": "操作",
   "active": "活跃",
   "add": "添加",
@@ -94,7 +91,7 @@
   "status": "状态",
   "stopGeneration": "停止生成",
   "stopped": "已停止",
-  "thinking": "已思考",
+  "thinking": "思考中",
   "thinkingStreaming": "思考中...",
   "toolArguments": "参数",
   "toolDone": "完成",
@@ -141,12 +138,15 @@
     "uploading": "上传中...",
     "uploadCount": "上传 {{count}} 个文件"
   },
+  "errors": {
+    "serverError": "出了点问题，请稍后重试。"
+  },
+  "pane": {
+    "resize": "调整面板大小"
+  },
   "planCard": {
     "title": "任务计划",
     "progress": "{{done}}/{{total}} 已完成"
-  },
-  "errors": {
-    "serverError": "出了点问题，请稍后重试。"
   },
   "systemUpdate": {
     "available": "更新到 {{version}}",

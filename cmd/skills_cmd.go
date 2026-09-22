@@ -30,6 +30,7 @@ func skillsCmd() *cobra.Command {
 	cmd.AddCommand(skillsAccessCmd())
 	cmd.AddCommand(skillsGrantCmd())
 	cmd.AddCommand(skillsRevokeCmd())
+	cmd.AddCommand(skillsMarketCmd())
 	return cmd
 }
 
@@ -159,4 +160,145 @@ func loadSkillsLoader() *skills.Loader {
 		builtinSkillsDir = "/app/bundled-skills"
 	}
 	return skills.NewLoader(workspace, globalSkillsDir, builtinSkillsDir)
+}
+
+// --- Skill market (bundled-skill catalog + on-demand install) ---
+
+// marketEntry mirrors the /v1/skills/market row for CLI output.
+type marketEntry struct {
+	Slug             string   `json:"slug"`
+	Name             string   `json:"name"`
+	Description      string   `json:"description"`
+	Category         string   `json:"category"`
+	Version          string   `json:"version"`
+	Requires         []string `json:"requires"`
+	Installed        bool     `json:"installed"`
+	InstalledVersion int      `json:"installedVersion"`
+	UpdateAvailable  bool     `json:"updateAvailable"`
+}
+
+func skillsMarketCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "market",
+		Short: "Browse and install bundled skills from the local market",
+	}
+	cmd.AddCommand(skillsMarketListCmd())
+	cmd.AddCommand(skillsMarketInstallCmd())
+	return cmd
+}
+
+func skillsMarketListCmd() *cobra.Command {
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List the bundled-skill market catalog",
+		Run: func(cmd *cobra.Command, args []string) {
+			// Prefer the live gateway: it annotates installed state.
+			if isGatewayReachable() {
+				runMarketListHTTP(jsonOutput)
+				return
+			}
+			// Offline fallback: scan the bundled dir directly (no installed flags).
+			bundledDir := skills.ResolveBundledSkillsDir()
+			if bundledDir == "" {
+				fmt.Fprintln(os.Stderr, "No bundled skills directory found and gateway is not reachable.")
+				os.Exit(1)
+			}
+			rows, err := skills.BuildMarketCatalog(bundledDir, nil)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			entries := make([]marketEntry, 0, len(rows))
+			for _, row := range rows {
+				entries = append(entries, marketEntry{
+					Slug: row.Slug, Name: row.Name, Description: row.Description,
+					Category: row.Category, Version: row.Version, Requires: row.Requires,
+				})
+			}
+			printMarketRows(entries, jsonOutput, false)
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
+}
+
+func skillsMarketInstallCmd() *cobra.Command {
+	var grantAgents []string
+	cmd := &cobra.Command{
+		Use:   "install <slug>...",
+		Short: "Install bundled skills into the running gateway",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if !isGatewayReachable() {
+				fmt.Fprintln(os.Stderr, "Gateway is not reachable — start it first (installs require the database).")
+				os.Exit(1)
+			}
+			body := map[string]any{"slugs": args}
+			if len(grantAgents) > 0 {
+				body["grantAgentIds"] = grantAgents
+			}
+			resp, err := gatewayHTTPPost("/v1/skills/market/install", body)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			data, _ := json.MarshalIndent(resp, "", "  ")
+			fmt.Println(string(data))
+		},
+	}
+	cmd.Flags().StringSliceVar(&grantAgents, "grant-agents", nil, "agent IDs to grant the installed skills to")
+	return cmd
+}
+
+func runMarketListHTTP(jsonOutput bool) {
+	resp, err := gatewayHTTPGet("/v1/skills/market")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	raw, _ := json.Marshal(resp["skills"])
+	var rows []marketEntry
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing market catalog: %v\n", err)
+		os.Exit(1)
+	}
+	printMarketRows(rows, jsonOutput, true)
+}
+
+func printMarketRows(rows []marketEntry, jsonOutput, withInstalled bool) {
+	if jsonOutput {
+		data, _ := json.MarshalIndent(rows, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+	if len(rows) == 0 {
+		fmt.Println("No bundled skills found.")
+		return
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if withInstalled {
+		fmt.Fprintf(tw, "SLUG\tCATEGORY\tINSTALLED\tVERSION\tDESCRIPTION\n")
+	} else {
+		fmt.Fprintf(tw, "SLUG\tCATEGORY\tVERSION\tDESCRIPTION\n")
+	}
+	for _, row := range rows {
+		desc := row.Description
+		if runes := []rune(desc); len(runes) > 50 {
+			desc = string(runes[:47]) + "..."
+		}
+		if withInstalled {
+			installed := "-"
+			if row.Installed {
+				installed = fmt.Sprintf("v%d", row.InstalledVersion)
+			}
+			if row.UpdateAvailable {
+				installed += " (update)"
+			}
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", row.Slug, row.Category, installed, row.Version, desc)
+		} else {
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", row.Slug, row.Category, row.Version, desc)
+		}
+	}
+	tw.Flush()
 }

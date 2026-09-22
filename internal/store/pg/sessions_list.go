@@ -64,6 +64,12 @@ func buildSessionFilter(ctx context.Context, opts store.SessionListOpts, tableAl
 	if opts.TokenFilter {
 		conditions = append(conditions, fmt.Sprintf("(%sinput_tokens > 0 OR %soutput_tokens > 0)", prefix, prefix))
 	}
+	// Default: hide archived sessions (session archive phase). Callers that
+	// need the full set — the archived sidebar section, usage rollups — pass
+	// IncludeArchived=true and filter/split client-side via ArchivedAt.
+	if !opts.IncludeArchived {
+		conditions = append(conditions, fmt.Sprintf("%sarchived_at IS NULL", prefix))
+	}
 	_ = idx // consumed
 
 	if len(conditions) == 0 {
@@ -131,7 +137,7 @@ func (s *PGSessionStore) ListPaged(ctx context.Context, opts store.SessionListOp
 
 	// Fetch page using jsonb_array_length to avoid loading full messages
 	nextIdx := len(whereArgs) + 1
-	selectQ := fmt.Sprintf(`SELECT session_key, jsonb_array_length(messages) AS message_count, created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}') AS metadata
+	selectQ := fmt.Sprintf(`SELECT session_key, jsonb_array_length(messages) AS message_count, created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}') AS metadata, archived_at
 		FROM sessions%s ORDER BY updated_at DESC LIMIT $%d OFFSET $%d`, where, nextIdx, nextIdx+1)
 	selectArgs := append(append([]any{}, whereArgs...), limit, offset)
 
@@ -174,7 +180,8 @@ func (s *PGSessionStore) ListPagedRich(ctx context.Context, opts store.SessionLi
 		  octet_length(s.messages::text) / 4 + 12000
 		) AS estimated_tokens,
 		COALESCE(a.context_window, 200000) AS context_window,
-		s.compaction_count`
+		s.compaction_count,
+		s.archived_at`
 
 	nextIdx := len(whereArgs) + 1
 	selectQ := fmt.Sprintf(`SELECT %s

@@ -17,6 +17,11 @@ export interface ComposerOverrides {
   model?: string;
   thinkingLevel?: string;
   permissionMode?: string;
+  /**
+   * Dev mode flag (chat.send per-message). Not persisted inside the composer
+   * overrides object — state lives in the chat page, keyed per session.
+   */
+  devMode?: boolean;
 }
 
 /** Permission modes mirrored from tools.PermMode* (chat.send permissionMode). */

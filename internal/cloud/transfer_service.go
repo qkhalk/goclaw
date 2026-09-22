@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/cloud/storage"
@@ -11,9 +12,16 @@ import (
 )
 
 // ErrTransferNotFound is returned by TransferStatus when the job ID is
-// unknown to the caller (never started, pruned, or lost to a restart — native
-// jobs live in this process only).
+// unknown to the caller (never started, pruned, or lost to an rcd restart).
 var ErrTransferNotFound = errors.New("cloud: transfer job not found")
+
+const (
+	// transferTTL prunes records that were never polled (async jobs die with
+	// the rcd process; keeping stale rows forever would leak memory).
+	transferTTL = 24 * time.Hour
+	// transferMaxEntries bounds the registry; the oldest records are evicted.
+	transferMaxEntries = 1024
+)
 
 // TransferRecord is the ownership metadata captured when an async transfer
 // starts. It answers "may THIS caller poll THIS job" — nothing else.
@@ -26,24 +34,86 @@ type TransferRecord struct {
 	StartedAt       time.Time
 }
 
+// transferRegistry maps rclone async job IDs to the tenant/user that started
+// them, so polling cannot leak job status across tenants. In-memory by
+// design: rclone job IDs are only valid for the lifetime of the rcd process
+// — after a supervisor restart the client sees ErrTransferNotFound and
+// re-issues the transfer.
+type transferRegistry struct {
+	mu   sync.Mutex
+	jobs map[int64]TransferRecord
+}
+
+func newTransferRegistry() *transferRegistry {
+	return &transferRegistry{jobs: make(map[int64]TransferRecord)}
+}
+
+// register records a started async job, pruning expired/overflowing entries.
+func (r *transferRegistry) register(jobID int64, rec TransferRecord) {
+	if jobID <= 0 {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	for id, j := range r.jobs {
+		if now.Sub(j.StartedAt) > transferTTL {
+			delete(r.jobs, id)
+		}
+	}
+	for len(r.jobs) >= transferMaxEntries {
+		var oldestID int64
+		var oldest time.Time
+		first := true
+		for id, j := range r.jobs {
+			// Ties broken by the lower job id: jobs registering within one
+			// clock tick share a StartedAt, and map iteration order must not
+			// decide who gets evicted.
+			if first || j.StartedAt.Before(oldest) || (j.StartedAt.Equal(oldest) && id < oldestID) {
+				oldestID, oldest, first = id, j.StartedAt, false
+			}
+		}
+		delete(r.jobs, oldestID)
+	}
+	rec.StartedAt = now
+	r.jobs[jobID] = rec
+}
+
+// ownedBy reports whether the ctx caller (same tenant AND same user — tenant
+// admins do not see other users' transfer jobs) may poll jobID.
+func (r *transferRegistry) ownedBy(ctx context.Context, jobID int64) (TransferRecord, bool) {
+	r.mu.Lock()
+	rec, ok := r.jobs[jobID]
+	r.mu.Unlock()
+	if !ok {
+		return TransferRecord{}, false
+	}
+	if rec.UserID != store.UserIDFromContext(ctx) ||
+		rec.TenantID != store.TenantIDFromContext(ctx).String() {
+		return TransferRecord{}, false
+	}
+	return rec, true
+}
+
 // TransferAccount copies/moves one path between two accounts' remotes.
 // Both accounts must already be resolved and authorized by the caller:
 // source needs read access only, the target needs the write guard + write
 // OAuth scopes.
 //
-// A single file transfers synchronously (returns jobID 0); "move" deletes
-// the source file after a successful copy. A folder starts a native async
-// copy job (folder "move" is a COPY — the source is never deleted wholesale)
-// and returns the registered job ID for TransferStatus polling — HTTP
-// timeouts make blocking folder transfers a guaranteed hang for anything but
-// trivial trees.
+// A single file transfers synchronously (returns jobID 0). A folder uses
+// rclone's async sync/copy (folder "move" is a COPY — the source is never
+// deleted wholesale) and returns the registered rclone job ID for
+// TransferStatus polling; the rc client's 60s timeout makes sync folder
+// transfers a guaranteed hang for anything but trivial trees.
 func (s *StorageService) TransferAccount(ctx context.Context, src, dst *store.CloudAccount, srcPath, dstPath, mode string) (int64, error) {
-	cleanSrc, err := CleanRemotePath(srcPath)
+	rc, err := s.supervisor.RC(ctx)
 	if err != nil {
 		return 0, err
 	}
-	cleanDst, err := CleanRemotePath(dstPath)
-	if err != nil {
+	if srcPath, err = CleanRemotePath(srcPath); err != nil {
+		return 0, err
+	}
+	if dstPath, err = CleanRemotePath(dstPath); err != nil {
 		return 0, err
 	}
 	if mode == "" {
@@ -53,88 +123,51 @@ func (s *StorageService) TransferAccount(ctx context.Context, src, dst *store.Cl
 		return 0, fmt.Errorf("cloud_transfer: unsupported mode %q (want copy|move)", mode)
 	}
 
-	// Single file: synchronous stream src → dst.
-	info, err := s.StatAccount(ctx, src, cleanSrc)
-	if err != nil {
-		return 0, fmt.Errorf("cloud_transfer: source: %w", err)
-	}
-	if !info.IsDir {
-		body, _, err := s.OpenAccount(ctx, src, cleanSrc, "", s.fileCapForTransfer())
-		if err != nil {
-			if errors.Is(err, ErrFileTooLarge) {
-				// Transfers are not bound by the preview cap — open uncapped.
-				body, _, err = s.backendOpenUncapped(ctx, src, cleanSrc)
-				if err != nil {
-					return 0, fmt.Errorf("cloud_transfer: open source: %w", err)
-				}
-			} else {
-				return 0, fmt.Errorf("cloud_transfer: open source: %w", err)
+	var jobID int64
+	err = s.runWithTwoRemotes(ctx, src, dst, func(srcFS, dstFS string) error {
+		info, statErr := rc.OperationsStat(ctx, srcFS, srcPath)
+		if statErr != nil {
+			return fmt.Errorf("cloud_transfer: source: %w", statErr)
+		}
+		if info.IsDir {
+			id, syncErr := rc.SyncCopy(ctx, srcFS, srcPath, dstFS, dstPath, true)
+			if syncErr != nil {
+				return fmt.Errorf("cloud_transfer: folder sync: %w", syncErr)
 			}
-		}
-		defer body.Close()
-		dstBackend, err := s.backendFor(ctx, dst)
-		if err != nil {
-			return 0, err
-		}
-		if err := dstBackend.Upload(ctx, cleanDst, body, info.Size, "", parseListTime(info.ModTime)); err != nil {
-			return 0, fmt.Errorf("cloud_transfer: upload: %w", err)
+			if id <= 0 {
+				return errors.New("cloud_transfer: rclone returned no async job id")
+			}
+			jobID = id
+			return nil
 		}
 		if mode == "move" {
-			if err := s.DeleteAccount(ctx, src, cleanSrc, false); err != nil {
-				return 0, fmt.Errorf("cloud_transfer: delete source after move: %w", err)
-			}
+			return rc.OperationsMoveFile(ctx, srcFS+":", srcPath, dstFS+":", dstPath)
 		}
-		return 0, nil
-	}
-
-	// Folder: detached async copy (never deletes the source wholesale).
-	jobID, err := s.startFolderCopy(ctx, src, dst, cleanSrc, cleanDst, false, TransferRecord{
-		TenantID:        store.TenantIDFromContext(ctx).String(),
-		UserID:          store.UserIDFromContext(ctx),
-		SourceAccountID: src.ID,
-		TargetAccountID: dst.ID,
-		Mode:            mode,
+		return rc.OperationsCopyFile(ctx, srcFS+":", srcPath, dstFS+":", dstPath)
 	})
 	if err != nil {
-		return 0, fmt.Errorf("cloud_transfer: folder sync: %w", err)
+		return 0, err
+	}
+	if jobID > 0 {
+		s.transfers.register(jobID, TransferRecord{
+			TenantID:        store.TenantIDFromContext(ctx).String(),
+			UserID:          store.UserIDFromContext(ctx),
+			SourceAccountID: src.ID,
+			TargetAccountID: dst.ID,
+			Mode:            mode,
+		})
 	}
 	return jobID, nil
 }
-
-// backendOpenUncapped opens a file body without the size-cap pre-check
-// (transfers are server-side plumbing, not user-facing downloads).
-func (s *StorageService) backendOpenUncapped(ctx context.Context, acct *store.CloudAccount, path string) (*storage.Content, *storage.StatInfo, error) {
-	backend, err := s.backendFor(ctx, acct)
-	if err != nil {
-		return nil, nil, err
-	}
-	cleaned, err := CleanRemotePath(path)
-	if err != nil {
-		return nil, nil, err
-	}
-	info, err := backend.Stat(ctx, cleaned)
-	if err != nil {
-		return nil, nil, err
-	}
-	body, err := backend.Open(ctx, cleaned, "")
-	if err != nil {
-		return nil, nil, err
-	}
-	return body, info, nil
-}
-
-// fileCapForTransfer: effectively unbounded pre-check for transfers (the cap
-// exists to protect interactive downloads, not server-side plumbing).
-func (s *StorageService) fileCapForTransfer() int64 { return 1 << 40 } // 1 PiB sentinel
 
 // TransferStatus polls one async transfer job started by the ctx caller.
 func (s *StorageService) TransferStatus(ctx context.Context, jobID int64) (*storage.JobInfo, error) {
 	if _, ok := s.transfers.ownedBy(ctx, jobID); !ok {
 		return nil, ErrTransferNotFound
 	}
-	job, ok := s.transfers.get(jobID)
-	if !ok {
-		return nil, ErrTransferNotFound
+	rc, err := s.supervisor.RC(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return job.snapshot(jobID), nil
+	return rc.JobStatus(ctx, jobID)
 }

@@ -127,7 +127,8 @@
       "empty": "Enter a URL to open it in the server browser (real Chrome, JS runs — the agent shares this browser).",
       "note": "Server browser — page rendered by the gateway; the agent can read and control even JS/iframe-blocked sites.",
       "noCapture": "Page opened but no screenshot captured — try refresh."
-    }
+    },
+    "renderedNote": "Rendered via the server-side browser — JavaScript pages display correctly, but typing into forms is disabled."
   },
   "taskTree": {
     "empty": "No tasks yet",
@@ -148,7 +149,8 @@
     "modelDefault": "Agent model",
     "loadingModels": "Loading models…",
     "thinking": "Thinking level",
-    "permissionMode": "Permission mode"
+    "permissionMode": "Permission mode",
+    "devMode": "Dev mode"
   },
   "thinkingLevels": {
     "adaptive": "Adaptive",
@@ -173,7 +175,13 @@
     "retrying": "Retrying ({{attempt}}/{{max}})…",
     "leaderProcessing": "Processing team results…",
     "working": "Working…",
-    "step": "Step {{n}}"
+    "step": "Step {{n}}",
+    "metaFull": "{{provider}} · {{model}} · {{effort}}",
+    "metaModelEffort": "{{model}} · {{effort}}",
+    "metaProviderModel": "{{provider}} · {{model}}",
+    "metaModel": "{{model}}",
+    "metaProviderEffort": "{{provider}} · {{effort}}",
+    "metaProvider": "{{provider}}"
   },
   "teamTasks": {
     "pill": "Team: {{n}} active task(s)",
@@ -209,9 +217,9 @@
     "other": "Other…",
     "otherPlaceholder": "Type your own answer…",
     "send": "Send answer",
+    "recommended": "Recommended",
     "confirm": "✔ Confirm",
-    "back": "◀ Back",
-    "recommended": "Recommended"
+    "back": "◀ Back"
   },
   "devMode": {
     "label": "Dev",
@@ -221,5 +229,47 @@
   "daySep": {
     "today": "Today",
     "yesterday": "Yesterday"
+  },
+  "subagents": {
+    "title": "Subagents",
+    "description": "Subagent tasks spawned by this agent — status, cancel and archive.",
+    "pillActive": "{{running}} running · {{completed}} done",
+    "pillDone": "{{n}} finished",
+    "pillCountRunning": "{{n}} running",
+    "pillCountDone": "{{n}} done",
+    "emptyTitle": "No subagent tasks yet",
+    "empty": "Your agent can spawn subagents on its own — try: “Split this work into 3 subagents”.",
+    "archive": "Archive",
+    "archive_all": "Archive all finished ({{n}})",
+    "archive_all_hint": "Archive all finished subagent tasks",
+    "cancel": "Cancel task",
+    "cancelConfirmTitle": "Cancel this task?",
+    "cancelConfirmBody": "The running subagent will be stopped. This cannot be undone.",
+    "announceTitle": "Subagent finished",
+    "statuses": {
+      "queued": "Queued",
+      "running": "Running",
+      "waiting": "Waiting",
+      "waitingChild": "Waiting for child",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "toast": {
+      "archived": "Task archived",
+      "archiveFailed": "Failed to archive task",
+      "archivedCount": "{{count}} tasks archived",
+      "cancelled": "Task cancelled",
+      "cancelFailed": "Failed to cancel task"
+    }
+  },
+  "sessions": {
+    "archive": "Archive",
+    "restore": "Restore",
+    "archivedSection": "Archived ({{n}})",
+    "archived": "Session archived",
+    "archiveFailed": "Failed to archive session",
+    "restored": "Session restored",
+    "restoreFailed": "Failed to restore session"
   }
 }

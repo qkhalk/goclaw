@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
 
 // DefaultSubagentConfig returns GoClaw's runtime defaults. Per-root admission is
@@ -104,6 +105,54 @@ func (sm *SubagentManager) applyDefinitionAllowList(reg *Registry, allowed []str
 	// TryActivateDeferred — prune them against the same allow set or the
 	// allow list would not actually narrow the callable surface.
 	reg.PruneDeferred(allow)
+}
+
+// subagentLLMOptions derives the per-request LLM options for a subagent run.
+//
+// Precedence (Phase 7 chat quality — replaces the old hardcoded
+// max_tokens=4096 / temperature=0.5):
+//  1. Definition override (subagents_config JSONB definition fields
+//     maxTokens / temperature / thinkingLevel), when set.
+//  2. Parent agent effective config: task.OriginMaxTokens (captured at spawn
+//     from the spawning loop's effective max tokens via ctx) and
+//     config.DefaultTemperature — the exact temperature the parent loop itself
+//     sends on every think-stage call (loop_pipeline_callbacks), so the child
+//     matches the parent's effective sampling behavior.
+//  3. config defaults (DefaultMaxTokens=8192) when the parent value is absent.
+//
+// The per-request usage-cap guard (chatSubagentWithUsageCap) still clamps
+// max_tokens down to the parent agent budget, so an oversized definition
+// override cannot blow the caller's window.
+func subagentLLMOptions(task *SubagentTask) map[string]any {
+	maxTokens := task.OriginMaxTokens
+	if maxTokens <= 0 {
+		maxTokens = config.DefaultMaxTokens
+	}
+	temperature := config.DefaultTemperature
+	thinkingLevel := ""
+
+	if def := task.definition; def != nil {
+		if def.MaxTokens != nil && *def.MaxTokens > 0 {
+			maxTokens = *def.MaxTokens
+		}
+		if def.Temperature != nil {
+			temperature = *def.Temperature
+		}
+		// Only concrete efforts are forwarded; "off" and invalid values keep
+		// the historical behavior of sending no thinking option at all.
+		if lvl := providers.NormalizeReasoningEffort(def.ThinkingLevel); lvl == "low" || lvl == "medium" || lvl == "high" || lvl == "xhigh" {
+			thinkingLevel = lvl
+		}
+	}
+
+	opts := map[string]any{
+		providers.OptMaxTokens:   maxTokens,
+		providers.OptTemperature: temperature,
+	}
+	if thinkingLevel != "" {
+		opts[providers.OptThinkingLevel] = thinkingLevel
+	}
+	return opts
 }
 
 // agentsMdMaxBytes caps how much workspace AGENTS.md content is injected into

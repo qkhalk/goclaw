@@ -1,17 +1,39 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, Copy, Pencil } from "lucide-react";
+import { CheckCircle2, ChevronDown, Copy, Pencil, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useCloudSettings, type CloudProvider } from "./hooks/use-cloud";
 
+/** localStorage flag (per provider) remembering that the admin collapsed the
+ * one-time setup guide. Absent = expanded (default). */
+const collapsedFlag = (provider: CloudProvider) => `goclaw.cloud.setup.${provider}`;
+
+function readCollapsed(provider: CloudProvider): boolean {
+  try {
+    return localStorage.getItem(collapsedFlag(provider)) === "collapsed";
+  } catch {
+    return false;
+  }
+}
+
+function writeCollapsed(provider: CloudProvider, collapsed: boolean) {
+  try {
+    if (collapsed) localStorage.setItem(collapsedFlag(provider), "collapsed");
+    else localStorage.removeItem(collapsedFlag(provider));
+  } catch {
+    // localStorage unavailable (private mode) — state stays in-memory only.
+  }
+}
+
 /** Per-provider admin setup card: one-time OAuth client registration with a
- * step-by-step guide. Collapsed to a single status row by default — amber
- * "not configured yet" row before the first save (click to expand), slim
- * emerald "saved" row afterwards with a discreet pencil to re-open for
- * rotation. Rendered inside the Cloud settings sheet. */
+ * step-by-step guide. Hidden for good after a successful save; a discreet
+ * pencil re-opens it for rotation. While unconfigured the card can be
+ * collapsed to a header row ("Setup required" hint) so it does not dominate
+ * the Cloud settings sheet; the choice persists per provider in localStorage.
+ * Rendered inside the Cloud settings sheet. */
 export function ProviderClientSetup({ provider }: { provider: CloudProvider }) {
   const { t } = useTranslation("cloud");
   const role = useAuthStore((s) => s.role);
@@ -22,64 +44,21 @@ export function ProviderClientSetup({ provider }: { provider: CloudProvider }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => readCollapsed(provider));
   const { copied, copy } = useClipboard();
 
   if (!isAdmin) return null;
 
   const redirectUri = settings?.redirect_uri ?? "";
-  const configuredOnce = settings?.secret_set ?? false;
-  const title = t(
-    provider === "google"
-      ? "setup.title_google"
-      : provider === "onedrive"
-        ? "setup.title_onedrive"
-        : "setup.title_dropbox",
-  );
 
-  // Configured: slim emerald status row — the banner never comes back.
-  if (configuredOnce && !editing) {
+  if (settings?.secret_set && !editing) {
     return (
-      <div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm">
-        <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-          <span className="truncate">
-            {t("setup.configured")}
-            {settings?.client_id && (
-              <code className="ml-1.5 rounded bg-muted px-1 py-0.5 text-xs">{settings.client_id}</code>
-            )}
-          </span>
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          onClick={() => { setClientID(settings?.client_id ?? ""); setEditing(true); setExpanded(true); }}
-        >
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={() => { setClientID(settings.client_id); setEditing(true); }}>
           <Pencil className="mr-2 h-3.5 w-3.5" />
           {t("setup.update")}
         </Button>
       </div>
-    );
-  }
-
-  // Not configured: collapsed amber summary — one line until expanded.
-  if (!configuredOnce && !expanded) {
-    return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm transition-colors hover:bg-amber-500/10"
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
-          <span className="truncate font-medium">{title}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-          {t("setup.expand")}
-          <ChevronDown className="h-3.5 w-3.5" />
-        </span>
-      </button>
     );
   }
 
@@ -89,7 +68,6 @@ export function ProviderClientSetup({ provider }: { provider: CloudProvider }) {
     try {
       await saveSettings(clientID.trim(), secret.trim());
       setEditing(false);
-      setExpanded(false);
       setSecret("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -98,66 +76,100 @@ export function ProviderClientSetup({ provider }: { provider: CloudProvider }) {
     }
   }
 
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      writeCollapsed(provider, !prev);
+      return !prev;
+    });
+  }
+
+  const configuredOnce = settings?.secret_set ?? false;
   const stepKey = (n: number) => t(`setup.${provider}_step${n}`);
+  // Per-provider setup guide title (setup.title_google / title_onedrive /
+  // title_dropbox / title_yandex).
+  const title = t(`setup.title_${provider}`);
+
+  const header = (
+    <button
+      type="button"
+      onClick={toggleCollapsed}
+      aria-expanded={!collapsed}
+      title={collapsed ? t("setup.showMore") : t("setup.showLess")}
+      className="flex min-h-11 w-full items-center justify-between gap-2 rounded-md text-left sm:min-h-9"
+    >
+      <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-medium">{title}</span>
+        {collapsed && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-normal text-amber-600 dark:text-amber-400">
+            <TriangleAlert className="h-3 w-3" aria-hidden />
+            {t("setup.requiredHint")}
+          </span>
+        )}
+      </span>
+      <ChevronDown
+        className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${collapsed ? "" : "rotate-180"}`}
+        aria-hidden
+      />
+    </button>
+  );
 
   return (
     <div className="rounded-lg border p-4 text-sm">
-      <button
-        type="button"
-        onClick={() => { if (!configuredOnce) { setExpanded(false); setEditing(false); } else { setEditing(false); } }}
-        className="-mt-1 flex w-full items-center justify-between gap-2 text-left"
-      >
-        <p className="font-medium">{title}</p>
-        <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-      </button>
-      <p className="mt-1 text-muted-foreground">{t("setup.body")}</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
-        <li>{stepKey(1)}</li>
-        <li>{stepKey(2)}</li>
-        <li>{stepKey(3)}</li>
-        <li>
-          {stepKey(4)}{" "}
-          <span className="inline-flex items-center gap-1">
-            <code className="rounded bg-muted px-1 py-0.5 text-xs break-all">{redirectUri}</code>
-            {redirectUri && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-1"
-                onClick={() => void copy(redirectUri)}
-              >
-                {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+      {header}
+      {!collapsed && (
+        <>
+          <p className="mt-1 text-muted-foreground">{t("setup.body")}</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+            <li>{stepKey(1)}</li>
+            <li>{stepKey(2)}</li>
+            <li>{stepKey(3)}</li>
+            <li>
+              {stepKey(4)}{" "}
+              <span className="inline-flex items-center gap-1">
+                <code className="rounded bg-muted px-1 py-0.5 text-xs break-all">{redirectUri}</code>
+                {redirectUri && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-1"
+                    onClick={() => void copy(redirectUri)}
+                  >
+                    {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                  </Button>
+                )}
+              </span>
+            </li>
+          </ol>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Input
+              value={clientID || settings?.client_id || ""}
+              onChange={(e) => setClientID(e.target.value)}
+              placeholder={t(`setup.${provider}_client_id`)}
+              className="text-base md:text-sm"
+              autoComplete="off"
+            />
+            <Input
+              type="password"
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              placeholder={configuredOnce ? t("setup.client_secret_keep") : t("setup.client_secret")}
+              className="text-base md:text-sm"
+              autoComplete="new-password"
+            />
+          </div>
+          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+          <div className="mt-3 flex items-center justify-end gap-2">
+            {configuredOnce && (
+              <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+                {t("setup.cancel")}
               </Button>
             )}
-          </span>
-        </li>
-      </ol>
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Input
-          value={clientID || settings?.client_id || ""}
-          onChange={(e) => setClientID(e.target.value)}
-          placeholder={t(`setup.${provider}_client_id`)}
-          className="text-base md:text-sm"
-          autoComplete="off"
-        />
-        <Input
-          type="password"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-          placeholder={configuredOnce ? t("setup.client_secret_keep") : t("setup.client_secret")}
-          className="text-base md:text-sm"
-          autoComplete="new-password"
-        />
-      </div>
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-      <div className="mt-3 flex items-center justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={() => { setEditing(false); setExpanded(false); }}>
-          {t("setup.cancel")}
-        </Button>
-        <Button size="sm" onClick={handleSave} disabled={saving || !(clientID.trim() || configuredOnce)} className="min-h-11 sm:min-h-9">
-          {saving ? t("setup.saving") : t("setup.save")}
-        </Button>
-      </div>
+            <Button size="sm" onClick={handleSave} disabled={saving || !(clientID.trim() || configuredOnce)} className="min-h-11 sm:min-h-9">
+              {saving ? t("setup.saving") : t("setup.save")}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

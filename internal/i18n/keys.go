@@ -479,6 +479,13 @@ const (
 	MsgTGStatusQueue         = "telegram.status.queue"          // " · 🪢 Queue: %s %d/%d active, %d pending"
 	MsgTGStatusFullHint      = "telegram.status.fullhint"       // "/status full — show everything"
 
+	// --- Telegram subagent archive (inline keyboard buttons) ---
+	MsgTGSubagentArchiveDone       = "telegram.subagent.archivedone"       // "🗄 Task archived — it's no longer in the list."
+	MsgTGSubagentArchiveAllConfirm = "telegram.subagent.archiveallconfirm" // "🗄 Archived %d completed task(s)."
+	MsgTGSubagentNotTerminal       = "telegram.subagent.notterminal"       // "⏳ This task is still running — archive it when it finishes."
+	MsgTGSubagentArchiveBtn        = "telegram.subagent.archivebtn"        // "🗄 Archive"
+	MsgTGSubagentArchiveAllBtn     = "telegram.subagent.archiveallbtn"     // "🗄 Archive completed (%d)"
+
 	// --- Video render pipeline ---
 	MsgVideoJobCreated    = "video.job_created"        // "video render job %s created"
 	MsgVideoJobFailed     = "video.job_failed"         // "video render job %s failed: %s"

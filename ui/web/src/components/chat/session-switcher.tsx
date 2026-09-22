@@ -1,7 +1,8 @@
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare, Trash2 } from "lucide-react";
+import { Archive, MessageSquare, Trash2 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format";
+import { sessionOrigin } from "@/lib/session-origin";
 import {
   Dialog,
   DialogContent,
@@ -18,11 +19,13 @@ interface SessionSwitcherProps {
   activeKey: string;
   onSelect: (key: string) => void;
   onDelete?: (key: string) => void;
+  /** Soft-archive a finished conversation (phase 8). Direct WS chats only. */
+  onArchive?: (key: string) => void;
   loading?: boolean;
 }
 
 /** Build a human-friendly label from session metadata or key */
-function sessionLabel(session: SessionInfo): string {
+export function sessionLabel(session: SessionInfo): string {
   if (session.metadata?.chat_title) return session.metadata.chat_title;
   if (session.metadata?.display_name) return session.metadata.display_name;
   if (session.label) return session.label;
@@ -45,7 +48,7 @@ function sessionLabel(session: SessionInfo): string {
   return scope.length > 24 ? scope.slice(0, 21) + "…" : scope;
 }
 
-export const SessionSwitcher = memo(function SessionSwitcher({ sessions, activeKey, onSelect, onDelete, loading }: SessionSwitcherProps) {
+export const SessionSwitcher = memo(function SessionSwitcher({ sessions, activeKey, onSelect, onDelete, onArchive, loading }: SessionSwitcherProps) {
   const { t } = useTranslation("chat");
   const { t: tc } = useTranslation("common");
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null);
@@ -93,6 +96,27 @@ export const SessionSwitcher = memo(function SessionSwitcher({ sessions, activeK
                   <span>{formatRelativeTime(session.updated)}</span>
                 </div>
               </div>
+              {onArchive && sessionOrigin(session.key) === "web" && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onArchive(session.key);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onArchive(session.key);
+                    }
+                  }}
+                  className="shrink-0 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-accent-foreground group-hover:opacity-100 max-sm:opacity-100"
+                  title={t("sessions.archive")}
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                </span>
+              )}
               {onDelete && (
                 <span
                   role="button"

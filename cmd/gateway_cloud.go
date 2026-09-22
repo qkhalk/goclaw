@@ -31,6 +31,10 @@ func newCloudManager(cfg *config.Config, stores *store.Stores) *cloud.Manager {
 		GoogleClientSecret:    cfg.Cloud.Google.ClientSecret,
 		MicrosoftClientID:     cfg.Cloud.Microsoft.ClientID,
 		MicrosoftClientSecret: cfg.Cloud.Microsoft.ClientSecret,
+		DropboxClientID:       cfg.Cloud.Dropbox.ClientID,
+		DropboxClientSecret:   cfg.Cloud.Dropbox.ClientSecret,
+		YandexClientID:        cfg.Cloud.Yandex.ClientID,
+		YandexClientSecret:    cfg.Cloud.Yandex.ClientSecret,
 	}, stores.CloudAccounts, os.Getenv("GOCLAW_ENCRYPTION_KEY"))
 	if stores.ConfigSecrets != nil {
 		manager.SetSecretsStore(stores.ConfigSecrets)
@@ -41,10 +45,9 @@ func newCloudManager(cfg *config.Config, stores *store.Stores) *cloud.Manager {
 	return manager
 }
 
-// newCloudStack builds the shared cloud Manager + native StorageService
-// (Drive/Graph backends) + sync-pairs worker used by BOTH the HTTP handler
-// (account detail views) and the agent tools, so there is exactly one
-// storage service per gateway.
+// newCloudStack builds the shared cloud Manager + rclone StorageService +
+// sync-pairs worker used by BOTH the HTTP handler (account detail views) and
+// the agent tools, so there is exactly one rcd supervisor per gateway.
 // Any return value may be nil when the edition/kill-switch disables the
 // surface (the worker additionally needs its pair + account + tenant stores).
 func newCloudStack(cfg *config.Config, stores *store.Stores, dataDir string) (*cloud.Manager, *cloud.StorageService, *cloud.MailService, *cloud.SyncService) {
@@ -89,7 +92,7 @@ func wireCloud(server *gateway.Server, cfg *config.Config, stores *store.Stores,
 // cloud_*) on the shared manager/stack. Credentials and connected accounts
 // are resolved at call time, so tools work immediately after the admin saves
 // the OAuth client from the web-UI setup form — no restart. Returns a
-// cleanup func that shuts down the storage service (safe to defer).
+// cleanup func that stops the rclone supervisor (safe to defer).
 func wireCloudTools(manager *cloud.Manager, storageSvc *cloud.StorageService, cfg *config.Config, toolsReg *tools.Registry, workspace string) func() {
 	if manager == nil || storageSvc == nil {
 		return func() {}

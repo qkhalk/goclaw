@@ -12,7 +12,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/media"
-	"github.com/nextlevelbuilder/goclaw/internal/channels/telegram"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
@@ -154,11 +153,14 @@ type chatSendParams struct {
 	// Model maps to RunRequest.ModelOverride; ThinkingLevel accepts the standard
 	// effort levels plus "adaptive" (validated by thinkingOverrideFor);
 	// PermissionMode accepts the composer tool-permission modes (validated by
-	// permissionModeFor).
+	// permissionModeFor). DevMode marks the run for the dev-mode behavior
+	// section (agent.ApplyDevMode), mirroring the Telegram /dev chat preference
+	// but carried per message instead of in session metadata.
 	ProviderName string `json:"providerName,omitempty"`
 	Model        string `json:"model,omitempty"`
 	Thinking     string `json:"thinkingLevel,omitempty"`
 	PermMode     string `json:"permissionMode,omitempty"`
+	DevMode      bool   `json:"devMode,omitempty"`
 }
 
 // thinkingOverrideFor validates a chat.send thinkingLevel param. Accepts
@@ -483,14 +485,6 @@ func (m *ChatMethods) dispatchChatSends(requests []chatSendRequest) {
 			}
 		}
 
-		// Dev mode: the same per-session chat_mode=dev preference the
-		// Telegram /dev command writes (sessions.patch metadata from web);
-		// apply the dev-mode prompt section to web sessions too.
-		var extraPrompt string
-		if sess := m.sessions.Get(runCtx, sessionKey); sess != nil && sess.Metadata[telegram.MetaKeyChatMode] == "dev" {
-			extraPrompt = agent.ApplyDevMode(true, extraPrompt)
-		}
-
 		result, err := loop.Run(runCtx, agent.RunRequest{
 			SessionKey:            sessionKey,
 			Message:               message,
@@ -506,8 +500,11 @@ func (m *ChatMethods) dispatchChatSends(requests []chatSendRequest) {
 			ProviderOverride:      composerProvider,
 			ThinkingLevelOverride: thinkingOverride,
 			PermissionMode:        permissionModeFor(params.PermMode),
-			ExtraSystemPrompt:     extraPrompt,
-			InjectCh:              injectCh,
+			// Web dev mode (composer toggle): prepend the dev-mode behavior
+			// section, same as the Telegram /dev session preference. No-op when
+			// the toggle is off (ApplyDevMode returns the extra unchanged).
+			ExtraSystemPrompt: agent.ApplyDevMode(params.DevMode, ""),
+			InjectCh:          injectCh,
 			// Wire trace ID back to the active run so force-abort can mark the
 			// correct trace as cancelled if the goroutine does not exit within 3s.
 			OnTraceCreated: func(traceID uuid.UUID) {
