@@ -68,7 +68,7 @@ func (h *SkillsHandler) handleMarketList(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "skill market unavailable (no bundled skills directory or store support)"})
 		return
 	}
-	rows, err := market.Catalog(r.Context())
+	kits, rows, err := market.Kits(r.Context())
 	if err != nil {
 		slog.Error("market catalog failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -76,6 +76,7 @@ func (h *SkillsHandler) handleMarketList(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"skills":     rows,
+		"kits":       kits,
 		"total":      len(rows),
 		"bundledDir": market.BundledDir(),
 	})

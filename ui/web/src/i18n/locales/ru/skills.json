@@ -267,7 +267,7 @@
     "rescanNoChanges": "Все навыки актуальны",
     "rescanFailed": "Не удалось пересканировать зависимости"
   },
-  "market":   {
+  "market": {
     "tabLabel": "Маркет",
     "title": "Маркет навыков",
     "subtitle": "Просмотр и установка навыков из встроенного каталога",
@@ -300,6 +300,14 @@
     "updateToDate": "{{name}} уже актуален",
     "adminRequired": "Попросите администратора установить или удалить навыки",
     "categories": "Категории",
-    "all": "Все"
+    "all": "Все",
+    "kitsTitle": "Наборы навыков",
+    "kitSkillsCount": "{{count}} навыков",
+    "kitInstalledCount": "{{count}} установлено",
+    "kitInstallAll": "Установить все",
+    "kitInstallMissing": "Установить {{count}} недостающих",
+    "kitAllInstalled": "Все установлены",
+    "kitSelected": "Набор: {{name}}",
+    "kitShowAll": "Показать все навыки"
   }
 }

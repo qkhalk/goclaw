@@ -504,3 +504,78 @@ func TestMarket_UpdateUnchangedIsNoop(t *testing.T) {
 	}
 	_ = bundled
 }
+
+// --- kit discovery ------------------------------------------------------------
+
+func TestBuildKitList_FiltersToCatalogAndCountsInstalled(t *testing.T) {
+	bundled := writeMarketFixture(t)
+	// Kit spanning both catalog skills plus one missing slug (dropped).
+	writeSeederSkillFile(t, filepath.Join(bundled, "full-kit", "kit.yaml"),
+		"name: Full Kit\nversion: 1.0.0\ndescription: Everything\nskills:\n  - alpha\n  - beta\n  - ghost\n")
+	// Single-skill kit.
+	writeSeederSkillFile(t, filepath.Join(bundled, "engineer", "kit.yaml"),
+		"name: Engineer\nversion: 0.1.0\nskills:\n  - alpha\n")
+	// Invalid manifest (no name) is skipped.
+	writeSeederSkillFile(t, filepath.Join(bundled, "broken", "kit.yaml"), "no_name_field: true\n")
+
+	catalog := map[string]MarketEntry{
+		"alpha": {Slug: "alpha"},
+		"beta":  {Slug: "beta"},
+	}
+	installed := map[string]store.SkillInfo{"alpha": {Slug: "alpha", Status: "active"}}
+
+	kits, err := BuildKitList(bundled, catalog, installed)
+	if err != nil {
+		t.Fatalf("BuildKitList error: %v", err)
+	}
+	if len(kits) != 2 {
+		t.Fatalf("kits = %d, want 2 (broken manifest skipped, ghost slug dropped): %+v", len(kits), kits)
+	}
+	// Sorted by kit name: "Engineer" < "Full Kit".
+	if kits[0].Name != "Engineer" || kits[1].Name != "Full Kit" {
+		t.Fatalf("kits not sorted by name: %+v", kits)
+	}
+	full := kits[1]
+	if full.Slug != "full-kit" || len(full.Skills) != 2 {
+		t.Fatalf("full kit skills = %+v, want alpha+beta (ghost dropped)", full.Skills)
+	}
+	if full.InstalledCount != 1 {
+		t.Fatalf("full kit installedCount = %d, want 1 (only alpha installed)", full.InstalledCount)
+	}
+	if full.Description != "Everything" || full.Version != "1.0.0" {
+		t.Fatalf("full kit metadata = %+v", full)
+	}
+}
+
+func TestMarket_Kits_AnnotatedFromLiveStore(t *testing.T) {
+	ctx := context.Background()
+	market, st, _, _ := newTestMarket(t)
+
+	// No kit manifests in the fixture yet → no kits.
+	kits, rows, err := market.Kits(ctx)
+	if err != nil {
+		t.Fatalf("Kits error: %v", err)
+	}
+	if len(kits) != 0 || len(rows) != 2 {
+		t.Fatalf("base fixture kits/rows = %d/%d, want 0/2", len(kits), len(rows))
+	}
+
+	// Seed rows by installing alpha, then add a kit manifest over it.
+	if _, err := market.Install(ctx, []string{"alpha"}, nil, ""); err != nil {
+		t.Fatalf("Install error: %v", err)
+	}
+	writeSeederSkillFile(t, filepath.Join(market.bundledDir, "engineer", "kit.yaml"),
+		"name: Engineer\nversion: 0.1.0\nskills:\n  - alpha\n  - beta\n")
+
+	kits, _, err = market.Kits(ctx)
+	if err != nil {
+		t.Fatalf("Kits error: %v", err)
+	}
+	if len(kits) != 1 || kits[0].Name != "Engineer" {
+		t.Fatalf("kits = %+v, want one Engineer kit", kits)
+	}
+	if kits[0].InstalledCount != 1 {
+		t.Fatalf("installedCount = %d, want 1 (alpha installed, beta not)", kits[0].InstalledCount)
+	}
+	_ = st
+}

@@ -19,8 +19,21 @@ export interface MarketSkill {
   updateAvailable?: boolean;
 }
 
+/** One bundled skill kit (kit.yaml manifest) from GET /v1/skills/market.
+ *  `skills` are slugs present in the catalog; `installedCount` how many are
+ *  installed. */
+export interface MarketKit {
+  slug: string;
+  name: string;
+  description?: string;
+  version?: string;
+  skills: string[];
+  installedCount: number;
+}
+
 interface MarketListResponse {
   skills: MarketSkill[];
+  kits?: MarketKit[];
   total: number;
   bundledDir?: string;
 }
@@ -46,7 +59,7 @@ export function useSkillMarket() {
   const queryClient = useQueryClient();
 
   const {
-    data: skills = [],
+    data,
     isFetching: loading,
     isError: error,
     refetch,
@@ -54,11 +67,14 @@ export function useSkillMarket() {
     queryKey: marketQueryKey,
     queryFn: async () => {
       const res = await http.get<MarketListResponse>("/v1/skills/market");
-      return res.skills ?? [];
+      return res;
     },
     staleTime: 60_000,
     enabled: connected,
   });
+
+  const skills = data?.skills ?? [];
+  const kits = data?.kits ?? [];
 
   const invalidate = useCallback(async () => {
     // Market flags + the installed list both change on every mutation.
@@ -127,5 +143,5 @@ export function useSkillMarket() {
     [http, invalidate],
   );
 
-  return { skills, loading, error, refetch, install, uninstall, update };
+  return { skills, kits, loading, error, refetch, install, uninstall, update };
 }
