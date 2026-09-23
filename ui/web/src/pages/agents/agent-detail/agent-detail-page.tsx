@@ -73,6 +73,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
         onAdvanced={() => setAdvancedOpen(true)}
         onHeartbeat={() => setHeartbeatOpen(true)}
         onSystemPrompt={() => setPromptOpen(true)}
+        onOpenEvolution={() => setActiveTab("evolution")}
       />
 
       <div className="p-3 sm:p-4">

@@ -51,66 +51,6 @@
     "evolvingTooltip": "Agent can self-evolve its communication style (SOUL.md). Identity and workflow stay fixed.",
     "staticTooltip": "Agent style is static. Enable Self-Evolution in settings to allow style adaptation."
   },
-  "v3Info": {
-    "title": "What's New in v3",
-    "subtitle": "Major improvements over v2 architecture",
-    "tabs": {
-      "core": "Core Engine",
-      "memory": "Memory & Knowledge",
-      "orchestration": "Orchestration"
-    },
-    "features": {
-      "pipeline": {
-        "title": "Pipeline",
-        "v2v3": "Monolithic 7K LOC → 8 pluggable stages",
-        "desc": "Structured context → history → prompt → think → act → observe → memory → summarize loop with per-stage callbacks.",
-        "stat": "8 stages"
-      },
-      "memory": {
-        "title": "Memory",
-        "v2v3": "Single-tier → 3-tier (Working → Episodic → Semantic)",
-        "desc": "Working memory holds active context; episodic stores session summaries; semantic layer is backed by knowledge graph.",
-        "stat": "3 tiers"
-      },
-      "retrieval": {
-        "title": "Retrieval",
-        "v2v3": "Manual search → L0/L1/L2 progressive loading",
-        "desc": "L0 abstracts auto-inject into every session. L1/L2 load on demand via BM25 + vector hybrid search.",
-        "stat": "Auto-inject"
-      },
-      "vault": {
-        "title": "Knowledge Vault",
-        "v2v3": "No vault → Document registry + wikilinks + hybrid search",
-        "desc": "Centralized document store with [[wikilink]] resolution, filesystem sync, and unified search across all knowledge.",
-        "stat": "NEW"
-      },
-      "evolution": {
-        "title": "Self-Evolution",
-        "v2v3": "No metrics → Metrics → Suggestions → Auto-adapt",
-        "desc": "Records tool success rates and retrieval quality, generates suggestions, applies guardrail-protected changes with rollback.",
-        "stat": "3 stages"
-      },
-      "orchestration": {
-        "title": "Orchestration",
-        "v2v3": "Spawn only → Spawn + Delegate + Team modes",
-        "desc": "Delegate tool enables inter-agent task handoff with agent_links. Three delegation modes: auto, explicit, and manual.",
-        "stat": "3 modes"
-      },
-      "resilience": {
-        "title": "Provider Resilience",
-        "v2v3": "Direct calls → Middleware + failover + cooldown",
-        "desc": "Composable request middleware chain handles rate limits, overload, auth errors, and network failures with automatic failover.",
-        "stat": "9 error types"
-      },
-      "registry": {
-        "title": "Model Registry",
-        "v2v3": "Static config → Dynamic registry + forward-compat resolver",
-        "desc": "ModelRegistry resolves model aliases across providers. Forward-compat resolver maps deprecated IDs to current equivalents.",
-        "stat": "Auto-resolve"
-      }
-    },
-    "note": "v3 features are opt-in per agent. Enable them in agent settings."
-  },
   "delete": {
     "title": "Delete Agent",
     "description": "Permanently delete this agent, all its context files, sessions, and configuration. This action cannot be undone.",
@@ -244,16 +184,6 @@
         "toolNotes": "Tool Notes"
       },
       "upgradeWarning": "Mode upgraded. Some files may need regeneration — use Resummon or Edit with AI in the Files tab."
-    },
-    "engine": {
-      "title": "Engine Version",
-      "learnMore": "Learn more",
-      "pipelineTitle": "Pipeline",
-      "pipelineHint": "8-stage structured execution loop",
-      "memoryTitle": "Memory",
-      "memoryHint": "Episodic memory + L0 auto-injection",
-      "retrievalTitle": "Retrieval",
-      "retrievalHint": "Progressive L0/L1/L2 knowledge loading"
     },
     "orchestration": {
       "title": "Orchestration",

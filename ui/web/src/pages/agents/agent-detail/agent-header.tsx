@@ -21,9 +21,10 @@ interface AgentHeaderProps {
   onAdvanced: () => void;
   onHeartbeat: () => void;
   onSystemPrompt?: () => void;
+  onOpenEvolution?: () => void;
 }
 
-export function AgentHeader({ agent, heartbeat, onBack, onDelete, onAdvanced, onHeartbeat, onSystemPrompt }: AgentHeaderProps) {
+export function AgentHeader({ agent, heartbeat, onBack, onDelete, onAdvanced, onHeartbeat, onSystemPrompt, onOpenEvolution }: AgentHeaderProps) {
   const { t } = useTranslation("agents");
   const [v3Open, setV3Open] = useState(false);
 
@@ -90,13 +91,20 @@ export function AgentHeader({ agent, heartbeat, onBack, onDelete, onAdvanced, on
                 {t(`detail.prompt.mode.${promptMode}Desc`)}
               </TooltipContent>
             </Tooltip>
-            <Badge
-              variant="outline"
-              className="text-2xs bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 cursor-pointer"
-              onClick={() => setV3Open(true)}
-            >
-              V3
-            </Badge>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge
+                  variant="outline"
+                  className="text-2xs bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 cursor-pointer"
+                  onClick={() => setV3Open(true)}
+                >
+                  V3
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[260px] text-xs">
+                {t("v3-capabilities:subtitle")}
+              </TooltipContent>
+            </Tooltip>
             {agent.agent_type === "predefined" && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -181,7 +189,12 @@ export function AgentHeader({ agent, heartbeat, onBack, onDelete, onAdvanced, on
           </TooltipContent>
         </Tooltip>
       </div>
-      <V3CapabilitiesModal open={v3Open} onOpenChange={setV3Open} />
+      <V3CapabilitiesModal
+        open={v3Open}
+        onOpenChange={setV3Open}
+        agent={agent}
+        onOpenEvolution={onOpenEvolution}
+      />
     </TooltipProvider>
   );
 }

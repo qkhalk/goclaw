@@ -34,9 +34,9 @@
     "l0Title": "L0 Working Memory",
     "l0Desc": "Session history with token-based auto-compaction. When history exceeds the context window threshold, older messages are summarized via LLM and truncated. Memory flush extracts key facts into persistent files before compaction.",
     "l1Title": "L1 Episodic Memory",
-    "l1Desc": "Session summaries created after each conversation run. Each gets an L0 abstract (~50 tokens) for fast injection. Hybrid FTS + vector search with 90-day TTL. Relevant abstracts are auto-injected into the system prompt every turn.",
+    "l1Desc": "Session summaries created after each conversation run. Each gets an L0 abstract (~50 tokens) for fast injection. Hybrid FTS + vector search with a 90-day default TTL. Relevant abstracts are auto-injected into the system prompt every turn.",
     "l2Title": "L2 Semantic Memory",
-    "l2Desc": "Knowledge graph with entities and relations extracted via LLM (confidence threshold 0.75). Auto-dedup merges similar entities. Dreaming consolidates 5+ episodic entries into long-term fact documents searchable via memory tools.",
+    "l2Desc": "Knowledge graph with entities and relations extracted via LLM (default confidence threshold 0.75). Auto-dedup merges similar entities. Dreaming consolidates 5+ episodic entries into long-term fact documents searchable via memory tools.",
     "eventFlow": "Event-driven: session.completed triggers L1 creation, which triggers L2 extraction and dreaming."
   },
   "knowledge": {
@@ -45,12 +45,32 @@
     "vaultTitle": "Knowledge Vault",
     "vaultDesc": "Document registry with [[wikilink]] resolution. Unified search blends vault documents (40%), episodic memories (30%), and KG entities (30%) into a single ranked result set. SHA-256 hashing detects content changes for incremental indexing.",
     "dreamingTitle": "Dreaming",
-    "dreamingDesc": "When 5+ session summaries accumulate, LLM synthesizes long-term facts: user preferences, project architecture, recurring patterns, and key decisions with rationale. Stored as searchable memory documents. Debounced at 10-minute intervals per agent."
+    "dreamingDesc": "By default, when 5+ session summaries accumulate, LLM synthesizes long-term facts: user preferences, project architecture, recurring patterns, and key decisions with rationale. Stored as searchable memory documents. Debounced at 10-minute intervals by default, per agent."
   },
   "orchestration": {
     "delegateTitle": "Agent Delegation",
     "delegateDesc": "Agents delegate tasks to linked agents via agent_links with permission checking. Sync mode blocks up to a configurable timeout waiting for results. Async mode fires immediately and announces results back via message bus when complete.",
     "evolutionTitle": "Self-Evolution",
     "evolutionDesc": "Tracks tool usage and retrieval metrics on a weekly cycle. Detects three patterns: low retrieval usage (< 20%), high tool failure rates (< 10% success), and repeated tool patterns (> 100 calls/week). Suggests configuration adjustments with guardrail-protected auto-apply and rollback."
+  },
+  "live": {
+    "onAgent": "On this agent",
+    "viewDetails": "View details",
+    "openEvolution": "Open Evolution tab",
+    "on": "On",
+    "off": "Off",
+    "default": "default",
+    "noneYet": "None yet",
+    "retrieval": "Retrieval",
+    "pruning": "Pruning",
+    "episodicLatest": "Last summary",
+    "kg": "Knowledge Graph",
+    "kgValue": "{{entities}} entities · {{relations}} relations",
+    "dreaming": "Dreaming",
+    "links": "Delegation links",
+    "linksValue": "{{total}} linked",
+    "linksEmpty": "No links yet — manage them under Teams → Links",
+    "evolutionMetrics": "Evolution metrics",
+    "pendingSuggestions": "Pending suggestions"
   }
 }

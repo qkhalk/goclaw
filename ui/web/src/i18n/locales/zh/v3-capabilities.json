@@ -34,9 +34,9 @@
     "l0Title": "L0 工作记忆",
     "l0Desc": "基于 token 的自动压缩会话历史。当历史超过阈值时，旧消息通过 LLM 总结并截断。Memory flush 在压缩前提取关键信息。",
     "l1Title": "L1 情景记忆",
-    "l1Desc": "每次对话运行后创建会话摘要。每个摘要有 L0 摘要（约 50 token）用于快速注入。混合 FTS + 向量搜索，90 天 TTL。相关摘要每轮自动注入系统提示。",
+    "l1Desc": "每次对话运行后创建会话摘要。每个摘要有 L0 摘要（约 50 token）用于快速注入。混合 FTS + 向量搜索，90 天默认 TTL。相关摘要每轮自动注入系统提示。",
     "l2Title": "L2 语义记忆",
-    "l2Desc": "知识图谱：通过 LLM 提取实体和关系（置信度 >= 0.75）。自动去重合并相似实体。Dreaming 将 5+ 条情景摘要整合为长期知识文档。",
+    "l2Desc": "知识图谱：通过 LLM 提取实体和关系（默认置信度 >= 0.75）。自动去重合并相似实体。Dreaming 将 5+ 条情景摘要整合为长期知识文档。",
     "eventFlow": "事件驱动：session.completed 触发 L1 创建，进而触发 L2 提取和 dreaming。"
   },
   "knowledge": {
@@ -45,12 +45,32 @@
     "vaultTitle": "知识库",
     "vaultDesc": "带有 [[wikilink]] 解析的文档注册表。统一搜索融合文档（40%）、情景记忆（30%）和知识图谱（30%）。SHA-256 哈希检测内容变更。",
     "dreamingTitle": "Dreaming",
-    "dreamingDesc": "当 5+ 条会话摘要积累时，LLM 综合长期知识：用户偏好、项目架构、重复模式和关键决策。存储为可搜索的记忆文档。每个智能体 10 分钟防抖。"
+    "dreamingDesc": "默认情况下，当 5+ 条会话摘要积累时，LLM 综合长期知识：用户偏好、项目架构、重复模式和关键决策。存储为可搜索的记忆文档。默认每个智能体 10 分钟防抖。"
   },
   "orchestration": {
     "delegateTitle": "智能体委派",
     "delegateDesc": "智能体通过 agent_links 将任务委派给关联智能体，带权限检查。同步模式等待结果。异步模式立即触发，完成后通过消息总线回报结果。",
     "evolutionTitle": "自我进化",
     "evolutionDesc": "每周追踪工具使用和检索指标。检测三种模式：检索使用率低（< 20%）、工具失败率高（< 10%）、重复工具模式（> 100 次/周）。建议配置调整，带护栏保护的自动应用和回滚。"
+  },
+  "live": {
+    "onAgent": "当前智能体",
+    "viewDetails": "查看详情",
+    "openEvolution": "打开进化标签页",
+    "on": "开启",
+    "off": "关闭",
+    "default": "默认",
+    "noneYet": "暂无",
+    "retrieval": "检索",
+    "pruning": "裁剪",
+    "episodicLatest": "最近摘要",
+    "kg": "知识图谱",
+    "kgValue": "{{entities}} 实体 · {{relations}} 关系",
+    "dreaming": "Dreaming",
+    "links": "委派链接",
+    "linksValue": "已链接 {{total}} 个",
+    "linksEmpty": "暂无链接 — 请在 Teams → Links 中管理",
+    "evolutionMetrics": "进化指标",
+    "pendingSuggestions": "待处理建议"
   }
 }

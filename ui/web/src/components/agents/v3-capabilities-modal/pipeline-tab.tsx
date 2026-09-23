@@ -8,10 +8,23 @@ import {
   Save,
   Flag,
   ChevronRight,
+  Zap,
+  Database,
+  Search,
+  ScissorsLineDashed,
 } from "lucide-react";
+import type { AgentData } from "@/types/agent";
+import { useV3Flags } from "@/hooks/use-v3-flags";
+import { LiveStrip, LiveChip } from "./live-strip";
 
-export function PipelineTab() {
+interface PipelineTabProps {
+  agent: AgentData;
+  agentId: string;
+}
+
+export function PipelineTab({ agentId, agent }: PipelineTabProps) {
   const { t } = useTranslation("v3-capabilities");
+  const { flags, loading: flagsLoading } = useV3Flags(agentId);
 
   const iterationStages = [
     { icon: Brain, key: "think" },
@@ -21,11 +34,44 @@ export function PipelineTab() {
     { icon: Save, key: "checkpoint" },
   ] as const;
 
+  const flag = (enabled: boolean | undefined) =>
+    flagsLoading || flags == null
+      ? "…"
+      : enabled
+        ? t("live.on")
+        : t("live.off");
+
   return (
     <div className="space-y-4 pt-2">
+      <LiveStrip>
+        <LiveChip
+          icon={Workflow}
+          label={t("tabs.pipeline")}
+          value={flag(flags?.v3_pipeline_enabled)}
+          tone={flags?.v3_pipeline_enabled ? "on" : "off"}
+        />
+        <LiveChip
+          icon={Database}
+          label={t("tabs.memory")}
+          value={flag(flags?.v3_memory_enabled)}
+          tone={flags?.v3_memory_enabled ? "on" : "off"}
+        />
+        <LiveChip
+          icon={Search}
+          label={t("live.retrieval")}
+          value={flag(flags?.v3_retrieval_enabled)}
+          tone={flags?.v3_retrieval_enabled ? "on" : "off"}
+        />
+        <LiveChip
+          icon={ScissorsLineDashed}
+          label={t("live.pruning")}
+          value={agent.context_pruning?.mode ?? t("live.default")}
+        />
+      </LiveStrip>
+
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <Workflow className="h-4 w-4 text-blue-500" />
+          <Zap className="h-4 w-4 text-blue-500" />
           <h4 className="text-sm font-medium">{t("pipeline.title")}</h4>
         </div>
         <p className="text-xs text-muted-foreground">

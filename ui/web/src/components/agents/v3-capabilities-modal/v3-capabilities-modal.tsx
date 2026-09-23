@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import type { AgentData } from "@/types/agent";
 import {
   Dialog,
   DialogContent,
@@ -15,13 +16,20 @@ import { OrchestrationTab } from "./orchestration-tab";
 interface V3CapabilitiesModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Agent whose live capability state is shown alongside the explainer. */
+  agent: AgentData;
+  /** Switch the agent-detail page to its Evolution tab (orchestration strip). */
+  onOpenEvolution?: () => void;
 }
 
 export function V3CapabilitiesModal({
   open,
   onOpenChange,
+  agent,
+  onOpenEvolution,
 }: V3CapabilitiesModalProps) {
   const { t } = useTranslation("v3-capabilities");
+  const agentId = agent.id;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -32,7 +40,7 @@ export function V3CapabilitiesModal({
         </DialogHeader>
 
         <Tabs defaultValue="pipeline">
-          <TabsList className="w-full">
+          <TabsList className="grid h-auto w-full grid-cols-2 sm:inline-flex sm:h-9">
             <TabsTrigger value="pipeline">{t("tabs.pipeline")}</TabsTrigger>
             <TabsTrigger value="memory">{t("tabs.memory")}</TabsTrigger>
             <TabsTrigger value="knowledge">{t("tabs.knowledge")}</TabsTrigger>
@@ -42,16 +50,26 @@ export function V3CapabilitiesModal({
           </TabsList>
 
           <TabsContent value="pipeline">
-            <PipelineTab />
+            <PipelineTab agent={agent} agentId={agentId} />
           </TabsContent>
           <TabsContent value="memory">
-            <MemoryTab />
+            <MemoryTab agentId={agentId} />
           </TabsContent>
           <TabsContent value="knowledge">
-            <KnowledgeTab />
+            <KnowledgeTab agent={agent} agentId={agentId} />
           </TabsContent>
           <TabsContent value="orchestration">
-            <OrchestrationTab />
+            <OrchestrationTab
+              agentId={agentId}
+              onOpenEvolution={
+                onOpenEvolution
+                  ? () => {
+                      onOpenEvolution();
+                      onOpenChange(false);
+                    }
+                  : undefined
+              }
+            />
           </TabsContent>
         </Tabs>
 
