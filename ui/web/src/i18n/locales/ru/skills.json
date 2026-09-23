@@ -16,7 +16,8 @@
     "visibility": "Режим доступа",
     "accessMode": "Режим доступа",
     "status": "Статус",
-    "actions": "Действия"
+    "actions": "Действия",
+    "category": "Категория"
   },
   "noDescription": "Нет описания",
   "status": {
@@ -309,6 +310,12 @@
     "kitInstallMissing": "Установить {{count}} недостающих",
     "kitAllInstalled": "Все установлены",
     "kitSelected": "Набор: {{name}}",
-    "kitShowAll": "Показать все навыки"
+    "kitShowAll": "Показать все навыки",
+    "filterStatus": "Фильтр по состоянию",
+    "filterInstalled": "Установлено",
+    "filterNotInstalled": "Не установлено",
+    "allCategories": "Все категории",
+    "results": "{{count}} / {{total}} навыков",
+    "notInstalled": "Не установлено"
   }
 }

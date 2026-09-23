@@ -13,7 +13,8 @@
     "author": "작성자",
     "visibility": "공개 범위",
     "status": "상태",
-    "actions": "작업"
+    "actions": "작업",
+    "category": "카테고리"
   },
   "noDescription": "설명 없음",
   "visibility": {
@@ -168,6 +169,12 @@
     "kitInstallMissing": "누락된 스킬 {{count}}개 설치",
     "kitAllInstalled": "모두 설치됨",
     "kitSelected": "키트: {{name}}",
-    "kitShowAll": "전체 스킬 보기"
+    "kitShowAll": "전체 스킬 보기",
+    "filterStatus": "상태별 필터",
+    "filterInstalled": "설치됨",
+    "filterNotInstalled": "미설치",
+    "allCategories": "전체 카테고리",
+    "results": "스킬 {{count}} / {{total}}",
+    "notInstalled": "미설치"
   }
 }

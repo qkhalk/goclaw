@@ -16,7 +16,8 @@
     "accessMode": "访问模式",
     "status": "状态",
     "actions": "操作",
-    "owner": "所有者"
+    "owner": "所有者",
+    "category": "分类"
   },
   "noDescription": "暂无描述",
   "status": {
@@ -309,6 +310,12 @@
     "kitInstallMissing": "安装缺少的 {{count}} 个",
     "kitAllInstalled": "已全部安装",
     "kitSelected": "套件：{{name}}",
-    "kitShowAll": "查看全部技能"
+    "kitShowAll": "查看全部技能",
+    "filterStatus": "按状态筛选",
+    "filterInstalled": "已安装",
+    "filterNotInstalled": "未安装",
+    "allCategories": "全部分类",
+    "results": "{{count}} / {{total}} 个技能",
+    "notInstalled": "未安装"
   }
 }
