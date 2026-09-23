@@ -1,178 +1,165 @@
 # Architecture
 
-GoClaw is a multi-tenant AI agent gateway: one Go binary containing a
-WebSocket RPC + HTTP API server, an agent runtime, channel connectors, and an
-embedded web dashboard. This page is a public map of how the pieces fit.
+## The big picture
 
-## Tech stack
+GoClaw is a multi-tenant AI agent gateway delivered as a **single Go binary**
+that contains:
+
+- a **WebSocket RPC + HTTP API gateway** (frames: `req` / `res` / `event`),
+- the **agent runtime** — the 8-stage pipeline, tools, memory, scheduling,
+- channel connectors (Telegram, Discord, WhatsApp, Feishu/Lark, Zalo, ...),
+- the **embedded web dashboard** (React SPA served by the same binary).
+
+The standard deployment stores everything in **PostgreSQL 18 with pgvector**
+(raw SQL over `database/sql` + pgx/v5, no ORM). The desktop build compiles the
+same runtime with the `sqliteonly` build tag against an embedded SQLite store
+— see [Desktop](../desktop).
 
 | Layer | Technology |
 |-------|------------|
 | Language | Go 1.26, Cobra CLI |
-| Realtime | gorilla/websocket (frames: `req` / `res` / `event`) |
-| Database | PostgreSQL 18 + pgvector (standard); SQLite via `modernc.org/sqlite` (desktop) — raw SQL via `database/sql` + pgx/v5, no ORM |
+| Realtime | gorilla/websocket |
+| Database | PostgreSQL 18 + pgvector; SQLite (`modernc.org/sqlite`) for desktop |
+| Web UI | React 19, Vite 6, TypeScript, Tailwind CSS 4, Radix UI, Zustand |
+| Desktop app | Wails v2 (`//go:build sqliteonly`) |
 | Migrations | golang-migrate (PG), embedded incremental schema (SQLite) |
-| Browser automation | go-rod |
-| Web UI | React 19, Vite 6, TypeScript, Tailwind CSS 4, Radix UI, Zustand, React Router 7 |
-| Desktop app | Wails v2 (build tag `sqliteonly`) embedding the gateway + React frontend in one binary |
 
-## Repository layout
+## The 8-stage pipeline
 
-```
-cmd/                     CLI commands, gateway startup, onboard wizard, migrations
-internal/
-  agent/                 Agent loop (think→act→observe), router, resolver
-  pipeline/              8-stage agent pipeline
-  providers/             LLM providers (Anthropic, OpenAI-compat, DashScope, Vertex, ...)
-  providerresolve/       Provider adapter + model registry, forward-compat resolver
-  gateway/               WS + HTTP server, client, method router (methods/)
-  http/                  HTTP API (/v1/chat/completions, /v1/agents, /v1/skills, ...)
-  channels/              Telegram, Feishu/Lark, Zalo, Discord, WhatsApp, ...
-  memory/                3-tier memory (pgvector)
-  knowledgegraph/        Knowledge graph storage and traversal
-  vault/                 Knowledge Vault: wikilinks, hybrid search, FS sync
-  skills/                SKILL.md loader, BM25 search, kit manager + market
-  tools/                 Tool registry, filesystem, exec, web, subagent, delegate
-  scheduler/             Lane-based concurrency (main/subagent/cron)
-  consolidation/         Memory consolidation workers (episodic, semantic, dreaming)
-  eventbus/              Domain event bus: worker pool, dedup, retry
-  cron/                  Cron scheduling (at/every/cron expressions)
-  store/                 Store interfaces + PostgreSQL (pg/) and SQLite (sqlitestore/) impls
-  config/                Config loading (JSON5) + env var overlay
-  crypto/                AES-256-GCM encryption for API keys
-  edition/               Edition system (Lite, Standard) with feature gating
-  i18n/                  Message catalog, T(locale, key, args...)
-  mcp/                   Model Context Protocol bridge/server
-  sandbox/               Docker-based code execution sandbox
-  tts/                   Text-to-Speech (OpenAI, ElevenLabs, Edge, MiniMax)
-pkg/protocol/            Wire types: frames, methods, errors, events
-pkg/browser/             Browser automation (Rod + CDP)
-migrations/              PostgreSQL migration files
-ui/web/                  React SPA dashboard
-ui/desktop/              Wails v2 desktop app
-```
-
-## The agent pipeline
-
-Every run flows through an **8-stage pipeline**:
+Every agent run executes through a pipeline of pluggable stages built on a
+small `Stage` interface (`Execute(ctx, *RunState) error`, plus a `Name()`).
+The pipeline has three phases (`internal/pipeline/pipeline.go`):
 
 ```
-context → history → prompt → think → act → observe → memory → summarize
+Setup      [context]               runs once
+Iteration  [prune, think, continuation gate, tools, observe, checkpoint]   runs per turn
+Finalize   [finalize]              runs once after the loop
 ```
 
-Stages are pluggable callbacks on an always-on execution path. A **4-mode
-prompt system** (Full / Task / Minimal / None) gates prompt sections per
-session and optimizes cache boundaries for prompt-caching providers.
+- **context** (setup) — resolves the workspace, loads context files, builds
+  the filtered tool list and the system prompt.
+- **prune** — compacts/trims history to fit the token budget before each turn.
+- **think** — calls the LLM; may produce a final answer or tool calls.
+- **continuation gate** — guards against weak models ending runs prematurely
+  (empty or cut-off replies get one bounded nudge instead).
+- **tools** — dispatches tool calls for the turn.
+- **observe** — feeds tool results back into the conversation.
+- **checkpoint** — flushes pending messages to the session store each
+  iteration and writes durable checkpoints on a cadence.
+- **finalize** — closes out the run (summarization hooks run here).
 
-## Agent types and identity
+**Runs are resumable:** because state is checkpointed to the session store,
+a crashed or restarted gateway resumes the run from the checkpointed
+iteration instead of starting over.
 
-- **`open` agents** — each user gets a private context (7 context files).
-- **`predefined` agents** — shared context plus a per-user `USER.md`.
+## 3-tier memory
 
-Context files are routed through a `ContextFileInterceptor` from two tables:
-`agent_context_files` (agent-level) and `user_context_files` (per-user).
+Memory is layered, with progressive loading (L0 is auto-injected, L1/L2 are
+loaded on demand):
 
-Identity follows a dual-id convention: **UUID** for database foreign keys,
-events and internal references; **agent_key** (a human-readable slug) for
-logs, filesystem paths and the UI.
+| Tier | Name | Content |
+|------|------|---------|
+| L0 | Working | Compact abstracts of past sessions, auto-injected into the prompt under a ~200-token budget |
+| L1 | Episodic | Per-session summaries generated as sessions close |
+| L2 | Semantic | Knowledge graph entities and relations |
 
-## Memory
+Consolidation is **event-driven**: domain events flow through the
+**DomainEventBus** (`internal/eventbus` — typed events, worker pool, dedup,
+retry) into the consolidation workers (`internal/consolidation`): episodic
+summarization, semantic KG extraction, and a **dreaming** worker that
+promotes/distills episodic content in the background.
 
-Three tiers with progressive loading (L0/L1/L2, auto-inject for L0):
+## Knowledge layer
 
-1. **Working** — the live conversation.
-2. **Episodic** — session summaries, consolidated asynchronously.
-3. **Semantic** — the knowledge graph.
+- **Knowledge graph** (`internal/knowledgegraph`) — entities and relations
+  extracted by the LLM from conversations, stored in PostgreSQL (pgvector for
+  semantic lookup) and traversable at query time.
+- **Knowledge Vault** (`internal/vault`) — a document registry with
+  `[[wikilinks]]` between documents, **hybrid search** combining full-text
+  and vector scoring, and filesystem sync so vault documents can be edited
+  on disk.
 
-On top sits the **Knowledge Vault**: a document registry with `[[wikilinks]]`,
-hybrid full-text (BM25) + semantic (pgvector) search, and filesystem sync.
-Typed domain events (worker pool, dedup, retry) drive the consolidation
-pipeline — session summaries, KG extraction, and "dreaming" promotion all run
-asynchronously.
+## Orchestration
 
-## Providers
+Agents coordinate through several mechanisms:
 
-40+ providers behind a single `ProviderAdapter` interface with a
-forward-compatible model registry:
+- **Subagents** — an agent spawns child tasks (`spawn` tool, tracked in
+  `subagent_tasks`) that run on their own pipeline with inherited model
+  parameters.
+- **Delegation** — the `delegate` tool hands work to another agent over
+  **`agent_links`** permission edges, synchronously or asynchronously, with
+  results returned as artifacts.
+- **Teams** — agents grouped under a team lead with shared boards and
+  member roles (Standard edition; Lite restricts team actions).
+- **Jury / negotiate** — multi-agent decision tools: several agents weigh in
+  and a verdict is aggregated (`internal/tools/jury_tool.go`,
+  `internal/tools/negotiate_tool.go`, `internal/orchestration`).
 
-- **Anthropic** — native HTTP+SSE, prompt caching, extended thinking
-- **OpenAI-compatible** — HTTP+SSE (OpenAI, OpenRouter, Groq, DeepSeek, ...)
-- **DashScope** (Alibaba Qwen), **Vertex AI** (GCP service account/ADC),
-  **Codex CLI** (stdio+MCP bridge), **ACP**, and more
-- **OAuth subscriptions** — ChatGPT, Claude Pro/Max, GitHub Copilot
+## Self-evolution
 
-All providers share one `RetryDo()` retry path and an SSE scanner. Provider
-records live in the `llm_providers` table with AES-256-GCM encrypted keys. A
-reliability layer underneath provides per-provider circuit breaking,
-per-key health scoring, rate-limit coordination and metrics.
+The self-evolution loop runs in three progressive stages
+(`internal/agent/suggestion_engine.go`, `evolution_guardrails.go`):
 
-## Multi-tenancy and the store layer
+1. **Metrics collection** — per-agent tool metrics are aggregated over a
+   rolling 7-day window.
+2. **Suggestion analysis** — rules over those metrics produce actionable
+   suggestions (e.g. repeated tool failures, prompt adjustments).
+3. **Guardrail-protected apply/rollback** — suggestions are applied behind
+   guardrails and can be rolled back; nothing mutates agents silently.
 
-Stores are interface-based (`store.SessionStore`, `store.AgentStore`, ...) with
-a shared **Dialect** pattern: the same interface is implemented twice —
-PostgreSQL (`store/pg/`) and SQLite (`store/sqlitestore/`) — over raw SQL with
-positional parameters (`$1` for PG, `?` for SQLite).
+## Scheduler
 
-Tenant and user context propagates explicitly through the request chain:
-`store.WithTenantID(ctx)`, `store.WithUserID(ctx)`, `store.WithAgentID(ctx)`,
-`store.WithLocale(ctx)`. Admin role is not a tenant check — writes to
-tenant-scoped tables always pair an admin gate with a `WHERE tenant_id = $n`
-clause.
+Concurrency is organized into **four lanes** (`internal/scheduler/lanes.go`)
+so background work never starves interactive chat:
 
-## WebSocket protocol
+| Lane | Default concurrency | Env override |
+|------|--------------------|--------------|
+| `main` | 30 | `GOCLAW_LANE_MAIN` |
+| `subagent` | 50 | `GOCLAW_LANE_SUBAGENT` |
+| `team` | 100 | `GOCLAW_LANE_TEAM` |
+| `cron` | 30 | `GOCLAW_LANE_CRON` |
 
-The dashboard talks to the gateway over WebSocket frames of type `req`,
-`res`, and `event`:
-
-1. The **first request on a connection must be `connect`** (carries auth,
-   locale, and session parameters).
-2. Subsequent `req` frames invoke RPC methods (`chat.*`, `agents.*`,
-   `sessions.*`, `subagents.*`, ...) routed by a method registry.
-3. The server pushes `event` frames (streaming deltas, LLM lifecycle events,
-   task updates) that the client fans out to stores and the UI.
-
-All WS method params are **camelCase** (`teamId`, `taskId`, `sessionKey`),
-mirroring the Go structs' `json` tags.
-
-## Channels
-
-Each channel connector (Telegram, Discord, Slack, Facebook/Messenger, Zalo,
-Feishu/Lark, WhatsApp, Bitrix24, Pancake) adapts platform messages into the
-gateway and back. **Telegram** is the most complete surface — inline pickers,
-paged skill listings, localized commands, and HTML-formatted replies (see
-[Telegram channel](/en/channels/telegram)).
-
-## Tools and orchestration
-
-30+ built-in tools across filesystem, exec, web search, memory, media,
-video rendering, cloud accounts (Drive/Gmail via rclone), skills, teams, and
-interactive `ask_options` questions. Agents coordinate through:
-
-- **spawn** — launch subagent tasks (tracked in `subagent_tasks`)
-- **delegate** — inter-agent task delegation over `agent_links` permission
-  edges, in three modes: auto / explicit / manual
-- **BatchQueue[T]** — generic parallel result aggregation
-
-The scheduler enforces lane-based concurrency (main / subagent / cron) so
-background work never starves interactive chat.
+Sessions queue per session key within their lane, preserving per-session
+ordering.
 
 ## Editions
 
-An edition system gates features between **Standard** (PostgreSQL server,
-full feature set) and **Lite** (SQLite desktop: 5 agents, 1 team, no channels
-or multi-tenancy). The desktop binary is built with the `sqliteonly` tag and
-talks only to SQLite.
+`internal/edition` gates features between two presets:
 
-## Localization
+- **Standard** — PostgreSQL server, all features: knowledge graph, RBAC,
+  multi-tenancy, channels, vector search, dependency installers.
+- **Lite** — the desktop preset: 5 agents, 1 team / 5 members, FTS-only
+  search, no knowledge graph, no RBAC. Full list in [Desktop](../desktop).
 
-English (default), Vietnamese and Chinese in the backend message catalog
-(`i18n.T(locale, key, args...)`); the web UI ships five locales
-(en, vi, zh, ko, ru). Locale propagates via the WS `connect` parameter or the
-HTTP `Accept-Language` header.
+`GET /v1/edition` (no auth) reports the active edition so the UI can adapt.
 
-## Security
+## Cross-cutting concerns
 
-Rate limiting, detection-only input guarding, CORS, shell deny patterns,
-SSRF protection, path traversal prevention, AES-256-GCM secret encryption,
-a 5-layer permission system for tools, and sandboxed execution for untrusted
-code.
+- **Store layer** — interface-based stores (`store.SessionStore`,
+  `store.AgentStore`, ...) implemented twice (PostgreSQL and SQLite) behind a
+  shared Dialect pattern. Tenant/user/agent/locale context propagates
+  explicitly via context helpers (`store.WithTenantID(ctx)`,
+  `store.WithUserID(ctx)`, ...); admin role is never treated as a tenant
+  check on its own.
+- **WebSocket protocol** — the first request on a connection must be
+  `connect` (auth + locale); then `req` frames invoke RPC methods and the
+  server pushes `event` frames (streaming deltas, lifecycle events). All
+  params are camelCase, mirroring Go `json` tags. See
+  [HTTP API](../api/http) for the REST surface.
+- **Providers** — Anthropic, OpenAI-compatible, DashScope, Vertex AI, Codex
+  CLI and more behind a single adapter interface with a forward-compatible
+  model registry; API keys are AES-256-GCM encrypted in the `llm_providers`
+  table.
+- **Security** — rate limiting, detection-only input guard, CORS, shell deny
+  patterns, SSRF protection, path traversal prevention, and a Docker sandbox
+  for untrusted code. Security events log as `slog.Warn("security.*")`.
+- **Localization** — backend catalog with `i18n.T(locale, key, args...)`
+  (en/vi/zh); the web UI ships en, vi, zh, ko, ru. Locale arrives via the WS
+  `connect` param or the HTTP `Accept-Language` header.
+
+## Where to go next
+
+- [Agents](../features/agents) — agent types, context files, subagents
+- [Skills](../features/skills) — SKILL.md loading and the Skill Market
+- [Telegram channel](../channels/telegram) — the most complete channel surface
+- [Troubleshooting](../troubleshooting) — diagnosing routing and reasoning issues

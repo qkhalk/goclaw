@@ -1,95 +1,130 @@
-# Agents & Subagents
+# Agents
 
-Every GoClaw agent runs with its own identity, tools, LLM provider, prompt
-mode and context files. Agents can also **spawn subagents** and **delegate**
-work to each other.
+An agent is the core runnable unit of GoClaw: an LLM-backed assistant with its
+own identity, provider, model, prompt mode, context files, tools and budget.
+Agents chat over [WebSocket RPC](../api/websocket), [HTTP](../api/http) and
+[messaging channels](../channels/telegram), and can fan work out to other
+agents — see [Orchestration & Teams](./orchestration).
 
 ## Agent types
 
 | Type | Context model | Best for |
 |------|---------------|----------|
-| `open` | Per-user private context (7 context files) | Personal assistants — every user talks to "their own" instance |
-| `predefined` | Shared agent context + per-user `USER.md` | Purpose-built agents (researcher, designer) shared across users with a thin personal layer |
+| `open` | Per-user private context (7 context files seeded per user on first chat) | Personal assistants — every user talks to "their own" instance |
+| `predefined` | Shared agent-level context plus a thin per-user `USER.md` | Purpose-built agents (researcher, designer) shared across users, with a summoning lifecycle and per-user instances |
 
 Context files live in two tables routed by a `ContextFileInterceptor`:
 `agent_context_files` (shared, agent-level) and `user_context_files`
-(per-user). Bootstrap templates (`SOUL.md`, `IDENTITY.md`, ...) are seeded
-automatically and per-user.
+(per-user). Bootstrap templates are seeded automatically per agent type and,
+for `open` agents, per user.
 
-Agent identity is dual: a **UUID** for database relations and events, an
-**agent_key** slug for logs, paths and the UI.
+### Dual identity
 
-## Creating agents
+Every agent has two identifiers:
 
-Create agents from the web dashboard (Agents page) or via the HTTP API
-(`/v1/agents`). Each agent carries:
+- **UUID** — used for database relations, foreign keys and events.
+- **agent_key** — human-readable slug used for logs, workspace paths, session
+  keys and the UI.
 
-- A default **provider + model** (from the providers configured in
-  `llm_providers`)
-- A **tool allowlist** — which of the 30+ built-in tools the agent may use
-- **Reasoning (thinking) configuration** — new agents default to `auto`,
-  resolved against the provider's capability map (Anthropic → medium,
-  OpenAI-compat reasoning models → low, unknown → off). Existing agents keep
-  whatever was saved on them.
-- **Skills granted** — see [Skills & Skill Market](/en/features/skills)
+WebSocket params accept either form; APIs that return agent references include
+both. See [Agent identity conventions](https://github.com/qkhalk/goclaw/blob/main/docs/agent-identity-conventions.md)
+in the repo for the full rules.
 
-## Subagents
+## Per-agent configuration
 
-The `spawn` tool lets an agent fan work out into child tasks. Each spawned
-task is a tracked row in `subagent_tasks` with a label, model, status and
-summary — visible on every surface:
+Each agent carries its own runtime configuration, editable on the agent detail
+page in the web UI or via `agents.update` / `PUT /v1/agents/{id}`:
 
-- **Web chat** — a pill next to the composer counts running/finished
-  subagents; the panel lists every task (status icon, model, timing, summary)
-  with **Cancel** for running tasks and **Archive** for finished ones, plus
-  "Archive all completed". Completed subagents also render as cards in the
-  chat timeline with an inline archive action.
-- **Telegram** — the `/subagents` command lists tasks with the same status
-  vocabulary (`queued`, `running`, `waiting`, `completed`, `failed`,
-  `cancelled`), archive buttons per task and an "archive all completed"
-  action. See [Telegram](/en/channels/telegram).
-- **WebSocket API** — `subagents.list` (filter by `agentId` or `sessionKey`,
-  optional `status` and `includeArchived`), `subagents.archive`,
-  `subagents.archive_completed` and `subagents.cancel`. Ownership is enforced:
-  you only ever see subagent tasks of agents you own.
+| Field | Purpose |
+|-------|---------|
+| `provider` / `model` | Default LLM routing (from the providers registered in `llm_providers`) |
+| `context_window` | Context window override for the model |
+| `max_tool_iterations` | Cap on think→act loops per run |
+| `workspace` + `restrict_to_workspace` | Working directory and filesystem confinement |
+| `budget_monthly_cents` | Monthly token/cost budget |
+| `temperature`, `thinking_level` | Sampling and baseline reasoning effort |
+| `tools_config` | Tool policy — enable/disable per tool, per-agent allow/deny |
+| `sandbox_config` | Docker sandbox for `exec` (see [Tools](./tools#sandbox)) |
+| `subagents_config` | Spawn templates and subagent limits (see [Orchestration](./orchestration)) |
+| `memory_config` | Memory auto-injection, episodic TTL, dreaming (see [Memory & Knowledge](./memory)) |
+| `compaction_config` | Session history compaction behavior |
+| `context_pruning` | Context pruning strategy |
+| `reasoning_config` | Reasoning effort, including adaptive effort |
+| `model_fallback` | Fallback chain when the primary model fails |
+| `shell_deny_groups` | Extra shell command deny patterns |
+| `kg_dedup_config` | Knowledge-graph dedup tuning |
+| `self_evolve`, `skill_evolve` | Self-evolution flags (see [Orchestration](./orchestration#self-evolution)) |
 
-Archived tasks disappear from default lists everywhere but remain queryable
-with `includeArchived: true`.
+## Prompt modes
 
-::: tip Try it
-Ask your agent: *"split this into 3 subagents — one per section"* — then watch
-the subagent pill light up and archive the finished tasks from the panel.
+Each agent has a prompt mode controlling how much of the system prompt is
+assembled per run:
+
+| Mode | Content |
+|------|---------|
+| `full` | All sections — main conversational agents |
+| `task` | Lean but capable — automation runs |
+| `minimal` | Reduced sections — periodic check-ins |
+| `none` | Identity line only |
+
+The effective mode is resolved per run with the precedence
+**runtime override > auto-detect > agent config > default (`full`)**.
+Auto-detection caps headless runs: heartbeat sessions run at most `minimal`,
+subagent and cron sessions at most `task`. A stricter agent config always wins
+over a looser auto-detected mode.
+
+## Context files
+
+Agent behavior is shaped by markdown context files seeded from
+`internal/bootstrap/templates/`:
+
+- `AGENTS.md` — operating instructions and environment
+- `IDENTITY.md` — name, persona, emoji
+- `SOUL.md` — values, tone and evolving self-model
+- `TOOLS.md` — tool usage notes
+- `USER.md` — per-user profile (per-user layer for both agent types)
+- `BOOTSTRAP.md` — first-run onboarding checklist
+
+All files are editable from the web UI: **Agents → agent detail → Files**
+(backed by the `agents.files.list` / `agents.files.get` / `agents.files.set`
+WebSocket methods).
+
+## Heartbeats
+
+Agents can run periodic check-ins driven by a `HEARTBEAT.md` checklist file:
+
+- The heartbeat scheduler fires on configured intervals, optionally restricted
+  to **active-hours windows** (per-heartbeat `active_hours` start/end).
+- The run executes on the dedicated cron scheduler lane, so background
+  check-ins never contend with interactive chats.
+- If nothing needs attention the agent replies containing `HEARTBEAT_OK`, and
+  the delivery is suppressed — no message is sent to the user.
+
+## Managing agents
+
+Surfaces for agent lifecycle management:
+
+- **WebSocket** — `agents.list`, `agents.create`, `agents.update`,
+  `agents.delete`, plus `agents.files.*` for context files and
+  `agents.links.*` for delegation edges.
+- **HTTP** — `GET/POST /v1/agents`, `PUT/DELETE /v1/agents/{id}`,
+  `POST /v1/agents/{id}/resummon`, `GET /v1/agents/{id}/instances` and more.
+- **Web UI** — the Agents page covers creation, per-agent settings, files,
+  subagent definitions and the Evolution tab.
+- **Import/export** — full agent archives:
+  `GET /v1/agents/{id}/export` (with `/export/preview` and a download token)
+  and `POST /v1/agents/import` / `POST /v1/agents/{id}/import` for restore or
+  merge. Import requires admin role.
+
+::: tip
+`predefined` agents have a summoning lifecycle: a summoner bootstraps the
+agent's context from a description, and instances per user can be inspected
+and re-summoned (`/resummon`) when the shared definition changes.
 :::
 
-### How subagent quality works
+## Where to next
 
-Subagents **inherit the parent agent's effective config** — `max_tokens`,
-`temperature` and reasoning/thinking level — unless the subagent definition
-explicitly overrides them (`maxTokens`, `temperature`, `thinkingLevel`
-fields). Historically subagents ran on hardcoded low parameters (4096 max
-tokens, temperature 0.5), which produced visibly worse output than the parent
-agent; inheritance fixed that. If subagent answers feel "dumber" than the
-parent's, check the definition for leftover overrides — and see the
-[checklist in Troubleshooting](/en/troubleshooting#why-replies-feel-dumb).
-
-## Delegation between agents
-
-`agent_links` define outbound, inbound or bidirectional permission edges
-between agents. The `delegate` tool then hands a task from one agent to
-another, in three orchestration modes:
-
-| Mode | Behavior |
-|------|----------|
-| `auto` | The caller may delegate automatically when it judges another agent is better suited |
-| `explicit` | The user (or prompt) names the target agent |
-| `manual` | Delegation only with explicit confirmation |
-
-Delegation runs **synchronously or asynchronously**, and exchanges files
-through an isolated delegation workspace. Validated outputs are published
-back under the caller's `.delegations/<delegation-id>/` directory.
-
-## Teams
-
-Agents can be grouped into **teams** with shared task boards (Kanban with
-real-time updates), inter-agent messaging and token-aware work distribution.
-In the Lite desktop edition teams are capped at 1 team / 5 members.
+- Spawn subagents, delegate work and form teams: [Orchestration & Teams](./orchestration)
+- Memory tiers, knowledge graph and vault: [Memory & Knowledge](./memory)
+- Grant capabilities: [Skills & Skill Market](./skills)
+- Built-in tools, sandbox, browser and MCP: [Tools, Browser & MCP](./tools)

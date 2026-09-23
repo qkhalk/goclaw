@@ -3,14 +3,22 @@
 GoClaw exposes an HTTP API under `/v1` alongside its WebSocket RPC. All
 endpoints live on the gateway port (default `18790`).
 
+An OpenAPI spec is served at `/v1/openapi.json` and an interactive
+Swagger UI at `/docs`.
+
 ## Authentication
 
-Bearer token in the `Authorization` header (the gateway/operator token):
+Bearer token in the `Authorization` header — either the gateway/operator
+token or a scoped API key:
 
 ```bash
 curl http://localhost:18790/v1/agents \
   -H "Authorization: Bearer $GOCLAW_GATEWAY_TOKEN"
 ```
+
+API keys are `goclaw_`-prefixed, stored SHA-256-hashed, and carry scoped
+permissions (each key resolves to a role derived from its scopes). Manage
+them via the `/v1/api-keys` endpoints (list, create, revoke) or the web UI.
 
 Locale-sensitive endpoints honor the `Accept-Language` header (en, vi, zh).
 
@@ -19,14 +27,34 @@ Locale-sensitive endpoints honor the `Accept-Language` header (en, vi, zh).
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | `POST` | `/v1/chat/completions` | OpenAI-compatible chat completions against any configured agent/model |
+| `POST` | `/v1/responses` | OpenAI Responses-compatible endpoint |
+| `POST` | `/v1/tools/invoke` | Invoke a tool directly |
 | `GET` | `/v1/agents` | List agents (with type, provider, model) |
 | `GET` | `/v1/skills` | List installed skills |
-| `GET` | `/v1/skills/market` | Skill Market catalog (name, category, version, installed, grants) |
-| `POST` | `/v1/skills/market/install` | Install skills — `{ slugs: [...], grantAgentIds? }` background job |
-| `POST` | `/v1/skills/market/update/{slug}` | Update one installed skill |
-| `DELETE` | `/v1/skills/market/installed/{slug}` | Uninstall a managed skill |
-| `POST` | `/v1/webhooks/llm` | Trigger an agent from an external system (see below) |
 | `GET` | `/health` | Liveness/health probe |
+| `GET` | `/v1/edition` | Edition info (public, no auth) |
+
+## REST endpoint families
+
+| Family | Endpoints | Purpose |
+|--------|-----------|---------|
+| Agents | `/v1/agents/*` | Agent CRUD, instances and per-user files, episodic memory, knowledge graph (`kg/*`), vault (`vault/*`), evolution metrics/suggestions, v3 feature flags, export/import |
+| Channels | `/v1/channels/instances/*` | Channel instance CRUD, writer allowlists (`writers`, `writers/groups`, `writers/test`), group/member resolution, memory-extraction review |
+| Skills | `/v1/skills/*` | Skill CRUD, grants, dependencies, evolution, Skill Market (`market/*`), upload/import/export |
+| Knowledge Vault | `/v1/vault/*` | Documents, wikilinks, tree, graph, search, enrichment status |
+| MCP | `/v1/mcp/*` | Server registry, grants, install jobs, OAuth, import/export, request approval |
+| Memory | `/v1/memory/documents` | Global document registry; per-agent under `/v1/agents/{id}/memory/*` |
+| Tools | `/v1/tools/builtin`, `/v1/tools/builtin/{name}` | Builtin tool registry and per-tool tenant config |
+| Webhooks | `/v1/webhooks/*` | Webhook CRUD, call history, plus runtime `POST /v1/webhooks/message` and `POST /v1/webhooks/llm` |
+| API keys | `/v1/api-keys` | Create, list, revoke scoped keys |
+| Tenants & RBAC | `/v1/tenants*` | Tenant CRUD, users, policies, roles and permissions |
+| Usage & costs | `/v1/usage/*`, `/v1/costs/summary` | Timeseries, breakdowns, summaries, routing stats |
+| System | `/v1/system/stats`, `/v1/logs/runtime/aggregate`, `/v1/activity` | Host metrics, aggregated runtime logs, activity feed |
+| TTS | `/v1/tts/*` | TTS config, capabilities, voice cloning |
+| Cloud | `/v1/cloud/*` | Cloud storage accounts, files, sync pairs, transfers |
+| Packages | `/v1/packages/*` | Runtime/package install, update, uninstall |
+| Pending messages | `/v1/pending-messages` | Inspect and compact queued channel messages |
+| CLI credentials | `/v1/cli-credentials/*` | Shared CLI credential vault with agent/user grants |
 
 Skill Market writes are **admin-only**; reads are available to signed-in
 users.
@@ -71,17 +99,21 @@ Async mode (`"mode":"async"`) returns immediately and calls back with retry —
 see the full webhooks reference (`docs/webhooks.md` in the GoClaw repo) for
 the retry schedule and channel matrix.
 
+::: warning Webhooks require GOCLAW_ENCRYPTION_KEY
+The gateway refuses to mount `/v1/webhooks/*` when `GOCLAW_ENCRYPTION_KEY`
+is unset — the endpoints return 404. Set the env var to enable the webhook
+subsystem.
+:::
+
+`POST /v1/webhooks/message` uses the same auth schemes for a synchronous
+channel send (text plus optional media).
+
 ## WebSocket API
 
-The dashboard and rich clients use the WebSocket API instead. The protocol
-in brief:
+The dashboard and rich clients use the WebSocket API instead — see
+[WebSocket RPC](./websocket). The protocol in brief:
 
 - Frames are typed `req` / `res` / `event`
 - The **first request on a connection must be `connect`** — it authenticates
   and carries session parameters (including `locale`)
-- Subsequent `req` frames invoke methods (`chat.*`, `agents.*`,
-  `sessions.*`, `subagents.*`, `config.*`, `skills.*`, `cron.*`, ...)
 - Server `event` frames stream deltas, LLM lifecycle events and task updates
-
-All WS method params are camelCase (`teamId`, `taskId`, `sessionKey`).
-The wire types live in `pkg/protocol` in the GoClaw repo.

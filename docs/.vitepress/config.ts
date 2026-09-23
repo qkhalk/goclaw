@@ -33,9 +33,8 @@ const srcExclude = [
 
 // Locale layout: English lives under /en/, Vietnamese under /vi/.
 // There is no root locale — the root index.md is a redirect stub to ./en/.
-// VitePress does not fall back per-page between locales, so for pages that
-// are not translated yet, the vi sidebar/nav links point straight to the
-// English page.
+// Both locales have full page parity: every sidebar entry has a translated
+// page under both /en/ and /vi/.
 const goclawRepo = 'https://github.com/qkhalk/goclaw'
 
 function langSwitcher(current: 'en' | 'vi') {
@@ -48,100 +47,110 @@ function langSwitcher(current: 'en' | 'vi') {
   }
 }
 
+const pagePaths: { group: string; pages: { text: string; link: string }[] }[] = [
+  {
+    group: 'Getting Started',
+    pages: [
+      { text: 'Installation', link: 'getting-started/install' },
+      { text: 'Configuration', link: 'getting-started/configuration' }
+    ]
+  },
+  { group: 'Overview', pages: [{ text: 'Architecture', link: 'architecture' }] },
+  {
+    group: 'Core Features',
+    pages: [
+      { text: 'Agents', link: 'features/agents' },
+      { text: 'Memory & Knowledge', link: 'features/memory' },
+      { text: 'Orchestration & Teams', link: 'features/orchestration' },
+      { text: 'Skills & Skill Market', link: 'features/skills' },
+      { text: 'Tools, Browser & MCP', link: 'features/tools' },
+      { text: 'Creative Studio', link: 'features/tools-studio' }
+    ]
+  },
+  {
+    group: 'Channels',
+    pages: [
+      { text: 'Overview', link: 'channels/overview' },
+      { text: 'Telegram', link: 'channels/telegram' }
+    ]
+  },
+  {
+    group: 'Providers',
+    pages: [{ text: 'Providers & Models', link: 'providers/overview' }]
+  },
+  {
+    group: 'API',
+    pages: [
+      { text: 'HTTP API', link: 'api/http' },
+      { text: 'WebSocket RPC', link: 'api/websocket' }
+    ]
+  },
+  {
+    group: 'Deployment',
+    pages: [
+      { text: 'Self-Hosting Guide', link: 'self-hosting' },
+      { text: 'Desktop (Lite Edition)', link: 'desktop' }
+    ]
+  },
+  { group: 'Help', pages: [{ text: 'Troubleshooting', link: 'troubleshooting' }] }
+]
+
+const enSidebar = pagePaths.map((g) => ({
+  text: g.group,
+  items: g.pages.map((pg) => ({ text: pg.text, link: `/en/${pg.link}` }))
+}))
+
+const viLabels: Record<string, string> = {
+  'Getting Started': 'Bắt đầu',
+  Installation: 'Cài đặt',
+  Configuration: 'Cấu hình',
+  Overview: 'Tổng quan',
+  Architecture: 'Kiến trúc',
+  'Core Features': 'Tính năng chính',
+  Agents: 'Agent',
+  'Memory & Knowledge': 'Bộ nhớ & Tri thức',
+  'Orchestration & Teams': 'Điều phối & Nhóm',
+  'Skills & Skill Market': 'Skill & Chợ Skill',
+  'Tools, Browser & MCP': 'Công cụ, Browser & MCP',
+  'Creative Studio': 'Studio sáng tạo',
+  Channels: 'Kênh nhắn tin',
+  Telegram: 'Telegram',
+  Providers: 'Nhà cung cấp',
+  'Providers & Models': 'Provider & Model',
+  API: 'API',
+  'HTTP API': 'HTTP API',
+  'WebSocket RPC': 'WebSocket RPC',
+  Deployment: 'Triển khai',
+  'Self-Hosting Guide': 'Hướng dẫn tự host',
+  'Desktop (Lite Edition)': 'Desktop (bản Lite)',
+  Help: 'Trợ giúp',
+  Troubleshooting: 'Xử lý sự cố'
+}
+
+const viSidebar = pagePaths.map((g) => ({
+  text: viLabels[g.group] ?? g.group,
+  items: g.pages.map((pg) => ({
+    text: viLabels[pg.text] ?? pg.text,
+    link: `/vi/${pg.link}`
+  }))
+}))
+
 const enNav = [
   { text: 'Getting Started', link: '/en/getting-started/install' },
   { text: 'Features', link: '/en/features/agents' },
+  { text: 'Channels', link: '/en/channels/overview' },
   { text: 'API', link: '/en/api/http' },
-  { text: 'Self-Hosting', link: '/en/self-hosting' },
-  { text: 'Troubleshooting', link: '/en/troubleshooting' },
+  { text: 'Deployment', link: '/en/self-hosting' },
   langSwitcher('en')
 ]
 
-const enSidebar = [
-  {
-    text: 'Getting Started',
-    items: [
-      { text: 'Installation', link: '/en/getting-started/install' },
-      { text: 'Configuration', link: '/en/getting-started/configuration' }
-    ]
-  },
-  {
-    text: 'Overview',
-    items: [{ text: 'Architecture', link: '/en/architecture' }]
-  },
-  {
-    text: 'Features',
-    items: [
-      { text: 'Agents & Subagents', link: '/en/features/agents' },
-      { text: 'Skills & Skill Market', link: '/en/features/skills' },
-      { text: 'Creative Tools (Studio)', link: '/en/features/tools-studio' }
-    ]
-  },
-  {
-    text: 'Channels',
-    items: [{ text: 'Telegram', link: '/en/channels/telegram' }]
-  },
-  {
-    text: 'API',
-    items: [{ text: 'HTTP API', link: '/en/api/http' }]
-  },
-  {
-    text: 'Deployment',
-    items: [{ text: 'Self-Hosting Guide', link: '/en/self-hosting' }]
-  },
-  {
-    text: 'Help',
-    items: [{ text: 'Troubleshooting', link: '/en/troubleshooting' }]
-  }
-]
-
-// Vietnamese pages exist for: index, install, skills. Everything else falls
-// back to the English page (linked directly).
 const viNav = [
   { text: 'Bắt đầu', link: '/vi/getting-started/install' },
-  { text: 'Tính năng', link: '/en/features/agents' },
-  { text: 'API', link: '/en/api/http' },
-  { text: 'Tự host', link: '/en/self-hosting' },
-  { text: 'Xử lý sự cố', link: '/en/troubleshooting' },
+  { text: 'Tính năng', link: '/vi/features/agents' },
+  { text: 'Kênh nhắn tin', link: '/vi/channels/overview' },
+  { text: 'API', link: '/vi/api/http' },
+  { text: 'Triển khai', link: '/vi/self-hosting' },
   langSwitcher('vi')
-]
-
-const viSidebar = [
-  {
-    text: 'Bắt đầu',
-    items: [
-      { text: 'Cài đặt', link: '/vi/getting-started/install' },
-      { text: 'Cấu hình (EN)', link: '/en/getting-started/configuration' }
-    ]
-  },
-  {
-    text: 'Tổng quan',
-    items: [{ text: 'Kiến trúc (EN)', link: '/en/architecture' }]
-  },
-  {
-    text: 'Tính năng',
-    items: [
-      { text: 'Agent & Subagent (EN)', link: '/en/features/agents' },
-      { text: 'Skill & Chợ Skill', link: '/vi/features/skills' },
-      { text: 'Studio công cụ sáng tạo (EN)', link: '/en/features/tools-studio' }
-    ]
-  },
-  {
-    text: 'Kênh nhắn tin',
-    items: [{ text: 'Telegram (EN)', link: '/en/channels/telegram' }]
-  },
-  {
-    text: 'API',
-    items: [{ text: 'HTTP API (EN)', link: '/en/api/http' }]
-  },
-  {
-    text: 'Triển khai',
-    items: [{ text: 'Hướng dẫn tự host (EN)', link: '/en/self-hosting' }]
-  },
-  {
-    text: 'Trợ giúp',
-    items: [{ text: 'Xử lý sự cố (EN)', link: '/en/troubleshooting' }]
-  }
 ]
 
 export default defineConfig({

@@ -1,5 +1,63 @@
 # Troubleshooting
 
+## Gateway won't start
+
+Work through this in order:
+
+1. **Run the health check command:**
+
+   ```bash
+   goclaw doctor
+   ```
+
+   It verifies the system environment and configuration and names the first
+   thing that is wrong.
+
+2. **Check PostgreSQL is reachable and pgvector is installed.** The base
+   schema requires the `pgvector` (and `pgcrypto`) extensions. Test the DSN
+   from `.env.local`:
+
+   ```bash
+   psql "$GOCLAW_POSTGRES_DSN" -c "SELECT extname FROM pg_extension;"
+   ```
+
+   If `vector` is missing: `CREATE EXTENSION vector;` (it must be installed
+   on the server first — the bundled Docker image `pgvector/pgvector:pg18`
+   ships it).
+
+3. **Apply migrations**, then restart:
+
+   ```bash
+   goclaw migrate up
+   ```
+
+**Health check**
+
+```bash
+curl http://localhost:18790/health
+```
+
+**Logs**
+
+```bash
+make logs                # Docker Compose
+journalctl -u goclaw -f  # systemd
+```
+
+## Login and token issues
+
+**Dashboard or CLI gets 401/forbidden**
+The client must present the same `GOCLAW_GATEWAY_TOKEN` the gateway booted
+with. The most common cause is a mismatch between the value in the
+gateway's `.env.local` and what the client sends (browser-stored token, or
+`--token` on the operator CLI). Fix the client value, or update
+`.env.local` and restart the gateway — then re-authenticate every client.
+
+**Gateway starts but the dashboard is empty / methods fail**
+Migrations likely didn't run. Run `goclaw migrate up` and restart. On manual
+server deploys, confirm the `migrations/` directory actually shipped — see
+[Self-Hosting](./self-hosting#migrations-read-this-before-manual-deploys).
+
 ## Why replies feel "dumb"
 
 If an agent's answers are noticeably shallower than expected — short,
@@ -48,33 +106,43 @@ The trace shows which provider/model actually served each call, the effective
 thinking level, and any downgrade note. The web dashboard shows the same
 per-run metadata in the chat activity indicator.
 
+## Language and locale
+
+**The UI shows the wrong language or untranslated keys**
+The web UI language is set from the selector in the top bar and stored
+locally; supported UI locales are en, vi, zh, ko, ru. If entries appear as
+raw keys, hard-refresh the page to reload the locale bundles. The backend
+message catalog (agent replies, system messages) supports en, vi, zh — the
+locale reaches the backend via the WebSocket `connect` parameter or the HTTP
+`Accept-Language` header, so a missing header can make replies fall back to
+English.
+
 ## Installation and startup
 
 **`make up` fails with "port 5432 already allocated"**
 Another Postgres owns the port. Set another host port in `.env`
 (`POSTGRES_PORT=5433`) and retry.
 
-**Gateway starts but the dashboard is empty / methods fail**
-Migrations likely didn't run. Run `goclaw migrate up` and restart. On manual
-server deploys, confirm the `migrations/` directory actually shipped to
-`/opt/goclaw/migrations` — see [Self-Hosting](/en/self-hosting#migrations-read-this-before-manual-deploys).
-
 **Env variables from my env file never apply under systemd**
 systemd doesn't parse `export KEY=...` lines. Use plain `KEY=value` in the
-`EnvironmentFile`, or explicit `Environment=` directives.
+`EnvironmentFile`, or explicit `Environment=` directives. See
+[Configuration](./getting-started/configuration).
 
-**Health check**
+## Desktop app
 
-```bash
-curl http://localhost:18790/health
-```
+**Reset the data**
+**Settings → About → Reset Database** in the desktop app deletes
+`goclaw.db` (plus `-wal`/`-shm`) from `~/.goclaw/data/` and restarts the app
+with a fresh database. Use it after a failed upgrade or corrupted state.
+Workspace files are kept. See [Desktop](./desktop).
 
-**Logs**
-
-```bash
-make logs                # Docker Compose
-journalctl -u goclaw -f  # systemd
-```
+**Update never completes**
+Desktop updates download from `lite-v*` GitHub Releases; the banner applies
+the update and restarts the app. If the check keeps failing, verify the
+machine can reach github.com — there is no manual update command in the
+desktop app. Server editions have no self-update command either; replace the
+binary or pull a new image as described in
+[Installation](./getting-started/install#updating).
 
 ## Video rendering
 

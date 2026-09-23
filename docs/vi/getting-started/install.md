@@ -1,13 +1,18 @@
 # Cài đặt
 
-GoClaw phân phối dưới ba hình thức: một binary Go tĩnh (~25 MB), image
-Docker, và ứng dụng desktop (GoClaw Lite). Chọn hình thức phù hợp với bạn.
+GoClaw được phân phối dưới dạng một binary Go tĩnh duy nhất (~25 MB), các
+Docker image, và một ứng dụng desktop riêng. Trang này nói về các bản server;
+ứng dụng desktop được mô tả trong [Desktop](../desktop).
 
-**Yêu cầu trước (bản server):** PostgreSQL 18 kèm pgvector. Phiên bản
-[desktop](#phiên-bản-desktop-goclaw-lite) không cần gì thêm — SQLite đã nhúng
-sẵn.
+## Yêu cầu
 
-## Cài bằng một dòng lệnh
+| Thành phần | Yêu cầu |
+|------------|---------|
+| Database | PostgreSQL 18 với extension **pgvector** (schema gốc cũng dùng pgcrypto) |
+| Go | 1.26+ — chỉ cần khi build từ mã nguồn |
+| Runtime | Không cần. Binary là bản tĩnh và đã nhúng sẵn web dashboard |
+
+## Cài đặt một dòng lệnh
 
 ```bash
 # macOS / Linux / WSL
@@ -19,136 +24,148 @@ curl -fsSL https://github.com/qkhalk/goclaw/raw/dev/scripts/install.sh | bash
 powershell -c "irm https://github.com/qkhalk/goclaw/raw/dev/scripts/install.ps1 | iex"
 ```
 
-Sau khi cài, chạy wizard cấu hình tương tác — wizard hỏi khóa nhà cung cấp
-LLM, chạy migration cơ sở dữ liệu và seed dữ liệu mặc định:
+## Onboarding
+
+Sau khi cài xong, chạy wizard onboarding:
 
 ```bash
 goclaw onboard
 ```
 
-Rồi khởi động gateway:
+Wizard đi qua bảy bước:
+
+1. Hỏi DSN của PostgreSQL.
+2. Kiểm tra kết nối database.
+3. Tạo gateway token (`GOCLAW_GATEWAY_TOKEN`) và khóa mã hóa
+   (`GOCLAW_ENCRYPTION_KEY`).
+4. Chạy database migration.
+5. Khởi tạo các provider giữ chỗ (placeholder).
+6. Ghi file `config.json` (không chứa secrets).
+7. Ghi file `.env.local` chứa các secrets đã tạo.
+
+Sau đó khởi động gateway:
 
 ```bash
 source .env.local && goclaw
 ```
 
-Bảng điều khiển web được nhúng ngay trong binary, phục vụ tại
+Web dashboard được nhúng sẵn trong binary và phục vụ tại
 `http://localhost:18790`.
 
-::: tip Onboard không cần tương tác
-Khi các biến môi trường `GOCLAW_*_API_KEY` đã được set, gateway tự onboard
-không cần prompt — tự dò nhà cung cấp, chạy migration và seed mặc định. Rất
-tiện cho server headless.
-:::
+## Các lệnh CLI hữu ích
 
-## Build từ source
+| Lệnh | Mục đích |
+|------|----------|
+| `goclaw setup` | TUI wizard (provider, agent, kênh) để cấu hình sau cài đặt |
+| `goclaw doctor` | Health check: môi trường hệ thống và cấu hình |
+| `goclaw migrate up` | Áp dụng các migration PostgreSQL còn pending |
+| `goclaw upgrade` | Áp dụng migration schema + dữ liệu (có flag `--dry-run`, `--status`) |
+| `goclaw version` | In phiên bản binary và phiên bản giao thức wire |
+| `goclaw config show` | In cấu hình đang hiệu lực với secrets được che |
+
+## Build từ mã nguồn
 
 ```bash
 git clone -b dev https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
-./goclaw onboard        # Wizard cấu hình tương tác
+./goclaw onboard
 source .env.local && ./goclaw
 ```
 
-Build từ source cần Go 1.26+. Web UI được nhúng vào binary — không cần
-Node.js khi chạy.
+Build từ mã nguồn cần Go 1.26+. Web UI được nhúng vào binary lúc build —
+server không cần Node.js runtime.
 
 ## Docker Compose
 
 ```bash
 git clone -b dev https://github.com/qkhalk/goclaw.git && cd goclaw
 
-# Sinh file .env với mật khẩu tự động
-chmod +x prepare-env.sh && ./prepare-env.sh
+# Generate .env with auto-generated secrets
+./prepare-env.sh
 
-# Thêm ít nhất một GOCLAW_*_API_KEY vào .env, rồi:
+# Start the stack (creates the network, builds, starts, runs migrations)
 make up
 
-# Nếu Postgres không start ("port 5432 already allocated"), đổi cổng host
-# trong .env, ví dụ POSTGRES_PORT=5433 (xem .env.example).
-
-# Dashboard: http://localhost:18790
-# Health check: curl http://localhost:18790/health
+# Health check
+curl http://localhost:18790/health
 ```
 
 Các lệnh thường dùng:
 
-| Lệnh | Chức năng |
-|------|-----------|
-| `make up` | Khởi động toàn bộ dịch vụ (build + migrate) |
-| `make down` | Dừng toàn bộ dịch vụ |
-| `make logs` | Xem log gateway |
-| `make reset` | Xóa volume và build lại từ đầu |
+| Lệnh | Tác dụng |
+|------|----------|
+| `make up` | Pull/khởi động toàn bộ service và chạy migration |
+| `make down` | Dừng toàn bộ service |
+| `make logs` | Xem log gateway liên tục |
+| `make reset` | Xóa volumes và dựng lại từ đầu |
 
-### Dịch vụ tùy chọn
+### Service tùy chọn
 
-Bật bằng cờ `WITH_*` — kết hợp tự do:
+Bật bằng các flag `WITH_*` — có thể kết hợp tự do:
 
 ```bash
 make up WITH_BROWSER=1 WITH_OTEL=1
 ```
 
-| Cờ | Dịch vụ | Chức năng |
-|----|---------|-----------|
-| `WITH_BROWSER=1` | Headless Chrome | Bật tool `browser` để cạo dữ liệu, chụp màn hình, tự động hóa |
-| `WITH_OTEL=1` | Jaeger | Giao diện OpenTelemetry tracing cho LLM call và độ trễ |
-| `WITH_SANDBOX=1` | Docker sandbox | Container cách ly chạy code không tin cậy từ agent |
-| `WITH_TAILSCALE=1` | Tailscale | Mở gateway qua mạng riêng Tailscale |
-| `WITH_REDIS=1` | Redis | Lớp cache dùng Redis |
+| Flag | Service | Tác dụng |
+|------|---------|----------|
+| `WITH_BROWSER=1` | Headless Chrome | Bật tool `browser` để scraping, chụp ảnh màn hình, tự động hóa |
+| `WITH_OTEL=1` | Jaeger | Tracing UI OpenTelemetry cho các lời gọi LLM và độ trễ |
+| `WITH_SANDBOX=1` | Docker sandbox | Container cô lập để chạy code agent không tin cậy |
+| `WITH_TAILSCALE=1` | Tailscale | Expose gateway qua mạng riêng Tailscale |
+| `WITH_REDIS=1` | Redis | Tầng cache dựa trên Redis |
 
-### Các biến thể image Docker
+### Các biến thể Docker image
 
-| Image | Mô tả |
-|-------|-------|
-| `ghcr.io/qkhalk/goclaw:v4.5.0` | Backend + web UI nhúng + Python (**khuyên dùng**) |
-| `ghcr.io/qkhalk/goclaw:v4.5.0-base` | Chỉ backend API, không web UI, không runtime |
-| `ghcr.io/qkhalk/goclaw:v4.5.0-full` | Đủ runtime + phụ thuộc skill cài sẵn |
-| `ghcr.io/qkhalk/goclaw:latest` | Bí danh của stable mới nhất |
+Image được publish lên GHCR (`ghcr.io/nextlevelbuilder/goclaw`) và mirror
+trên Docker Hub (`digitop/goclaw`).
 
-## Phiên bản desktop (GoClaw Lite)
+| Tag | Nội dung |
+|-----|----------|
+| `:latest`, `:vX.Y.Z` | Backend + web UI nhúng + Python |
+| `:base`, `:vX.Y.Z-base` | Chỉ backend, không có web UI lẫn runtime |
+| `:full`, `:vX.Y.Z-full` | Đầy đủ runtime + phụ thuộc skill cài sẵn |
 
-Ứng dụng desktop native cho AI agent cục bộ — không Docker, không
-PostgreSQL, không hạ tầng. Một ứng dụng duy nhất (Wails v2 + React) ~30 MB,
-SQLite không cần cấu hình, quản lý agent, cấu hình provider, MCP server,
-skill, cron và bảng Kanban của team. Tự cập nhật từ GitHub Releases.
+## Bản desktop (GoClaw Lite)
+
+Ứng dụng desktop native cho agent chạy cục bộ — không cần Docker, không cần
+PostgreSQL. Nó nhúng chính gateway đó, biên dịch với SQLite, kèm sẵn web UI.
+Bộ cài:
 
 ```bash
 # macOS
-curl -fsSL https://raw.githubusercontent.com/qkhalk/goclaw/dev/scripts/install-lite.sh | bash
+curl -fsSL https://github.com/qkhalk/goclaw/raw/dev/scripts/install-lite.sh | bash
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/qkhalk/goclaw/dev/scripts/install-lite.ps1 | iex
+powershell -c "irm https://github.com/qkhalk/goclaw/raw/dev/scripts/install-lite.ps1 | iex"
 ```
 
-Giới hạn Lite: 5 agent, 1 team (5 thành viên), 50 phiên. Không có kênh nhắn
-tin, knowledge graph, RBAC hay đa thuê — đó là tính năng bản Standard
-(server).
-
-| Tính năng | Lite (Desktop) | Standard (Server) |
-|-----------|---------------|-------------------|
-| Agent | Tối đa 5 | Không giới hạn |
-| Cơ sở dữ liệu | SQLite (cục bộ) | PostgreSQL |
-| Bộ nhớ | Tìm kiếm văn bản FTS5 | Ngữ nghĩa pgvector |
-| Kênh nhắn tin | — | Telegram, Discord, Slack, Facebook, Zalo, Feishu/Lark, WhatsApp, Bitrix24, Pancake |
-| Tự cập nhật | GitHub Releases | Docker / binary |
+Xem [Desktop](../desktop) để biết giới hạn bản Lite, hành vi tự cập nhật và
+hướng dẫn build.
 
 ## Cập nhật
 
-```bash
-# Docker
-docker compose pull && docker compose up -d
+- **Docker:** `make up` pull image mới nhất đã publish rồi khởi động lại;
+  hoặc `docker compose pull && docker compose up -d`.
+- **Binary:** tải bản release mới từ GitHub Releases (hoặc chạy lại script
+  cài đặt) và thay thế binary. Không có lệnh tự cập nhật `goclaw update` —
+  tự cập nhật binary chỉ có trên ứng dụng desktop. Sau khi thay binary, chạy
+  `goclaw upgrade` để áp dụng migration schema/dữ liệu của database (đây là
+  lệnh migration database, không phải tự cập nhật).
+- **Desktop:** tự cập nhật ngay trong ứng dụng từ các bản `lite-v*` GitHub
+  Releases — xem [Desktop](../desktop#auto-update).
 
-# Binary (web UI nhúng kèm)
-goclaw update --apply    # Tải về, kiểm tra SHA256, đổi binary, khởi động lại
-```
+### Artifact của bản release
 
-Hoặc từ dashboard web: mở **About** → **Update Now** (chỉ admin).
+Release được build bởi GitHub Actions kích hoạt theo tag. Binary được đóng
+cho linux (amd64/arm64), macOS (amd64/arm64) và Windows (amd64), cùng các
+biến thể Docker image liệt kê ở trên.
 
-## Đi tiếp đâu
+## Bước tiếp theo
 
-- [Cấu hình (EN)](/en/getting-started/configuration) — file JSON5, env overlay, khóa bí mật
-- [Hướng dẫn tự host (EN)](/en/self-hosting) — systemd, video worker sidecar, migration, backup
-- [Kiến trúc (EN)](/en/architecture) — tổng quan nền tảng
-- [Skill & Chợ Skill](/vi/features/skills) — hệ thống skill tiếng Việt
+- [Cấu hình](./configuration) — file config JSON5, env overlay, secrets
+- [Hướng dẫn tự host](../self-hosting) — systemd, migration, backup
+- [Kiến trúc](../architecture) — nền tảng vận hành như thế nào
+- [Xử lý sự cố](../troubleshooting) — các lỗi khởi động và runtime thường gặp

@@ -1,10 +1,16 @@
 # Installation
 
 GoClaw ships as a single static Go binary (~25 MB), as Docker images, and as a
-desktop app (GoClaw Lite). Pick the flavor that fits you.
+separate desktop app. This page covers the server editions; the desktop app is
+described in [Desktop](../desktop).
 
-**Prerequisites (server editions):** PostgreSQL 18 with pgvector. The
-[desktop edition](#desktop-edition-goclaw-lite) needs nothing — it embeds SQLite.
+## Requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| Database | PostgreSQL 18 with the **pgvector** extension (base schema also uses pgcrypto) |
+| Go | 1.26+ — only needed if building from source |
+| Runtime | None. The binary is static and embeds the web dashboard |
 
 ## One-liner install
 
@@ -18,12 +24,24 @@ curl -fsSL https://github.com/qkhalk/goclaw/raw/dev/scripts/install.sh | bash
 powershell -c "irm https://github.com/qkhalk/goclaw/raw/dev/scripts/install.ps1 | iex"
 ```
 
-After installing, run the interactive setup wizard — it asks for your LLM
-provider keys, runs database migrations and seeds default data:
+## Onboarding
+
+After installing, run the onboarding wizard:
 
 ```bash
 goclaw onboard
 ```
+
+The wizard walks through seven steps:
+
+1. Ask for the PostgreSQL DSN.
+2. Test the database connection.
+3. Generate a gateway token (`GOCLAW_GATEWAY_TOKEN`) and an encryption key
+   (`GOCLAW_ENCRYPTION_KEY`).
+4. Run database migrations.
+5. Seed placeholder providers.
+6. Write `config.json` (contains no secrets).
+7. Write `.env.local` containing the generated secrets.
 
 Then start the gateway:
 
@@ -34,23 +52,28 @@ source .env.local && goclaw
 The web dashboard is built into the binary and served at
 `http://localhost:18790`.
 
-::: tip Zero-prompt onboarding
-When `GOCLAW_*_API_KEY` environment variables are set, the gateway
-auto-onboards without interactive prompts — it detects the provider, runs
-migrations and seeds defaults. Ideal for headless servers.
-:::
+## Useful CLI commands
+
+| Command | Purpose |
+|---------|---------|
+| `goclaw setup` | TUI wizard (providers, agents, channels) for post-install configuration |
+| `goclaw doctor` | Health check: system environment and configuration |
+| `goclaw migrate up` | Apply pending PostgreSQL migrations |
+| `goclaw upgrade` | Apply schema + data migrations (`--dry-run`, `--status` flags available) |
+| `goclaw version` | Print the binary version and wire protocol version |
+| `goclaw config show` | Print the effective configuration with secrets redacted |
 
 ## From source
 
 ```bash
 git clone -b dev https://github.com/qkhalk/goclaw.git && cd goclaw
 make build
-./goclaw onboard        # Interactive setup wizard
+./goclaw onboard
 source .env.local && ./goclaw
 ```
 
-Building from source requires Go 1.26+. The web UI is embedded into the
-binary — no Node.js runtime is needed at runtime.
+Building from source requires Go 1.26+. The web UI is embedded into the binary
+at build time — no Node.js runtime is needed on the server.
 
 ## Docker Compose
 
@@ -58,23 +81,20 @@ binary — no Node.js runtime is needed at runtime.
 git clone -b dev https://github.com/qkhalk/goclaw.git && cd goclaw
 
 # Generate .env with auto-generated secrets
-chmod +x prepare-env.sh && ./prepare-env.sh
+./prepare-env.sh
 
-# Add at least one GOCLAW_*_API_KEY to .env, then:
+# Start the stack (creates the network, builds, starts, runs migrations)
 make up
 
-# If Postgres fails to start ("port 5432 already allocated"), set another host
-# port in .env, e.g. POSTGRES_PORT=5433 (see .env.example).
-
-# Web dashboard: http://localhost:18790
-# Health check:  curl http://localhost:18790/health
+# Health check
+curl http://localhost:18790/health
 ```
 
 Common commands:
 
 | Command | What it does |
 |---------|--------------|
-| `make up` | Start all services (build + migrate) |
+| `make up` | Pull/start all services and run migrations |
 | `make down` | Stop all services |
 | `make logs` | Tail gateway logs |
 | `make reset` | Wipe volumes and rebuild from scratch |
@@ -97,66 +117,55 @@ make up WITH_BROWSER=1 WITH_OTEL=1
 
 ### Docker image variants
 
-| Image | Description |
-|-------|-------------|
-| `ghcr.io/qkhalk/goclaw:v4.5.0` | Backend + embedded web UI + Python (**recommended**) |
-| `ghcr.io/qkhalk/goclaw:v4.5.0-base` | Backend API only, no web UI, no runtimes |
-| `ghcr.io/qkhalk/goclaw:v4.5.0-full` | All runtimes + skill dependencies pre-installed |
-| `ghcr.io/qkhalk/goclaw:latest` | Alias for the latest stable tag |
+Images are published to GHCR (`ghcr.io/nextlevelbuilder/goclaw`) and mirrored
+on Docker Hub (`digitop/goclaw`).
 
-## Desktop Edition (GoClaw Lite)
+| Tag | Contents |
+|-----|----------|
+| `:latest`, `:vX.Y.Z` | Backend + embedded web UI + Python |
+| `:base`, `:vX.Y.Z-base` | Backend only, no web UI or runtimes |
+| `:full`, `:vX.Y.Z-full` | All runtimes + skill dependencies pre-installed |
 
-A native desktop app for local AI agents — no Docker, no PostgreSQL, no
-infrastructure. Single app (Wails v2 + React), ~30 MB, SQLite database with
-zero setup, agent management, provider config, MCP servers, skills, cron and a
-team Kanban board. Auto-updates from GitHub Releases.
+## Desktop edition (GoClaw Lite)
+
+A native desktop app for local agents — no Docker, no PostgreSQL. It embeds
+the same gateway compiled against SQLite, with the web UI built in. Installers:
 
 ```bash
 # macOS
-curl -fsSL https://raw.githubusercontent.com/qkhalk/goclaw/dev/scripts/install-lite.sh | bash
+curl -fsSL https://github.com/qkhalk/goclaw/raw/dev/scripts/install-lite.sh | bash
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/qkhalk/goclaw/dev/scripts/install-lite.ps1 | iex
+powershell -c "irm https://github.com/qkhalk/goclaw/raw/dev/scripts/install-lite.ps1 | iex"
 ```
 
-Lite limits: 5 agents, 1 team (5 members), 50 sessions. No channels,
-knowledge graph, RBAC or multi-tenancy — those are Standard (server) features.
-
-| Feature | Lite (Desktop) | Standard (Server) |
-|---------|---------------|-------------------|
-| Agents | Max 5 | Unlimited |
-| Database | SQLite (local) | PostgreSQL |
-| Memory | FTS5 text search | pgvector semantic |
-| Channels | — | Telegram, Discord, Slack, Facebook, Zalo, Feishu/Lark, WhatsApp, Bitrix24, Pancake |
-| Auto-update | GitHub Releases | Docker / binary |
+See [Desktop](../desktop) for the Lite edition limits, auto-update behavior
+and build instructions.
 
 ## Updating
 
-```bash
-# Docker
-docker compose pull && docker compose up -d
+- **Docker:** `make up` pulls the latest published image and restarts; or
+  `docker compose pull && docker compose up -d`.
+- **Binary:** download the new release from GitHub Releases (or re-run the
+  install script) and replace the binary. There is no `goclaw update`
+  self-update command — binary self-update exists only in the desktop app.
+  After replacing the binary, run `goclaw upgrade` to apply database
+  schema/data migrations (this is a database migration command, not a
+  self-update).
+- **Desktop:** auto-updates in-app from `lite-v*` GitHub Releases — see
+  [Desktop](../desktop#auto-update).
 
-# Binary (with embedded web UI)
-goclaw update --apply    # Downloads, verifies SHA256, swaps binary, restarts
-```
+### Release artifacts
 
-Or from the web dashboard: open **About** → **Update Now** (admin only).
-
-## Operator CLI
-
-The `goclaw` binary can also inspect local or remote gateways:
-
-```bash
-goclaw traces list --status error
-goclaw traces get <trace-id> -o json
-goclaw --server https://goclaw.example.com --token "$GOCLAW_GATEWAY_TOKEN" \
-  traces follow --session <session-key>
-```
+Releases are tag-triggered GitHub Actions builds. Binaries are produced for
+linux (amd64/arm64), macOS (amd64/arm64) and Windows (amd64), plus the Docker
+image variants listed above.
 
 ## Where to go next
 
-- [Configuration](/en/getting-started/configuration) — the JSON5 config file, env overlay, secrets
-- [Self-Hosting Guide](/en/self-hosting) — systemd, video worker sidecar, migrations, backups
-- [Architecture](/en/architecture) — how the platform fits together
+- [Configuration](./configuration) — the JSON5 config file, env overlay, secrets
+- [Self-Hosting Guide](../self-hosting) — systemd, migrations, backups
+- [Architecture](../architecture) — how the platform fits together
+- [Troubleshooting](../troubleshooting) — common startup and runtime problems

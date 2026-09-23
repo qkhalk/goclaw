@@ -5,9 +5,8 @@ secret** (environment). Never put API keys in the config file.
 
 ## The config file
 
-GoClaw reads a **JSON5** configuration file whose path comes from the
-`GOCLAW_CONFIG` environment variable. JSON5 means you get comments and
-trailing commas:
+GoClaw reads a **JSON5** configuration file — comments and trailing commas
+are allowed:
 
 ```json5
 {
@@ -31,49 +30,57 @@ trailing commas:
 }
 ```
 
-If `GOCLAW_CONFIG` is not set, the gateway falls back to its built-in
-defaults and interactive onboarding.
+### Config file resolution order
+
+The config path is resolved in this order (see `resolveConfigPath` in
+`cmd/root.go`):
+
+1. The `--config` command-line flag, if set.
+2. The `GOCLAW_CONFIG` environment variable, if set.
+3. `config.json` in the **current working directory**.
+4. Built-in defaults — only if no file exists at the resolved path.
+
+In practice `goclaw onboard` writes `config.json` into the directory you
+start the gateway from, so step 3 is the normal case.
 
 ## Environment variable overlay
 
-Every setting in the config file can be overridden by an environment
-variable. Two env vars are central:
+Environment variables override config file values. The core variables:
 
 | Variable | Purpose |
 |----------|---------|
 | `GOCLAW_CONFIG` | Path to the JSON5 config file |
+| `GOCLAW_POSTGRES_DSN` | PostgreSQL connection string (env-only, never stored in config) |
+| `GOCLAW_GATEWAY_TOKEN` | Bearer token for the HTTP API and operator CLI |
+| `GOCLAW_ENCRYPTION_KEY` | AES-256-GCM key encrypting provider API keys at rest |
 | `GOCLAW_PORT` | Gateway listen port (default `18790`) |
+| `GOCLAW_STORAGE_BACKEND` | `postgres` (default) or `sqlite` — env-only |
 
-Config sub-sections map to prefixed env vars, e.g. the skills seed mode from
-the fragment above can be set without touching the file:
+Config sub-sections map to prefixed env vars. Provider keys are the most
+common example; a few other verified mappings:
 
 ```bash
-export GOCLAW_SKILLS_SEED_MODE=core
+export GOCLAW_ANTHROPIC_API_KEY=sk-ant-...       # providers.anthropic.api_key
+export GOCLAW_OPENROUTER_API_KEY=sk-or-...       # providers.openrouter.api_key
+export GOCLAW_MODEL=anthropic/claude-sonnet-4    # agents.defaults.model
+export GOCLAW_SKILLS_SEED_MODE=core              # skills.seed_mode
 ```
+
+`GOCLAW_MODE` is **deprecated** and ignored — setting it only produces a
+startup warning.
 
 ## Secrets
 
-API keys and tokens live in `.env.local` (or real environment variables) —
-**never in config.json**:
+Secrets live in `.env.local` (or real environment variables) — **never in
+`config.json`**:
 
 ```bash
 # .env.local — source it before starting the gateway
-export GOCLAW_ANTHROPIC_API_KEY=sk-ant-...
-export GOCLAW_OPENAI_API_KEY=sk-...
-export GOCLAW_GATEWAY_TOKEN=...        # operator CLI / remote access token
-```
-
-```bash
 source .env.local && goclaw
 ```
 
-Two layers of protection apply:
-
-- **At rest:** provider keys stored in the `llm_providers` database table are
-  encrypted with **AES-256-GCM**.
-- **At boot:** when `GOCLAW_*_API_KEY` variables are present, the gateway
-  auto-onboards — provider detection, migrations and seeding run without
-  interactive prompts.
+Provider keys stored in the `llm_providers` database table are encrypted at
+rest with **AES-256-GCM** using `GOCLAW_ENCRYPTION_KEY`.
 
 ::: warning
 `.env.local` is for your shell. If you run the gateway under systemd, note
@@ -81,46 +88,70 @@ that systemd does **not** parse shell-style `export` lines from arbitrary
 files — pass variables through `Environment=` directives or an
 `EnvironmentFile` without the `export` prefix. This is a common reason an
 env-var-driven setting silently doesn't apply. See
-[Self-Hosting](/en/self-hosting).
+[Self-Hosting](../self-hosting).
 :::
+
+## Hot reload
+
+The gateway watches the config file (fsnotify) and applies changes without a
+restart. Some settings that construct long-lived resources (for example
+channel binaries) are only picked up on restart; the config reference in
+`internal/config` calls these out where applicable.
+
+The dashboard edits the same configuration over WebSocket RPC methods:
+`config.get`, `config.apply`, `config.patch`, `config.schema` and
+`config.defaults`. From the CLI:
+
+```bash
+goclaw config show       # effective config, secrets redacted
+goclaw config path       # print the resolved config file path
+goclaw config validate   # validate the config file
+```
 
 ## Database
 
 - **Standard (server):** PostgreSQL 18 with the **pgvector** extension.
-  Migrations run automatically on `make up` / `goclaw onboard`, or manually
-  with `goclaw migrate up`.
+  Migrations run during `goclaw onboard` / `make up`, or manually with
+  `goclaw migrate up`.
 - **Desktop (Lite):** SQLite at `~/.goclaw/data/` — zero configuration.
-- **Desktop secrets:** the OS keyring (`go-keyring`) with a file fallback at
-  `~/.goclaw/secrets/`.
+  Secrets use the OS keyring with a file fallback at `~/.goclaw/secrets/`.
+  See [Desktop](../desktop).
 
-## Providers
+## Agents
 
-Providers are not hardcoded in the config file. They live in the
-`llm_providers` table (managed from the web dashboard or onboarding), each
-with an encrypted API key. GoClaw supports 40+ providers out of the box —
-Anthropic (native HTTP+SSE with prompt caching), OpenAI and any
-OpenAI-compatible endpoint, OpenRouter, Groq, DeepSeek, Gemini, Mistral, xAI,
-MiniMax, DashScope, Moonshot/Kimi, Vertex AI, and OAuth subscriptions
-(ChatGPT, Claude Pro/Max, GitHub Copilot). See the
-[Architecture page](/en/architecture#providers) for the adapter model.
-
-## Per-agent settings
+Agent defaults live under `agents.defaults` in the config (model,
+temperature, max tokens, provider, reasoning level), and `agents.list`
+defines predefined agents. The `GOCLAW_MODEL` env var overrides
+`agents.defaults.model`.
 
 Each agent carries its own provider/model, tools, prompt mode and reasoning
-(thinking) configuration. Notable defaults:
+configuration. Notable behaviors:
 
-- **`agents.reasoning_default`** (config, default `auto`) — applies to
-  *newly created* agents only. Agents created before this setting existed
-  keep their saved value, so upgrades never change existing behavior. With
-  `auto`, the effective thinking level is resolved from the provider's
-  capability map (e.g. Anthropic → medium, OpenAI-compat reasoning models →
-  low, unknown → off).
+- **`agents.reasoning_default`** (default `auto`) — applies to *newly
+  created* agents only. Existing agents keep their saved value, so upgrades
+  never change behavior. With `auto`, the effective thinking level is
+  resolved from the provider's capability map (e.g. Anthropic → medium,
+  OpenAI-compat reasoning models → low, unknown → off).
 - **Subagents inherit** the parent agent's effective `max_tokens`,
   `temperature` and reasoning config unless the subagent definition overrides
-  them explicitly. See [Agents & Subagents](/en/features/agents).
+  them explicitly. See [Agents & Subagents](../features/agents).
+
+## First-run flow
+
+With the config in place, open the web dashboard. On a fresh database the UI
+redirects to the `/setup` wizard, which configures, in order: a provider,
+a model, an agent, and (optionally) a channel. After that you land on the
+dashboard. Provider credentials can also be managed later from the dashboard
+or via [Channels](../channels/telegram) setup.
 
 ## Video worker
 
 The standalone ffmpeg render worker is a separate binary with its own CLI
 flags (`--addr`, `--token`, `--work-dir`, ...). It is documented in the
-[Self-Hosting Guide](/en/self-hosting#video-worker-sidecar).
+[Self-Hosting Guide](../self-hosting).
+
+## Where to go next
+
+- [Installation](./install) — onboarding wizard and deployment options
+- [Self-Hosting Guide](../self-hosting) — systemd units, env handling, backups
+- [Architecture](../architecture) — how config fits into the runtime
