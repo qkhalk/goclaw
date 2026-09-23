@@ -89,9 +89,7 @@
     "moreModels": "还有 {{count}} 个模型",
     "surfaces": {
       "telegram": "Telegram",
-      "web": "网页聊天",
-      "pptx": "PPTX",
-      "video": "视频剪辑"
+      "web": "网页聊天"
     }
   },
   "system": {

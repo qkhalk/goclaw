@@ -89,9 +89,7 @@
     "moreModels": "+{{count}} mô hình khác",
     "surfaces": {
       "telegram": "Telegram",
-      "web": "Chat web",
-      "pptx": "PPTX",
-      "video": "Sửa video"
+      "web": "Chat web"
     }
   },
   "system": {
