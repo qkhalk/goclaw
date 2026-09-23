@@ -21,7 +21,8 @@ export interface MarketSkill {
 
 /** One bundled skill kit (kit.yaml manifest) from GET /v1/skills/market.
  *  `skills` are slugs present in the catalog; `installedCount` how many are
- *  installed. */
+ *  installed. Parent kits carry their nested kits in `subKits` (one level)
+ *  with `skills` covering the subtree union. */
 export interface MarketKit {
   slug: string;
   name: string;
@@ -29,6 +30,7 @@ export interface MarketKit {
   version?: string;
   skills: string[];
   installedCount: number;
+  subKits?: MarketKit[];
 }
 
 interface MarketListResponse {

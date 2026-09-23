@@ -637,19 +637,38 @@ func (h *SkillsHandler) scanWithFallback(sk store.SkillInfo) *skills.SkillManife
 	return bundledManifest
 }
 
-// handleRescanDeps re-checks dependencies for all skills (including archived) and updates their status.
+// handleRescanDeps re-checks dependencies for all skills (including archived),
+// updates their status, and seeds bundled skills that exist on disk but have
+// no row yet (on-demand version of the startup reconciler).
 func (h *SkillsHandler) handleRescanDeps(w http.ResponseWriter, r *http.Request) {
 	if !h.requireMasterTenant(w, r) {
 		return
 	}
-	updated, results := h.rescanAndUpdate(store.WithTenantID(r.Context(), store.MasterTenantID))
-	if updated > 0 {
-		// rescanAndUpdate bumped the skills version already; emit a global
-		// invalidate so cached agent Loops pick up the new status set.
+	ctx := store.WithTenantID(r.Context(), store.MasterTenantID)
+	updated, results := h.rescanAndUpdate(ctx)
+	invalidate := updated > 0
+
+	// Pick up bundled skills missing from the store (new on disk since the
+	// last startup). Uninstalled (soft-deleted) skills stay uninstalled.
+	var added []string
+	if market := h.marketFor(r); market != nil {
+		var err error
+		added, err = market.ReconcileMissing(ctx)
+		if err != nil {
+			slog.Warn("rescan: reconcile bundled skills failed", "error", err)
+		}
+		if len(added) > 0 {
+			invalidate = true
+		}
+	}
+	if invalidate {
+		// rescanAndUpdate/ReconcileMissing bumped the skills version already;
+		// emit a global invalidate so cached agent Loops pick up the new set.
 		h.emitCacheInvalidate(bus.CacheKindSkills, "", uuid.Nil)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"updated": updated,
+		"added":   added,
 		"results": results,
 	})
 }

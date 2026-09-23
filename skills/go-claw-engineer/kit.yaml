@@ -1,8 +1,0 @@
-name: go-claw-engineer
-version: 1.0.1
-description: GoclawKit — GoClaw's built-in engineering kit (plan / fix / cook / review)
-skills:
-  - plan
-  - fix
-  - cook
-  - review
