@@ -267,7 +267,7 @@
     "downloadSuccess": "Đã bắt đầu tải xuống",
     "downloadFailed": "Tải xuống thất bại"
   },
-  "market":   {
+  "market": {
     "tabLabel": "Market",
     "title": "Kho skill",
     "subtitle": "Duyệt và cài skill từ bộ skill tích hợp sẵn",
@@ -300,6 +300,14 @@
     "updateToDate": "{{name}} đã là bản mới nhất",
     "adminRequired": "Hãy nhờ quản trị viên cài hoặc gỡ skill",
     "categories": "Danh mục",
-    "all": "Tất cả"
+    "all": "Tất cả",
+    "kitsTitle": "Bộ skill",
+    "kitSkillsCount": "{{count}} skill",
+    "kitInstalledCount": "{{count}} đã cài",
+    "kitInstallAll": "Cài cả bộ",
+    "kitInstallMissing": "Cài {{count}} còn thiếu",
+    "kitAllInstalled": "Đã cài đủ",
+    "kitSelected": "Bộ: {{name}}",
+    "kitShowAll": "Xem tất cả skill"
   }
 }

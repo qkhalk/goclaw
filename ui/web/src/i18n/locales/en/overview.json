@@ -89,9 +89,7 @@
     "moreModels": "+{{count}} more models",
     "surfaces": {
       "telegram": "Telegram",
-      "web": "Web chat",
-      "pptx": "PPTX",
-      "video": "Video editor"
+      "web": "Web chat"
     }
   },
   "system": {

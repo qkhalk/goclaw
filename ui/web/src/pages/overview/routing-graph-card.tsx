@@ -15,11 +15,10 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Clapperboard, MessagesSquare, Presentation, Send } from "lucide-react";
+import { MessagesSquare, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useHttp } from "@/hooks/use-ws";
-import { useAgents } from "@/pages/agents/hooks/use-agents";
 import type { ChannelStatusEntry } from "./types";
 
 /** Channel names in usage_snapshots — Telegram uses its config name (e.g.
@@ -27,7 +26,7 @@ import type { ChannelStatusEntry } from "./types";
 const TELEGRAM_CHANNEL_RE = /telegram/i;
 const WEB_CHANNEL = "ws";
 
-type SurfaceKey = "telegram" | "web" | "pptx" | "video";
+type SurfaceKey = "telegram" | "web";
 type SurfaceStatus = "active" | "idle" | "offline";
 
 interface SurfaceData extends Record<string, unknown> {
@@ -52,16 +51,12 @@ type TopologyFlowEdge = Edge<TopologyEdgeData, "topology">;
 const SURFACE_ICONS = {
   telegram: Send,
   web: MessagesSquare,
-  pptx: Presentation,
-  video: Clapperboard,
 } as const;
 
 /** Per-surface accent: node border + icon tile + count badge when active. */
 const SURFACE_COLOR: Record<SurfaceKey, string> = {
   telegram: "#3b82f6",
   web: "#8b5cf6",
-  pptx: "#f59e0b",
-  video: "#f43f5e",
 };
 
 const REFRESH_INTERVAL = 15_000;
@@ -335,10 +330,11 @@ function buildLayout(surfaces: SurfaceData[]): {
   return { nodes, edges };
 }
 
-/** 9router-style surface topology: Telegram / web chat / PPTX / video editor
- *  orbit the GoClaw hub on a pannable, zoomable canvas. A surface lights up
- *  (electric beam + glow) only while it has real requests in the last 5
- *  minutes — running services and idle WS connections stay gray. */
+/** 9router-style surface topology: Telegram / web chat orbit the GoClaw hub
+ *  on a pannable, zoomable canvas. A surface lights up (electric beam + glow)
+ *  only while it has real requests in the last 5 minutes — running services
+ *  and idle WS connections stay gray. Studio surfaces (PPTX, video) live in
+ *  GoTools and no longer route through this gateway. */
 export function RoutingGraphCard({
   channelEntries = [],
 }: {
@@ -346,7 +342,6 @@ export function RoutingGraphCard({
 }) {
   const { t } = useTranslation("overview");
   const http = useHttp();
-  const { agents } = useAgents();
 
   // ── Channel breakdown: real usage per surface in the active window ──
   const { data: channelBreakdown } = useQuery({
@@ -372,46 +367,7 @@ export function RoutingGraphCard({
     return { telegram, web };
   }, [channelBreakdown]);
 
-  // ── Agent breakdown: PPTX + video agent usage ──
-  const { data: agentBreakdown } = useQuery({
-    queryKey: ["usage", "breakdown", "agent", "5m", "routing-active"],
-    refetchInterval: REFRESH_INTERVAL,
-    queryFn: () => {
-      const to = new Date();
-      const from = new Date(to.getTime() - ACTIVE_WINDOW_MS);
-      return http.get<{ rows: { key: string; request_count: number }[] }>(
-        "/v1/usage/breakdown",
-        { group_by: "agent", from: from.toISOString(), to: to.toISOString() },
-      );
-    },
-  });
-
-  const agentCalls = useMemo(() => {
-    const idToKey = new Map((agents ?? []).map((a) => [a.id, a.agent_key] as const));
-    const byKey = new Map<string, number>();
-    for (const row of agentBreakdown?.rows ?? []) {
-      const key = idToKey.get(row.key) ?? row.key;
-      byKey.set(key, (byKey.get(key) ?? 0) + row.request_count);
-    }
-    return byKey;
-  }, [agents, agentBreakdown]);
-
-  // ── Video jobs: live editor signal ──
-  const { data: videoJobs } = useQuery({
-    queryKey: ["video", "jobs", "routing-active"],
-    refetchInterval: REFRESH_INTERVAL,
-    queryFn: () =>
-      http.get<{ jobs: { status: string; updated_at: string }[] }>("/v1/video/jobs", { limit: "10" }),
-  });
-
   const surfaces = useMemo<SurfaceData[]>(() => {
-    const now = Date.now();
-    const videoBusy = (videoJobs?.jobs ?? []).some((j) => {
-      if (j.status === "queued" || j.status === "rendering") return true;
-      const updated = new Date(j.updated_at).getTime();
-      return Number.isFinite(updated) && now - updated < ACTIVE_WINDOW_MS;
-    });
-
     // Telegram: offline if configured but not running.
     const telegramEntry = channelEntries.find(([n]) => TELEGRAM_CHANNEL_RE.test(n));
     const telegramRunning = telegramEntry?.[1]?.running ?? false;
@@ -426,10 +382,8 @@ export function RoutingGraphCard({
     return [
       surface("telegram", channelReqs.telegram, telegramOffline),
       surface("web", channelReqs.web),
-      surface("pptx", agentCalls.get("pptx-designer") ?? 0),
-      surface("video", Math.max(videoBusy ? 1 : 0, agentCalls.get("video-designer") ?? 0)),
     ];
-  }, [t, channelEntries, channelReqs, agentCalls, videoJobs]);
+  }, [t, channelEntries, channelReqs]);
 
   const { nodes, edges } = useMemo(() => buildLayout(surfaces), [surfaces]);
 

@@ -126,7 +126,7 @@
     "rescanNoChanges": "모든 스킬 최신 상태",
     "rescanFailed": "의존성 재검사 실패"
   },
-  "market":   {
+  "market": {
     "tabLabel": "마켓",
     "title": "스킬 마켓",
     "subtitle": "번들 카탈로그에서 스킬을 탐색하고 설치하세요",
@@ -159,6 +159,14 @@
     "updateToDate": "{{name}}은(는) 이미 최신 버전입니다",
     "adminRequired": "스킬 설치·제거는 관리자에게 요청하세요",
     "categories": "카테고리",
-    "all": "전체"
+    "all": "전체",
+    "kitsTitle": "스킬 키트",
+    "kitSkillsCount": "스킬 {{count}}개",
+    "kitInstalledCount": "{{count}}개 설치됨",
+    "kitInstallAll": "모두 설치",
+    "kitInstallMissing": "누락된 스킬 {{count}}개 설치",
+    "kitAllInstalled": "모두 설치됨",
+    "kitSelected": "키트: {{name}}",
+    "kitShowAll": "전체 스킬 보기"
   }
 }

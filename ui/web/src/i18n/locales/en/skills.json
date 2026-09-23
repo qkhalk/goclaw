@@ -267,7 +267,7 @@
     "rescanNoChanges": "All skills up to date",
     "rescanFailed": "Failed to rescan dependencies"
   },
-  "market":   {
+  "market": {
     "tabLabel": "Market",
     "title": "Skill Market",
     "subtitle": "Browse and install skills from the bundled catalog",
@@ -300,6 +300,14 @@
     "updateToDate": "{{name}} is already up to date",
     "adminRequired": "Ask an admin to install or remove skills",
     "categories": "Categories",
-    "all": "All"
+    "all": "All",
+    "kitsTitle": "Skill kits",
+    "kitSkillsCount": "{{count}} skills",
+    "kitInstalledCount": "{{count}} installed",
+    "kitInstallAll": "Install all",
+    "kitInstallMissing": "Install {{count}} missing",
+    "kitAllInstalled": "All installed",
+    "kitSelected": "Kit: {{name}}",
+    "kitShowAll": "Show all skills"
   }
 }

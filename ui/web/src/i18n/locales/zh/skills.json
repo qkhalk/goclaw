@@ -267,7 +267,7 @@
     "downloadSuccess": "已开始下载",
     "downloadFailed": "下载失败"
   },
-  "market":   {
+  "market": {
     "tabLabel": "市场",
     "title": "技能市场",
     "subtitle": "浏览并安装内置技能库中的技能",
@@ -300,6 +300,14 @@
     "updateToDate": "{{name}} 已是最新版本",
     "adminRequired": "请联系管理员安装或移除技能",
     "categories": "分类",
-    "all": "全部"
+    "all": "全部",
+    "kitsTitle": "技能套件",
+    "kitSkillsCount": "{{count}} 个技能",
+    "kitInstalledCount": "已安装 {{count}}",
+    "kitInstallAll": "全部安装",
+    "kitInstallMissing": "安装缺少的 {{count}} 个",
+    "kitAllInstalled": "已全部安装",
+    "kitSelected": "套件：{{name}}",
+    "kitShowAll": "查看全部技能"
   }
 }

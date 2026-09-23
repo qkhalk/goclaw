@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -47,6 +48,19 @@ type MarketEntry struct {
 	// UpdateAvailable is true when the bundled frontmatter version is
 	// strictly newer than the installed row's version.
 	UpdateAvailable bool `json:"updateAvailable,omitempty"`
+}
+
+// MarketKit is one bundled skill kit — a kit.yaml manifest inside a bundled
+// skill directory (e.g. skills/goclaw-kit/kit.yaml). Skills lists the kit's
+// slugs that are actually present in the current catalog; InstalledCount is
+// how many of those have a live skills row.
+type MarketKit struct {
+	Slug           string   `json:"slug"` // directory name in the bundled tree
+	Name           string   `json:"name"` // kit.yaml name
+	Description    string   `json:"description,omitempty"`
+	Version        string   `json:"version,omitempty"`
+	Skills         []string `json:"skills"`
+	InstalledCount int      `json:"installedCount"`
 }
 
 // MarketInstallResult reports what a market install did. Installing is a
@@ -475,6 +489,73 @@ func (m *Market) Update(ctx context.Context, slug string) error {
 	default:
 		return fmt.Errorf("market update: %q: seed failed (see logs)", slug)
 	}
+}
+
+// BuildKitList discovers kit manifests (each <bundledDir>/<dir>/kit.yaml) and
+// projects them against the catalog + installed index. Kit skills missing from
+// the catalog (no SKILL.md / unparseable frontmatter) are dropped; kits left
+// with no catalog skills are skipped. Results are sorted by kit name.
+func BuildKitList(bundledDir string, catalog map[string]MarketEntry, installed map[string]store.SkillInfo) ([]MarketKit, error) {
+	entries, err := os.ReadDir(bundledDir)
+	if err != nil {
+		return nil, fmt.Errorf("market: read bundled dir: %w", err)
+	}
+	var kits []MarketKit
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), "_") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(bundledDir, e.Name(), "kit.yaml"))
+		if err != nil {
+			continue // not a kit directory
+		}
+		var manifest KitManifest
+		if err := yaml.Unmarshal(raw, &manifest); err != nil || strings.TrimSpace(manifest.Name) == "" {
+			slog.Debug("market: skip invalid kit manifest", "dir", e.Name())
+			continue
+		}
+		kit := MarketKit{
+			Slug:        e.Name(),
+			Name:        manifest.Name,
+			Description: manifest.Description,
+			Version:     manifest.Version,
+			Skills:      []string{},
+		}
+		for _, slug := range manifest.Skills {
+			if _, ok := catalog[slug]; !ok {
+				continue
+			}
+			kit.Skills = append(kit.Skills, slug)
+			if _, ok := installed[slug]; ok {
+				kit.InstalledCount++
+			}
+		}
+		if len(kit.Skills) == 0 {
+			continue
+		}
+		kits = append(kits, kit)
+	}
+	sort.Slice(kits, func(i, j int) bool { return kits[i].Name < kits[j].Name })
+	return kits, nil
+}
+
+// Kits returns the bundled kit manifests with catalog-filtered skill lists and
+// installed counts. One catalog build serves both the rows and the kits.
+func (m *Market) Kits(ctx context.Context) ([]MarketKit, []MarketEntry, error) {
+	installed := m.installedIndex(ctx)
+	rows, err := BuildMarketCatalog(m.bundledDir, installed)
+	if err != nil {
+		return nil, nil, err
+	}
+	catalog := make(map[string]MarketEntry, len(rows))
+	for _, row := range rows {
+		catalog[row.Slug] = row
+	}
+	kits, err := BuildKitList(m.bundledDir, catalog, installed)
+	if err != nil {
+		return nil, nil, err
+	}
+	return kits, rows, nil
 }
 
 // uniqueSlugs deduplicates and preserves first-seen order.
