@@ -1210,7 +1210,7 @@
       "description": "Description",
       "descriptionPlaceholder": "What is this subagent for?",
       "allowedTools": "Allowed tools",
-      "allowedToolsHint": "Restrict which tools this subagent may use. Leave empty to allow all tools.",
+      "allowedToolsHint": "Control which tools this subagent can use.",
       "noToolsLoaded": "Tool list unavailable — tools remain unrestricted unless added above.",
       "systemPrompt": "System prompt",
       "systemPromptPlaceholder": "Instructions for the subagent. Replaces the default subagent prompt.",
@@ -1219,7 +1219,9 @@
       "cancel": "Cancel",
       "save": "Save",
       "saving": "Saving...",
-      "nameLocked": "The name is fixed after creation (delete and re-create to rename)."
+      "nameLocked": "The name is fixed after creation (delete and re-create to rename).",
+      "toolsModeAll": "Default — all permissions",
+      "toolsModeCustom": "Custom allowed tools"
     },
     "toast": {
       "created": "Subagent definition created",

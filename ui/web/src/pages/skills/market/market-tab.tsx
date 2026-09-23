@@ -33,10 +33,15 @@ export function MarketTab() {
     [skills],
   );
 
-  const activeKit = useMemo(
-    () => kits.find((k) => k.slug === activeKitSlug) ?? null,
-    [kits, activeKitSlug],
-  );
+  const activeKit = useMemo(() => {
+    for (const kit of kits) {
+      if (kit.slug === activeKitSlug) return kit;
+      for (const sub of kit.subKits ?? []) {
+        if (sub.slug === activeKitSlug) return sub;
+      }
+    }
+    return null;
+  }, [kits, activeKitSlug]);
   const activeKitSlugs = useMemo(() => new Set(activeKit?.skills ?? []), [activeKit]);
 
   const filtered = useMemo(() => {
@@ -186,6 +191,23 @@ export function MarketTab() {
           >
             <X className="h-3.5 w-3.5" /> {t("market.kitShowAll")}
           </button>
+        </div>
+      )}
+
+      {activeKit?.subKits && activeKit.subKits.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {activeKit.subKits.map((sub) => (
+            <MarketKitCard
+              key={sub.slug}
+              kit={sub}
+              busy={kitBusy === sub.slug}
+              disabled={kitBusy !== null}
+              selected={activeKitSlug === sub.slug}
+              canManage={canManage}
+              onSelect={(slug) => setActiveKitSlug((cur) => (cur === slug ? activeKit.slug : slug))}
+              onInstallMissing={(kit) => void installKitMissing(kit)}
+            />
+          ))}
         </div>
       )}
 

@@ -1195,7 +1195,7 @@
       "description": "Mô tả",
       "descriptionPlaceholder": "Subagent này dùng để làm gì?",
       "allowedTools": "Tool được phép",
-      "allowedToolsHint": "Giới hạn tool mà subagent được dùng. Để trống để cho phép tất cả.",
+      "allowedToolsHint": "Chọn tool mà subagent này được dùng.",
       "noToolsLoaded": "Không tải được danh sách tool — tool vẫn không bị giới hạn trừ khi thêm ở trên.",
       "systemPrompt": "System prompt",
       "systemPromptPlaceholder": "Hướng dẫn cho subagent. Thay thế prompt subagent mặc định.",
@@ -1204,7 +1204,9 @@
       "cancel": "Hủy",
       "save": "Lưu",
       "saving": "Đang lưu...",
-      "nameLocked": "Tên cố định sau khi tạo (xóa rồi tạo lại để đổi tên)."
+      "nameLocked": "Tên cố định sau khi tạo (xóa rồi tạo lại để đổi tên).",
+      "toolsModeAll": "Mặc định — toàn quyền",
+      "toolsModeCustom": "Tuỳ chọn tool được phép"
     },
     "toast": {
       "created": "Đã tạo định nghĩa subagent",

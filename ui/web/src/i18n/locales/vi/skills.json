@@ -215,7 +215,8 @@
     "deleteFailed": "Không thể xóa skill",
     "rescanUpdated": "Đã cập nhật {{count}} skill",
     "rescanNoChanges": "Tất cả skill đã cập nhật",
-    "rescanFailed": "Không thể quét lại dependencies"
+    "rescanFailed": "Không thể quét lại dependencies",
+    "rescanAdded": "Đã thêm {{count}} skill mới từ bộ skill đang có"
   },
   "owner": "Chủ sở hữu",
   "unknownOwner": "Không rõ",

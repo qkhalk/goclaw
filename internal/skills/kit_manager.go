@@ -27,7 +27,11 @@ type KitManifest struct {
 	Version     string   `yaml:"version"`
 	Description string   `yaml:"description"`
 	Skills      []string `yaml:"skills"`
-	Checksum    string   `yaml:"checksum,omitempty"`
+	// Kits lists sub-kit directory slugs nested under this kit (one level;
+	// a sub-kit's own Kits field is ignored). Used by goclaw-kit to group
+	// goclaw-engineer / goclaw-marketing in the market UI.
+	Kits     []string `yaml:"kits,omitempty"`
+	Checksum string   `yaml:"checksum,omitempty"`
 }
 
 // KitInfo is a point-in-time snapshot of a kit used for inspect/report output.

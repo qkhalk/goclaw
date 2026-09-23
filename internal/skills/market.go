@@ -53,14 +53,17 @@ type MarketEntry struct {
 // MarketKit is one bundled skill kit — a kit.yaml manifest inside a bundled
 // skill directory (e.g. skills/goclaw-kit/kit.yaml). Skills lists the kit's
 // slugs that are actually present in the current catalog; InstalledCount is
-// how many of those have a live skills row.
+// how many of those have a live skills row. A parent kit (one whose manifest
+// lists other kits) carries them in SubKits — one nesting level — with its
+// own Skills/InstalledCount covering the union of the whole subtree.
 type MarketKit struct {
-	Slug           string   `json:"slug"` // directory name in the bundled tree
-	Name           string   `json:"name"` // kit.yaml name
-	Description    string   `json:"description,omitempty"`
-	Version        string   `json:"version,omitempty"`
-	Skills         []string `json:"skills"`
-	InstalledCount int      `json:"installedCount"`
+	Slug           string      `json:"slug"` // directory name in the bundled tree
+	Name           string      `json:"name"` // kit.yaml name
+	Description    string      `json:"description,omitempty"`
+	Version        string      `json:"version,omitempty"`
+	Skills         []string    `json:"skills"`
+	InstalledCount int         `json:"installedCount"`
+	SubKits        []MarketKit `json:"subKits,omitempty"`
 }
 
 // MarketInstallResult reports what a market install did. Installing is a
@@ -494,13 +497,17 @@ func (m *Market) Update(ctx context.Context, slug string) error {
 // BuildKitList discovers kit manifests (each <bundledDir>/<dir>/kit.yaml) and
 // projects them against the catalog + installed index. Kit skills missing from
 // the catalog (no SKILL.md / unparseable frontmatter) are dropped; kits left
-// with no catalog skills are skipped. Results are sorted by kit name.
+// with no catalog skills and no sub-kits are skipped. A kit whose manifest
+// lists other kits (goclaw-kit → goclaw-engineer/goclaw-marketing) nests them
+// under SubKits (one level) and its Skills/InstalledCount cover the union of
+// the subtree. Only top-level kits are returned, sorted by kit name.
 func BuildKitList(bundledDir string, catalog map[string]MarketEntry, installed map[string]store.SkillInfo) ([]MarketKit, error) {
 	entries, err := os.ReadDir(bundledDir)
 	if err != nil {
 		return nil, fmt.Errorf("market: read bundled dir: %w", err)
 	}
-	var kits []MarketKit
+	bySlug := make(map[string]MarketKit)
+	manifests := make(map[string]KitManifest)
 	for _, e := range entries {
 		if !e.IsDir() || strings.HasPrefix(e.Name(), "_") {
 			continue
@@ -530,7 +537,52 @@ func BuildKitList(bundledDir string, catalog map[string]MarketEntry, installed m
 				kit.InstalledCount++
 			}
 		}
-		if len(kit.Skills) == 0 {
+		bySlug[e.Name()] = kit
+		manifests[e.Name()] = manifest
+	}
+
+	// Nest sub-kits under parents (one level). Children referenced by any
+	// parent are removed from the top level; the parent's skills list grows
+	// to the subtree union so "install whole kit" covers everything.
+	topLevel := make(map[string]MarketKit, len(bySlug))
+	for slug, kit := range bySlug {
+		topLevel[slug] = kit
+	}
+	for slug, manifest := range manifests {
+		if len(manifest.Kits) == 0 {
+			continue
+		}
+		parent := topLevel[slug]
+		for _, childSlug := range manifest.Kits {
+			child, ok := bySlug[childSlug]
+			if !ok || childSlug == slug {
+				continue
+			}
+			parent.SubKits = append(parent.SubKits, child)
+			parent.Skills = append(parent.Skills, child.Skills...)
+			delete(topLevel, childSlug)
+		}
+		if parent.SubKits != nil {
+			sort.Slice(parent.SubKits, func(i, j int) bool { return parent.SubKits[i].Name < parent.SubKits[j].Name })
+			parent.Skills = uniqueSlugs(parent.Skills)
+			sort.Strings(parent.Skills)
+			// Distinct-slug count over the union — the same skill appearing
+			// in the parent and in two sub-kits must not count three times.
+			parent.InstalledCount = 0
+			for _, slug := range parent.Skills {
+				if _, ok := installed[slug]; ok {
+					parent.InstalledCount++
+				}
+			}
+			topLevel[slug] = parent
+		}
+	}
+
+	kits := make([]MarketKit, 0, len(topLevel))
+	for _, kit := range topLevel {
+		// A kit survives with zero catalog skills only when it still groups
+		// sub-kits; empty leaf kits are noise.
+		if len(kit.Skills) == 0 && len(kit.SubKits) == 0 {
 			continue
 		}
 		kits = append(kits, kit)
@@ -556,6 +608,51 @@ func (m *Market) Kits(ctx context.Context) ([]MarketKit, []MarketEntry, error) {
 		return nil, nil, err
 	}
 	return kits, rows, nil
+}
+
+// ReconcileMissing seeds bundled skills that have no skills row at all —
+// neither active nor soft-deleted. It is the on-demand version of the
+// startup reconciler: new skill directories that appeared on disk (upgrade,
+// manual copy into the bundled tree) become usable without a restart.
+// Skills previously uninstalled through the market keep their soft-deleted
+// row and are NOT re-added. Returns the slugs it seeded.
+func (m *Market) ReconcileMissing(ctx context.Context) ([]string, error) {
+	if m.seeder == nil || m.manage == nil {
+		return nil, errors.New("market reconcile: stores not configured")
+	}
+	rows, err := BuildMarketCatalog(m.bundledDir, nil)
+	if err != nil {
+		return nil, err
+	}
+	seedCtx := store.WithTenantID(ctx, store.MasterTenantID)
+	existing := make(map[string]bool)
+	for _, info := range m.manage.ListSkills(seedCtx) {
+		existing[info.Slug] = true
+	}
+
+	var added []string
+	for _, row := range rows {
+		if existing[row.Slug] {
+			continue
+		}
+		outcome, seedErr := m.seeder.seedOne(seedCtx, row.Slug)
+		if seedErr != nil {
+			slog.Warn("rescan: seed missing skill failed", "slug", row.Slug, "error", seedErr)
+			continue
+		}
+		switch outcome.kind {
+		case outcomeSeeded:
+			added = append(added, row.Slug)
+		case outcomeSkippedConflict:
+			slog.Debug("rescan: slug owned by a custom skill, skip", "slug", row.Slug)
+		}
+	}
+	if len(added) > 0 {
+		m.manage.BumpVersion()
+		sort.Strings(added)
+		slog.Info("rescan: seeded missing bundled skills", "count", len(added), "slugs", strings.Join(added, ","))
+	}
+	return added, nil
 }
 
 // uniqueSlugs deduplicates and preserves first-seen order.

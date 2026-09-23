@@ -215,7 +215,8 @@
     "deleteFailed": "删除技能失败",
     "rescanUpdated": "已更新 {{count}} 个技能",
     "rescanNoChanges": "所有技能已是最新",
-    "rescanFailed": "重新扫描依赖失败"
+    "rescanFailed": "重新扫描依赖失败",
+    "rescanAdded": "已添加 {{count}} 个目录中的新技能"
   },
   "owner": "所有者",
   "unknownOwner": "未知",

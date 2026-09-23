@@ -265,7 +265,8 @@
     "deleteFailed": "Failed to delete skill",
     "rescanUpdated": "{{count}} skill(s) updated",
     "rescanNoChanges": "All skills up to date",
-    "rescanFailed": "Failed to rescan dependencies"
+    "rescanFailed": "Failed to rescan dependencies",
+    "rescanAdded": "Added {{count}} new skill(s) found in the bundled catalog"
   },
   "market": {
     "tabLabel": "Market",

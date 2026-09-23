@@ -45,6 +45,8 @@ interface DraftState {
   name: string;
   model: string;
   description: string;
+  /** "all" = unrestricted; "custom" = only draft.allowedTools. */
+  toolsMode: "all" | "custom";
   allowedTools: string[];
   systemPrompt: string;
   injectAgentsMd: boolean;
@@ -56,6 +58,7 @@ function emptyDraft(): DraftState {
     name: "",
     model: "",
     description: "",
+    toolsMode: "all",
     allowedTools: [],
     systemPrompt: "",
     injectAgentsMd: false,
@@ -105,6 +108,7 @@ export function SubagentDefinitionsSection({ agentId }: { agentId: string }) {
       name: def.name,
       model: def.model ?? "",
       description: def.description ?? "",
+      toolsMode: (def.allowedTools?.length ?? 0) > 0 ? "custom" : "all",
       allowedTools: def.allowedTools ?? [],
       systemPrompt: def.systemPrompt ?? "",
       injectAgentsMd: def.injectAgentsMd ?? false,
@@ -132,7 +136,10 @@ export function SubagentDefinitionsSection({ agentId }: { agentId: string }) {
       name,
       model: draft.model.trim() || undefined,
       description: draft.description.trim() || undefined,
-      allowedTools: draft.allowedTools.length > 0 ? draft.allowedTools : undefined,
+      allowedTools:
+        draft.toolsMode === "custom" && draft.allowedTools.length > 0
+          ? draft.allowedTools
+          : undefined,
       systemPrompt: draft.systemPrompt.trim() || undefined,
       injectAgentsMd: draft.injectAgentsMd,
     };
@@ -299,42 +306,64 @@ export function SubagentDefinitionsSection({ agentId }: { agentId: string }) {
 
             <div className="space-y-2">
               <Label>{t("subagentDefs.form.allowedTools")}</Label>
-              <p className="text-xs text-muted-foreground">{t("subagentDefs.form.allowedToolsHint")}</p>
-              {draft.allowedTools.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {draft.allowedTools.map((tool) => (
-                    <button
-                      key={tool}
-                      type="button"
-                      className="inline-flex max-w-full items-center gap-1 rounded-md border bg-secondary px-2 py-0.5 text-xs hover:bg-secondary/80"
-                      onClick={() => toggleTool(tool)}
-                    >
-                      <span className="truncate">{tool}</span>
-                      <span aria-hidden>×</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="max-h-44 overflow-y-auto rounded-md border p-2">
-                {builtinTools.length === 0 ? (
-                  <p className="p-1 text-xs text-muted-foreground">{t("subagentDefs.form.noToolsLoaded")}</p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                    {builtinTools.map((tool) => (
-                      <label
-                        key={tool.name}
-                        className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent"
-                      >
-                        <Checkbox
-                          checked={draft.allowedTools.includes(tool.name)}
-                          onCheckedChange={() => toggleTool(tool.name)}
-                        />
-                        <span className="truncate">{tool.display_name || tool.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={draft.toolsMode}
+                  onValueChange={(v) =>
+                    setDraft((d) => ({ ...d, toolsMode: v === "custom" ? "custom" : "all" }))
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-[240px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("subagentDefs.form.toolsModeAll")}</SelectItem>
+                    <SelectItem value="custom">{t("subagentDefs.form.toolsModeCustom")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {t("subagentDefs.form.allowedToolsHint")}
+                </p>
               </div>
+              {draft.toolsMode === "custom" && (
+                <>
+                  {draft.allowedTools.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {draft.allowedTools.map((tool) => (
+                        <button
+                          key={tool}
+                          type="button"
+                          className="inline-flex max-w-full items-center gap-1 rounded-md border bg-secondary px-2 py-0.5 text-xs hover:bg-secondary/80"
+                          onClick={() => toggleTool(tool)}
+                        >
+                          <span className="truncate">{tool}</span>
+                          <span aria-hidden>×</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="max-h-44 overflow-y-auto rounded-md border p-2">
+                    {builtinTools.length === 0 ? (
+                      <p className="p-1 text-xs text-muted-foreground">{t("subagentDefs.form.noToolsLoaded")}</p>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                        {builtinTools.map((tool) => (
+                          <label
+                            key={tool.name}
+                            className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent"
+                          >
+                            <Checkbox
+                              checked={draft.allowedTools.includes(tool.name)}
+                              onCheckedChange={() => toggleTool(tool.name)}
+                            />
+                            <span className="truncate">{tool.display_name || tool.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="space-y-2">

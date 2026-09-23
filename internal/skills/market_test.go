@@ -579,3 +579,85 @@ func TestMarket_Kits_AnnotatedFromLiveStore(t *testing.T) {
 	}
 	_ = st
 }
+
+func TestBuildKitList_NestsSubKits(t *testing.T) {
+	bundled := writeMarketFixture(t)
+	// Parent kit referencing two sub-kits (one missing on disk) + a stray dup skill.
+	writeSeederSkillFile(t, filepath.Join(bundled, "parent", "kit.yaml"),
+		"name: parent-kit\nversion: 2.0.0\nkits:\n  - kit-a\n  - kit-b\n  - ghost-kit\nskills:\n  - beta\n")
+	writeSeederSkillFile(t, filepath.Join(bundled, "kit-a", "kit.yaml"),
+		"name: kit-a\nversion: 1.0.0\nskills:\n  - alpha\n  - beta\n")
+	writeSeederSkillFile(t, filepath.Join(bundled, "kit-b", "kit.yaml"),
+		"name: kit-b\nversion: 1.0.0\nskills:\n  - beta\n")
+
+	catalog := map[string]MarketEntry{
+		"alpha": {Slug: "alpha"},
+		"beta":  {Slug: "beta"},
+	}
+	installed := map[string]store.SkillInfo{"beta": {Slug: "beta", Status: "active"}}
+
+	kits, err := BuildKitList(bundled, catalog, installed)
+	if err != nil {
+		t.Fatalf("BuildKitList error: %v", err)
+	}
+	// Only the parent is top-level; kit-a/kit-b are claimed as sub-kits.
+	if len(kits) != 1 || kits[0].Name != "parent-kit" {
+		t.Fatalf("top-level kits = %+v, want only parent-kit", kits)
+	}
+	parent := kits[0]
+	if len(parent.SubKits) != 2 {
+		t.Fatalf("sub-kits = %+v, want 2 (ghost-kit missing on disk skipped)", parent.SubKits)
+	}
+	if parent.SubKits[0].Name != "kit-a" || parent.SubKits[1].Name != "kit-b" {
+		t.Fatalf("sub-kits not sorted by name: %+v", parent.SubKits)
+	}
+	// Union of parent's own beta + kit-a's alpha,beta + kit-b's beta → alpha,beta.
+	if len(parent.Skills) != 2 || parent.Skills[0] != "alpha" || parent.Skills[1] != "beta" {
+		t.Fatalf("parent skills = %+v, want deduped union [alpha beta]", parent.Skills)
+	}
+	if parent.InstalledCount != 1 {
+		t.Fatalf("parent installedCount = %d, want 1 (beta installed once)", parent.InstalledCount)
+	}
+	if parent.SubKits[0].InstalledCount != 1 || parent.SubKits[1].InstalledCount != 1 {
+		t.Fatalf("sub-kit installed counts = %d/%d, want 1/1 (beta installed in both)",
+			parent.SubKits[0].InstalledCount, parent.SubKits[1].InstalledCount)
+	}
+}
+
+func TestMarket_ReconcileMissing(t *testing.T) {
+	ctx := context.Background()
+	market, st, _, _ := newTestMarket(t)
+
+	// Nothing on disk is seeded yet → reconcile adds both catalog skills.
+	added, err := market.ReconcileMissing(ctx)
+	if err != nil {
+		t.Fatalf("ReconcileMissing error: %v", err)
+	}
+	if len(added) != 2 || added[0] != "alpha" || added[1] != "beta" {
+		t.Fatalf("added = %+v, want [alpha beta]", added)
+	}
+	if len(st.rows) != 2 {
+		t.Fatalf("store rows = %d, want 2", len(st.rows))
+	}
+
+	// Second run: every slug already has a row → no additions.
+	added, err = market.ReconcileMissing(ctx)
+	if err != nil {
+		t.Fatalf("second ReconcileMissing error: %v", err)
+	}
+	if len(added) != 0 {
+		t.Fatalf("second run added = %+v, want none", added)
+	}
+
+	// A soft-deleted row (market uninstall) blocks re-adding.
+	if err := market.Uninstall(ctx, "alpha"); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
+	}
+	added, err = market.ReconcileMissing(ctx)
+	if err != nil {
+		t.Fatalf("ReconcileMissing after uninstall error: %v", err)
+	}
+	if len(added) != 0 {
+		t.Fatalf("reconcile re-added uninstalled skill: %+v", added)
+	}
+}

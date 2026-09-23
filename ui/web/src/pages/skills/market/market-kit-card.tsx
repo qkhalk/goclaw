@@ -68,6 +68,18 @@ export function MarketKitCard({
       {kit.description && (
         <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{kit.description}</p>
       )}
+      {kit.subKits && kit.subKits.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {kit.subKits.map((sub) => (
+            <span
+              key={sub.slug}
+              className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+            >
+              {sub.name} · {sub.skills.length}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
           {t("market.kitSkillsCount", { count: kit.skills.length })}
