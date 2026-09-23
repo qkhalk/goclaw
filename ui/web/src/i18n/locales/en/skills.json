@@ -16,7 +16,8 @@
     "visibility": "Access mode",
     "accessMode": "Access mode",
     "status": "Status",
-    "actions": "Actions"
+    "actions": "Actions",
+    "category": "Category"
   },
   "noDescription": "No description",
   "status": {
@@ -309,6 +310,12 @@
     "kitInstallMissing": "Install {{count}} missing",
     "kitAllInstalled": "All installed",
     "kitSelected": "Kit: {{name}}",
-    "kitShowAll": "Show all skills"
+    "kitShowAll": "Show all skills",
+    "filterStatus": "Filter by state",
+    "filterInstalled": "Installed",
+    "filterNotInstalled": "Not installed",
+    "allCategories": "All categories",
+    "results": "{{count}} / {{total}} skills",
+    "notInstalled": "Not installed"
   }
 }

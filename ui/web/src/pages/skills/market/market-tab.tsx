@@ -1,20 +1,31 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Layers, Loader2, RefreshCw, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
+import { Pagination } from "@/components/shared/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuthStore } from "@/stores/use-auth-store";
+import { usePagination } from "@/hooks/use-pagination";
 import { cn } from "@/lib/utils";
 import { useSkillMarket, type MarketKit } from "../hooks/use-skill-market";
-import { MarketCard, type MarketBusyAction } from "./market-card";
 import { MarketKitCard } from "./market-kit-card";
+import { MarketRow } from "./market-row";
+
+type StatusFilter = "all" | "installed" | "notInstalled";
 
 /**
- * Market tab of /skills — browse the bundled-skill catalog grouped by kit
- * (kit.yaml bundles), client-side search + category filter, and
- * install/uninstall/update per skill or per whole kit (admin-only). All
- * endpoints are synchronous, so actions resolve in-place with toasts.
+ * Market tab of /skills — bundled-skill catalog grouped by kit, rendered as a
+ * compact paginated table (same pattern as the Core/Custom tabs). Kits are
+ * the navigation layer: pick a kit or sub-kit to narrow the table; search,
+ * category and installed-state filters combine on top.
  */
 export function MarketTab() {
   const { t } = useTranslation("skills");
@@ -24,8 +35,9 @@ export function MarketTab() {
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [activeKitSlug, setActiveKitSlug] = useState<string | null>(null);
-  const [busy, setBusy] = useState<{ slug: string; action: MarketBusyAction } | null>(null);
+  const [busy, setBusy] = useState<{ slug: string; action: "install" | "uninstall" | "update" } | null>(null);
   const [kitBusy, setKitBusy] = useState<string | null>(null);
 
   const categories = useMemo(
@@ -49,17 +61,23 @@ export function MarketTab() {
     return skills.filter((skill) => {
       if (activeKit && !activeKitSlugs.has(skill.slug)) return false;
       if (category !== "all" && skill.category !== category) return false;
+      if (status === "installed" && !skill.installed) return false;
+      if (status === "notInstalled" && skill.installed) return false;
       if (!q) return true;
       return (
         skill.name.toLowerCase().includes(q) ||
         skill.slug.toLowerCase().includes(q) ||
-        (skill.description ?? "").toLowerCase().includes(q) ||
-        skill.category.toLowerCase().includes(q)
+        (skill.description ?? "").toLowerCase().includes(q)
       );
     });
-  }, [skills, query, category, activeKit, activeKitSlugs]);
+  }, [skills, query, category, status, activeKit, activeKitSlugs]);
 
-  const run = async (slug: string, action: MarketBusyAction, op: () => Promise<unknown>) => {
+  const { pageItems, pagination, setPage, setPageSize, resetPage } = usePagination(filtered);
+  useEffect(() => {
+    resetPage();
+  }, [query, category, status, activeKitSlug, resetPage]);
+
+  const run = async (slug: string, action: "install" | "uninstall" | "update", op: () => Promise<unknown>) => {
     if (!slug || busy) return;
     setBusy({ slug, action });
     try {
@@ -114,18 +132,19 @@ export function MarketTab() {
     return <EmptyState icon={Zap} title={t("market.emptyTitle")} description={t("market.emptyDescription")} />;
   }
 
+  const parentKit = kits.find((k) => k.slug === activeKitSlug) ?? null;
+
   return (
     <div className="space-y-4">
       {kits.length > 0 && (
         <section aria-label={t("market.kitsTitle")}>
-          <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
-            <Layers className="h-4 w-4" /> {t("market.kitsTitle")}
-          </h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {kits.map((kit) => (
               <MarketKitCard
                 key={kit.slug}
                 kit={kit}
+                featured={kit.subKits != null && kit.subKits.length > 0}
+                className="md:col-span-2"
                 busy={kitBusy === kit.slug}
                 disabled={kitBusy !== null}
                 selected={activeKitSlug === kit.slug}
@@ -135,97 +154,124 @@ export function MarketTab() {
               />
             ))}
           </div>
+          {parentKit?.subKits && parentKit.subKits.length > 0 && (
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+              {parentKit.subKits.map((sub) => (
+                <MarketKitCard
+                  key={sub.slug}
+                  kit={sub}
+                  busy={kitBusy === sub.slug}
+                  disabled={kitBusy !== null}
+                  selected={activeKitSlug === sub.slug}
+                  canManage={canManage}
+                  onSelect={(slug) => setActiveKitSlug((cur) => (cur === slug ? parentKit.slug : slug))}
+                  onInstallMissing={(kit) => void installKitMissing(kit)}
+                />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
-      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <SearchInput
           value={query}
           onChange={setQuery}
           placeholder={t("market.searchPlaceholder")}
-          className="w-full md:max-w-sm"
+          className="w-full lg:max-w-xs"
         />
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("market.categories")}>
-          <button
-            type="button"
-            className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors min-h-9",
-              category === "all"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => setCategory("all")}
-          >
-            {t("market.all")}
-          </button>
-          {categories.map((cat) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label={t("market.filterStatus")} className="flex rounded-md border p-0.5">
+            {(
+              [
+                ["all", t("market.all")],
+                ["installed", t("market.filterInstalled")],
+                ["notInstalled", t("market.filterNotInstalled")],
+              ] as [StatusFilter, string][]
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={cn(
+                  "rounded px-2.5 py-1.5 text-xs font-medium transition-colors min-h-9",
+                  status === value
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setStatus(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="h-9 w-full min-h-9 sm:w-[190px]" aria-label={t("market.categories")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              <SelectItem value="all">{t("market.allCategories")}</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 lg:ml-auto">
+          {activeKit && (
             <button
-              key={cat}
               type="button"
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium transition-colors min-h-9",
-                category === cat
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setCategory(cat)}
+              className="flex items-center gap-1.5 rounded-full bg-primary/10 py-1 pl-3 pr-2 text-xs font-medium text-primary min-h-9 hover:bg-primary/15"
+              onClick={() => setActiveKitSlug(null)}
             >
-              {cat}
+              <Layers className="h-3.5 w-3.5" />
+              {activeKit.name}
+              <X className="h-3.5 w-3.5" />
             </button>
-          ))}
-        </div>
-        {!canManage && (
-          <p className="text-xs text-muted-foreground md:ml-auto">{t("market.adminRequired")}</p>
-        )}
-      </div>
-
-      {activeKit && (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="rounded-full bg-primary/10 px-3 py-1 font-medium text-primary">
-            {t("market.kitSelected", { name: activeKit.name })}
+          )}
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
+            {t("market.results", { count: filtered.length, total: skills.length })}
           </span>
-          <button
-            type="button"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground min-h-9"
-            onClick={() => setActiveKitSlug(null)}
-          >
-            <X className="h-3.5 w-3.5" /> {t("market.kitShowAll")}
-          </button>
+          {!canManage && <p className="text-xs text-muted-foreground">{t("market.adminRequired")}</p>}
         </div>
-      )}
-
-      {activeKit?.subKits && activeKit.subKits.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {activeKit.subKits.map((sub) => (
-            <MarketKitCard
-              key={sub.slug}
-              kit={sub}
-              busy={kitBusy === sub.slug}
-              disabled={kitBusy !== null}
-              selected={activeKitSlug === sub.slug}
-              canManage={canManage}
-              onSelect={(slug) => setActiveKitSlug((cur) => (cur === slug ? activeKit.slug : slug))}
-              onInstallMissing={(kit) => void installKitMissing(kit)}
-            />
-          ))}
-        </div>
-      )}
+      </div>
 
       {filtered.length === 0 ? (
         <EmptyState icon={Zap} title={t("market.noMatchTitle")} description={t("market.noMatchDescription")} />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((skill) => (
-            <MarketCard
-              key={skill.slug}
-              skill={skill}
-              canManage={canManage}
-              busyAction={busy?.slug === skill.slug ? busy.action : null}
-              onInstall={(slug) => void run(slug, "install", () => install([slug]))}
-              onUninstall={(slug) => void run(slug, "uninstall", () => uninstall(slug))}
-              onUpdate={(slug) => void run(slug, "update", () => update(slug))}
-            />
-          ))}
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-4 py-3 text-left font-medium">{t("columns.name")}</th>
+                <th className="w-36 px-4 py-3 text-left font-medium">{t("columns.category")}</th>
+                <th className="w-32 px-4 py-3 text-left font-medium">{t("columns.status")}</th>
+                <th className="w-44 px-4 py-3 text-right font-medium">{t("columns.actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map((skill) => (
+                <MarketRow
+                  key={skill.slug}
+                  skill={skill}
+                  canManage={canManage}
+                  busyAction={busy?.slug === skill.slug ? busy.action : null}
+                  onInstall={(slug) => void run(slug, "install", () => install([slug]))}
+                  onUninstall={(slug) => void run(slug, "uninstall", () => uninstall(slug))}
+                  onUpdate={(slug) => void run(slug, "update", () => update(slug))}
+                />
+              ))}
+            </tbody>
+          </table>
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
     </div>

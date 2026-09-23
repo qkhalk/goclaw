@@ -16,7 +16,8 @@
     "accessMode": "Chế độ truy cập",
     "status": "Trạng thái",
     "actions": "Thao tác",
-    "owner": "Chủ sở hữu"
+    "owner": "Chủ sở hữu",
+    "category": "Danh mục"
   },
   "noDescription": "Không có mô tả",
   "status": {
@@ -309,6 +310,12 @@
     "kitInstallMissing": "Cài {{count}} còn thiếu",
     "kitAllInstalled": "Đã cài đủ",
     "kitSelected": "Bộ: {{name}}",
-    "kitShowAll": "Xem tất cả skill"
+    "kitShowAll": "Xem tất cả skill",
+    "filterStatus": "Lọc theo trạng thái",
+    "filterInstalled": "Đã cài",
+    "filterNotInstalled": "Chưa cài",
+    "allCategories": "Tất cả danh mục",
+    "results": "{{count}} / {{total}} skill",
+    "notInstalled": "Chưa cài"
   }
 }

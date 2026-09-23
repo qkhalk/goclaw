@@ -1,11 +1,14 @@
 import { useTranslation } from "react-i18next";
-import { Download, Layers, Loader2 } from "lucide-react";
+import { ChevronRight, Download, Layers, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { MarketKit } from "../hooks/use-skill-market";
 
 interface MarketKitCardProps {
   kit: MarketKit;
+  /** Parent kit with sub-kits — rendered as the wide featured card. */
+  featured?: boolean;
+  className?: string;
   /** True when a kit install is in flight for this kit. */
   busy: boolean;
   /** Any other action in flight — disables this card's buttons. */
@@ -16,10 +19,31 @@ interface MarketKitCardProps {
   onInstallMissing: (kit: MarketKit) => void;
 }
 
-/** One bundled skill kit card. Clicking the card drills the grid down to the
- *  kit's skills; the button installs every not-yet-installed kit skill. */
+function ProgressBar({ value, total }: { value: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
+  return (
+    <div
+      className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={total}
+    >
+      <div
+        className="h-full rounded-full bg-primary transition-[width] duration-300"
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+/** A bundled skill kit card. Kits are the market's navigation layer: click to
+ *  narrow the table below to the kit's skills; the button installs every
+ *  not-yet-installed kit skill. Featured (parent) kits show their sub-kits. */
 export function MarketKitCard({
   kit,
+  featured = false,
+  className,
   busy,
   disabled,
   selected,
@@ -29,9 +53,10 @@ export function MarketKitCard({
 }: MarketKitCardProps) {
   const { t } = useTranslation("skills");
   const missing = kit.skills.length - kit.installedCount;
-  const installLabel = missing === kit.skills.length
-    ? t("market.kitInstallAll")
-    : t("market.kitInstallMissing", { count: missing });
+  const installLabel =
+    missing === kit.skills.length
+      ? t("market.kitInstallAll")
+      : t("market.kitInstallMissing", { count: missing });
 
   return (
     <div
@@ -46,31 +71,34 @@ export function MarketKitCard({
         }
       }}
       className={cn(
-        "flex cursor-pointer flex-col rounded-lg border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-accent/40",
+        "group cursor-pointer rounded-lg border bg-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        featured ? "p-4" : "flex items-center gap-3 p-3.5",
+        selected
+          ? "border-primary ring-1 ring-primary"
+          : "border-border hover:border-primary/40 hover:bg-accent/30",
+        className,
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
-            <Layers className="h-[18px] w-[18px] text-primary" />
-          </span>
-          <h3 className="truncate text-sm font-semibold" title={kit.name}>
+      <span
+        className={cn(
+          "flex shrink-0 items-center justify-center rounded-md",
+          featured ? "h-10 w-10 bg-primary/10" : "h-8 w-8 bg-muted",
+        )}
+      >
+        <Layers className={cn("text-primary", featured ? "h-5 w-5" : "h-4 w-4")} />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h3 className={cn("truncate font-semibold", featured ? "text-sm" : "text-sm")} title={kit.name}>
             {kit.name}
           </h3>
-        </div>
-        {kit.version && (
-          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-            v{kit.version}
-          </span>
-        )}
-      </div>
-      {kit.description && (
-        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{kit.description}</p>
-      )}
-      {kit.subKits && kit.subKits.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {kit.subKits.map((sub) => (
+          {kit.version && (
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              v{kit.version}
+            </span>
+          )}
+          {featured && kit.subKits?.map((sub) => (
             <span
               key={sub.slug}
               className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
@@ -79,44 +107,44 @@ export function MarketKitCard({
             </span>
           ))}
         </div>
-      )}
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-          {t("market.kitSkillsCount", { count: kit.skills.length })}
-        </span>
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[11px]",
-            missing === 0
-              ? "bg-primary/15 text-primary"
-              : "bg-amber-500/15 font-medium text-amber-600 dark:text-amber-400",
-          )}
-        >
-          {missing === 0
-            ? t("market.kitAllInstalled")
-            : t("market.kitInstalledCount", { count: kit.installedCount })}
-        </span>
+        {featured && kit.description && (
+          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{kit.description}</p>
+        )}
+        <div className={cn("flex items-center gap-2", featured ? "mt-2.5" : "mt-1.5")}>
+          <ProgressBar value={kit.installedCount} total={kit.skills.length} />
+          <span className="shrink-0 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
+            {kit.installedCount}/{kit.skills.length}
+          </span>
+        </div>
       </div>
-      {canManage && missing > 0 && (
-        <div className="mt-4">
+
+      <div className="flex shrink-0 items-center gap-2">
+        {canManage && missing > 0 && (
           <Button
             size="sm"
+            variant={featured ? "default" : "outline"}
             disabled={disabled}
             onClick={(e) => {
               e.stopPropagation();
               onInstallMissing(kit);
             }}
-            className="min-h-11 w-full sm:min-h-9 sm:w-auto"
+            className="h-9 gap-1.5 px-2.5 text-xs min-h-11 sm:min-h-9"
           >
             {busy ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Download className="mr-2 h-3.5 w-3.5" />
+              <Download className="h-3.5 w-3.5" />
             )}
-            {busy ? t("market.installing") : installLabel}
+            <span className="hidden sm:inline">
+              {busy ? t("market.installing") : installLabel}
+            </span>
+            <span className="sm:hidden">{busy ? "…" : `+${missing}`}</span>
           </Button>
-        </div>
-      )}
+        )}
+        {!featured && (
+          <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        )}
+      </div>
     </div>
   );
 }
