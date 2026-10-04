@@ -271,6 +271,8 @@ export function ChatPage() {
             />
           )}
           <div
+            aria-hidden={!chatSidebarOpen}
+            inert={!chatSidebarOpen}
             className={cn(
               "fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-in-out",
               chatSidebarOpen ? "translate-x-0" : "-translate-x-full",

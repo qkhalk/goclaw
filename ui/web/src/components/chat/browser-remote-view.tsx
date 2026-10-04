@@ -109,6 +109,7 @@ export function RemoteBrowserView() {
           onKeyDown={(e) => {
             if (e.key === "Enter") open(draft);
           }}
+          aria-label={t("browserPanel.remote.urlBar")}
           placeholder={t("browserPanel.remote.placeholder")}
           spellCheck={false}
           className="min-w-0 flex-1 rounded-md border bg-muted px-2 py-1 text-base text-muted-foreground md:text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"

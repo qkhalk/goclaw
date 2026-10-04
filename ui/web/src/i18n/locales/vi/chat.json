@@ -124,6 +124,7 @@
     "remote": {
       "toggle": "Trình duyệt server (agent điều khiển)",
       "placeholder": "URL — mở bằng headless Chrome phía server",
+      "urlBar": "URL trình duyệt server",
       "empty": "Nhập URL để mở bằng trình duyệt server (Chrome thật, chạy JS — agent cùng dùng trình duyệt này).",
       "note": "Server browser — trang do gateway render, agent đọc/điều khiển được cả site chặn JS/iframe.",
       "noCapture": "Trang đã mở nhưng không chụp được ảnh — thử làm mới."

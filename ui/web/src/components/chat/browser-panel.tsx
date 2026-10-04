@@ -195,22 +195,24 @@ export function BrowserPanel({ open, onClose, state, onIframeLoad, onBack, onFor
         )}
       </div>
 
-      {/* Status bar */}
-      <div className="shrink-0 border-t px-3 py-1.5 text-xs text-muted-foreground safe-bottom">
-        {state.note
-          ? state.note
-          : state.thinStatic
-            ? t("browserPanel.thinStaticNote")
-            : state.status === "loading"
-              ? t("browserPanel.loading")
-              : state.status === "error"
-                ? t("browserPanel.errorHint")
-                : state.status === "ready"
-                  ? live
-                    ? t("browserPanel.liveNote")
-                    : t("browserPanel.staticNote")
-                  : t("browserPanel.empty")}
-      </div>
+      {/* Status bar — static/live modes only; the server-browser view has its own footer */}
+      {!remoteMode && (
+        <div className="shrink-0 border-t px-3 py-1.5 text-xs text-muted-foreground safe-bottom">
+          {state.note
+            ? state.note
+            : state.thinStatic
+              ? t("browserPanel.thinStaticNote")
+              : state.status === "loading"
+                ? t("browserPanel.loading")
+                : state.status === "error"
+                  ? t("browserPanel.errorHint")
+                  : state.status === "ready"
+                    ? live
+                      ? t("browserPanel.liveNote")
+                      : t("browserPanel.staticNote")
+                    : t("browserPanel.empty")}
+        </div>
+      )}
     </div>
   );
 }
