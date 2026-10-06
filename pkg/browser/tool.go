@@ -37,17 +37,19 @@ Actions:
 - snapshot: Get page accessibility tree with element refs (use targetId, maxChars, interactive, compact, depth)
 - screenshot: Capture page screenshot (use targetId, fullPage)
 - navigate: Navigate tab to URL (requires targetId, targetUrl)
+- viewport: Set page viewport size in CSS pixels (requires width, height; optional deviceScaleFactor) — for responsive checks; persists until changed
 - download: Download a file from a URL to the session media store (requires targetUrl; optional timeoutMs). The URL should trigger a browser download (attachment/blob), not render a regular page.
 - console: Get browser console messages (requires targetId)
 - act: Interact with elements (requires request object with kind, ref, etc.)
 
-Act kinds: click, type, press, hover, wait, evaluate
+Act kinds: click, type, press, hover, wait, evaluate, click_xy
 - click: Click element (request: {kind:"click", ref:"e1"})
 - type: Type text (request: {kind:"type", ref:"e1", text:"hello"})
 - press: Press key (request: {kind:"press", key:"Enter"})
 - hover: Hover element (request: {kind:"hover", ref:"e1"})
 - wait: Wait for condition (request: {kind:"wait", timeMs:1000} or {kind:"wait", text:"loaded"})
 - evaluate: Run JavaScript (request: {kind:"evaluate", fn:"document.title"})
+- click_xy: Click at viewport coordinates (request: {kind:"click_xy", x:100, y:200}) — escape hatch for canvas/custom-drawn widgets the snapshot cannot ref; aim from a fresh screenshot
 
 Workflow: start → open URL → snapshot (get refs) → act (use refs) → snapshot again`
 }
@@ -58,7 +60,7 @@ func (t *BrowserTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"action": map[string]any{
 				"type":        "string",
-				"enum":        []string{"status", "start", "stop", "tabs", "open", "close", "snapshot", "screenshot", "navigate", "download", "console", "act"},
+				"enum":        []string{"status", "start", "stop", "tabs", "open", "close", "snapshot", "screenshot", "navigate", "viewport", "download", "console", "act"},
 				"description": "The browser action to perform",
 			},
 			"targetUrl": map[string]any{
@@ -89,6 +91,18 @@ func (t *BrowserTool) Parameters() map[string]any {
 				"type":        "boolean",
 				"description": "Capture full page screenshot",
 			},
+			"width": map[string]any{
+				"type":        "number",
+				"description": "Viewport width in CSS pixels (viewport action)",
+			},
+			"height": map[string]any{
+				"type":        "number",
+				"description": "Viewport height in CSS pixels (viewport action)",
+			},
+			"deviceScaleFactor": map[string]any{
+				"type":        "number",
+				"description": "Device scale factor for viewport (default 1)",
+			},
 			"timeoutMs": map[string]any{
 				"type":        "number",
 				"description": "Timeout in milliseconds for actions",
@@ -103,12 +117,20 @@ func (t *BrowserTool) Parameters() map[string]any {
 				"properties": map[string]any{
 					"kind": map[string]any{
 						"type":        "string",
-						"enum":        []string{"click", "type", "press", "hover", "wait", "evaluate"},
+						"enum":        []string{"click", "type", "press", "hover", "wait", "evaluate", "click_xy"},
 						"description": "The interaction kind",
 					},
 					"ref": map[string]any{
 						"type":        "string",
 						"description": "Element ref from snapshot (e.g. e1, e2)",
+					},
+					"x": map[string]any{
+						"type":        "number",
+						"description": "Viewport X coordinate in CSS pixels (click_xy)",
+					},
+					"y": map[string]any{
+						"type":        "number",
+						"description": "Viewport Y coordinate in CSS pixels (click_xy)",
 					},
 					"text": map[string]any{
 						"type":        "string",
@@ -158,7 +180,7 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 
 	// Apply per-action timeout before startup so remote Chrome failures are bounded too.
 	switch action {
-	case "open", "navigate", "snapshot", "screenshot", "act", "tabs", "download":
+	case "open", "navigate", "snapshot", "screenshot", "act", "tabs", "download", "viewport":
 		timeout := t.manager.ActionTimeout()
 		if action == "download" {
 			// Downloads legitimately take longer than UI actions; default to
@@ -175,7 +197,7 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 
 	// Auto-start browser for actions that need it
 	switch action {
-	case "open", "snapshot", "screenshot", "navigate", "act", "tabs", "download":
+	case "open", "snapshot", "screenshot", "navigate", "act", "tabs", "download", "viewport":
 		if err := t.manager.Start(ctx); err != nil {
 			return tools.ErrorResult(fmt.Sprintf("failed to start browser: %v", err))
 		}
@@ -200,6 +222,8 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 		return t.handleScreenshot(ctx, args)
 	case "navigate":
 		return t.handleNavigate(ctx, args)
+	case "viewport":
+		return t.handleViewport(ctx, args)
 	case "download":
 		return t.handleDownload(ctx, args)
 	case "console":
@@ -329,6 +353,28 @@ func (t *BrowserTool) handleNavigate(ctx context.Context, args map[string]any) *
 	return tools.NewResult(fmt.Sprintf("Navigated to %s", url))
 }
 
+// handleViewport sets the page viewport size for responsive checks.
+func (t *BrowserTool) handleViewport(ctx context.Context, args map[string]any) *tools.Result {
+	targetID, _ := args["targetId"].(string)
+	width, wOK := args["width"].(float64)
+	height, hOK := args["height"].(float64)
+	if !wOK || !hOK || width < 1 || height < 1 || width > 10000 || height > 10000 {
+		return tools.ErrorResult("viewport requires width and height in CSS pixels (1-10000)")
+	}
+	dsf, _ := args["deviceScaleFactor"].(float64)
+
+	if err := t.manager.SetViewport(ctx, targetID, int(width), int(height), dsf); err != nil {
+		return tools.ErrorResult(fmt.Sprintf("viewport failed: %v", err))
+	}
+	return jsonResult(map[string]any{
+		"targetId":          targetID,
+		"width":             int(width),
+		"height":            int(height),
+		"deviceScaleFactor": dsf,
+		"note":              "viewport override persists for this tab until changed again",
+	})
+}
+
 func (t *BrowserTool) handleConsole(ctx context.Context, args map[string]any) *tools.Result {
 	targetID, _ := args["targetId"].(string)
 	msgs := t.manager.ConsoleMessages(ctx, targetID)
@@ -453,6 +499,17 @@ func (t *BrowserTool) handleAct(ctx context.Context, args map[string]any) *tools
 			return tools.ErrorResult(fmt.Sprintf("wait failed: %v", err))
 		}
 		return tools.NewResult("Wait condition met.")
+
+	case "click_xy":
+		x, xOK := req["x"].(float64)
+		y, yOK := req["y"].(float64)
+		if !xOK || !yOK {
+			return tools.ErrorResult("request.x and request.y are required for click_xy (viewport CSS pixels, aim from a screenshot)")
+		}
+		if err := t.manager.ClickXY(ctx, targetID, x, y, req["doubleClick"] == true); err != nil {
+			return tools.ErrorResult(fmt.Sprintf("click_xy failed: %v", err))
+		}
+		return tools.NewResult(fmt.Sprintf("Clicked at (%.0f, %.0f).", x, y))
 
 	case "evaluate":
 		fn, _ := req["fn"].(string)

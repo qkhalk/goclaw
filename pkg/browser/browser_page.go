@@ -125,6 +125,31 @@ func (m *Manager) Navigate(ctx context.Context, targetID, url string) error {
 	return nil
 }
 
+// SetViewport overrides the page's viewport size in CSS pixels. The CDP
+// emulation override persists for the page session until changed again, so
+// agents must set it back explicitly after responsive checks.
+func (m *Manager) SetViewport(ctx context.Context, targetID string, width, height int, deviceScaleFactor float64) error {
+	tenantID := tenantIDFromCtx(ctx)
+	m.mu.Lock()
+	page, err := m.getPageForTenant(targetID, tenantID)
+	m.mu.Unlock()
+	if err != nil {
+		return err
+	}
+
+	dsf := deviceScaleFactor
+	if dsf <= 0 {
+		dsf = 1
+	}
+	return page.SetViewport(&proto.EmulationSetDeviceMetricsOverride{
+		Width:             width,
+		Height:            height,
+		DeviceScaleFactor: dsf,
+		ScreenWidth:       &width,
+		ScreenHeight:      &height,
+	})
+}
+
 // Close shuts down the browser if running.
 func (m *Manager) Close() error {
 	return m.Stop(context.Background())

@@ -2,7 +2,7 @@
 name: web-browse
 description: "Use when opening, navigating, inspecting, clicking, typing, filling, screenshotting, downloading from, or verifying web pages — via the user's chat browser panel (web_browse) or the server-side headless browser (browser tool). Covers choosing the right browser surface, the open→read refs→act loop, ref freshness, snapshot-first reading, observation economy, screenshot discipline, untrusted page content, JS-only site escalation, and recovery after stale refs or a closed panel. Also use when a browser call failed and the error mentions refs, the browser panel, snapshots, or thin content."
 license: Proprietary. Part of GoClaw bundled skills.
-version: 2
+version: 3
 inputs:
   - url
   - user_task
@@ -94,6 +94,9 @@ it sees what the sanitized relay never can.
    (default 8000), `interactive`, `compact`, `depth`.
 3. Act via `{"action":"act","request":{...}}`:
    - `{"kind":"click","ref":"e1"}` (+ `doubleClick`, `button`)
+   - `{"kind":"click_xy","x":100,"y":200}` — viewport-coordinate click for canvas,
+     custom-drawn widgets and other targets the snapshot cannot ref; take a
+     screenshot first to aim, and prefer refs whenever the snapshot has them
    - `{"kind":"type","ref":"e1","text":"..."}` (+ `submit`, `slowly`)
    - `{"kind":"press","key":"Enter"}` · `{"kind":"hover","ref":"e1"}`
    - `{"kind":"wait","text":"loaded"}` — also `timeMs`, `textGone`, `url`, `fn`
@@ -102,6 +105,9 @@ it sees what the sanitized relay never can.
    load confirmation; there is no separate load-event to wait for.
 5. `{"action":"tabs"}` lists open tabs; `{"action":"navigate","targetId":...,"targetUrl":...}`
    reuses one; `{"action":"close","targetId":...}` closes it.
+6. `{"action":"viewport","width":375,"height":812}` — resize the tab for
+   responsive checks (optional `deviceScaleFactor`). The override persists
+   for this tab until changed again — set it back when you are done.
 
 ### Tab discipline
 
@@ -161,7 +167,8 @@ text means the page builds itself with JavaScript — the relay strips scripts
 before the browser ever sees the document:
 
 - Do NOT retry the same URL or hammer reload — the content will never appear
-  in the panel.
+  in the panel. The tool response itself will point you at the headless
+  browser when this happens.
 - Escalate: re-open the same URL with the headless `browser` (and say so), or
   switch to `web_search` / `web_fetch` on an API or prerendered page.
 - If even headless Chrome hits a bot-protection challenge, stop iterating

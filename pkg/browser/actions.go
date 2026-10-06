@@ -90,6 +90,27 @@ func (m *Manager) Hover(ctx context.Context, targetID, ref string) error {
 	return el.Hover()
 }
 
+// ClickXY clicks at viewport coordinates — the escape hatch for canvas,
+// custom-drawn widgets and other targets the accessibility snapshot cannot
+// ref. Coordinates are CSS pixels relative to the viewport; aim from a
+// fresh screenshot.
+func (m *Manager) ClickXY(ctx context.Context, targetID string, x, y float64, doubleClick bool) error {
+	tenantID := tenantIDFromCtx(ctx)
+	m.mu.Lock()
+	page, err := m.getPageForTenant(targetID, tenantID)
+	m.mu.Unlock()
+	if err != nil {
+		return err
+	}
+
+	count := 1
+	if doubleClick {
+		count = 2
+	}
+	page.Mouse.MoveTo(proto.Point{X: x, Y: y})
+	return page.Mouse.Click(proto.InputMouseButtonLeft, count)
+}
+
 // Wait waits for a condition on a page.
 func (m *Manager) Wait(ctx context.Context, targetID string, opts WaitOpts) error {
 	tenantID := tenantIDFromCtx(ctx)

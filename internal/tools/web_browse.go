@@ -114,7 +114,8 @@ func (t *WebBrowseTool) Description() string {
 		"tool (which runs heavy headless Chrome on the server). Falls back to a plain server-side fetch for the " +
 		"open action when no web client is connected; JS-only shells are then re-rendered through the server's " +
 		"headless browser when one is configured. Limitation: the relayed page never executes scripts, so " +
-		"JS-only sites return thin content — switch to web_search or an API in that case."
+		"JS-only sites return thin content — in that case switch to the browser tool (headless Chrome runs JS), " +
+		"web_search, or an API."
 }
 
 func (t *WebBrowseTool) Parameters() map[string]any {
@@ -443,7 +444,8 @@ func extractDocumentText(doc fetchRawResult) string {
 		text := htmlToMarkdown(doc.content)
 		if strings.TrimSpace(text) == "" {
 			return "[No content extracted. The page may require JavaScript to render or returned a " +
-				"bot-protection challenge — the relayed page never executes scripts. Try web_search or an API instead.]"
+				"bot-protection challenge — the relayed page never executes scripts. Re-open this URL with " +
+				"the browser tool (headless Chrome runs JavaScript), or try web_search or an API instead.]"
 		}
 		return text
 	default:
